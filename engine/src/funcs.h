@@ -1027,6 +1027,11 @@ class MCMillisecs : public MCConstantFunctionCtxt<double, MCDateTimeEvalMillisec
 public:
 };
 
+class MCMicrosecs : public MCConstantFunctionCtxt<double, MCDateTimeEvalMicroseconds>
+{
+public:
+};
+
 class MCMonthNames : public MCConstantFunctionCtxt<MCStringRef, MCDateTimeEvalMonthNames>
 {
 public:

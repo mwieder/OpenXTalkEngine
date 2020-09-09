@@ -1249,6 +1249,7 @@ const LT factor_table[] =
 		{"messagemessages", TT_PROPERTY, P_MESSAGE_MESSAGES},
 		{"metadata", TT_PROPERTY, P_METADATA},
         {"metal", TT_PROPERTY, P_METAL},
+        {"microseconds", TT_FUNCTION, F_MICROSECS},
         {"mid", TT_CHUNK, CT_MIDDLE},
         {"middle", TT_CHUNK, CT_MIDDLE},
         {"millisec", TT_FUNCTION, F_MILLISECS},

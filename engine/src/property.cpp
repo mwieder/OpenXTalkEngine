@@ -1323,6 +1323,18 @@ void MCProperty::eval_function_ctxt(MCExecContext& ctxt, MCExecValue& r_value)
             
             return;
 		}
+		case F_MICROSECS:
+		{
+			if (which == P_LONG)
+				MCDateTimeGetLongMicroseconds(ctxt, r_value . double_value);
+			else
+				MCDateTimeGetMicroseconds(ctxt, r_value . double_value);
+            
+			if (!ctxt . HasError())
+                r_value . type = kMCExecValueTypeDouble;
+            
+            return;
+		}
 		case F_SECONDS:
 		{
 			if (which == P_LONG)

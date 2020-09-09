@@ -30,6 +30,11 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void MCDateTimeEvalMicroseconds(MCExecContext& ctxt, real64_t& r_real)
+{
+	MCDateTimeGetMicroseconds(ctxt, r_real);
+}
+
 void MCDateTimeEvalMilliseconds(MCExecContext& ctxt, real64_t& r_real)
 {
 	MCDateTimeGetMilliseconds(ctxt, r_real);
@@ -138,9 +143,19 @@ void MCDateTimeGetMilliseconds(MCExecContext &ctxt, double& r_value)
 	r_value = floor(MCS_time() * 1000.0);
 }
 
+void MCDateTimeGetMicroseconds(MCExecContext &ctxt, double& r_value)
+{
+	r_value = floor(MCS_time());
+}
+
 void MCDateTimeGetLongMilliseconds(MCExecContext &ctxt, double& r_value)
 {
 	r_value = MCS_time() * 1000.0;
+}
+
+void MCDateTimeGetLongMicroseconds(MCExecContext &ctxt, double& r_value)
+{
+	r_value = MCS_time();
 }
 
 void MCDateTimeGetSeconds(MCExecContext &ctxt, double& r_value)

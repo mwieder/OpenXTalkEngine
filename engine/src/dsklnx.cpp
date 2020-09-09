@@ -757,6 +757,16 @@ public:
         return curtime;
     }
 
+    virtual real64_t GetCurrentMicroseconds(void)
+    {
+        struct timezone tz;
+        struct timeval tv;
+
+        gettimeofday(&tv, &tz);
+        curtime = (tv.tv_sec * 1000000.0) + (real8)tv.tv_usec;
+        return curtime;
+    }
+
     virtual bool GetVersion(MCStringRef& r_string)
     {
         struct utsname u;

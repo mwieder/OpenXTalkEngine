@@ -3415,6 +3415,7 @@ void MCNetworkMarkUrl(MCExecContext& ctxt, MCStringRef p_url, MCMarkedText& r_ma
 ///////////
 
 void MCDateTimeEvalMilliseconds(MCExecContext& ctxt, real64_t& r_real);
+void MCDateTimeEvalMicroseconds(MCExecContext& ctxt, real64_t& r_real);
 void MCDateTimeEvalSeconds(MCExecContext& ctxt, real64_t& r_seconds);
 void MCDateTimeEvalTicks(MCExecContext& ctxt, real64_t& r_ticks);
 
@@ -3438,6 +3439,8 @@ void MCDateTimeGetDate(MCExecContext &ctxt, Properties p_type, MCStringRef& r_va
 void MCDateTimeGetTime(MCExecContext &ctxt, Properties p_type, MCStringRef& r_value);
 void MCDateTimeGetMilliseconds(MCExecContext &ctxt, double& r_value);
 void MCDateTimeGetLongMilliseconds(MCExecContext &ctxt, double& r_value);
+void MCDateTimeGetMicroseconds(MCExecContext &ctxt, double& r_value);
+void MCDateTimeGetLongMicroseconds(MCExecContext &ctxt, double& r_value);
 void MCDateTimeGetSeconds(MCExecContext &ctxt, double& r_value);
 void MCDateTimeGetLongSeconds(MCExecContext &ctxt, double& r_value);
 void MCDateTimeGetTicks(MCExecContext &ctxt, double& r_value);

@@ -439,6 +439,7 @@ enum Functions {
     F_MENU_OBJECT,
     F_MENUS,
     F_MERGE,
+    F_MICROSECS,
     F_MILLISECS,
     F_MIN,
     F_MONTH_NAMES,

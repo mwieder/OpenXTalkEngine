@@ -478,6 +478,7 @@ struct MCSystemInterface
 	virtual void Debug(MCStringRef p_string) = 0;
 
 	virtual real64_t GetCurrentTime(void) = 0;
+    virtual real64_t GetCurrentMicroseconds(void) = 0;
 
 	virtual bool GetVersion(MCStringRef& r_string) = 0;
 	virtual bool GetMachine(MCStringRef& r_string) = 0;
