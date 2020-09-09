@@ -763,7 +763,7 @@ public:
         struct timeval tv;
 
         gettimeofday(&tv, &tz);
-        curtime = (tv.tv_sec * 1000000.0) + (real8)tv.tv_usec;
+        curtime = (tv.tv_sec * 1000000.0) + tv.tv_usec;
         return curtime;
     }
 

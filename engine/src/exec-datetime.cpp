@@ -145,7 +145,7 @@ void MCDateTimeGetMilliseconds(MCExecContext &ctxt, double& r_value)
 
 void MCDateTimeGetMicroseconds(MCExecContext &ctxt, double& r_value)
 {
-	r_value = floor(MCS_time());
+	r_value = floor(MCS_time() * 1000000.0);
 }
 
 void MCDateTimeGetLongMilliseconds(MCExecContext &ctxt, double& r_value)
@@ -155,7 +155,7 @@ void MCDateTimeGetLongMilliseconds(MCExecContext &ctxt, double& r_value)
 
 void MCDateTimeGetLongMicroseconds(MCExecContext &ctxt, double& r_value)
 {
-	r_value = MCS_time();
+	r_value = MCS_time() * 1000000.0;
 }
 
 void MCDateTimeGetSeconds(MCExecContext &ctxt, double& r_value)

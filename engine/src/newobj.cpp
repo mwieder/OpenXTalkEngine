@@ -600,6 +600,8 @@ MCExpression *MCN_new_function(int2 which)
 		return new MCMerge;
     case F_MESSAGE_DIGEST:
         return new MCMessageDigestFunc;
+	case F_MICROSECS:
+		return new MCMicrosecs;
 	case F_MILLISECS:
 		return new MCMillisecs;
 	case F_MIN:

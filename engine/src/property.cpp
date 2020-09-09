@@ -641,6 +641,7 @@ Parse_stat MCProperty::parse(MCScriptPoint &sp, Boolean the)
 				break;
 			case F_TIME:
 			case F_DATE:
+			case F_MICROSECS:
 			case F_MILLISECS:
 			case F_SECONDS:
 			case F_TICKS:
