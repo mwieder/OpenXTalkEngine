@@ -1602,7 +1602,7 @@ struct MCWindowsDesktop: public MCSystemInterface, public MCWindowsSystemService
 
         QueryPerformanceFrequency(&Frequency); 
         QueryPerformanceCounter(&CurrentTime);
-        CurrentTime.QuadPart *= 1000000;
+        CurrentTime.QuadPart *= 1000000.0;
         CurrentTime.QuadPart /= CurrentTime.QuadPart;
 		return (real64_t)CurrentTime;
     }
