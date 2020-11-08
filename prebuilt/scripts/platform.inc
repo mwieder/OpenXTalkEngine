@@ -21,6 +21,9 @@ case $(uname -m) in
 	i*86)
 		HOST_ARCH=i386
 		;;
+	arm*)
+		HOST_ARCH=armv7
+		;;
 esac
 
 if [ -z "${XCODEBUILD}" ] ; then
@@ -37,7 +40,7 @@ case "${PLATFORM}" in
 		export UNIVERSAL_ARCHS="i386 x86_64"
 		;;
 	linux)
-		export ARCHS="i386 x86_64"
+		export ARCHS="i386 x86_64 armv7"
 		export CC_BASE="${CUSTOM_CC:-gcc}"
 		export CXX_BASE="${CUSTOM_CXX:-g++}"
 		;;
@@ -126,6 +129,10 @@ function setCCForTarget {
 			elif [ "$1" == "x86" ] ; then
 				CC="${CC_BASE} -m32 ${CC_FLAGS}"
 				CXX="${CXX_BASE} -m32 ${CC_FLAGS}"
+			elif [ "${ARCH}" == "armv7" ] ; then
+				CC="${CC_BASE} -m64 ${CC_FLAGS}"
+				CXX="${CXX_BASE} -m64 ${CC_FLAGS}"
+			    STRIP="${ANDROID_STRIP}"
 			fi
 			;;
 		android)

@@ -72,7 +72,11 @@ function buildICU {
 			elif [ "${ARCH}" == "armv6hf" ] ; then
 				CONFIG_TYPE+=" --host=arm-rpi-linux-gnueabihf --with-cross-build=${HOST_ICU_DIR}"
 			elif [ "${ARCH}" == "armv7" ] ; then
-				CONFIG_TYPE+=" --host=arm-rpi2-linux-gnueabihf --with-cross-build=${HOST_ICU_DIR}"
+                if [ -z "${CROSS_HOST}" ] ; then
+ 				    CONFIG_TYPE+=" --host=arm-rpi2-linux-gnueabihf"
+                else
+				    CONFIG_TYPE+=" --host=arm-rpi2-linux-gnueabihf --with-cross-build=${HOST_ICU_DIR}"
+               fi
 			else
 				CONFIG_TYPE+=" --with-library-bits=32"
 			fi

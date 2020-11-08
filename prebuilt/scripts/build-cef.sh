@@ -13,7 +13,7 @@ elif [ "${ARCH}" == "x86_64" ] ; then
    CEF_DST="cef_binary_${CEF_VERSION}+${CEF_BUILDREVISION}+chromium-${CEFChromium_VERSION}_${PLATFORM}64"
    CEF_SRC="cef_binary_${CEF_VERSION}%2B${CEF_BUILDREVISION}%2Bchromium-${CEFChromium_VERSION}_${PLATFORM}64.tar.bz2"
 elif [ "${ARCH}" == "armv7" ] ; then
-   CEF_DST="cef_binary_${CEF_VERSION}+${CEF_BUILDREVISION}+chromium-${CEFChromium_VERSION}_${PLATFORM}${ARCH}"
+   CEF_DST="cef_binary_${CEF_VERSION}+${CEF_BUILDREVISION}+chromium-${CEFChromium_VERSION}_${PLATFORM}arm64"
    CEF_SRC="cef_binary_${CEF_VERSION}%2B${CEF_BUILDREVISION}%2Bchromium-${CEFChromium_VERSION}_${PLATFORM}arm64.tar.bz2"
 else 
   echo "No binaries available for arch"
@@ -47,7 +47,9 @@ function buildCEF {
 	mkdir -p "${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF"
 	cp -av "${BUILDDIR}/${CEF_DST}/Release/"* "${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF/"
   cp -av "${BUILDDIR}/${CEF_DST}/Resources/"* "${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF/"
-  strip --strip-unneeded "${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF/libcef.so"
+  if [ "${ARCH}" != "armv7" ] ; then
+      strip --strip-unneeded "${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF/libcef.so"
+  fi
 }
 
 buildCEF "${PLATFORM}" "${ARCH}"
