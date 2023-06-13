@@ -90,7 +90,7 @@ function fetchLibrary {
 		fi
 # these three lines added per bug report #23285
     else
-        echo "Already fettched: ${NAME}"
+        echo "Already fetched: ${NAME}"
     fi
 		if [ ! -e "${FETCH_DIR}/${NAME}.tar.bz2" ]; then
 			echo "Failed to find library ${NAME} either remotely or locally"
@@ -113,9 +113,9 @@ function fetchLibrary {
 			exit 1
 		fi
 
-	else
-		echo "Already fetched: ${NAME}"
-	fi
+#	else
+#		echo "Already fetched: ${NAME}"
+#	fi
 }
 
 if [ 0 -eq "$#" ]; then
