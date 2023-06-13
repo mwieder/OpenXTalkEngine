@@ -50,8 +50,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "lnxans.h"
 
 #include "graphicscontext.h"
+#include <cups/cups.h>
 
-#define C_FNAME "/tmp/tmpprintfile.ps"
+const char * C_FNAME = "/tmp/tmpprintfile.ps";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -263,10 +264,10 @@ MCPrinterResult MCPSPrinter::DoBeginPrint(MCStringRef p_document, MCPrinterDevic
 
 MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
 {
-    char *name;
+    const char *name;
     const char    *title;
-    int num_options,/* I - Number of options */
-    cups_option_t *options)	/* I - Options */
+    int num_options;/* I - Number of options */
+    cups_option_t *options;	/* I - Options */
 
     // If we have no PDF printer, then we can't do anything.
     if (m_pdf_printer == nil)
@@ -289,7 +290,7 @@ MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
 
             
             if ( m_printersettings . copies > 1 )
-               num_options = cupsAddIntegerOption ("copies", copies, num_options, &options);
+               num_options = cupsAddIntegerOption ("copies", m_printersettings . copies, num_options, &options);
             
             if ( m_printersettings . orientation != PRINTER_ORIENTATION_PORTRAIT )
                num_options = cupsAddOption ("orientation", "landscape", num_options, &options);
@@ -312,11 +313,12 @@ MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
                         break;
             }
             
-            cupsPrintFile(name,	/* I - Printer or class name */
-                          C_FNAME,	/* I - File to print */
+            cupsPrintFiles(name,	/* I - Printer or class name */
+                          1,
+                          &C_FNAME,	/* I - File to print */
                           title,	/* I - Title of job */
                           num_options,/* I - Number of options */
-                          &options)	/* I - Options */
+                          options);	/* I - Options */
         }
     }
     

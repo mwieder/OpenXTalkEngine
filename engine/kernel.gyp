@@ -238,6 +238,7 @@
 							[
 								'-ldl',
 								'-lpthread',
+                                '-lcups',
 							],
 						},
 					],
