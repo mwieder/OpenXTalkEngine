@@ -88,7 +88,10 @@ function fetchLibrary {
 				perl -MLWP::Simple -e "getstore('${URL}/${NAME}.tar.bz2', '${FETCH_DIR}/${NAME}.tar.bz2') == 200 or exit 1"
 			fi
 		fi
-
+# these three lines added per bug report #23285
+    else
+        echo "Already fettched: ${NAME}"
+    fi
 		if [ ! -e "${FETCH_DIR}/${NAME}.tar.bz2" ]; then
 			echo "Failed to find library ${NAME} either remotely or locally"
 			exit 1
