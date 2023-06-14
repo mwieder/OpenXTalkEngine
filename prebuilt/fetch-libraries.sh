@@ -12,9 +12,9 @@ LIBS_android=( Thirdparty OpenSSL ICU )
 LIBS_mac=( Thirdparty OpenSSL ICU )
 LIBS_ios=( Thirdparty OpenSSL ICU )
 LIBS_win32=( Thirdparty OpenSSL Curl ICU CEF )
-LIBS_linux=( Thirdparty OpenSSL Curl ICU CEF )
+# LIBS_linux=( Thirdparty OpenSSL Curl ICU CEF )
 LIBS_linux=( OpenSSL Curl ICU CEF )
-#LIBS_emscripten=( Thirdparty ICU )
+LIBS_emscripten=( Thirdparty ICU )
 
 SUBPLATFORMS_ios=(iPhoneSimulator11.2 iPhoneSimulator12.1 iPhoneSimulator13.2 iPhoneSimulator14.4 iPhoneSimulator14.5 iPhoneOS11.2 iPhoneOS12.1 iPhoneOS13.2 iPhoneOS14.4 iPhoneOS14.5)
 SUBPLATFORMS_win32=(v141_static_debug v141_static_release)
@@ -89,20 +89,16 @@ function fetchLibrary {
 		
 			# Download using an HTTP client of some variety
 			if $(which curl 1>/dev/null 2>/dev/null) ; then
-#				curl -k "${URL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
-				curl -k "${LIBURL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
+				# curl -k "${LIBURL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
+				curl -k "${LIBURL}/${NAME}" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
 			elif $(which wget 1>/dev/null 2>/dev/null) ; then
-#				wget "${URL}/${NAME}.tar.bz2" -O "${FETCH_DIR}/${NAME}.tar.bz2"
 				wget "${LIBURL}/${NAME}.tar.bz2" -O "${FETCH_DIR}/${NAME}.tar.bz2"
 			else
 				# Perl as a last resort (useful for Cygwin)
 				perl -MLWP::Simple -e "getstore('${URL}/${NAME}.tar.bz2', '${FETCH_DIR}/${NAME}.tar.bz2') == 200 or exit 1"
 			fi
 		fi
-# these three lines added per bug report #23285
-    else
-        echo "Already fetched: ${NAME}"
-    fi
+
 		if [ ! -e "${FETCH_DIR}/${NAME}.tar.bz2" ]; then
 			echo "Failed to find library ${NAME} either remotely or locally"
 			exit 1
@@ -124,9 +120,9 @@ function fetchLibrary {
 			exit 1
 		fi
 
-#	else
-#		echo "Already fetched: ${NAME}"
-#	fi
+	else
+		echo "Already fetched: ${NAME}"
+	fi
 }
 
 if [ 0 -eq "$#" ]; then
@@ -182,12 +178,10 @@ for PLATFORM in ${SELECTED_PLATFORMS} ; do
 		for LIB in "${LIBS[@]}" ; do
 			if [ ! -z "${SUBPLATFORMS}" ] ; then
 				for SUBPLATFORM in "${SUBPLATFORMS[@]}" ; do
-#					fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
-					fetchLibrary "${ARCH}URL" "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
+					fetchLibrary "${ARCH}${URL}" "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
 				done
 			else
-#				fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}"
-				fetchLibrary "${ARCH}URL" "${LIB}" "${PLATFORM}" "${ARCH}"
+				fetchLibrary "${ARCH}${URL}" "${LIB}" "${PLATFORM}" "${ARCH}"
 			fi
 		done
 	done
@@ -249,9 +243,6 @@ done
 
 # Don't forget the headers & data on non-Windows platforms
 if [ 0 -eq "$FETCH_HEADERS" ]; then
-#	fetchLibrary OpenSSL All Universal Headers
-#	fetchLibrary ICU All Universal Headers
-#	fetchLibrary ICU All Universal Data
 	fetchLibrary "${URL}" OpenSSL All Universal Headers
 	fetchLibrary "${URL}" ICU All Universal Headers
 	fetchLibrary "${URL}" ICU All Universal Data

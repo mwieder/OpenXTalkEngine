@@ -245,6 +245,7 @@
 							[
 								'-ldl',
 								'-lpthread',
+								'-lcups',
 							],
 						},
 					],
@@ -253,7 +254,8 @@
 						{
 							'libraries':
 							[
-								'-lGLESv1_CM',
+#								'-lGLESv1_CM',
+								'-lGLESv3',
 								'-lEGL',
 								'-ljnigraphics',
 								'-llog',
