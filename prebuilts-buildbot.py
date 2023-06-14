@@ -37,8 +37,9 @@ import config
 #import fetch
 
 # The set of build tasks that this branch supports
-BUILDBOT_TARGETS = ('fetch', 'config', 'compile', 'bin-archive', 'bin-extract', 'prebuilts-upload')
-
+#BUILDBOT_TARGETS = ('fetch', 'config', 'compile', 'bin-archive', 'bin-extract', 'prebuilts-upload')
+BUILDBOT_TARGETS = ('config', 'compile', 'bin-archive', 'bin-extract', 'prebuilts-upload')
+ 
 SKIP_EXIT_STATUS = 88
 
 def usage(exit_status):

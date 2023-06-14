@@ -24,7 +24,14 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 FETCH_DIR="${SCRIPT_DIR}/fetched"
 EXTRACT_DIR="${SCRIPT_DIR}"
 WIN32_EXTRACT_DIR="${SCRIPT_DIR}/unpacked"
+# TODO: need to change the url for each library
 URL="https://downloads.livecode.com/prebuilts"
+URLCURL="https://github.com/curl/curl/archive/refs/heads/master.zip"
+URLOPENSSL="https://github.com/openssl/openssl/archive/refs/heads/master.zip"
+URLICU="https://github.com/unicode-org/icu/archive/refs/heads/main.zip"
+URLCEF="https://github.com/chromiumembedded/cef/archive/refs/heads/master.zip"
+# the sqlite url is unfortunately pegged to release year and version
+URLSQLITE="https://sqlite.org/2023/sqlite-amalgamation-3420000.zip"
 
 # Platform specific settings
 if [ "${OS}" = "Windows_NT" ]; then
@@ -48,10 +55,11 @@ if [ ! -z "${PREBUILT_CACHE_DIR}" ] ; then
 fi
 
 function fetchLibrary {
-	local LIB=$1
-	local PLATFORM=$2
-	local ARCH=$3
-	local SUBPLATFORM=$4
+	local LIBURL=$1
+	local LIB=$2
+	local PLATFORM=$3
+	local ARCH=$4
+	local SUBPLATFORM=$5
 
 	eval "local VERSION=\${${LIB}_VERSION}"
 	eval "local BUILDREVISION=\${${LIB}_BUILDREVISION}"
@@ -80,9 +88,11 @@ function fetchLibrary {
 		
 			# Download using an HTTP client of some variety
 			if $(which curl 1>/dev/null 2>/dev/null) ; then
-				curl -k "${URL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
+#				curl -k "${URL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
+				curl -k "${LIBURL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
 			elif $(which wget 1>/dev/null 2>/dev/null) ; then
-				wget "${URL}/${NAME}.tar.bz2" -O "${FETCH_DIR}/${NAME}.tar.bz2"
+#				wget "${URL}/${NAME}.tar.bz2" -O "${FETCH_DIR}/${NAME}.tar.bz2"
+				wget "${LIBURL}/${NAME}.tar.bz2" -O "${FETCH_DIR}/${NAME}.tar.bz2"
 			else
 				# Perl as a last resort (useful for Cygwin)
 				perl -MLWP::Simple -e "getstore('${URL}/${NAME}.tar.bz2', '${FETCH_DIR}/${NAME}.tar.bz2') == 200 or exit 1"
@@ -171,10 +181,12 @@ for PLATFORM in ${SELECTED_PLATFORMS} ; do
 		for LIB in "${LIBS[@]}" ; do
 			if [ ! -z "${SUBPLATFORMS}" ] ; then
 				for SUBPLATFORM in "${SUBPLATFORMS[@]}" ; do
-					fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
+#					fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
+					fetchLibrary "${ARCH}URL" "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
 				done
 			else
-				fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}"
+#				fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}"
+				fetchLibrary "${ARCH}URL" "${LIB}" "${PLATFORM}" "${ARCH}"
 			fi
 		done
 	done
@@ -236,7 +248,10 @@ done
 
 # Don't forget the headers & data on non-Windows platforms
 if [ 0 -eq "$FETCH_HEADERS" ]; then
-	fetchLibrary OpenSSL All Universal Headers
-	fetchLibrary ICU All Universal Headers
-	fetchLibrary ICU All Universal Data
+#	fetchLibrary OpenSSL All Universal Headers
+#	fetchLibrary ICU All Universal Headers
+#	fetchLibrary ICU All Universal Data
+	fetchLibrary "${URL}" OpenSSL All Universal Headers
+	fetchLibrary "${URL}" ICU All Universal Headers
+	fetchLibrary "${URL}" ICU All Universal Data
 fi
