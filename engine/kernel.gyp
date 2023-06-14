@@ -24,17 +24,11 @@
 				
 				'../prebuilt/libopenssl.gyp:libopenssl_headers',
 
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_pcre',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_jpeg',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_gif',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_png',
-
 				'../thirdparty/libpcre/libpcre.gyp:libpcre',
 				'../thirdparty/libjpeg/libjpeg.gyp:libjpeg',
 				'../thirdparty/libgif/libgif.gyp:libgif',
 				'../thirdparty/libpng/libpng.gyp:libpng',
 
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_z',
 				'../thirdparty/libz/libz.gyp:libz',
 
 				'engine-common.gyp:encode_version',
