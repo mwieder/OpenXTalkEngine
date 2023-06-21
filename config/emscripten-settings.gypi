@@ -47,6 +47,23 @@
 	'target_conditions':
 	[
 		[
+			'toolset_arch == "wasm"',
+			{
+				'cflags':
+				[
+					'-s ASYNCIFY=1',
+					'-s', 'ASYNCIFY_IMPORTS=["MCEmscriptenAsyncYield"]',
+				],
+			},
+			{
+				'cflags':
+				[
+					'-s EMTERPRETIFY=1',
+					'-s EMTERPRETIFY_ASYNC=1',
+				]
+			},
+		],
+		[
 			'silence_warnings == 0',
 			{
 				'cflags':
@@ -101,7 +118,7 @@
 		{
 			'cflags':
 			[
-				'-Os',
+				'-O2',
 				'-g3',
 			],
 

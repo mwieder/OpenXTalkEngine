@@ -44,6 +44,7 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'x86-win32', # TODO[2017-03-23] More specific ABI
     'x86_64-win32',
     'js-emscripten-sdk1.35',
+    'emscripten', 'emscripten-js', 'emscripten-wasm',
 )
 
 KNOWN_PLATFORMS = (
@@ -291,10 +292,13 @@ def validate_target_arch(opts):
         validate_platform(opts)
 
         platform = opts['PLATFORM']
-        if platform == 'emscripten':
+        if platform in ['emscripten', 'emscripten-js']:
             opts['TARGET_ARCH'] = 'js'
             opts['UNIFORM_ARCH'] = opts['TARGET_ARCH']
             return
+        if platform == 'emscripten-wasm':
+            opts['TARGET_ARCH'] = 'wasm'
+            open['UNIFORM_ARCH'] = opts['TARGET_ARCH']
 
         platform_arch = re.search('-(x86|x86_64|arm(64|v(6(hf)?|7)))$', platform)
         if platform_arch is not None:

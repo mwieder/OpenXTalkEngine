@@ -477,7 +477,7 @@
 
 					'outputs':
 					[
-						'lib/emscripten/js',
+						'lib/emscripten/>(target_arch)',
 					],
 
 					'action':
