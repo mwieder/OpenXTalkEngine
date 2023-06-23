@@ -238,7 +238,6 @@
 						},
 					],
 					[
-						'OS == "emscripten"',
 						'toolset_os == "emscripten"',
 						{
 							'library_dirs':

@@ -41,7 +41,7 @@ int MCEmscriptenAsyncYield(real64_t p_timeout_s = -1);
 /* Synchronously run callbacks registered by async JS to be run
  * once the engine resumes
  *
- * Defined in em-async.js
+ * Defined in em-asyncify.js
  */
 void MCEmscriptenAsyncRunHooks();
 

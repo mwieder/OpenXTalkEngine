@@ -484,6 +484,7 @@
 					[
 						'./fetch-libraries.sh',
 						'emscripten',
+						'>(target_arch)',
 					],
 				},
 			],

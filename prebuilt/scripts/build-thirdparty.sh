@@ -68,7 +68,7 @@ elif [ "$PLATFORM" == "linux" ] ; then
 	make -C "../build-${PLATFORM}-${ARCH}/livecode" thirdparty-prebuilts
 elif [ "$PLATFORM" == "emscripten" ] ; then
 	export BUILDTYPE=Release
-	${EMMAKE} make -j16 -C "../build-${PLATFORM}-$ARCH/livecode" thirdparty-prebuilts
+	${EMMAKE} make -j16 -C "../build-${PLATFORM}-${ARCH}/livecode" thirdparty-prebuilts
 elif [ "$PLATFORM" == "android" ] ; then
 	export BUILDTYPE=Release
 	make -j16 -C "../build-${PLATFORM}-${ARCH}/livecode" thirdparty-prebuilts
