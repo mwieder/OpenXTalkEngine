@@ -44,8 +44,7 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'x86-win32', # TODO[2017-03-23] More specific ABI
     'x86_64-win32',
     'js-emscripten-sdk1.35',
-    'emscripten', 'emscripten-js', 'emscripten-wasm',
-)
+    'wasm-emscripten-sdk1.39',)
 
 KNOWN_PLATFORMS = (
     'linux-x86', 'linux-x86_64', 'linux-armv6hf', 'linux-armv7',
@@ -53,6 +52,7 @@ KNOWN_PLATFORMS = (
     'mac', 'ios', 
     'win-x86', 'win-x86_64', 
     'emscripten'
+    'emscripten', 'emscripten-js', 'emscripten-wasm',
 )
 
 def usage(exit_status):
