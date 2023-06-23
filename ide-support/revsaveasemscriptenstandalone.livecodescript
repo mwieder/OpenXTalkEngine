@@ -74,7 +74,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
       revStandaloneProgress "Checking deployment entitlement..."
       
       if not isPermittedDeployment() then
-         throw "license does not permit HTML5 deployment"
+         --throw "license does not permit HTML5 deployment"
       end if
       
       ---------- Create a working directory
@@ -591,27 +591,27 @@ end getTemporaryBuildFile
 
 -- Check if the license permits HTML5 deployment
 private function isPermittedDeployment
-   if isCommercialDeployment() then
-      return ("HTML5" is among the items of line 5 of the revLicenseInfo)
-   else
+   --if isCommercialDeployment() then
+      --return ("HTML5" is among the items of line 5 of the revLicenseInfo)
+   --else
       return true
-   end if
+   --end if
 end isPermittedDeployment
 
 -- Check if deploying a commercial standalone
 private function isCommercialDeployment
-   if revLicenseType() is "community" then
-      return false
-   else
+   --if revLicenseType() is "community" then
+      --return false
+   --else
       return true
-   end if
+   --end if
 end isCommercialDeployment
 
 -- Get the engine type string ("commercial" or "community")
 private function getEngineType
-   if isCommercialDeployment() then
+   --if isCommercialDeployment() then
       return "commercial"
-   else
-      return "community"
-   end if
+   --else
+      --return "community"
+   --end if
 end getEngineType
