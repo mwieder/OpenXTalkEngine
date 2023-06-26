@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,14 +16,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "stack.h"
 #include "tooltip.h"
 #include "dispatch.h"
@@ -31,7 +30,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "vclip.h"
 #include "card.h"
 #include "objptr.h"
-#include "control.h"
+#include "mccontrol.h"
 #include "image.h"
 #include "player.h"
 #include "field.h"
@@ -57,6 +56,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "graphicscontext.h"
 #include "resolution.h"
 
+#include "stacktile.h"
+
 void MCStack::external_idle()
 {
 	if (idlefunc != NULL)
@@ -70,23 +71,24 @@ void MCStack::setidlefunc(void (*newfunc)())
 	MCscreen->addtimer(this, MCM_idle, MCidleRate);
 }
 
-Boolean MCStack::setscript(char *newscript)
+// MW-2014-10-24: [[ Bug 13796 ]] Separate script setting from commandline from other cases.
+Boolean MCStack::setscript_from_commandline(MCStringRef newscript)
 {
-	delete script;
-	script = newscript;
-	flags |= F_SCRIPT;
+	MCValueAssign(_script, newscript);
 	parsescript(False);
+    MCAutoPointer<char> t_mccmd;
+    /* UNCHECKED */ MCStringConvertToCString(MCcmd, &t_mccmd);
 	if (hlist == NULL)
 	{
 		uint2 line, pos;
 		MCperror->geterrorloc(line, pos);
 		fprintf(stderr, "%s: Script parsing error at line %d, column %d\n",
-		        MCcmd, line, pos);
+		        *t_mccmd, line, pos);
 		return False;
 	}
 	if (!hlist->hashandlers())
 	{
-		fprintf(stderr, "%s: Script has no handlers\n", MCcmd);
+		fprintf(stderr, "%s: Script has no handlers\n", *t_mccmd);
 		return False;
 	}
 	return True;
@@ -110,13 +112,13 @@ void MCStack::checkdestroy()
 					}
 					while (sptr != substacks);
 				}
-				MCtodestroy->remove(this); // prevent duplicates
-				MCtodestroy->add(this);
+                MCtodestroy -> remove(this); // prevent duplicates
+                MCtodestroy -> add(this);
 			}
 	}
-	else
+	else if (!MCdispatcher -> is_transient_stack(this))
 	{
-		MCStack *sptr = (MCStack *)parent;
+		MCStack *sptr = parent.GetAs<MCStack>();
 		sptr->checkdestroy();
 	}
 }
@@ -146,11 +148,13 @@ void MCStack::resize(uint2 oldw, uint2 oldh)
 		curcard->message_with_args(MCM_resize_stack, rect.width, rect.height + newy, oldw, oldh);
 	}
 	MCRedrawUnlockScreen();
+}
 
-	// MW-2011-08-18: [[ Redraw ]] For now, update the screen here. This should
-	//   really be done 'in general' after event dispatch, but things don't work
-	//   in a suitable way for that... Yet...
-	MCRedrawUpdateScreen();
+static bool _MCStackConfigureCallback(MCStack *p_stack, void *p_context)
+{
+	p_stack->configure(True);
+	
+	return true;
 }
 
 // MW-2007-07-03: [[ Bug 2332 ]] - It makes more sense for resize to be issue before move.
@@ -159,7 +163,7 @@ void MCStack::resize(uint2 oldw, uint2 oldh)
 void MCStack::configure(Boolean user)
 {
 	// MW-2011-08-18: [[ Redraw ]] Update to use redraw.
-	if (MCRedrawIsScreenLocked() || state & CS_NO_CONFIG || !mode_haswindow() || !opened)
+	if (MCRedrawIsScreenLocked() || state & CS_NO_CONFIG || !haswindow() || !opened)
 		return;
 #ifdef TARGET_PLATFORM_LINUX
  	if (!getflag(F_VISIBLE))
@@ -198,27 +202,29 @@ void MCStack::configure(Boolean user)
 		}
 	}
 	if (beenchanged)
+		foreachchildstack(_MCStackConfigureCallback, nil);
+}
+
+void MCStack::seticonic(Boolean on)
+{
+	if (on && !(state & CS_ICONIC))
 	{
-		MCStack *cstack = NULL;
-		uint2 ccount = 1;
-		while (True)
-		{
-			cstack = MCdispatcher->findchildstackd(window, ccount);
-			if (cstack == NULL)
-				break;
-			ccount++;
-			cstack->configure(True); //update children
-		}
+		MCiconicstacks++;
+		state |= CS_ICONIC;
 	}
+	else if (!on && (state & CS_ICONIC))
+		{
+			MCiconicstacks--;
+			state &= ~CS_ICONIC;
+		}
 }
 
 void MCStack::iconify()
 {
 	if (!(state & CS_ICONIC))
-	{
-		MCtooltip->settip(NULL);
-		MCiconicstacks++;
-		state |= CS_ICONIC;
+    {
+        MCtooltip->cleartip();
+        seticonic(true);
 		MCstacks->top(NULL);
 		redrawicon();
 		curcard->message(MCM_iconify_stack);
@@ -229,12 +235,11 @@ void MCStack::uniconify()
 {
 	if (state & CS_ICONIC)
 	{
-		MCiconicstacks--;
-		state &= ~CS_ICONIC;
+		seticonic(false);
 		MCstacks->top(this);
 		curcard->message(MCM_uniconify_stack);
 		// MW-2011-08-17: [[ Redraw ]] Tell the stack to dirty all of itself.
-		view_dirty_all();
+		dirtyall();
 		resetcursor(True);
 		dirtywindowname();
 	}
@@ -297,7 +302,7 @@ Tool MCStack::gettool(MCObject *optr) const
 
 void MCStack::hidecursor()
 {
-	if (MCmousestackptr == this)
+	if (MCmousestackptr.IsBoundTo(this))
 	{
 		cursor = MCcursors[PI_NONE];
 		MCscreen->setcursor(window, cursor);
@@ -306,7 +311,7 @@ void MCStack::hidecursor()
 
 void MCStack::setcursor(MCCursorRef newcursor, Boolean force)
 {
-	if (window == DNULL && MCModeMakeLocalWindows())
+	if (window == NULL && MCModeMakeLocalWindows())
 		return;
 	
 	if (MCwatchcursor)
@@ -426,12 +431,6 @@ void MCStack::extraopen(bool p_force)
 	{
 		setextendedstate(true, ECS_ISEXTRAOPENED);
 		MCObject::open();
-		if (linkatts != NULL)
-		{
-			MCscreen->alloccolor(linkatts->color);
-			MCscreen->alloccolor(linkatts->hilitecolor);
-			MCscreen->alloccolor(linkatts->visitedcolor);
-		}
 		opened--;
 	}
 }
@@ -445,75 +444,78 @@ void MCStack::extraclose(bool p_force)
 		setextendedstate(false, ECS_ISEXTRAOPENED);
 		opened++;
 		MCObject::close();
+		}
 	}
-}
 
 Window MCStack::getwindow()
 {
-#ifdef _MACOSX
+#if defined(_MACOSX) || defined(_LINUX)
 	if (!opened)
 #else
 	if (!opened || state & CS_ICONIC)
 #endif
 
-		return DNULL;
+		return NULL;
 	else
 		return window;
 }
 
+// IM-2014-07-23: [[ Bug 12930 ]] Reimplement to return the window of the parent stack
 Window MCStack::getparentwindow()
 {
-#if defined(_MACOSX) || defined(_WINDOWS)
-	if (parentwindow != DNULL)
-	{
-		if (MCdispatcher->findstackd(parentwindow) == NULL)
-		{
-			delete parentwindow;
-			parentwindow = DNULL;
-		}
-		return parentwindow;
-	}
-	return DNULL;
-#else
-	if (parentwindow != DNULL &&
-		MCdispatcher -> findstackd(parentwindow) == NULL)
-		parentwindow = DNULL;
-	return parentwindow;
-#endif
+	MCStack *t_parent;
+	t_parent = getparentstack();
+	
+	if (t_parent == nil)
+		return nil;
+	
+	return t_parent->getwindow();
 }
 
-void MCStack::setparentwindow(Window w)
+void MCStack::setparentstack(MCStack *p_parent)
 {
-#if defined(_MACOSX) || defined(_WINDOWS)
-	if (w != DNULL && w->handle.window != 0)
+	MCStack *t_parent = getparentstack();
+	
+	if (t_parent == p_parent)
+		return;
+	
+	if (p_parent != nil)
+		m_parent_stack = p_parent->GetHandle();
+    else
+        m_parent_stack = nil;
+}
+
+MCStack *MCStack::getparentstack()
+{
+	if (!m_parent_stack.IsBound())
+		return nil;
+	
+	if (!m_parent_stack.IsValid())
 	{
-		if (parentwindow == DNULL)
-		{
-			parentwindow = new _Drawable;
-			parentwindow->type = DC_WINDOW;
-		}
-		parentwindow->handle.window = w->handle.window;
+		m_parent_stack = nil;
+		return nil;
 	}
-	else
-		if (parentwindow != DNULL)
-		{
-			delete parentwindow;
-			parentwindow = DNULL;
-		}
-#else
-	if (parentwindow == window)
-		parentwindow = None;
-	parentwindow = w;
-#endif
+	
+	return m_parent_stack;
+}
+
+static bool _MCStackTakeWindowCallback(MCStack *p_stack, void *p_context)
+{
+	p_stack->setparentstack((MCStack*)p_context);
+	
+	return true;
 }
 
 Boolean MCStack::takewindow(MCStack *sptr)
 {
 	// If there is no window ptr and we 'have' a window (i.e. plugin)
 	// we can't take another one's window.
-	if (window == DNULL && mode_haswindow())
+	if (window == NULL && haswindow())
 		return False;
 
+	// IM-2016-08-16: [[ Bug 18153 ]] send OnDetach to closing stack
+	sptr->OnDetach();
+	
 	// MW-2008-10-31: [[ ParentScripts ]] Send closeControl messages appropriately
 	if (sptr -> curcard -> closecontrols() == ES_ERROR ||
 		sptr->curcard->message(MCM_close_card) == ES_ERROR ||
@@ -521,20 +523,21 @@ Boolean MCStack::takewindow(MCStack *sptr)
 		sptr -> curcard -> closebackgrounds(NULL) == ES_ERROR ||
 		sptr->curcard->message(MCM_close_stack) == ES_ERROR)
 		return False;
-	if (window != DNULL)
+	if (window != NULL)
 	{
 		stop_externals();
-		MCscreen->destroywindow(window);
+		destroywindow();
 		cursor = None;
-		delete titlestring;
-		titlestring = NULL;
+		MCValueAssign(titlestring, kMCEmptyString);
 	}
-	delete sptr->titlestring;
-	sptr->titlestring = NULL;
+	MCValueAssign(sptr -> titlestring, kMCEmptyString);
 	window = sptr->window;
 	iconid = sptr->iconid;
 	sptr->stop_externals();
-	sptr->window = DNULL;
+	sptr->window = NULL;
+	
+	// IM-2014-07-23: [[ Bug 12930 ]] Update the child stacks of sptr to be child stacks of this.
+	MCdispatcher->foreachchildstack(sptr, _MCStackTakeWindowCallback, this);
 	
 	state = sptr->state;
 	state &= ~(CS_IGNORE_CLOSE | CS_NO_FOCUS | CS_DELETE_STACK);
@@ -545,7 +548,13 @@ Boolean MCStack::takewindow(MCStack *sptr)
 	flags &= ~(F_TAKE_FLAGS | F_VISIBLE);
 	flags |= sptr->flags & (F_TAKE_FLAGS | F_VISIBLE);
 	decorations = sptr->decorations;
-	rect = sptr->rect;
+    rect = sptr->rect;
+    
+    // sptr has not been closed so may still have a scroll while this stack has been closed
+    // so has had clearscroll called on it so scroll will be 0. applyscroll is called later.
+    rect.height += getnextscroll(true);
+    m_scroll = 0;
+    
 	minwidth = sptr->minwidth;
 	minheight = sptr->minheight;
 	maxwidth = sptr->maxwidth;
@@ -565,17 +574,22 @@ Boolean MCStack::takewindow(MCStack *sptr)
     
 	mode_takewindow(sptr);
 	
-	if (MCmousestackptr == sptr)
+	if (MCmousestackptr.IsBoundTo(sptr))
 		MCmousestackptr = this;
 	start_externals();
     
 #ifdef _MOBILE
     // MW-2014-03-14: [[ Bug 11813 ]] Make sure we tell MCScreenDC that the top window
     //   has changed, and mark our stack as its own window.
-    MCscreen -> openwindow((Window)this, False);
+	// IM-2014-09-23: [[ Bug 13349 ]] Reset mobile window back to this stack, then call openwindow()
+	//   to perform any shared window initialisation.
     window = (Window)this;
+	openwindow(False);
 #endif
     
+	// IM-2016-08-16: [[ Bug 18153 ]] send OnAttach to this stack
+	OnAttach();
+
 	return True;
 }
 
@@ -590,23 +604,52 @@ Boolean MCStack::setwindow(Window w)
 	return True;
 }
 
+bool MCStack::createwindow()
+{
+	if (window != nil)
+		return true;
+	
+	realize();
+	if (window == nil)
+		return false;
+	
+	OnAttach();
+	
+	return true;
+}
+
+void MCStack::destroywindow()
+{
+	if (window == nil)
+		return;
+	
+	OnDetach();
+	
+	MCscreen->destroywindow(window);
+}
+
 void MCStack::kfocusset(MCControl *target)
 {
 	if (!opened)
 		return;
-	if (MCactivefield != NULL && target != NULL && MCactivefield != target)
+	if (MCactivefield && target != NULL && MCactivefield != target)
 	{
 		MCactivefield->unselect(False, True);
-		if (MCactivefield != NULL)
+		if (MCactivefield)
+        {
 			if (MCactivefield->getstack() == this)
 				curcard->kunfocus();
 			else
+            {
 				if (MCactivefield->getstack()->state & CS_KFOCUSED)
 					MCactivefield->getstack()->kunfocus();
 				else
 					MCactivefield->unselect(True, True);
+            }
+
+        }
 	}
-	if (MCactivefield != NULL && target != NULL)
+	if (MCactivefield && target != NULL)
 	{
 		curcard->kfocus();
 		MCstacks -> ensureinputfocus(window);
@@ -633,7 +676,7 @@ MCStack *MCStack::clone()
 	/* UNCHECKED */ MCStackSecurityCopyStack(this, newsptr);
 	MCdispatcher->appendstack(newsptr);
 	newsptr->parent = MCdispatcher->gethome();
-	if (this != MCtemplatestack || rect.x == 0 && rect.y == 0)
+	if (this != MCtemplatestack || (rect.x == 0 && rect.y == 0))
 	{
 		newsptr->positionrel(MCdefaultstackptr->rect, OP_CENTER, OP_MIDDLE);
 		newsptr->rect.x += MCcloneoffset;
@@ -682,45 +725,46 @@ Boolean MCStack::checkid(uint4 cardid, uint4 controlid)
 		}
 		while (cptr != cards);
 	}
-	if (curcard != NULL)
+	if (curcard != NULL && curcard->getid() == cardid)
 		return curcard->checkid(controlid);
 	return False;
 }
 
-IO_stat MCStack::saveas(const MCString &fname)
+IO_stat MCStack::saveas(const MCStringRef p_fname, uint32_t p_version)
 {
 	Exec_stat stat = curcard->message(MCM_save_stack_request);
 	if (stat == ES_NOT_HANDLED || stat == ES_PASS)
 	{
 		MCStack *sptr = this;
 		if (!MCdispatcher->ismainstack(sptr))
-			sptr = (MCStack *)sptr->parent;
-		MCdispatcher->savestack(sptr, fname);
+			sptr = sptr->parent.GetAs<MCStack>();
+		return MCdispatcher->savestack(sptr, p_fname, p_version);
 	}
 	return IO_NORMAL;
 }
 
-MCStack *MCStack::findname(Chunk_term type, const MCString &findname)
+MCStack *MCStack::findname(Chunk_term type, MCNameRef p_name)
 { // should do case-sensitive match on filename on UNIX...
 	if (type == CT_STACK)
 	{
-		if (MCU_matchname(findname, CT_STACK, getname()))
-		return this;
-		
-		MCAutoNameRef t_filename_name;
-		if (filename != nil)
-			t_filename_name . CreateWithCString(filename);
-
-		if (MCU_matchname(findname, CT_STACK, t_filename_name))
+		if (MCU_matchname(p_name, CT_STACK, getname()))
 			return this;
+		
+		if (!MCStringIsEmpty(filename))
+		{
+			MCNewAutoNameRef t_filename_name;
+			/* UNCHECKED */ MCNameCreate(filename, &t_filename_name);
+			if (MCU_matchname(p_name, CT_STACK, *t_filename_name))
+				return this;
+		}
 	}
 
-		return NULL;
+	return NULL;
 }
 
 MCStack *MCStack::findid(Chunk_term type, uint4 inid, Boolean alt)
 {
-	if (type == CT_STACK && (inid == obj_id || alt && inid == altid))
+	if (type == CT_STACK && (inid == obj_id || (alt && inid == altid)))
 		return this;
 	else
 		return NULL;
@@ -821,12 +865,12 @@ void MCStack::startedit(MCGroup *group)
 	editing->setcontrols(NULL);
 
 	// Create a temporary card
-	cards = curcard = new MCCard;
+	cards = curcard = new (nothrow) MCCard;
 
 	// Link the card to the parent, give it the same id as the current card and give it a temporary script
 	curcard->setparent(this);
 	curcard->setid(savecard->getid());
-	curcard->setsprop(P_SCRIPT, ECS);
+	curcard->setsprop(P_SCRIPT, MCSTR(ECS));
 
 	// Now add references for each control in the group being edited to the card
 	if (controls != NULL)
@@ -882,6 +926,7 @@ void MCStack::stopedit()
 	updatecardsize();
 	// MW-2011-08-17: [[ Redraw ]] Tell the stack to dirty all of itself.
 	dirtyall();
+    oldcard->removereferences();
 	oldcard->scheduledelete();
 	kfocus();
 	dirtywindowname();
@@ -893,25 +938,30 @@ void MCStack::updatemenubar()
 {
 	if (opened && state & CS_KFOCUSED && !MClockmenus)
 	{
-		if (!hasmenubar() || state & CS_EDIT_MENUS
-		        && mode < WM_PULLDOWN && mode != WM_PALETTE
-		        || gettool(this) != T_BROWSE && MCdefaultmenubar != NULL)
-			MCmenubar = NULL;
+        if (!hasmenubar() || (state & CS_EDIT_MENUS
+            && mode < WM_PULLDOWN && mode != WM_PALETTE)
+            || (gettool(this) != T_BROWSE && MCdefaultmenubar))
+        {
+			MCmenubar = nil;
+        }
+        
 		else
-			MCmenubar = (MCGroup *)getobjname(CT_GROUP, MCNameGetOldString(getmenubar()));
+        {
+			MCmenubar = MCObjectCast<MCGroup>(getobjname(CT_GROUP, (getmenubar())));
+        }
 		MCscreen->updatemenubar(False);
 	}
 }
 
 // MW-2011-09-12: [[ MacScroll ]] Compute the scroll as it should be now taking
 //   into account the menubar and such.
-int32_t MCStack::getnextscroll()
+int32_t MCStack::getnextscroll(bool p_ignore_opened)
 {
 #ifdef _MACOSX
 	MCControl *mbptr;
 	if (!(state & CS_EDIT_MENUS) && hasmenubar()
-	        && (mbptr = curcard->getchild(CT_EXPRESSION, MCNameGetOldString(getmenubar()), CT_GROUP, CT_UNDEFINED)) != NULL
-	        && mbptr->getopened() && mbptr->isvisible())
+	        && (mbptr = curcard->getchild(CT_EXPRESSION, MCNameGetString(getmenubar()), CT_GROUP, CT_UNDEFINED)) != NULL
+	        && (p_ignore_opened || mbptr->getopened()) && mbptr->isvisible())
 	{
 		MCRectangle r = mbptr->getrect();
 		return (r.y + r.height);
@@ -1158,7 +1208,7 @@ void MCStack::renumber(MCCard *card, uint4 newnumber)
 	dirtywindowname();
 }
 
-MCObject *MCStack::getAV(Chunk_term etype, const MCString &s, Chunk_term otype)
+MCObject *MCStack::getAV(Chunk_term etype, MCStringRef s, Chunk_term otype)
 {
 	uint2 num = 0;
 
@@ -1202,7 +1252,15 @@ MCObject *MCStack::getAV(Chunk_term etype, const MCString &s, Chunk_term otype)
 		return NULL;
 	case CT_EXPRESSION:
 		if (!MCU_stoui2(s, num))
-			return getAVname(otype, s);
+		{
+			MCNewAutoNameRef t_name;
+			/* UNCHECKED */ MCNameCreate(s, &t_name);
+			MCObject* t_object;
+			if (getAVname(otype, *t_name, t_object))
+				return t_object;
+			else
+				return NULL;
+		}
 		if (num < 1)
 			return NULL;
 		num--;
@@ -1228,8 +1286,7 @@ MCObject *MCStack::getAV(Chunk_term etype, const MCString &s, Chunk_term otype)
 	return tobj;
 }
 
-MCCard *MCStack::getchild(Chunk_term etype, const MCString &s,
-                          Chunk_term otype)
+MCCard *MCStack::getchild(Chunk_term etype, MCStringRef p_expression, Chunk_term otype)
 {
 	if (otype != CT_CARD)
 		return NULL;
@@ -1250,7 +1307,7 @@ MCCard *MCStack::getchild(Chunk_term etype, const MCString &s,
 		cptr = cards;
 
 	MCCard *found = NULL;
-	if (etype == CT_EXPRESSION && s == "window")
+	if (etype == CT_EXPRESSION && MCStringIsEqualToCString(p_expression, "window", kMCCompareCaseless))
 		etype = CT_THIS;
 	switch (etype)
 	{
@@ -1311,9 +1368,8 @@ MCCard *MCStack::getchild(Chunk_term etype, const MCString &s,
 		break;
 	case CT_ID:
 		uint4 inid;
-		if (MCU_stoui4(s, inid))
+		if (MCU_stoui4(p_expression, inid))
 		{
-		
 			// OK-2008-06-27: <Bug where looking up a card by id when in edit group mode could cause an infinite loop>
 			MCCard *t_cards;
 			if (editing != NULL && savecards != NULL)
@@ -1340,7 +1396,7 @@ MCCard *MCStack::getchild(Chunk_term etype, const MCString &s,
 		}
 		return found;
 	case CT_EXPRESSION:
-		if (MCU_stoui2(s, num))
+		if (MCU_stoui2(p_expression, num))
 		{
 			if (num < 1)
 				return NULL;
@@ -1351,7 +1407,9 @@ MCCard *MCStack::getchild(Chunk_term etype, const MCString &s,
 		{
 			do
 			{
-				found = cptr->findname(otype, s);
+                MCNewAutoNameRef t_expression;
+                /* UNCHECKED */ MCNameCreate(p_expression, &t_expression);
+				found = cptr->findname(otype, *t_expression);
 				if (found != NULL
 				        && found->countme(backgroundid, (state & CS_MARKED) != 0))
 					break;
@@ -1373,7 +1431,170 @@ MCCard *MCStack::getchild(Chunk_term etype, const MCString &s,
 	return NULL;
 }
 
-MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
+MCCard *MCStack::getchildbyordinal(Chunk_term p_ordinal)
+{
+	uint2 num = 0;
+    
+	if (cards == NULL)
+	{
+		curcard = cards = MCtemplatecard->clone(False, False);
+		cards->setparent(this);
+	}
+
+    MCCard *cptr;
+    
+	switch (p_ordinal)
+	{
+        case CT_THIS:
+            if (curcard != NULL)
+                return curcard;
+            return cards;
+        case CT_FIRST:
+        case CT_SECOND:
+        case CT_THIRD:
+        case CT_FOURTH:
+        case CT_FIFTH:
+        case CT_SIXTH:
+        case CT_SEVENTH:
+        case CT_EIGHTH:
+        case CT_NINTH:
+        case CT_TENTH:
+            num = p_ordinal - CT_FIRST;
+            break;
+        case CT_NEXT:
+            cptr = curcard;
+            do
+            {
+                cptr = cptr->next();
+                if (cptr->countme(backgroundid, (state & CS_MARKED) != 0))
+                    return cptr;
+            }
+            while (cptr != curcard);
+            return NULL;
+        case CT_PREV:
+            cptr = curcard;
+            do
+            {
+                cptr = cptr->prev();
+                if (cptr->countme(backgroundid, (state & CS_MARKED) != 0))
+                    return cptr;
+            }
+            while (cptr != curcard);
+            return NULL;
+        case CT_LAST:
+        case CT_MIDDLE:
+        case CT_ANY:
+            count(CT_CARD, CT_UNDEFINED, NULL, num);
+            switch (p_ordinal)
+		{
+            case CT_LAST:
+                num--;
+                break;
+            case CT_MIDDLE:
+                num >>= 1;
+                break;
+            case CT_ANY:
+                num = MCU_any(num);
+                break;
+            default:
+                break;
+		}
+            break;
+        default:
+            break;
+    }
+    return NULL;
+}
+
+MCCard *MCStack::getchildbyid(uinteger_t p_id)
+{
+    if (cards == NULL)
+	{
+		curcard = cards = MCtemplatecard->clone(False, False);
+		cards->setparent(this);
+	}
+    
+    // OK-2007-04-09 : Allow cards to be found by ID when in edit group mode.
+    MCCard *cptr;
+    if (editing != nil && savecards != nil)
+        cptr = savecards;
+    else
+        cptr = cards;
+    
+    MCCard *found = nil;
+
+    // OK-2008-06-27: <Bug where looking up a card by id when in edit group mode could cause an infinite loop>
+    MCCard *t_cards = cptr;
+    
+    // OK-2007-04-09 : Allow cards to be found by ID when in edit group mode.
+    if (editing == nil)
+        found = curcard -> findid(CT_CARD, p_id, True);
+    
+    if (found == nil)
+    {
+        do
+        {
+            found = cptr->findid(CT_CARD, p_id, True);
+            if (found != nil
+                && found->countme(backgroundid, (state & CS_MARKED) != 0))
+                break;
+            cptr = cptr->next();
+        }
+        while (cptr != t_cards);
+    }
+    
+    return found;
+}
+
+MCCard *MCStack::getchildbyname(MCNameRef p_name)
+{
+    if (cards == NULL)
+	{
+		curcard = cards = MCtemplatecard->clone(False, False);
+		cards->setparent(this);
+	}
+    
+    MCCard *cptr, *cptr_sentinal;
+    if (editing != NULL && savecards != NULL)
+    {
+        cptr_sentinal = cptr = savecards;
+    }
+    else
+    {
+        cptr_sentinal = cptr = cards;
+    }
+    
+    uint2 t_num = 0;
+    if (MCU_stoui2(MCNameGetString(p_name), t_num))
+    {
+        if (t_num < 1)
+            return nil;
+        t_num--;
+        
+        do
+        {
+            if (cptr->countme(backgroundid, (state & CS_MARKED) != 0) && t_num-- == 0)
+                return cptr;
+            cptr = cptr->next();
+        }
+        while (cptr != cptr_sentinal);
+        return nil;
+    }
+    MCCard *found = nil;
+    do
+    {
+        found = cptr->findname(CT_CARD, p_name);
+        if (found != nil && found->countme(backgroundid, (state & CS_MARKED) != 0))
+            break;
+        
+        cptr = cptr->next();
+    }
+    while (cptr != cptr_sentinal);
+    
+    return found;
+}
+
+MCGroup *MCStack::getbackground(Chunk_term etype, MCStringRef p_string,
                                 Chunk_term otype)
 {
 	if (otype != CT_GROUP)
@@ -1394,8 +1615,7 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 	case CT_THIS:
 		if  (editing != 0)
 			return editing;
-		return (MCGroup *)curcard->getchild(CT_FIRST, MCnullmcstring,
-		                                    otype, CT_BACKGROUND);
+		return (MCGroup *)curcard->getchild(CT_FIRST, kMCEmptyString, otype, CT_BACKGROUND);
 	case CT_FIRST:
 	case CT_SECOND:
 	case CT_THIRD:
@@ -1410,8 +1630,7 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 		break;
 	case CT_NEXT:
 		{
-			MCGroup *gptr = (MCGroup *)curcard->getchild(CT_FIRST, MCnullmcstring,
-			                otype, CT_BACKGROUND);
+			MCGroup *gptr = (MCGroup *)curcard->getchild(CT_FIRST, kMCEmptyString, otype, CT_BACKGROUND);
 			while (True)
 			{
 				gptr = gptr->next();
@@ -1422,8 +1641,7 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 		break;
 	case CT_PREV:
 		{
-			MCGroup *gptr = (MCGroup *)curcard->getchild(CT_FIRST, MCnullmcstring,
-			                otype, CT_BACKGROUND);
+			MCGroup *gptr = (MCGroup *)curcard->getchild(CT_FIRST, kMCEmptyString, otype, CT_BACKGROUND);
 			while (True)
 			{
 				gptr = gptr->prev();
@@ -1453,7 +1671,7 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 		break;
 	case CT_ID:
 		uint4 inid;
-		if (MCU_stoui4(s, inid))
+		if (MCU_stoui4(p_string, inid))
 			do
 			{
 				MCControl *found = cptr->findid(otype, inid, True);
@@ -1464,7 +1682,7 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 			while (cptr != startcptr);
 		return NULL;
 	case CT_EXPRESSION:
-		if (MCU_stoui2(s, num))
+		if (MCU_stoui2(p_string, num))
 		{
 			if (num < 1)
 				return NULL;
@@ -1475,7 +1693,9 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 		{
 			do
 			{
-				MCControl *found = cptr->findname(otype, s);
+				MCNewAutoNameRef t_name;
+				/* UNCHECKED */ MCNameCreate(p_string, &t_name);
+				MCControl *found = cptr->findname(otype, *t_name);
 				if (found != NULL)
 					return (MCGroup *)found;
 				cptr = cptr->next();
@@ -1498,12 +1718,146 @@ MCGroup *MCStack::getbackground(Chunk_term etype, const MCString &s,
 	return NULL;
 }
 
-void MCStack::addmnemonic(MCButton *button, uint1 key)
+MCGroup *MCStack::getbackgroundbyordinal(Chunk_term p_ordinal)
+{    
+	uint2 num = 0;
+	switch (p_ordinal)
+	{
+        case CT_THIS:
+            if  (editing != 0)
+                return editing;
+            return (MCGroup *)curcard->getchild(CT_FIRST, kMCEmptyString, CT_GROUP, CT_BACKGROUND);
+        case CT_FIRST:
+        case CT_SECOND:
+        case CT_THIRD:
+        case CT_FOURTH:
+        case CT_FIFTH:
+        case CT_SIXTH:
+        case CT_SEVENTH:
+        case CT_EIGHTH:
+        case CT_NINTH:
+        case CT_TENTH:
+            num = p_ordinal - CT_FIRST;
+            break;
+        case CT_NEXT:
+		{
+			MCGroup *gptr = (MCGroup *)curcard->getchild(CT_FIRST, kMCEmptyString, CT_GROUP, CT_BACKGROUND);
+			while (True)
+			{
+				gptr = gptr->next();
+				if (gptr->gettype() == CT_GROUP)
+					return gptr;
+			}
+		}
+            break;
+        case CT_PREV:
+		{
+			MCGroup *gptr = (MCGroup *)curcard->getchild(CT_FIRST, kMCEmptyString, CT_GROUP, CT_BACKGROUND);
+			while (True)
+			{
+				gptr = gptr->prev();
+				if (gptr->gettype() == CT_GROUP)
+					return gptr;
+			};
+		}
+            break;
+        case CT_LAST:
+        case CT_MIDDLE:
+        case CT_ANY:
+            count(CT_GROUP, CT_UNDEFINED, NULL, num);
+            switch (p_ordinal)
+		{
+            case CT_LAST:
+                num--;
+                break;
+            case CT_MIDDLE:
+                num >>= 1;
+                break;
+            case CT_ANY:
+                num = MCU_any(num);
+                break;
+            default:
+                break;
+		}
+            break;
+        default:
+            break;
+    }
+    return NULL;
+}
+
+MCGroup *MCStack::getbackgroundbyid(uinteger_t p_id)
+{
+	MCControl *cptr;
+	if (editing != NULL)
+		cptr = savecontrols;
+	else
+		cptr = controls;
+	MCControl *startcptr = cptr;
+	if (cptr == NULL)
+		return NULL;
+    do
+    {
+        MCControl *found = cptr->findid(CT_GROUP, p_id, True);
+        if (found != NULL)
+            return (MCGroup *)found;
+        cptr = cptr->next();
+    }
+    while (cptr != startcptr);
+    return NULL;
+}
+
+MCGroup *MCStack::getbackgroundbyname(MCNameRef p_name)
+{
+	MCControl *cptr;
+	if (editing != nil)
+		cptr = savecontrols;
+	else
+		cptr = controls;
+	MCControl *startcptr = cptr;
+	if (cptr == nil)
+		return nil;
+    
+    uint2 t_num = 0;
+    if (MCU_stoui2(MCNameGetString(p_name), t_num))
+    {
+        if (t_num < 1)
+            return nil;
+        t_num--;
+        
+        do
+        {
+            MCControl *foundobj = cptr->findnum(CT_GROUP, t_num);
+            if (foundobj != nil)
+                return (MCGroup *)foundobj;
+            cptr = cptr->next();
+        }
+        while (cptr != startcptr);
+        return nil;
+    }
+    
+    do
+    {
+        MCControl *found = cptr->findname(CT_GROUP, p_name);
+        if (found != nil)
+            return (MCGroup *)found;
+        cptr = cptr->next();
+    }
+    while (cptr != startcptr);
+    return nil;
+}
+
+void MCStack::addmnemonic(MCButton *button, KeySym p_key)
 {
 	MCU_realloc((char **)&mnemonics, nmnemonics,
 	            nmnemonics + 1, sizeof(Mnemonic));
 	mnemonics[nmnemonics].button = button;
-	mnemonics[nmnemonics].key = MCS_tolower(key);
+	
+	// Ensure that letter mnemonics are added case-insensitively
+	// (the shift state is handled by the button)
+	KeySym t_key;
+	t_key = MCKeySymToLower(p_key);
+	mnemonics[nmnemonics].key = t_key;
 	nmnemonics++;
 }
 
@@ -1539,11 +1893,13 @@ void MCStack::removeneed(MCButton *bptr)
 		}
 }
 
-MCButton *MCStack::findmnemonic(char which)
+MCButton *MCStack::findmnemonic(KeySym p_key)
 {
 	uint2 i;
+	KeySym t_key;
+	t_key = MCKeySymToLower(p_key);
 	for (i = 0 ; i < nmnemonics ; i++)
-		if (mnemonics[i].key == MCS_tolower(which))
+		if (mnemonics[i].key == t_key)
 			return mnemonics[i].button;
 	return NULL;
 }
@@ -1561,78 +1917,62 @@ void MCStack::removeaccels(MCStack *stack)
 
 void MCStack::setwindowname()
 {
-	if (!opened || isunnamed() || window == DNULL)
+	if (!opened || isunnamed() || window == NULL)
 		return;
 
 	char *t_utf8_name;
 	t_utf8_name = NULL;
 
-	const char *tptr;
-	if (title == NULL)
-	{
-		MCExecPoint ep;
-		ep . setnameref_unsafe(getname());
-		ep . nativetoutf8();
-		t_utf8_name = ep . getsvalue() . clone();
-		tptr = t_utf8_name;
-	}
+	MCStringRef tptr;
+	if (MCStringIsEmpty(title))
+		tptr = MCNameGetString(getname());
 	else
 		tptr = title;
 
-	char *newname = NULL;
+	MCAutoStringRef newname;
 	if (editing != NULL)
 	{
-		MCExecPoint ep;
-		editing->names(P_SHORT_NAME, ep, 0);
-		ep.nativetoutf8();
-		char *bgname = ep.getsvalue().clone();
-		newname = new char[strlen(tptr) + strlen(MCbackgroundstring)
-		                   + strlen(bgname) + 7];
-		sprintf(newname, "%s (%s \"%s\")", tptr, MCbackgroundstring, bgname);
-		delete bgname;
+		MCAutoValueRef bgname;
+		/* UNCHECKED */ editing->names(P_SHORT_NAME, &bgname);
+		/* UNCHECKED */ MCStringFormat(&newname, "%@ (%s \"%@\")", tptr, MCbackgroundstring, *bgname);
 	}
 	else
 	{
-		newname = new char[strlen(tptr) + U4L + 6];
-		if (title == NULL && mode == WM_TOP_LEVEL && MCdispatcher->cut(True))
+		if (MCStringIsEmpty(title) && mode == WM_TOP_LEVEL && MCdispatcher->cut(True))
 		{
 			if ((cards->next()) == cards)
-				sprintf(newname, "%s *", tptr);
+				/* UNCHECKED */ MCStringFormat(&newname, "%@ *", tptr);
 			else
 			{
 				uint2 num;
 				count(CT_CARD, CT_UNDEFINED, curcard, num);
-				sprintf(newname, "%s (%d) *", tptr, num);
+				/* UNCHECKED */ MCStringFormat(&newname, "%@ (%d) *", tptr, num);
 			}
 		}
 		else
-			if (title == NULL && mode == WM_TOP_LEVEL_LOCKED
+			if (MCStringIsEmpty(title) && mode == WM_TOP_LEVEL_LOCKED
 			        && cards->next() != cards)
 			{
 				uint2 num;
 				count(CT_CARD, CT_UNDEFINED, curcard, num);
-				sprintf(newname, "%s (%d)", tptr, num);
+				/* UNCHECKED */ MCStringFormat(&newname, "%@ (%d)", tptr, num);
 			}
 			else
-				strcpy(newname, tptr);
+				newname = tptr;
 	}
-	if (!strequal(newname, titlestring))
+	if (!MCStringIsEqualTo(*newname, titlestring, kMCStringOptionCompareExact))
 	{
-		delete titlestring;
-		titlestring = newname;
+		MCValueAssign(titlestring, *newname);
 		MCscreen->setname(window, titlestring);
 	}
-	else
-		delete newname;
+	
 	state &= ~CS_TITLE_CHANGED;
-
-	if (t_utf8_name != NULL)
-		delete t_utf8_name;
 }
 
 void MCStack::reopenwindow()
 {
-	if (state & CS_FOREIGN_WINDOW)
+	// PM-2016-02-09: [[ Bug 16889 ]] Exit if window is NULL
+	if (state & CS_FOREIGN_WINDOW || window == NULL)
 		return;
 
 	stop_externals();
@@ -1641,16 +1981,25 @@ void MCStack::reopenwindow()
 	if (getflag(F_VISIBLE))
 		MCscreen->closewindow(window);
 
-	MCscreen->destroywindow(window);
-
-	delete titlestring;
-	titlestring = NULL;
+	destroywindow();
+	MCValueAssign(titlestring, kMCEmptyString);
 	if (getstyleint(flags) != 0)
 		mode = (Window_mode)(getstyleint(flags) + WM_TOP_LEVEL_LOCKED);
 
+	// IM-2014-05-27: [[ Bug 12321 ]] Updating the view transform here after changing the fullscreen
+	// allows the stack rect to be correctly restored in sync with the window reopening
+	view_update_transform();
+
+	// IM-2014-05-27: [[ Bug 12321 ]] Move font purging here to avoid second redraw after fullscreen change
+	if (m_purge_fonts)
+	{
+		purgefonts();
+		m_purge_fonts = false;
+	}
+
 	// MW-2011-08-18: [[ Redraw ]] Use global screen lock
 	MCRedrawLockScreen();
-	realize();
+	createwindow();
 	sethints();
 	
 	// IM-2014-01-16: [[ StackScale ]] Call configure to update the stack rect after fullscreen change
@@ -1666,21 +2015,24 @@ void MCStack::reopenwindow()
 
 Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *parentptr, Window_position wpos,  Object_pos walign)
 {
-	MCRectangle myoldrect = rect;
 	if (state & (CS_IGNORE_CLOSE | CS_NO_FOCUS | CS_DELETE_STACK))
 		return ES_NORMAL;
-
-	MCtodestroy->remove(this); // prevent delete
+    
+    MCtodestroy -> remove(this);
 	if (wm == WM_LAST)
+    {
 		if (opened)
 			wm = mode;
 		else
+        {
 			if (getstyleint(flags) == 0)
 				wm = WM_TOP_LEVEL;
 			else
 				wm = (Window_mode)(getstyleint(flags) + WM_TOP_LEVEL_LOCKED);
+        }
+    }
 	if (wm == WM_TOP_LEVEL
-	        && (flags & F_CANT_MODIFY || getextendedstate(ECS_IDE) || !MCdispatcher->cut(True)))
+	        && (flags & F_CANT_MODIFY || m_is_ide_stack || !MCdispatcher->cut(True)))
 		wm = WM_TOP_LEVEL_LOCKED;
 
 	Boolean oldlock = MClockmessages;
@@ -1690,11 +2042,9 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 	//   it might not be.
 	if (opened)
 	{
-		if (window == NULL && !MCModeMakeLocalWindows() && (wm != WM_MODAL && wm != WM_SHEET || wm == mode))
+		if (window == NULL && !MCModeMakeLocalWindows() && ((wm != WM_MODAL && wm != WM_SHEET) || wm == mode))
 			return ES_NORMAL;
 
-		if (window == NULL && wm == mode)
-			fprintf(stderr, "*** ASSERTION FAILURE: MCStack::openrect() - window == NULL\n");
 		if (wm == mode && parentptr == NULL)
 		{
 			bool t_topped;
@@ -1734,7 +2084,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 		}
 	}
 	
-#ifdef _MACOSX
+#ifdef _MAC_DESKTOP
 	// MW-2008-02-28: [[ Bug 4614 ]] Ensure that sheeting inside a not yet visible window causes
 	//   it to be displayed as modal.
 	// MW-2008-03-03: [[ Bug 5985 ]] Crash when using 'sheet' command. It seems that 'go' is not
@@ -1750,52 +2100,51 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 			else if (MCtopstackptr -> getwindow() != NULL)
 				parentptr = MCtopstackptr;
 		}
-		
-		extern bool MCMacIsWindowVisible(Window window);
-		if (parentptr == NULL || parentptr -> getwindow() == NULL || !MCMacIsWindowVisible(parentptr -> getwindow()))
+
+		extern bool MCPlatformIsWindowVisible(MCPlatformWindowRef window);
+		if (parentptr == NULL || parentptr -> getwindow() == NULL || !MCPlatformIsWindowVisible(parentptr -> getwindow()))
 			wm = WM_MODAL;
 	}
 #endif
 
 	if (state & CS_FOREIGN_WINDOW)
 		mode = wm;
-	if ((wm != mode || parentptr != NULL) && window != DNULL)
+	if ((wm != mode || parentptr != NULL) && window != NULL)
 	{
 		stop_externals();
-		MCscreen->destroywindow(window);
-		delete titlestring;
-		titlestring = NULL;
+		destroywindow();
+		MCValueAssign(titlestring, kMCEmptyString);
 	}
 	mode = wm;
 	wposition = wpos;
 	walignment = walign;
+	// IM-2014-07-23: [[ Bug 12930 ]] We can now get & set the parent stack directly
 	if (parentptr == NULL)
-	{
-		if (parentwindow != DNULL)
-			parentptr = MCdispatcher->findstackd(parentwindow);
-	}
+		parentptr = getparentstack();
 	else
-		setparentwindow(parentptr->getw());
+		setparentstack(parentptr);
 	
 	// IM-2014-01-16: [[ StackScale ]] Ensure view has the current stack rect
-	view_setstackviewport(rect);
-	
-	if (window == DNULL)
-		realize();
+	// If we have a window then set the viewport after opening to cover lockscreen
+    bool t_had_window = window != NULL;
+	if (!t_had_window)
+    {
+        view_setstackviewport(rect);
+		createwindow();
+    }
 
 	if (substacks != NULL)
 		opened++;
 	else
 	{
 		MCObject::open();
-		if (linkatts != NULL)
-		{
-			MCscreen->alloccolor(linkatts->color);
-			MCscreen->alloccolor(linkatts->hilitecolor);
-			MCscreen->alloccolor(linkatts->visitedcolor);
-		}
 	}
-
+    
+    if (t_had_window)
+    {
+        view_setstackviewport(rect);
+    }
+    
 	MCRectangle trect;
 	switch (mode)
 	{
@@ -1876,20 +2225,27 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 	}
 	break;
 	case WM_POPUP:
-		if (MCmousestackptr == NULL)
-			MCscreen->querymouse(trect.x, trect.y);
-		else
-		{
-			//WEBREV
-			// IM-2013-10-09: [[ FullscreenMode ]] Reimplement using MCStack::stacktogloballoc
-			MCPoint t_globalloc;
-			t_globalloc = MCmousestackptr->stacktogloballoc(MCPointMake(MCmousex, MCmousey));
+        if (wpos == WP_ASRECT)
+        {
+            rect = rel;
+        }
+        else
+        {
+            if (!MCmousestackptr)
+                MCscreen->querymouse(trect.x, trect.y);
+            else
+            {
+                //WEBREV
+                // IM-2013-10-09: [[ FullscreenMode ]] Reimplement using MCStack::stacktogloballoc
+                MCPoint t_globalloc;
+                t_globalloc = MCmousestackptr->stacktogloballoc(MCPointMake(MCmousex, MCmousey));
 
-			trect.x = t_globalloc.x;
-			trect.y = t_globalloc.y;
-		}
-		trect.width = trect.height = 1;
-		positionrel(trect, OP_ALIGN_LEFT, OP_ALIGN_TOP);
+                trect.x = t_globalloc.x;
+                trect.y = t_globalloc.y;
+            }
+            trect.width = trect.height = 1;
+            positionrel(trect, OP_ALIGN_LEFT, OP_ALIGN_TOP);
+        }
 		break;
 	case WM_CASCADE:
 		trect = rel;
@@ -1929,28 +2285,38 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 	
 	MCCard *startcard = curcard;
 
-	// MW-2011-08-19: [[ Redraw ]] Reset the update region.
-	view_reset_updates();
-	setstate(False, CS_NEED_REDRAW);
-
+	// IM-2014-09-23: [[ Bug 13349 ]] Store the lockscreen state to restore once the rest of the state is saved.
+	uint16_t t_lock_screen;
+	MCRedrawSaveLockScreen(t_lock_screen);
+	
 	// MW-2011-08-18: [[ Redraw ]] Make sure we don't save our lock.
 	MCRedrawUnlockScreen();
 	MCSaveprops sp;
 	MCU_saveprops(sp);
-	MCRedrawLockScreen();
+	
+	MCRedrawRestoreLockScreen(t_lock_screen);
 
 	if (mode >= WM_MODELESS)
+	{
+		// IM-2014-09-23: [[ Bug 13349 ]] Restore lockscreen with other props.
 		MCU_resetprops(True);
+		MCRedrawRestoreLockScreen(t_lock_screen);
+	}
 	trect = rect;
 	
 	// "bind" the stack's rect... Or in other words, make sure its within the 
 	// screens (well viewports) working area.
 	if (!(flags & F_FORMAT_FOR_PRINTING) && !(state & CS_BEEN_MOVED))
-		MCscreen->boundrect(rect, (!(flags & F_DECORATIONS) || decorations & WD_TITLE), mode);
+		MCscreen->boundrect(rect, (!(flags & F_DECORATIONS) || decorations & WD_TITLE), mode, getflag(F_RESIZABLE));
 	
 	state |= CS_NO_FOCUS;
 	if (flags & F_DYNAMIC_PATHS)
 		MCdynamiccard = curcard;
+    
+#ifdef FEATURE_PLATFORM_PLAYER
+    // PM-2014-10-13: [[ Bug 13569 ]] Detach all players before any messages are sent
+    MCPlayer::DetachPlayers(curcard -> getstack());
+#endif
 		
 	// MW-2008-10-31: [[ ParentScripts ]] Send preOpenControl appropriately
 	if (curcard->message(MCM_preopen_stack) == ES_ERROR
@@ -1972,6 +2338,10 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 			return ES_ERROR;
 		}
 
+#ifdef FEATURE_PLATFORM_PLAYER
+    // PM-2014-10-13: [[ Bug 13569 ]] after any messages are sent, attach all players previously detached
+    MCPlayer::AttachPlayers(curcard -> getstack());
+#endif
 	if (mode == WM_PULLDOWN || mode == WM_POPUP || mode == WM_CASCADE || (mode == WM_OPTION && MClook != LF_WIN95))
 	{
 		// MW-2014-03-12: [[ Bug 11914 ]] Only fiddle with scrolling and such
@@ -2074,7 +2444,8 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 		// Just do a little more adjusting for Full Screen Menus that are cascaded.
 		// We need to pull the Y co-ord up again to be level (a little above in fact) of
 		// the control we are bound to.
-		if (( mode == WM_CASCADE ) && t_fullscreen_menu ) 
+		if (( mode == WM_CASCADE ) && t_fullscreen_menu )
+        {
 			if ( t_menu_downwards )
 				rect.y = ( rel.y - 2) ;
 			else
@@ -2084,6 +2455,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 				//   adjust the y-coord.
 				rect.y += rel.height + 2 ;
 			}
+        }
 	
 	}
 
@@ -2100,7 +2472,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 		
 		// MW-2007-09-11: [[ Bug 5139 ]] Don't add activity to recent cards if the stack is an
 		//   IDE stack.
-		if ((mode == WM_TOP_LEVEL || mode == WM_TOP_LEVEL_LOCKED) && !getextendedstate(ECS_IDE))
+		if ((mode == WM_TOP_LEVEL || mode == WM_TOP_LEVEL_LOCKED) && !m_is_ide_stack)
 			MCrecent->addcard(curcard);
 
 		// MW-2011-08-17: [[ Redraw ]] Tell the stack to dirty all of itself.
@@ -2117,6 +2489,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 	// MW-2011-01-12: [[ Bug 9282 ]] Set to true if the props need restoring.
 	bool t_restore_props;
 	
+    Exec_stat t_stat = ES_NORMAL;
 	if (opened && flags & F_VISIBLE)
 	{
 		// MW-2011-08-19: [[ Redraw ]] Set the update region to everything.
@@ -2134,7 +2507,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 
 			// MW-2009-09-09: If this is a plugin window, then we need to send a resizeStack
 			//   as we have no control over the size of the window...
-			view_configure(window != DNULL ? False : True);
+			view_configure(window != NULL ? False : True);
 		}
 
 		// MW-2008-10-31: [[ ParentScripts ]] Send openControl appropriately
@@ -2151,7 +2524,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 				state &= ~CS_NO_FOCUS;
 				return ES_ERROR;
 			}
-			
+
 		state &= ~CS_NO_FOCUS;
 		int2 x, y;
 		MCscreen->querymouse(x, y);
@@ -2159,28 +2532,47 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 			resetcursor(True);
 
 		// Only enter a modal loop if we are making local windows.
+		// the rev supplied answer/ask dialogs.
 		if ((mode == WM_MODAL || mode == WM_SHEET) &&
 			MCModeMakeLocalWindows())
 		{
 			// If opening the dialog failed for some reason, this will return false.
 			if (mode_openasdialog())
 			{
-				while (opened && (mode == WM_MODAL || mode == WM_SHEET) && !MCquit)
+				while (opened &&
+                       (mode == WM_MODAL || mode == WM_SHEET) &&
+                       !MCquit &&
+                       !MCabortscript)
 				{
 					MCU_resetprops(True);
 					// MW-2011-09-08: [[ Redraw ]] Make sure we flush any updates.
 					MCRedrawUpdateScreen();
 					MCscreen->siguser();
-					MCscreen->wait(REFRESH_INTERVAL, True, True);
+					if (MCscreen->wait(REFRESH_INTERVAL, True, True))
+                    {
+                        MCeerror->add(EE_WAIT_ABORT, 0, 0);
+                        t_stat = ES_ERROR;
+                        break;
+                    }
 				}
 				mode_closeasdialog();
 				if (MCquit)
 					MCabortscript = False;
 			}
 
-			// Make sure the mode is reset to closed so dialogs can be reopened.
-			mode = WM_CLOSED;
-			
+            // If there was no error, make sure the mode is reset to closed so
+            // it can be reopened. Otherwise, do the equivalent of 'close this
+            // stack'.
+            if (t_stat != ES_ERROR)
+            {
+                mode = WM_CLOSED;
+            }
+            else
+            {
+                close();
+                checkdestroy();
+			}
+            
 			t_restore_props = true;
 		}
 		else
@@ -2188,7 +2580,7 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 	}
 	else
 	{
-		// MW-2008-10-31: [[ ParentScripts ]] Send openControl appropriately
+ 		// MW-2008-10-31: [[ ParentScripts ]] Send openControl appropriately
 		if (curcard->message(MCM_open_stack) == ES_ERROR
 		        || curcard != startcard
 				|| curcard -> openbackgrounds(false, NULL) == ES_ERROR
@@ -2202,102 +2594,159 @@ Exec_stat MCStack::openrect(const MCRectangle &rel, Window_mode wm, MCStack *par
 			if (curcard == startcard)
 				return ES_ERROR;
 		}
-		state &= ~CS_NO_FOCUS;
+ 		state &= ~CS_NO_FOCUS;
 
 		t_restore_props = mode >= WM_MODELESS;
 	}
 	if (t_restore_props)
+	{
+		// IM-2014-09-23: [[ Bug 13349 ]] Restore lockscreen with other props.
 		MCU_restoreprops(sp);
+		MCRedrawRestoreLockScreen(t_lock_screen);
+		MCRedrawUnlockScreen();
+	}
 	if (reopening)
 		MClockmessages = oldlock;
-	return ES_NORMAL;
+    
+	return t_stat;
 	
 	
 }
 
-void MCStack::getstackfiles(MCExecPoint &ep)
+
+bool MCStack::getstackfiles(MCStringRef& r_stackfiles)
 {
-	ep.clear();
-	if (nstackfiles != 0)
+	bool t_success;
+	t_success = true;
+	
+	MCAutoListRef t_file_list;
+	
+	if (t_success)
+		t_success = MCListCreateMutable('\n', &t_file_list);
+	
+	for (uint2 i = 0; i < nstackfiles; i++)
 	{
-		uint2 i;
-		for (i = 0 ; i < nstackfiles ; i++)
-		{
-			ep.concatcstring(stackfiles[i].stackname, EC_RETURN, i == 0);
-			ep.concatcstring(stackfiles[i].filename, EC_COMMA, false);
-		}
+		MCAutoStringRef t_filename;
+		
+		if (t_success)
+			t_success = MCStringFormat(&t_filename, "%@,%@", stackfiles[i].stackname, stackfiles[i].filename);
+		
+		if (t_success)
+			t_success = MCListAppend(*t_file_list, *t_filename);
 	}
+	
+	if (t_success)
+		t_success = MCListCopyAsString(*t_file_list, r_stackfiles);
+	
+	return t_success;
 }
 
-void MCStack::stringtostackfiles(char *d, MCStackfile **sf, uint2 &nf)
+bool MCStack::stringtostackfiles(MCStringRef d_strref, MCStackfile **sf, uint2 &nf)
 {
 	MCStackfile *newsf = NULL;
 	uint2 nnewsf = 0;
-	char *eptr = d;
-	while ((eptr = strtok(eptr, "\n")) != NULL)
+
+    bool t_success;
+	t_success = true;
+    
+	uindex_t t_old_offset;
+	t_old_offset = 0;
+	uindex_t t_new_offset;
+	t_new_offset = 0;
+    
+	uindex_t t_length;
+	t_length = MCStringGetLength(d_strref);
+    
+	while (t_success && t_old_offset <= t_length)
 	{
-		char *cptr = strchr(eptr, ',');
-		if (cptr != NULL)
+		MCAutoStringRef t_line;
+		
+		if (!MCStringFirstIndexOfChar(d_strref, '\n', t_old_offset, kMCCompareExact, t_new_offset))
+			t_new_offset = t_length;
+        
+		t_success = MCStringCopySubstring(d_strref, MCRangeMakeMinMax(t_old_offset, t_new_offset), &t_line);
+		if (t_success && t_new_offset > t_old_offset)
 		{
-			*cptr++ = '\0';
-			MCU_realloc((char **)&newsf, nnewsf, nnewsf + 1, sizeof(MCStackfile));
-			newsf[nnewsf].stackname = strclone(eptr);
-			newsf[nnewsf].filename = strclone(cptr);
-			nnewsf++;
+			MCAutoStringRef t_stack_name;
+			MCAutoStringRef t_file_name;
+            
+			t_success = MCStringDivideAtChar(*t_line, ',', kMCCompareExact, &t_stack_name, &t_file_name);
+            
+			if (t_success && MCStringGetLength(*t_file_name) != 0)
+			{
+				MCU_realloc((char **)&newsf, nnewsf, nnewsf + 1, sizeof(MCStackfile));
+				newsf[nnewsf].stackname = MCValueRetain(*t_stack_name);
+				newsf[nnewsf].filename = MCValueRetain(*t_file_name);
+				nnewsf++;
+			}
 		}
-		eptr = NULL;
+		t_old_offset = t_new_offset + 1;
 	}
+    
+	if (t_success)
+	{
+		stackfiles = newsf;
+		nstackfiles = nnewsf;
+        
+		if (nstackfiles != 0)
+			flags |= F_STACK_FILES;
+		else
+			flags &= ~F_STACK_FILES;
+	}
+    
 	*sf = newsf;
 	nf = nnewsf;
+    
+    return t_success;
 }
 
-void MCStack::setstackfiles(const MCString &s)
+void MCStack::setstackfiles(MCStringRef s)
 {
 	while (nstackfiles--)
 	{
-		delete stackfiles[nstackfiles].stackname;
-		delete stackfiles[nstackfiles].filename;
+		MCValueRelease(stackfiles[nstackfiles].stackname);
+		MCValueRelease(stackfiles[nstackfiles].filename);
 	}
 	delete stackfiles;
-	char *d = s.clone();
-	stringtostackfiles(d, &stackfiles, nstackfiles);
-	delete d;
+	stringtostackfiles(s, &stackfiles, nstackfiles);
 }
 
-char *MCStack::getstackfile(const MCString &s)
+void MCStack::getstackfile(MCStringRef p_name, MCStringRef &r_name)
 {
 	if (stackfiles != NULL)
 	{
 		uint2 i;
 		for (i = 0 ; i < nstackfiles ; i++)
-			if (s == stackfiles[i].stackname)
+			if (MCStringIsEqualTo(stackfiles[i].stackname, p_name, kMCStringOptionCompareCaseless))
 			{
-				if (filename == NULL || stackfiles[i].filename[0] == '/' || stackfiles[i].filename[1] == ':')
-					return strclone(stackfiles[i].filename);
+				if (MCStringIsEmpty(filename) || MCStringGetCharAtIndex(stackfiles[i].filename, 0) == '/' || MCStringGetCharAtIndex(stackfiles[i].filename, 1) == ':')
+				{
+					r_name = MCValueRetain(stackfiles[i].filename);
+					return;
+				}
 
-				// OK-2007-11-13 : Fix for crash caused by strcpy writing over sptr. sptr extended by 1 byte to cover null termination char.
-				char *sptr = new char[strlen(filename) + strlen(stackfiles[i].filename) + 1];
-				strcpy(sptr, filename);
-				char *eptr = strrchr(sptr, PATH_SEPARATOR);
-
-				if (eptr == NULL)
-					eptr = sptr;
-				else
-					eptr++;
-
-				strcpy(eptr, stackfiles[i].filename);
-				return sptr;
+				uindex_t t_index;
+				if (!MCStringLastIndexOfChar(filename, PATH_SEPARATOR, -1, kMCStringOptionCompareExact, t_index))
+				{
+					r_name = MCValueRetain(filename);
+					return;
+				}
+				
+				MCStringRef t_filename;
+				/* UNCHECKED */ MCStringMutableCopySubstring(filename, MCRangeMake(0, t_index + 1), t_filename);
+				/* UNCHECKED */ MCStringAppend(t_filename, stackfiles[i].filename);
+				/* UNCHECKED */ MCStringCopyAndRelease(t_filename, r_name);
+				return;
 			}
 	}
-	return NULL;
+	r_name = MCValueRetain(kMCEmptyString);
 }
 
-void MCStack::setfilename(char *f)
+void MCStack::setfilename(MCStringRef f)
 {
-	delete filename;
-	filename = f;
-	if (f != NULL)
-		MCU_fix_path(filename);
+	MCAutoStringRef out_filename_string;
+	MCU_fix_path(f, &out_filename_string);
+	MCValueAssign(filename, *out_filename_string);
 }
 
 void MCStack::loadwindowshape()
@@ -2308,20 +2757,29 @@ void MCStack::loadwindowshape()
 		destroywindowshape(); //just in case
 		
 #if defined(_DESKTOP)
-		// MW-2009-02-02: [[ Improved image search ]]
-		// Search for the appropriate image object using the standard method.
-		MCImage *iptr;
-		iptr = resolveimageid(windowshapeid);
-		if (iptr != NULL)
+		MCImage *t_image;
+		// MW-2009-02-02: [[ Improved image search ]] Search for the appropriate image object using the standard method.
+		t_image = resolveimageid(windowshapeid);
+		if (t_image != NULL)
 		{
-			iptr->setflag(True, F_I_ALWAYS_BUFFER);
-			iptr->open();
+			MCWindowShape *t_new_mask;
+			t_image->setflag(True, F_I_ALWAYS_BUFFER);
+			t_image->open();
 
-			m_window_shape = iptr -> makewindowshape();
-			if (m_window_shape != nil)
-				setextendedstate(True, ECS_MASK_CHANGED);
-
-			iptr->close();
+			// IM-2014-10-22: [[ Bug 13746 ]] Scale window shape to both stack scale and backing buffer scale
+			MCGFloat t_scale;
+			t_scale = view_getbackingscale();
+			t_scale *= view_get_content_scale();
+			
+			uint32_t t_width, t_height;
+			t_width = t_image->getrect().width;
+			t_height = t_image->getrect().height;
+			
+			t_new_mask = t_image -> makewindowshape(MCGIntegerSizeMake(t_width * t_scale, t_height * t_scale));
+			t_image->close();
+			// MW-2014-06-11: [[ Bug 12495 ]] Refactored action as different whether using platform API or not.
+			if (t_new_mask != NULL)
+				updatewindowshape(t_new_mask);
 		}
 #endif
 
@@ -2387,15 +2845,13 @@ void MCStack::dirtyall(void)
 		while(t_objptr != curcard -> getobjptrs());
 	}
 
-	// Defer to the rect dirtying routine to update the update region.
-	dirtyrect(curcard -> getrect());
+    dirtyrect(view_getstackvisiblerect());
 }
 
 void MCStack::dirtywindowname(void)
 {
 	state |= CS_TITLE_CHANGED;
-	delete titlestring;
-	titlestring = NULL;
+	MCValueAssign(titlestring, kMCEmptyString);
 
 	MCRedrawScheduleUpdateForStack(this);
 }
@@ -2465,46 +2921,95 @@ void MCStack::render(MCGContextRef p_context, const MCRectangle &p_rect)
 	t_rect = MCRectangleGetTransformedBounds(p_rect, MCGAffineTransformInvert(t_transform));
 	
 	MCGraphicsContext *t_old_context = nil;
-	t_old_context = new MCGraphicsContext(p_context);
+	t_old_context = new (nothrow) MCGraphicsContext(p_context);
 	if (t_old_context != nil)
 		render(t_old_context, t_rect);
 	delete t_old_context;
 }
 
-void MCStack::view_surface_redrawwindow(MCStackSurface *p_surface, MCRegionRef p_region)
+////////////////////////////////////////////////////////////////////////////////
+
+// MM-2014-07-31: [[ ThreadedRendering ]] MCStackTile wraps a MCStackSurface and allows for the locking and rendring of the given region.
+//  This way we can easily split the stack surface into multiple regions and render each on a separate thread.
+class MCGContextStackTile: public MCStackTile
+{
+public:
+    MCGContextStackTile(MCStack *p_stack, MCStackSurface *p_surface, const MCGIntegerRectangle &p_region)
+    {
+        m_stack = p_stack;
+        m_surface = p_surface;
+        m_region = p_region;
+        m_context = NULL;
+    }
+    
+    ~MCGContextStackTile()
+    {
+    }
+    
+    bool Lock(void)
+    {
+        return m_surface -> LockGraphics(m_region, m_context, m_raster);
+    }
+    
+	void Unlock(void)
+    {
+        m_surface -> UnlockGraphics(m_region, m_context, m_raster);
+    }
+    
+    void Render(void)
+    {
+#ifndef _MAC_DESKTOP
+        // IM-2014-01-24: [[ HiDPI ]] Use view backing scale to transform surface -> logical coords
+        MCGFloat t_backing_scale;
+        t_backing_scale = m_stack -> view_getbackingscale();
+        
+        // p_region is in surface coordinates, translate to user-space coords & ensure any fractional pixels are accounted for
+        MCRectangle t_rect;
+        t_rect = MCRectangleGetScaledBounds(MCRectangleFromMCGIntegerRectangle(m_region), 1 / t_backing_scale);
+        
+        // scale user -> surface space
+        MCGContextScaleCTM(m_context, t_backing_scale, t_backing_scale);
+        
+        m_stack -> view_render(m_context, t_rect);
+#else
+        m_stack -> view_render(m_context, MCRectangleFromMCGIntegerRectangle(m_region));
+#endif
+    }
+    
+private:
+    MCStack             *m_stack;
+    MCStackSurface      *m_surface;
+    MCGIntegerRectangle m_region;
+    MCGContextRef       m_context;
+    MCGRaster           m_raster;
+};
+
+void MCStack::view_surface_redrawwindow(MCStackSurface *p_surface, MCGRegionRef p_region)
 {
 	MCTileCacheRef t_tilecache;
 	t_tilecache = view_gettilecache();
 	
+    // SN-2014-08-25: [[ Bug 13187 ]] MCplayers's syncbuffering relocated
+    MCPlayer::SyncPlayers(this, nil);
 	if (t_tilecache == nil || !MCTileCacheIsValid(t_tilecache))
 	{
-		// If there is no tilecache, or the tilecache is invalid then fetch an
-		// MCGContext for the surface and render.
-		MCGContextRef t_context = nil;
-		if (p_surface -> LockGraphics(p_region, t_context))
-		{
-			// IM-2014-01-24: [[ HiDPI ]] Use view backing scale to transform surface -> logical coords
-			MCGFloat t_backing_scale;
-			t_backing_scale = view_getbackingscale();
-			
-			// p_region is in surface coordinates, translate to user-space coords & ensure any fractional pixels are accounted for
-			MCRectangle t_rect;
-			t_rect = MCRectangleGetScaledBounds(MCRegionGetBoundingBox(p_region), 1 / t_backing_scale);
-			
-			// scale user -> surface space
-			MCGContextScaleCTM(t_context, t_backing_scale, t_backing_scale);
-			
-			view_render(t_context, t_rect);
-			
-			p_surface -> UnlockGraphics();
-		}
+        MCGIntegerRectangle t_bounds;
+        t_bounds = MCGRegionGetBounds(p_region);
+    
+        MCGContextStackTile t_tile(this, p_surface, t_bounds);
+        if (t_tile . Lock())
+        {
+            t_tile . Render();
+            t_tile . Unlock();
+        }
 	}
 	else
-	{
 		// We have a valid tilecache, so get it to composite.
 		MCTileCacheComposite(t_tilecache, p_surface, p_region);
-	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 void MCStack::takewindowsnapshot(MCStack *p_other_stack)
 {
@@ -2561,7 +3066,7 @@ void MCStack::snapshotwindow(const MCRectangle& p_area)
 		t_user_rect = MCRectangleGetTransformedBounds(t_surface_rect, MCGAffineTransformInvert(t_transform));
 		
 		if (t_success)
-			t_success = MCGContextCreate(t_surface_rect.width, t_surface_rect.height, true, t_context);
+			t_success = MCGContextCreate(t_surface_rect.width, t_surface_rect.height, false, t_context);
 
 		if (t_success)
 		{
@@ -2570,7 +3075,7 @@ void MCStack::snapshotwindow(const MCRectangle& p_area)
 			// IM-2013-09-30: [[ FullscreenMode ]] Apply stack transform to snapshot context
 			MCGContextConcatCTM(t_context, t_transform);
 			
-			t_success = nil != (t_gfxcontext = new MCGraphicsContext(t_context));
+			t_success = nil != (t_gfxcontext = new (nothrow) MCGraphicsContext(t_context));
 		}
 
 		if (t_success)
@@ -2742,3 +3247,47 @@ MCRectangle MCStack::getvisiblerect(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool MCStack::foreachstack(MCStackForEachCallback p_callback, void *p_context)
+{
+    if (!p_callback(this, p_context))
+        return false;
+    
+	bool t_continue;
+	t_continue = true;
+    
+	if (substacks != NULL)
+	{
+		MCStack *t_stack = substacks;
+		do
+		{
+            		t_continue = p_callback(t_stack, p_context);
+			t_stack = (MCStack *)t_stack->next();
+		}
+		while (t_continue && t_stack != substacks);
+	}
+	
+	return t_continue;
+}
+
+bool MCStack::foreachchildstack(MCStackForEachCallback p_callback, void *p_context)
+{
+	bool t_continue;
+	t_continue = true;
+	
+	if (substacks != NULL)
+	{
+		MCStack *t_stack = substacks;
+		do
+		{
+			if (t_stack->getparentstack() == this)
+				t_continue = p_callback(t_stack, p_context);
+
+			t_stack = (MCStack *)t_stack->next();
+		}
+		while (t_continue && t_stack != substacks);
+	}
+	
+	return t_continue;
+}
+

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "dispatch.h"
 #include "stack.h"
 #include "globals.h"
@@ -114,7 +114,6 @@ struct MCCapsule
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool MCCapsuleBucketCreate(uint32_t p_data_length, bool p_finished, bool p_foreign, const void *p_data, IO_handle p_file, MCCapsuleBucket*& r_self);
 static void MCCapsuleBucketDestroy(MCCapsuleBucket *self);
 
 static bool MCCapsuleBucketCreate(uint32_t p_data_length, uint32_t p_data_offset, bool p_finished, bool p_foreign, const void *p_data, IO_handle p_file, MCCapsuleBucket*& r_self)
@@ -185,7 +184,7 @@ bool MCCapsuleOpen(MCCapsuleCallback p_callback, void *p_callback_state, MCCapsu
 		self -> decompress . next_out = self  -> output_buffer;
 		self -> decompress . avail_out = 0;
 		if (inflateInit2(&self -> decompress, -15) != Z_OK)
-			return false; //MCThrow(kMCErrorCapsuleInflateFailed);
+			t_success = false; //MCThrow(kMCErrorCapsuleInflateFailed);
 	}
 
 	// If successful, initialize as appropriate
@@ -287,7 +286,7 @@ bool MCCapsuleFillNoCopy(MCCapsuleRef self, const void *p_data, uint32_t p_data_
 	return MCCapsuleFillCommon(self, p_data_length, 0, p_finished, true, p_data, nil);
 }
 
-bool MCCapsuleFillFromFile(MCCapsuleRef self, const char *p_path, uint32_t p_offset, bool p_finished)
+bool MCCapsuleFillFromFile(MCCapsuleRef self, MCStringRef p_path, uint32_t p_offset, bool p_finished)
 {
 	MCAssert(self != nil);
 	MCAssert(p_path != nil);
@@ -299,7 +298,7 @@ bool MCCapsuleFillFromFile(MCCapsuleRef self, const char *p_path, uint32_t p_off
 	t_stream = nil;
 	if (t_success)
 	{
-		t_stream = MCS_open(p_path, IO_READ_MODE, True, False, 0);
+        t_stream = MCS_open(p_path, kMCOpenFileModeRead, True, False, 0);
 		if (t_stream == nil)
 			t_success = false;
 	}
@@ -391,11 +390,7 @@ static bool MCCapsuleReadBuckets(MCCapsuleRef self, void *p_buffer, uint32_t p_b
 				return false;
 
 			// Read the data we require.
-			if (MCS_read(t_buffer, 1, t_amount_read, self -> buckets -> data_file) == IO_ERROR)
-				return false;
-
-			// If the amount we require isn't available, its an error.
-			if (t_amount != t_amount_read)
+			if (MCS_readfixed(t_buffer, t_amount_read, self -> buckets -> data_file) == IO_ERROR)
 				return false;
 		}
 		
@@ -485,10 +480,10 @@ static bool MCCapsuleRead(MCCapsuleRef self, void *p_buffer, uint32_t p_buffer_s
 		// for, the input must be eof.
 		if (self -> buckets_complete)
 			self -> input_eof = (t_amount != t_amount_read);
-		
+
 		// Process any security features.
 		MCStackSecurityProcessCapsule(self -> decompress . next_in + self -> decompress . avail_in, self -> input_buffer + self -> input_frontier + t_amount_read);
-		
+
 		// Adjust the data pointers
 		self -> input_frontier += t_amount_read;
 		self -> decompress . avail_in = (self -> input_buffer + self -> input_frontier - sizeof(uint32_t)) - (self -> decompress . next_in + self -> decompress . avail_in);
@@ -722,7 +717,7 @@ bool MCCapsuleProcess(MCCapsuleRef self)
 
 		// Fetch the first header word to see if we need to read more.
 		if (t_success)
-			t_header[0] = MCByteSwappedToHost32(((uint32_t *)self -> output_buffer)[0]);
+			t_header[0] = MCSwapInt32NetworkToHost(((uint32_t *)self -> output_buffer)[0]);
 
 		// If the top bit of the first header word is set, it means that we
 		// need to read another header word.
@@ -733,7 +728,7 @@ bool MCCapsuleProcess(MCCapsuleRef self)
 				break;
 
 			if (t_success)
-				t_header[1] = MCByteSwappedToHost32(((uint32_t *)self -> output_buffer)[1]);
+				t_header[1] = MCSwapInt32NetworkToHost(((uint32_t *)self -> output_buffer)[1]);
 		}
 
 		// Now we have the header compute its tag and size.
@@ -765,9 +760,10 @@ bool MCCapsuleProcess(MCCapsuleRef self)
 				break;
 			}
 
-			// Ensure the entire tag length + header size + padding (if any).
+			// Ensure the entire tag length + header size + padding
+			// (if any).  The padding is computed up to the next 4-byte boundary.
 			uint32_t t_required_length;
-			t_required_length = t_header_size + (t_length + 3) & ~3;
+			t_required_length = (t_header_size + t_length + 3) & ~3;
 			t_success = MCCapsuleEnsure(self, t_required_length);
 
 			// If we don't have enough data, break as we can do no more for now.
@@ -786,7 +782,7 @@ bool MCCapsuleProcess(MCCapsuleRef self)
 			{
 				// If we haven't got all the data, then we have all data buffered
 				// so can use a regular variety fake stream.
-				t_stream = MCS_fakeopen(MCString((char *)(self -> output_buffer + t_header_size), t_length));
+                t_stream = MCS_fakeopen((const char *)self -> output_buffer + t_header_size, t_length);
 			}
 			else
 			{
@@ -856,352 +852,3 @@ bool MCCapsuleProcess(MCCapsuleRef self)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-typedef bool (*MCRecordFieldEncodeCallback)(void *state, MCExecPoint& ep, void* r_encoded_value);
-typedef bool (*MCRecordFieldDecodeCallback)(void *state, MCExecPoint& ep, void* encoded_value);
-
-struct MCRecordSetElement
-{
-	const char *tag;
-	uint32_t bit;
-};
-
-struct MCRecordEnumElement
-{
-	const char *tag;
-	uint32_t index;
-};
-
-struct MCRecordField
-{
-	const char *name;
-	uint32_t offset;
-	uint32_t length;
-	MCRecordFieldEncodeCallback encoder;
-	MCRecordFieldDecodeCallback decoder;
-	void *state;
-};
-
-static bool MCRecordBooleanEncode(void *state, MCExecPoint& ep, void* r_encoded_value)
-{
-	if (ep . getsvalue() == MCtruemcstring)
-		*(uint32_t *)r_encoded_value = 1;
-	else if (ep . getsvalue() == MCfalsemcstring)
-		*(uint32_t *)r_encoded_value = 0;
-	else
-		return false;
-
-	return true;
-}
-
-static bool MCRecordBooleanDecode(void *state, MCExecPoint& ep, void* p_encoded_value)
-{
-	ep . setboolean(*(uint32_t *)p_encoded_value != 0);
-	return true;
-}
-
-static bool MCRecordCardinalEncode(void *state, MCExecPoint& ep, void *r_encoded_value)
-{
-	*(uint32_t *)r_encoded_value = ep . getuint4();
-	return true;
-}
-
-static bool MCRecordCardinalDecode(void *state, MCExecPoint& ep, void *p_encoded_value)
-{
-	ep . setnvalue(*(uint32_t *)p_encoded_value);
-	return true;
-}
-
-static bool MCRecordSetEncode(void *state, MCExecPoint& ep, void* r_encoded_set)
-{
-	MCRecordSetElement *t_elements;
-	t_elements = static_cast<MCRecordSetElement *>(state);
-
-	uint32_t t_bits;
-	t_bits = 0;
-
-	const char *t_ptr;
-	t_ptr = ep . getcstring();
-	while(*t_ptr != '\0')
-	{
-		// Find the end of the current element's tag, or end of string if none
-		// is found.
-		const char *t_next_ptr;
-		t_next_ptr = strchr(t_ptr, ',');
-		if (t_next_ptr == nil)
-			t_next_ptr = t_ptr + strlen(t_ptr);
-
-		// Construct an MCString
-		MCString t_tag;
-		t_tag . set(t_ptr, t_next_ptr - t_ptr);
-
-		// If the element is non-empty then look it up.
-		if (t_tag != MCnullmcstring)
-		{
-			uint32_t t_bit;
-			t_bit = 0;
-			for(uint32_t i = 0; t_elements[i] . tag != nil; i++)
-				if (t_tag == t_elements[i] . tag)
-				{
-					t_bit = t_elements[i] . bit;
-					break;
-				}
-
-			// If the element was not found, its an error
-			if (t_bit == 0)
-				return false;
-
-			// Otherwise include it in the bits
-			t_bits |= t_bit;
-		}
-
-		// Advance to next tag
-		if (*t_next_ptr == ',')
-			t_ptr = t_next_ptr + 1;
-		else
-			t_ptr = t_next_ptr;
-	}
-
-	// Return bits
-	*(uint32_t *)r_encoded_set = t_bits;
-
-	return true;
-}
-
-static bool MCRecordSetDecode(void *state, MCExecPoint& ep, void* p_encoded_set)
-{
-	MCRecordSetElement *t_elements;
-	t_elements = static_cast<MCRecordSetElement *>(state);
-
-	uint32_t t_set;
-	t_set = *(uint32_t *)p_encoded_set;
-
-	bool t_first;
-	t_first = true;
-	for(uint32_t i = 0; t_elements[i] . tag != nil; i++)
-	{
-		if ((t_set & t_elements[i] . bit) != t_elements[i] . bit)
-			continue;
-
-		ep . concatcstring(t_elements[i] . tag, EC_COMMA, t_first);
-
-		t_set &= ~(t_elements[i] . bit);
-		t_first = false;
-	}
-
-	return true;
-}
-
-static bool MCRecordEnumEncode(void *state, MCExecPoint& ep, void* r_encoded_enum)
-{
-	MCRecordEnumElement *t_elements;
-	t_elements = static_cast<MCRecordEnumElement *>(state);
-
-	for(uint32_t i = 0; t_elements[i] . tag != nil; i++)
-		if (ep . getsvalue() == t_elements[i] . tag)
-		{
-			*(uint32_t *)r_encoded_enum = t_elements[i] . index;
-			return true;
-		}
-
-	return false;
-}
-
-static bool MCRecordEnumDecode(void *state, MCExecPoint& ep, void* p_encoded_enum)
-{
-	MCRecordEnumElement *t_elements;
-	t_elements = static_cast<MCRecordEnumElement *>(state);
-
-	for(uint32_t i = 0; t_elements[i] . tag != nil; i++)
-		if (t_elements[i] . index == *(uint32_t *)p_encoded_enum)
-		{
-			ep . setstaticcstring(t_elements[i] . tag);
-			break;
-		}
-
-	return true;
-}
-
-static bool MCRecordUUIDEncode(void *state, MCExecPoint& ep, void *r_encoded_uuid)
-{
-	// Use sscanf to parse out the parts of the uuid.
-	uint32_t a, b, c, d, e, f;
-	if (sscanf(ep . getcstring(), "%8x-%4x-%4x-%4x-%8x%4x", &a, &b, &c, &d, &e, &f) != 6)
-		return false;
-
-	// Now encode them - note we do this long hand due to endian issues
-	// otherwise.
-	uint8_t *t_uuid;
-	t_uuid = (uint8_t *)r_encoded_uuid;
-
-	t_uuid[0] = (a >> 24) & 0xff;
-	t_uuid[1] = (a >> 16) & 0xff;
-	t_uuid[2] = (a >> 8) & 0xff;
-	t_uuid[3] = (a >> 0) & 0xff;
-
-	t_uuid[4] = (b >> 8) & 0xff;
-	t_uuid[5] = (b >> 0) & 0xff;
-
-	t_uuid[6] = (c >> 8) & 0xff;
-	t_uuid[7] = (c >> 0) & 0xff;
-
-	t_uuid[8] = (d >> 8) & 0xff;
-	t_uuid[9] = (d >> 0) & 0xff;
-
-	t_uuid[10] = (e >> 24) & 0xff;
-	t_uuid[11] = (e >> 18) & 0xff;
-	t_uuid[12] = (e >> 8) & 0xff;
-	t_uuid[13] = (e >> 0) & 0xff;
-
-	t_uuid[14] = (f >> 8) & 0xff;
-	t_uuid[15] = (f >> 0) & 0xff;
-
-	return true;
-}
-
-static bool MCRecordUUIDDecode(void *state, MCExecPoint& ep, void *p_encoded_uuid)
-{
-	uint8_t *t_uuid;
-	t_uuid = (uint8_t *)p_encoded_uuid;
-
-	char t_buffer[48];
-	sprintf(t_buffer, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-		t_uuid[0], t_uuid[1], t_uuid[2], t_uuid[3],
-		t_uuid[4], t_uuid[5],
-		t_uuid[6], t_uuid[7],
-		t_uuid[8], t_uuid[9],
-		t_uuid[10], t_uuid[11], t_uuid[12], t_uuid[13], t_uuid[14], t_uuid[15]);
-	ep . copysvalue(t_buffer);
-
-	return true;
-}
-
-static bool MCRecordColorEncode(void *state, MCExecPoint& ep, void *r_encoded_color)
-{
-	// use sscanf to parse out the color.
-	uint32_t r, g, b;
-	if (sscanf(ep . getcstring(), "%u,%u,%u", &r, &g, &b) != 3)
-		return false;
-
-	// Check the numbers wil fit in the field
-	if (r > 255 || g > 255 || b > 255)
-		return false;
-
-	*(uint32_t *)r_encoded_color = (r << 16) | (g << 8) | b;
-
-	return true;
-}
-
-static bool MCRecordColorDecode(void *state, MCExecPoint& ep, void *p_encoded_color)
-{
-	uint32_t t_color;
-	t_color = *(uint32_t *)p_encoded_color;
-	ep . setcolor(t_color >> 16, (t_color >> 8) & 0xff, t_color & 0xff);	
-	return true;
-}
-
-static bool MCRecordEncode(MCRecordField *p_fields, MCVariableValue *p_array, void *r_record)
-{
-	uint32_t *t_record;
-	t_record = (uint32_t *)r_record;
-
-	MCExecPoint ep(nil, nil, nil);
-	for(uint32_t i = 0; p_fields[i] . name != nil; i++)
-	{
-		if (!p_array -> has_element(ep, p_fields[i] . name))
-			return false;
-		if (p_array -> fetch_element(ep, p_fields[i] . name) != ES_NORMAL)
-			return false;
-
-		if ((p_fields[i] . offset & 31) == 0 && (p_fields[i] . length % 32) == 0)
-		{
-			if (!p_fields[i] . encoder(p_fields[i] . state, ep, t_record + p_fields[i] . offset / 32))
-				return false;
-		}
-		else if ((p_fields[i] . offset & 15) == 0 && p_fields[i] . length == 16)
-		{
-			uint32_t t_value;
-			if (!p_fields[i] . encoder(p_fields[i] . state, ep, &t_value))
-				return false;
-			((uint16_t *)r_record)[p_fields[i] . offset / 16] = (uint16_t)t_value;
-		}
-		else if (p_fields[i] . length == 1)
-		{
-			uint32_t t_value;
-			if (!p_fields[i] . encoder(p_fields[i] . state, ep, &t_value))
-				return false;
-
-			t_record[p_fields[i] . offset / 32] &= ~(1 << (p_fields[i] . offset & 31));
-			t_record[p_fields[i] . offset / 32] |= t_value << (p_fields[i] . offset & 31);
-		}
-		else
-			return false;
-	}
-
-	return true;
-}
-
-static bool MCRecordDecode(MCRecordField *p_fields, MCVariableValue *array, void *p_record)
-{
-	uint32_t *t_record;
-	t_record = (uint32_t *)p_record;
-
-	MCExecPoint ep(nil, nil, nil);
-	for(uint32_t i = 0; p_fields[i] . name != nil; i++)
-	{
-		ep . clear();
-
-		if ((p_fields[i] . offset & 31) == 0 && (p_fields[i] . length % 32) == 0)
-		{
-			if (!p_fields[i] . decoder(p_fields[i] . state, ep, t_record + p_fields[i] . offset / 32))
-				return false;
-		}
-		else if (p_fields[i] . length == 1)
-		{
-			uint32_t t_value;
-			t_value = (t_record[p_fields[i] . offset / 32] >> (p_fields[i] . offset & 31)) & 1;
-			if (!p_fields[i] . decoder(p_fields[i] . state, ep, &t_value))
-				return false;
-		}
-		else
-			return false;
-
-		if (array -> store_element(ep, p_fields[i] . name) != ES_NORMAL)
-			return false;
-	}
-
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static bool MCCapsuleEnvironmentVersionEncode(void *state, MCExecPoint& ep, void* r_version)
-{
-	// Use sscanf to parse out the version.
-	uint32_t x, y, z, w;
-	if (sscanf(ep . getcstring(), "%u.%u.%u.%u", &x, &y, &z, &w) != 4)
-		return false;
-
-	// Check the numbers wil fit in the field
-	if (x >= 16 || y >= 16 || z >= 16 || w >= 1 << 19)
-		return false;
-
-	// Build up the bit fields
-	*(uint32_t *)r_version = (x << 28) | (y << 24) | (z << 20) | (w << 1);
-
-	return true;
-}
-
-static bool MCCapsuleEnvironmentVersionDecode(void *state, MCExecPoint& ep, void* p_version)
-{
-	uint32_t t_version;
-	t_version = *(uint32_t *)p_version;
-
-	char t_buffer[U4L + 3 * U1L + 3 + 1];
-	sprintf(t_buffer, "%u.%u.%u.%u", t_version >> 28, (t_version >> 24) & 0xf, (t_version >> 20) & 0xf, (t_version >> 1) & 0x7ffff);
-	ep . copysvalue(t_buffer);
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-

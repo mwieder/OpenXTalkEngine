@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -23,12 +23,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #if defined(_WINDOWS) || defined(_WINDOWS_SERVER)
 #include "w32support.h"
-#elif defined(_LINUX) || defined(TARGET_SUBPLATFORM_ANDROID)
+#elif defined(_LINUX) || defined(_LINUX_SERVER) || defined(TARGET_SUBPLATFORM_ANDROID)
 #include "unxsupport.h"
-#elif defined(_MACOSX)
+#elif defined(_MACOSX) || defined (_MAC_SERVER)
 #include "osxsupport.h"
 #elif defined(TARGET_SUBPLATFORM_IPHONE)
 #include "iossupport.h"
+#endif
+
+#if defined(_WINDOWS)
+#pragma optimize("", off)
 #endif
 
 #include <revolution/external.h>
@@ -135,40 +139,43 @@ const char *dbtypestrings[] = {
 
 };
 
+static void *DBcallback_loadmodule(const char *p_path)
+{
+    int t_success;
+    void *t_handle;
+    LoadModuleByName(p_path, &t_handle, &t_success);
+    if (t_success == EXTERNAL_FAILURE)
+        return NULL;
+    return t_handle;
+}
+
+static void DBcallback_unloadmodule(void *p_handle)
+{
+    int t_success;
+    UnloadModule(p_handle, &t_success);
+}
+
+static void *DBcallback_resolvesymbol(void *p_handle, const char *p_symbol)
+{
+    int t_success;
+    void *t_address;
+    ResolveSymbolInModule(p_handle, p_symbol, &t_address, &t_success);
+    if (t_success == EXTERNAL_FAILURE)
+        return NULL;
+    return t_address;
+}
+
+static DBcallbacks dbcallbacks = {
+    DBcallbacks_version,
+    DBcallback_loadmodule,
+    DBcallback_unloadmodule,
+    DBcallback_resolvesymbol,
+};
+
 DATABASERECList databaselist;
 DBList connectionlist;
 
-static int computehash(char *keystr)
-{
-	unsigned int value = 0;
-	int length = strlen(keystr);
-	const char *sptr = keystr;
-	while (length--){
-		value += tolower(*sptr++);
-		value = value * 3;
-	}
-	return value & 96000 -1;
-}
-
 #define simpleparse(a,b,c) (((b > a) | (c < a))?True:False)
-
-static char * _strrev(char * str)
-{
-	int SmallIndex = 0;
-	int BigIndex = strlen(str) - 1;
-	
-	while (SmallIndex < BigIndex) {
-		char Temp = str[SmallIndex];
-		
-		str[SmallIndex] = str[BigIndex];
-		str[BigIndex] = Temp;
-		
-		SmallIndex++;
-		BigIndex--;
-	}
-	
-	return str;
-	}
 
 static char *strlwr(char *str)
 {
@@ -183,9 +190,6 @@ static char *strlwr(char *str)
 void REVDB_Init(char *args[], int nargs, char **retstring,
 		   Bool *pass, Bool *error)
 {
-	static Bool littlecheat = False;
-	int passkey = 0;
-
 	*error = False;
 	*pass = False;
 
@@ -232,109 +236,114 @@ DBCursor *findcursor(int cursid)
 	return NULL;
 }
 
+// AL-2015-02-10: [[ SB Inclusions ]] Add function to load database driver using new module loading callbacks
+DATABASEREC *LoadDatabaseDriverFromName(const char *p_type)
+{
+    int t_retvalue;
+    void *t_handle;
+    t_handle = NULL;
+    LoadModuleByName(p_type, &t_handle, &t_retvalue);
+    
+    if (t_handle == NULL)
+        return NULL;
+    
+    DATABASEREC *t_result;
+    t_result = new (nothrow) DATABASEREC;
+	t_result -> driverref = t_handle;
+    
+    void *id_counterref_ptr, *new_connectionref_ptr, *release_connectionref_ptr;
+    void *set_callbacksref_ptr;
+    id_counterref_ptr = NULL;
+    new_connectionref_ptr = NULL;
+    release_connectionref_ptr = NULL;
+    set_callbacksref_ptr = NULL;
+    
+    ResolveSymbolInModule(t_handle, "setidcounterref", &id_counterref_ptr, &t_retvalue);
+    ResolveSymbolInModule(t_handle, "newdbconnectionref", &new_connectionref_ptr, &t_retvalue);
+    ResolveSymbolInModule(t_handle, "releasedbconnectionref", &release_connectionref_ptr, &t_retvalue);
+    ResolveSymbolInModule(t_handle, "setcallbacksref", &set_callbacksref_ptr, &t_retvalue);
+    
+    t_result -> idcounterptr = (idcounterrefptr)id_counterref_ptr;
+    t_result -> newconnectionptr = (new_connectionrefptr)new_connectionref_ptr;
+    t_result -> releaseconnectionptr = (release_connectionrefptr)release_connectionref_ptr;
+    t_result -> setcallbacksptr = (set_callbacksrefptr)set_callbacksref_ptr;
+    
+    return t_result;
+}
 
+DATABASEREC *LoadDatabaseDriverInFolder(const char *p_folder,
+                                        const char *p_type)
+{
+    DATABASEREC *t_database_rec = nullptr;
+    
+    char t_libname[256];
+    if (0 > snprintf(t_libname,
+                     sizeof(t_libname),
+                     "%s/db%s",
+                     p_folder,
+                     p_type))
+    {
+        return nullptr;
+    }
+    
+    t_database_rec = LoadDatabaseDriverFromName(t_libname);
+    
+    return t_database_rec;
+}
 
 DATABASEREC *LoadDatabaseDriver(const char *p_type)
 {
-  DATABASEREC *t_database_rec;
-	t_database_rec = NULL;
-	
-	char t_driver_name[32];
-#ifdef TARGET_SUBPLATFORM_ANDROID
-	sprintf(t_driver_name, "libdb%s", p_type);
-	// MW-2011-10-06: [[ Bug 9789 ]] Make sure the driver library name is all lowercase.
-	strlwr(t_driver_name);
-#else
-	if (util_stringcompare(p_type, "VALENTINA", strlen(p_type)) == 0)
-		sprintf(t_driver_name, VXCMD_STRING);
-	else
-	{
-		sprintf(t_driver_name, "db%s", p_type);
-		strlwr(t_driver_name);
-	}
-#endif
-	
-	char t_driver_path[PATH_MAX];
-				
-	if (revdbdriverpaths != NULL)
-	{
-		char *t_path;
-		t_path = revdbdriverpaths;
-		
-		while(t_path != NULL && *t_path != '\0')
-		{
-			char *t_next_path = strchr(t_path, '\n');
-			unsigned int t_length;
-			if (t_next_path == NULL)
-				t_length = strlen(t_path);
-			else
-				t_length = t_next_path - t_path, t_next_path += 1;
-					
-			if (t_length > 0)
-			{
-				sprintf(t_driver_path, "%.*s/%s", t_length, t_path, t_driver_name);
-				t_database_rec = DoLoadDatabaseDriver(t_driver_path);
-				if (t_database_rec != NULL)
-					break;
-			}
-			
-			t_path = t_next_path;
-		}
-	}
+    DATABASEREC *t_database_rec = nullptr;
+    
+    char t_type[32];
+    strcpy(t_type, p_type);
+    strlwr(t_type);
 
-#ifndef _SERVER
-	if (t_database_rec == NULL && GetExternalFolder() != NULL)
-	{
-		sprintf(t_driver_path, "%s/Database Drivers/%s", GetExternalFolder(), t_driver_name);
-		t_database_rec = DoLoadDatabaseDriver(t_driver_path);
-		if (t_database_rec == NULL)
-		{
-			sprintf(t_driver_path, "%s/%s", GetExternalFolder(), t_driver_name);
-			t_database_rec = DoLoadDatabaseDriver(t_driver_path);
-		}
-	}
-	
-	if (t_database_rec == NULL && GetApplicationFolder() != NULL)
-	{
-		sprintf(t_driver_path, "%s/%s", GetApplicationFolder(), t_driver_name);
-		t_database_rec = DoLoadDatabaseDriver(t_driver_path);
-	}
-#else
-	if (t_database_rec == NULL && GetExternalFolder() != NULL)
-	{
-		const char *t_last_component;
-		t_last_component = strrchr(GetExternalFolder(), '/');
-		if (t_last_component != NULL)
-		{
-			sprintf(t_driver_path, "%.*s/drivers/%s", t_last_component - GetExternalFolder(), GetExternalFolder(), t_driver_name);
-			t_database_rec = DoLoadDatabaseDriver(t_driver_path);
-		}
-		if (t_database_rec == NULL)
-		{
-			sprintf(t_driver_path, "%s/%s", GetExternalFolder(), t_driver_name);
-			t_database_rec = DoLoadDatabaseDriver(t_driver_path);
-		}
-	}
-#endif
-	
-	if (t_database_rec == NULL)
-		t_database_rec = DoLoadDatabaseDriver(t_driver_name);
-		
-	if (t_database_rec != NULL)
-	{
-		databaselist . push_back(t_database_rec);
-		strcpy(t_database_rec -> dbname, p_type);
-		if (t_database_rec -> idcounterptr)
-			(*t_database_rec -> idcounterptr)(&idcounter);
-	}
+    if (revdbdriverpaths != nullptr)
+    {
+        t_database_rec = LoadDatabaseDriverInFolder(revdbdriverpaths, p_type);
+    }
+    else
+    {
+        t_database_rec = LoadDatabaseDriverInFolder(".", t_type);
+        
+        
+        if (t_database_rec == nullptr)
+            t_database_rec = LoadDatabaseDriverInFolder("./Database Drivers",
+                                                        t_type);
+
+        if (t_database_rec == nullptr)
+            t_database_rec = LoadDatabaseDriverInFolder("./database_drivers",
+                                                        t_type);
+
+        if (t_database_rec == nullptr)
+            t_database_rec = LoadDatabaseDriverInFolder("./drivers",
+                                                        t_type);
+    }
+    
+    if (t_database_rec != nullptr)
+    {
+        databaselist . push_back(t_database_rec);
+        strcpy(t_database_rec -> dbname, p_type);
+        if (t_database_rec -> idcounterptr)
+            (*t_database_rec -> idcounterptr)(&idcounter);
+        if (t_database_rec -> setcallbacksptr)
+            (*t_database_rec -> setcallbacksptr)(&dbcallbacks);
+    }
 	
 	return t_database_rec;
+}
+
+void UnloadDatabaseDriver(DATABASEREC *rec)
+{
+    int t_retvalue;
+    UnloadModule(rec->driverref, &t_retvalue);
+    delete rec;
 }
 
 void REVDB_INIT()
 {
 }
-
 
 void REVDB_QUIT()
 {
@@ -354,18 +363,14 @@ void REVDB_QUIT()
 				break;
 			}
 		}
-		if (databaserec && databaserec ->releaseconnectionptr)
+		if (databaserec != NULL && databaserec ->releaseconnectionptr != NULL)
 			(*databaserec->releaseconnectionptr)(tconnection);
-		break;
 	}
 	connlist->clear();
-	DATABASEREC *databaserec = NULL;
 	DATABASERECList::iterator theIterator2;
 	for (theIterator2 = databaselist.begin(); theIterator2 != databaselist.end(); theIterator2++){
 		DATABASEREC *tdatabaserec = (DATABASEREC *)(*theIterator2);
-		FreeDatabaseDriver(tdatabaserec);
-		
-		delete tdatabaserec;
+		UnloadDatabaseDriver(tdatabaserec);
 	}
 	databaselist.clear();
 }
@@ -460,12 +465,6 @@ void processInputArray(char *p_variable_name, char *p_key_name, ExternalString &
 
 	GetVariableEx(t_adjusted_variable_name, t_adjusted_key_name == NULL ? "" : t_adjusted_key_name, &t_value, &t_return_value);
 
-	char *t_value_data;
-	t_value_data = (char *)t_value . buffer;
-
-	int t_value_length;
-	t_value_length = t_value . length;
-
 	r_value = t_value;
 }
 
@@ -539,7 +538,7 @@ DBString *BindVariables(char *p_arguments[],int p_argument_count, int &r_value_c
 			qsort(t_map, t_element_count, sizeof(unsigned int), SortKeysCallback);
 
 			// If there are multiple elements...
-			t_values = new DBString[t_element_count];
+			t_values = new (nothrow) DBString[t_element_count];
 			for (int i = 0; i < t_element_count; i++)
 			{
 				char *t_key_buffer;
@@ -589,7 +588,7 @@ DBString *BindVariables(char *p_arguments[],int p_argument_count, int &r_value_c
 		}
 	}
 
-	t_values = new DBString[p_argument_count - 2];
+	t_values = new (nothrow) DBString[p_argument_count - 2];
 	for (int i = 2; i < p_argument_count; i++)
 	{
 		Bool t_is_binary;
@@ -603,7 +602,6 @@ DBString *BindVariables(char *p_arguments[],int p_argument_count, int &r_value_c
 			t_name += 2;
 		}	
 
-		int t_return_value;
 		ExternalString t_value;
 		t_value . buffer = NULL;
 		t_value . length = 0;
@@ -619,15 +617,15 @@ DBString *BindVariables(char *p_arguments[],int p_argument_count, int &r_value_c
 		free(t_variable_name);
 		free(t_key_name);
 
-		// OK-2008-12-09: Because the engine retains ownership of t_value . buffer, using it can lead
-		// to problems where the engine overwrites the buffer, leading to the wrong values being
-		// inserted into databases. The problem is fixed by creating duplicates of any buffers returned.
-		char *t_new_buffer;
-		t_new_buffer = (char *)malloc(t_value . length);
-		memcpy(t_new_buffer, t_value . buffer, t_value . length);
-
 		if (t_value . buffer != NULL) 
 		{
+            // OK-2008-12-09: Because the engine retains ownership of t_value . buffer, using it can lead
+            // to problems where the engine overwrites the buffer, leading to the wrong values being
+            // inserted into databases. The problem is fixed by creating duplicates of any buffers returned.
+            char *t_new_buffer;
+            t_new_buffer = (char *)malloc(t_value . length);
+            memcpy(t_new_buffer, t_value . buffer, t_value . length);
+
 			t_values[r_value_count] . Set(t_new_buffer, t_value . length, t_is_binary);
 			r_value_count += 1;
 		}
@@ -700,12 +698,11 @@ void GetColumnByNumber(DBCursor *thecursor, char *&result, int columnid, char *v
 inline const char *BooltoStr(Bool b) {return b == True?"True":"False";}
 
 /// @brief Sets the location that revdb should look for drivers next time a connection is attempted.
-/// @param driverPath The folder path to look for drivers in. This should be a path in Revolution format.
+/// @param driverPath The folder path to look for drivers in. This should be a path in LiveCode format.
 /// No input checking is carried out, if the path is invalid, then the intended drivers will just not be found.
 void REVDB_SetDriverPath(char *args[], int nargs, char **retstring,
 	       Bool *pass, Bool *error)
 {
-	char *result = NULL;
 	*error = False;
 	*pass = False;
 	if (nargs == 1)
@@ -714,7 +711,7 @@ void REVDB_SetDriverPath(char *args[], int nargs, char **retstring,
 			free(revdbdriverpaths);
 		revdbdriverpaths = istrdup(args[0]);
 	}
-	*retstring = (result != NULL ? result : (char *)calloc(1,1));
+	*retstring = static_cast<char*>(calloc(1,1));
 }
 
 void REVDB_GetDriverPath(char *p_arguments[], int p_argument_count, char **r_return_string, Bool *r_pass, Bool *r_error)
@@ -768,7 +765,7 @@ void REVDB_Connect(char *args[], int nargs, char **retstring, Bool *pass, Bool *
 		}
 
 		// check access permissions of known database types
-		int t_dbtype_index;
+		size_t t_dbtype_index;
 		for (t_dbtype_index = 0; t_dbtype_index < REVDB_DATABASETYPECOUNT; t_dbtype_index++)
 		{
 			if (util_stringcompare(REVDBdatabasetypestrings[t_dbtype_index], dbtype, strlen(dbtype)) == 0)
@@ -832,7 +829,6 @@ void REVDB_Connect(char *args[], int nargs, char **retstring, Bool *pass, Bool *
 /// then REVDB_Disconnect returns an error string.
 void REVDB_Disconnect(char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
 {
-	char *result = NULL;
 	*error = True;
 	*pass = False;
 
@@ -844,7 +840,7 @@ void REVDB_Disconnect(char *args[], int nargs, char **retstring, Bool *pass, Boo
 	}
 
 	*error = False;
-	int connectionid = atoi(*args);
+	unsigned int connectionid = strtoul (*args, NULL, 10);
 
 	if (!connectionlist . find(connectionid))
 	{	
@@ -882,7 +878,7 @@ void REVDB_Disconnect(char *args[], int nargs, char **retstring, Bool *pass, Boo
 		}
 	}
 
-	*retstring = (result != NULL ? result : (char *)calloc(1,1));
+	*retstring = static_cast<char*>(calloc(1,1));
 }
 
 /// @brief Commit the last transaction.
@@ -1024,8 +1020,6 @@ void REVDB_ConnectionErr(char *args[], int nargs, char **retstring, Bool *pass, 
 /// Otherwise the number of affected rows is returned. This will be 0 for any query that is not SELECT, INSERT, UPDATE or DELETE.
 void REVDB_Execute(char *p_arguments[], int p_argument_count, char **p_return_string, Bool *p_pass, Bool *p_error)
 {
-	char *result = NULL;
-
 	*p_error = True;
 	*p_pass = False;
 
@@ -2085,7 +2079,7 @@ void REVDB_Connections(char *args[], int nargs, char **retstring,
 	{
 		result = (char *)malloc(connlist->size() * INTSTRSIZE);
 		result[0] = '\0';
-		int numconnections = 0;
+		DBObjectList::size_type numconnections = 0;
 		for (theIterator = connlist->begin(); theIterator != connlist->end(); theIterator++)
 		{
 			DBConnection *curconnection = (DBConnection *)(*theIterator);
@@ -2251,6 +2245,21 @@ void REVDB_Valentina(char *args[], int nargs, char **retstring, Bool *pass, Bool
 
 }
 
+extern "C"
+{
+#ifdef WIN32
+    void __declspec(dllexport) shutdownXtable(void);
+#else
+    void shutdownXtable(void) __attribute__((visibility("default")));
+#endif
+}
+
+void MCCefFinalise(void);
+void shutdownXtable(void)
+{
+    REVDB_QUIT();
+}
+
 EXTERNAL_BEGIN_DECLARATIONS("revDB")
 	EXTERNAL_DECLARE_FUNCTION("revdb_init", REVDB_Init)
 	EXTERNAL_DECLARE_FUNCTION("revdb_connect", REVDB_Connect)
@@ -2340,6 +2349,6 @@ EXTERNAL_END_DECLARATIONS
 extern "C"
 {
 	extern struct LibInfo __libinfo;
-	__attribute((section("__DATA,__libs"))) volatile struct LibInfo *__libinfoptr_revdb = &__libinfo;
+	__attribute((section("__DATA,__libs"))) volatile struct LibInfo *__libinfoptr_revdb __attribute__((__visibility__("default"))) = &__libinfo;
 }
 #endif

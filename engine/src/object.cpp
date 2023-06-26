@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,14 +16,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "dispatch.h"
 #include "stack.h"
 #include "card.h"
@@ -53,6 +52,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "player.h"
 #include "scrolbar.h"
 #include "styledtext.h"
+#include "flst.h"
+#include "widget.h"
+#include "eps.h"
+#include "graphic.h"
 
 #include "globals.h"
 #include "mctheme.h"
@@ -61,10 +64,20 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "context.h"
 #include "mode.h"
 #include "stacksecurity.h"
+#include "stackfileformat.h"
 
+#include "paragraf.h"
+#include "MCBlock.h"
+
+#include "exec.h"
 #include "graphicscontext.h"
 
 #include "resolution.h"
+
+// PM-2014-11-11: [[ Bug 13970 ]] Added for the MCplayers' syncbuffering call
+#ifdef FEATURE_PLATFORM_PLAYER
+#include "platform.h"
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,38 +94,38 @@ uint2 MCObject::s_last_font_index = 0;
 bool MCObject::s_loaded_parent_script_reference = false;
 
 MCColor MCObject::maccolors[MAC_NCOLORS] = {
-            { 0, 0x7070, 0x7070, 0x7070, 0, 0 },
-            { 0, 0xCCCC, 0xCCCC, 0xFFFF, 0, 0 },
-            { 0, 0x9999, 0x9999, 0xFFFF, 0, 0 },
-            { 0, 0x6666, 0x6666, 0xCCCC, 0, 0 },
-            { 0, 0x3333, 0x3333, 0x9999, 0, 0 },
-            { 0, 0x0000, 0x0000, 0x5555, 0, 0 },
-            { 0, 0xE8E8, 0xE8E8, 0xE8E8, 0, 0 }
+            { 0x7070, 0x7070, 0x7070 },
+            { 0xCCCC, 0xCCCC, 0xFFFF },
+            { 0x9999, 0x9999, 0xFFFF },
+            { 0x6666, 0x6666, 0xCCCC },
+            { 0x3333, 0x3333, 0x9999 },
+            { 0x0000, 0x0000, 0x5555 },
+            { 0xE8E8, 0xE8E8, 0xE8E8 }
         };
 
 MCObject::MCObject()
+    : _name(kMCEmptyName)
 {
-	parent = NULL;
+	parent = nil;
 	obj_id = 0;
-	/* UNCHECKED */ MCNameClone(kMCEmptyName, _name);
 	flags = F_VISIBLE | F_SHOW_BORDER | F_3D | F_OPAQUE;
 	fontheight = 0;
 	dflags = 0;
 	ncolors = 0;
 
 	colors = NULL;
-	colornames = NULL;
+	colornames = nil;
 	npatterns = 0;
 	patterns = NULL;
 	opened = 0;
-	script = NULL;
+	_script = MCValueRetain(kMCEmptyString);
 	hlist = NULL;
 	scriptdepth = 0;
 	state = CS_CLEAR;
 	borderwidth = DEFAULT_BORDER;
 	shadowoffset = DEFAULT_SHADOW;
 	props = NULL;
-	tooltip = NULL;
+	tooltip = MCValueRetain(kMCEmptyString);
 	altid = 0;
 	ink = GXcopy;
 	extraflags = 0;
@@ -126,8 +139,8 @@ MCObject::MCObject()
 	// MW-2008-10-25: Initialize the parent script link to NULL
 	parent_script = NULL;
 
-	// MW-2009-08-25: Initialize the handle to NULL
-	m_weak_handle = NULL;
+	// Generate a weak proxy object
+	m_weak_proxy = new MCObjectProxyBase(this);
 
 	// MW-2012-02-14: [[ Fonts ]] Initialize the font to nil.
 	m_font = nil;
@@ -144,19 +157,32 @@ MCObject::MCObject()
 	
 	// MW-2012-10-10: [[ IdCache ]]
 	m_in_id_cache = false;
-	
+    
 	// IM-2013-04-16: Initialize to false;
 	m_script_encrypted = false;
+    
+    // Object's do not begin in the parentScript table.
+    m_is_parent_script = false;
+    
+    // Objects inherit the theme by default
+    m_theme = kMCInterfaceThemeEmpty;
+    m_theme_type = kMCPlatformControlTypeGeneric;
+    
+	// IM-2016-01-21: Initialize native layer to nil
+	m_native_layer = nil;
+
+    // Attach ourselves to an object pool.
+    MCDeletedObjectsOnObjectCreated(this);
 }
 
-MCObject::MCObject(const MCObject &oref) : MCDLlist(oref)
+MCObject::MCObject(const MCObject &oref)
+    : MCDLlist(oref),
+      _name(oref._name)
 {
-	if (oref.parent == NULL)
+	if (!oref.parent)
 		parent = MCdefaultstackptr;
 	else
 		parent = oref.parent;
-	
-	/* UNCHECKED */ MCNameClone(oref . getname(), _name);
 	
 	obj_id = 0;
 	rect = oref.rect;
@@ -166,19 +192,22 @@ MCObject::MCObject(const MCObject &oref) : MCDLlist(oref)
 	ncolors = oref.ncolors;
 	if (ncolors > 0)
 	{
-		colors = new MCColor[ncolors];
-		colornames = new char *[ncolors];
+		colors = new (nothrow) MCColor[ncolors];
+		colornames = new (nothrow) MCStringRef[ncolors];
 		uint2 i;
 		for (i = 0 ; i < ncolors ; i++)
 		{
 			colors[i] = oref.colors[i];
-			colornames[i] = strclone(oref.colornames[i]);
+			if (oref . colornames[i] != nil)
+				colornames[i] = MCValueRetain(oref.colornames[i]);
+			else
+				colornames[i] = nil;
 		}
 	}
 	else
 	{
 		colors = NULL;
-		colornames = NULL;
+		colornames = nil;
 	}
 	npatterns = oref.npatterns;
 	if (npatterns > 0)
@@ -193,7 +222,7 @@ MCObject::MCObject(const MCObject &oref) : MCDLlist(oref)
 		patterns = NULL;
 	}
 	opened = 0;
-	script = strclone(oref.script);
+	_script = MCValueRetain(oref._script);
 	m_script_encrypted = oref.m_script_encrypted;
 	hlist = NULL;
 	scriptdepth = 0;
@@ -201,7 +230,7 @@ MCObject::MCObject(const MCObject &oref) : MCDLlist(oref)
 	borderwidth = oref.borderwidth;
 	shadowoffset = oref.shadowoffset;
 	/* UNCHECKED */ oref . clonepropsets(props);
-	tooltip = strclone(oref.tooltip);
+	tooltip = MCValueRetain(oref.tooltip);
 	altid = oref.altid;
 	ink = oref.ink;
 	extraflags = oref.extraflags;
@@ -216,8 +245,8 @@ MCObject::MCObject(const MCObject &oref) : MCDLlist(oref)
 	else
 		parent_script = NULL;
 
-	// MW-2009-08-25: Initialize the handle to NULL
-	m_weak_handle = NULL;
+	// Generate a weak proxy object
+	m_weak_proxy = new MCObjectProxyBase(this);
 
 	// MW-2012-02-14: [[ FontRefs ]] As objects start off closed, the font is not
 	//   copied and starts nil.
@@ -235,56 +264,72 @@ MCObject::MCObject(const MCObject &oref) : MCDLlist(oref)
 	
 	// MW-2012-10-10: [[ IdCache ]]
 	m_in_id_cache = false;
+    
+    // Cloned objects have a different identifier so are not in the parentScript
+    // table at the start.
+    m_is_parent_script = false;
+    
+    // Duplicate the theming state
+    m_theme = oref.m_theme;
+    m_theme_type = oref.m_theme_type;
+    
+	// IM-2016-01-21: Initialize native layer to nil
+	m_native_layer = nil;
+	
+    // Attach ourselves to an object pool.
+    MCDeletedObjectsOnObjectCreated(this);
 }
 
 MCObject::~MCObject()
 {
-	while (opened)
+    MCAssert(!m_in_id_cache);
+    
+    while (opened)
 		close();
 
 	// MW-2012-02-16: [[ LogFonts ]] Delete the font attrs (if any).
 	clearfontattrs();
 
-	// MW-2009-08-25: Clear the handle.
-	if (m_weak_handle != NULL)
-		m_weak_handle -> Clear();
-
 	// MW-2008-10-25: Release the parent script use
 	if (parent_script != NULL)
 		parent_script -> Release();
 
-	// MW-2009-11-03: Clear all current breakpoints for this object
-	MCB_clearbreaks(this);
-
-	if (MCerrorptr == this)
-		MCerrorptr = NULL;
+	if (!MCerrorptr.IsValid() || MCerrorptr == this)
+		MCerrorptr = nil;
 	if (state & CS_SELECTED)
 		MCselected->remove(this);
 	IO_freeobject(this);
-	MCscreen->cancelmessageobject(this, NULL);
-	removefrom(MCfrontscripts);
-	removefrom(MCbackscripts);
 	MCundos->freeobject(this);
 	delete hlist;
-	MCNameDelete(_name);
-	delete colors;
-	if (colornames != NULL)
+	delete[] colors; /* Allocated with new[] */
+	if (colornames != nil)
 	{
 		while (ncolors--)
-			delete colornames[ncolors];
-		delete colornames;
+			if (colornames[ncolors] != nil)
+				MCValueRelease(colornames[ncolors]);
+		delete[] colornames; /* Allocated with new[] */
 	}
-	MCMemoryDeleteArray(patterns);
-	delete script;
-	deletepropsets();
-	delete tooltip;
-	
-	MCModeObjectDestroyed(this);
 
-	// MW-2012-11-20: [[ IdCache ]] Make sure we delete the object from the cache - not
-	//   all deletions vector through 'scheduledelete'.
-	if (m_in_id_cache)
-		getstack() -> uncacheobjectbyid(this);
+	MCValueRelease(_script);
+	MCMemoryDeleteArray(patterns);
+	deletepropsets();
+	MCValueRelease(tooltip);
+    
+    // If this object is a parent-script make sure we flush it from the table.
+	if (m_is_parent_script)
+		MCParentScript::FlushObject(this);
+	
+	delete m_native_layer;
+    
+    // This object is going away; invalidate the proxy
+    if (m_weak_proxy)
+    {
+        m_weak_proxy->Clear();
+	m_weak_proxy = nil;
+    }
+    
+    // Detach ourselves from the object pool.
+    MCDeletedObjectsOnObjectDestroyed(this);
 }
 
 Chunk_term MCObject::gettype() const
@@ -300,25 +345,24 @@ const char *MCObject::gettypestring()
 // Object names are always compared effectively.
 bool MCObject::hasname(MCNameRef p_other_name)
 {
-	return MCNameIsEqualTo(getname(), p_other_name, kMCCompareCaseless);
+	return MCNameIsEqualToCaseless(getname(), p_other_name);
 }
 
 void MCObject::setname(MCNameRef p_new_name)
 {
-	MCNameDelete(_name);
-	/* UNCHECKED */ MCNameClone(p_new_name, _name);
+	_name.Reset(p_new_name);
 }
 
 void MCObject::setname_cstring(const char *p_new_name)
 {
-	MCNameDelete(_name);
-	/* UNCHECKED */ MCNameCreateWithCString(p_new_name, _name);
+	MCNewAutoNameRef t_name;
+	/* UNCHECKED */ MCNameCreateWithNativeChars((const char_t*)p_new_name, strlen(p_new_name), &t_name);
+	setname(*t_name);
 }
 
-void MCObject::setname_oldstring(const MCString& p_new_name)
+void MCObject::setscript(MCStringRef p_script)
 {
-	MCNameDelete(_name);
-	/* UNCHECKED */ MCNameCreateWithOldString(p_new_name, _name);
+	MCValueAssign(_script, p_script);
 }
 
 void MCObject::open()
@@ -326,17 +370,16 @@ void MCObject::open()
 	if (opened++ != 0)
 		return;
 
-	if (obj_id == 0 && parent != nil)
+	if (obj_id == 0 && parent)
 		obj_id = getstack()->newid();
 
 	// MW-2012-02-14: [[ FontRefs ]] Map the object's font.
 	mapfont();
 
-	for (uint32_t i = 0 ; i < ncolors ; i++)
-		MCscreen->alloccolor(colors[i]);
-
 	for (uint32_t i = 0 ; i < npatterns ; i++)
 		patterns[i].pattern = MCpatternlist->allocpat(patterns[i].id, this);
+	
+	OnOpen();
 }
 
 void MCObject::close()
@@ -344,6 +387,8 @@ void MCObject::close()
 	if (opened == 0 || --opened != 0)
 		return;
 
+	OnClose();
+	
 	if (state & CS_MENU_ATTACHED)
 		closemenu(False, True);
 
@@ -364,7 +409,7 @@ void MCObject::close()
 	if (this == MCdragsource)
 		MCdragsource = nil;
 	
-	if (MCfreescripts && scriptdepth == 0 && hlist != NULL && !hlist->hasvars())
+	if (scriptdepth == 0 && hlist != NULL && !hlist->hasvars())
 	{
 		delete hlist;
 		hlist = NULL;
@@ -377,7 +422,7 @@ void MCObject::kfocus()
 Boolean MCObject::kfocusnext(Boolean top)
 {
 	if (!(flags & F_TRAVERSAL_ON) || state & CS_KFOCUSED
-	        || !(flags & F_VISIBLE || MCshowinvisibles) || flags & F_DISABLED)
+	        || !(flags & F_VISIBLE || showinvisible()) || flags & F_DISABLED)
 		return False;
 	return True;
 }
@@ -385,7 +430,7 @@ Boolean MCObject::kfocusnext(Boolean top)
 Boolean MCObject::kfocusprev(Boolean bottom)
 {
 	if (!(flags & F_TRAVERSAL_ON) || state & CS_KFOCUSED
-	        || !(flags & F_VISIBLE || MCshowinvisibles) || flags & F_DISABLED)
+	        || !(flags & F_VISIBLE || showinvisible()) || flags & F_DISABLED)
 		return False;
 	return True;
 }
@@ -393,19 +438,19 @@ Boolean MCObject::kfocusprev(Boolean bottom)
 void MCObject::kunfocus()
 {}
 
-Boolean MCObject::kdown(const char *string, KeySym key)
+Boolean MCObject::kdown(MCStringRef p_string, KeySym key)
 {
-	char kstring[U4L];
-	sprintf(kstring, "%d", (int)key);
-	if (message_with_args(MCM_raw_key_down, kstring) == ES_NORMAL)
+	MCAutoStringRef t_string;
+	/* UNCHECKED */ MCStringFormat(&t_string, "%d", key);
+	if (message_with_valueref_args(MCM_raw_key_down, *t_string) == ES_NORMAL)
 		return True;
 	if (key >= XK_F1 && key <= XK_F35)
 	{
-		char cstring[U2L];
-		sprintf(cstring, "%d", (int)(key - XK_F1 + 1));
-		if (message_with_args(MCM_function_key, cstring) == ES_NORMAL)
+		MCAutoStringRef t_cstring;
+		/* UNCHECKED */ MCStringFormat(&t_cstring, "%d", key - XK_F1 + 1);
+		if (message_with_valueref_args(MCM_function_key, *t_cstring) == ES_NORMAL)
 			return True;
-		if (key == XK_F1 && message_with_args(MCM_help, string) == ES_NORMAL)
+		if (key == XK_F1 && message_with_valueref_args(MCM_help, p_string) == ES_NORMAL)
 			return True;
 		//return False;
 	}
@@ -486,59 +531,58 @@ Boolean MCObject::kdown(const char *string, KeySym key)
 			}
 		break;
 	case XK_Left:
-		if (message_with_args(MCM_arrow_key, "left") == ES_NORMAL)
+		if (message_with_valueref_args(MCM_arrow_key, MCSTR("left")) == ES_NORMAL)
 			return True;
 		break;
 	case XK_Right:
-		if (message_with_args(MCM_arrow_key, "right") == ES_NORMAL)
+		if (message_with_valueref_args(MCM_arrow_key, MCSTR("right")) == ES_NORMAL)
 			return True;
 		break;
 	case XK_Up:
-		if (message_with_args(MCM_arrow_key, "up") == ES_NORMAL)
+		if (message_with_valueref_args(MCM_arrow_key, MCSTR("up")) == ES_NORMAL)
 			return True;
 		break;
 	case XK_Down:
-		if (message_with_args(MCM_arrow_key, "down") == ES_NORMAL)
+		if (message_with_valueref_args(MCM_arrow_key, MCSTR("down")) == ES_NORMAL)
 			return True;
-		break;
-	default:
-		char tstring[U2L];
-		if (key > 0xFF)
-			sprintf(tstring, "%ld", key);
+        break;
+    default:
+		MCAutoStringRef t_key_string;
+			
+		// Special keys as their number converted to a string, the rest by value
+        // SN-2014-12-08: [[ Bug 12681 ]] Avoid to print the keycode in case we have a
+        // numeric keypad keycode.
+        // SN-2015-05-05: [[ Bug 15305 ]] Ensure that the keys are not printing
+        //  their numeric value, if not wanted.
+        if (key > 0xFF && (key & XK_Class_mask) == XK_Class_compat && (key < XK_KP_Space || key > XK_KP_Equal))
+            /* UNCHECKED */ MCStringFormat(&t_key_string, "%ld", key);
+        else if (MCmodifierstate & MS_CONTROL)
+            /* UNCHECKED */ MCStringFormat(&t_key_string, "%c", (char)key);
 		else
-			if ((uint1)string[0] < ' ' || MCmodifierstate & MS_CONTROL)
-			{
-				tstring[0] = (char)key;
-				tstring[1] = '\0';
-			}
-			else
-			{
-				tstring[0] = string[0];
-				tstring[1] = '\0';
-			}
+			t_key_string = p_string;
+			
 		if (MCmodifierstate & MS_CONTROL)
-		{
-			if ((key > 0xFF || string[0] != '\0' || tstring[0] == ' ')
-			        && (message_with_args(MCM_command_key_down, tstring) == ES_NORMAL))
+        {
+			if (message_with_valueref_args(MCM_command_key_down, *t_key_string) == ES_NORMAL)
 				return True;
 		}
 		else if (MCmodifierstate & MS_MOD1)
-		{
-			if ((key > 0xFF || string[0] != '\0' || tstring[0] == ' ')
-			        && (message_with_args(MCM_option_key_down, tstring) == ES_NORMAL))
+        {
+				if (message_with_valueref_args(MCM_option_key_down, *t_key_string) == ES_NORMAL)
 				return True;
-		}
+        }
 #ifdef _MACOSX
 		else if (MCmodifierstate & MS_MAC_CONTROL)
-		{
-			if ((key > 0xFF || string[0] != '\0' || tstring[0] == ' ')
-			        && (message_with_args(MCM_control_key_down, tstring) == ES_NORMAL))
+        {
+			if (message_with_valueref_args(MCM_control_key_down, *t_key_string) == ES_NORMAL)
 				return True;
-		}
+        }
 #endif
 		else
-			if ((string[0] != '\0' && message_with_args(MCM_key_down, string) == ES_NORMAL))
-					return True;
+        {
+			if (!MCStringIsEmpty(p_string) && message_with_valueref_args(MCM_key_down, p_string) == ES_NORMAL)
+				return True;
+        }
 		break;
 	}
 
@@ -574,7 +618,7 @@ Boolean MCObject::kdown(const char *string, KeySym key)
 	if (state & CS_MENU_ATTACHED && attachedmenu != NULL)
 	{
 		MCStack *oldmenu = attachedmenu;
-		MCString pick;
+		MCAutoStringRef t_pick;
 		uint2 mh;
 		switch (key)
 		{
@@ -585,17 +629,16 @@ Boolean MCObject::kdown(const char *string, KeySym key)
 		case XK_Return:
 		case XK_KP_Enter:
 			closemenu(False, True);
-			oldmenu->menukdown(string, key, pick, mh);
-			delete (char *)pick.getstring();
+			oldmenu->menukdown(p_string, key, &t_pick, mh);
 			message_with_args(MCM_mouse_up, Button1);
 			return True;
 		default:
-			MCButton *mbptr = attachedmenu->findmnemonic(string[0]);
+			MCButton *mbptr = attachedmenu->findmnemonic(key);
 			if (mbptr != NULL)
 			{
 				closemenu(False, True);
-				oldmenu->menukdown(string, key, pick, mh);
-				mbptr->activate(False, string[0]);
+				oldmenu->menukdown(p_string, key, &t_pick, mh);
+				mbptr->activate(False, key);
 				message_with_args(MCM_mouse_up, Button1);
 				return True;
 			}
@@ -604,19 +647,24 @@ Boolean MCObject::kdown(const char *string, KeySym key)
 	return False;
 }
 
-Boolean MCObject::kup(const char *string, KeySym key)
+Boolean MCObject::kup(MCStringRef p_string, KeySym key)
 {
-	char kstring[U4L];
-	sprintf(kstring, "%d", (int)key);
-	if (message_with_args(MCM_raw_key_up, kstring) == ES_NORMAL)
+	MCAutoStringRef t_string;
+	/* UNCHECKED */ MCStringFormat(&t_string, "%d", key);
+	if (message_with_valueref_args(MCM_raw_key_up, *t_string) == ES_NORMAL)
 		return True;
 
 	// MW-2005-08-31: We need an unsigned comparison here - otherwise accented characters
 	//   don't trigger a keyup!
 	// OK-2010-04-01: [[Bug 6215]] - Need to also check for arrow keys here using the KeySym
 	//   as they don't have an ascii code.
-	if ((unsigned)(string[0]) >= 32 && string[0] != 127 && key != XK_Left && key != XK_Right && key != XK_Up && key != XK_Down)
-		if (message_with_args(MCM_key_up, string) == ES_NORMAL)
+	// TODO: filter out the C1 control codes too
+	// SN-2014-09-10: [[ Bug 13348 ]] We need to take in consideration what is in the string, not the
+	// key typed
+	unichar_t t_char;
+	t_char = MCStringGetCharAtIndex(p_string, 0);
+	if (t_char >= 32 && t_char != 127 && key != XK_Left && key != XK_Right && key != XK_Up && key != XK_Down)
+		if (message_with_valueref_args(MCM_key_up, p_string) == ES_NORMAL)
 			return True;
 	return False;
 }
@@ -691,7 +739,7 @@ Boolean MCObject::mdown(uint2 which)
 }
 
 extern bool MCmenupoppedup;
-Boolean MCObject::mup(uint2 which)
+Boolean MCObject::mup(uint2 which, bool p_release)
 {
 	if (state & CS_MENU_ATTACHED)
 	{
@@ -703,19 +751,18 @@ Boolean MCObject::mup(uint2 which)
 		if (focused != NULL && focused->gettype() == CT_BUTTON
 		        && focused->getmenumode() == WM_CASCADE)
 		{
-			focused->mup(which); // send mup directly to cascade button
+			focused->mup(which, p_release); // send mup directly to cascade button
 			closemenu(True, True);
 		}
 		else
 		{
 			MCStack *oldmenu = attachedmenu;
-			closemenu(True, True);
-			MCString pick;
+			MCAutoStringRef t_pick;
 			uint2 menuhistory;
 			MCmenupoppedup = true;
-			oldmenu->menumup(which, pick, menuhistory);
+			oldmenu->menumup(which, &t_pick, menuhistory);
 			MCmenupoppedup = false;
-			delete (char *)pick.getstring();
+			closemenu(True, True);
 		}
 		return True;
 	}
@@ -735,14 +782,16 @@ Boolean MCObject::doubleup(uint2 which)
 
 void MCObject::timer(MCNameRef mptr, MCParameter *params)
 {
-	if (MCNameIsEqualTo(mptr, MCM_idle, kMCCompareCaseless))
+	if (MCNameIsEqualToCaseless(mptr, MCM_idle))
 	{
 		if (opened && hashandlers & HH_IDLE
 		        && getstack()->gettool(this) == T_BROWSE)
+		{
 			if (message(mptr, params, True, True) == ES_ERROR)
 				senderror();
 			else
 				MCscreen->addtimer(this, MCM_idle, MCidleRate);
+		}
 	}
 	else
 	{
@@ -750,28 +799,27 @@ void MCObject::timer(MCNameRef mptr, MCParameter *params)
 		handler.clearpass(); // detect passed messages
 		Exec_stat stat = message(mptr, params, True, True);
 		if (stat == ES_NOT_HANDLED && !handler.getpass())
-		{
-			char *tptr = NULL;
-			const char *t_mptr_cstring;
-			t_mptr_cstring = MCNameGetCString(mptr);
-			if (params != NULL)
-			{
-				MCExecPoint ep(this, NULL, NULL);
-				params->eval(ep);
-				char *p = ep.getsvalue().clone();
-				tptr = new char[strlen(t_mptr_cstring) + ep.getsvalue().getlength() + 2];
-				sprintf(tptr, "%s %s", t_mptr_cstring, p);
-				delete p;
+        {
+            MCAutoStringRef t_mptr_string;
+			if (params != nil)
+            {
+                MCExecContext ctxt(this, nil, nil);
+                MCAutoValueRef t_value_valueref;
+				/* UNCHECKED */ params->eval_argument(ctxt, &t_value_valueref);
+                MCAutoStringRef t_value;
+                /* UNCHECKED */ ctxt . ConvertToString(*t_value_valueref, &t_value);
+                MCStringFormat(&t_mptr_string, "%@ %@", mptr, *t_value);
 			}
-			
+			else
+				t_mptr_string = MCNameGetString(mptr);
+
 			MCHandler *t_handler;
 			t_handler = findhandler(HT_MESSAGE, mptr);
 			if (t_handler == NULL || !t_handler -> isprivate())
-				domess(params == NULL ? t_mptr_cstring : tptr);
+                domess(*t_mptr_string);
 
-			delete tptr;
 		}
-		if (stat == ES_ERROR && !MCNameIsEqualTo(mptr, MCM_error_dialog, kMCCompareCaseless))
+		if (stat == ES_ERROR && !MCNameIsEqualToCaseless(mptr, MCM_error_dialog))
 			senderror();
 	}
 }
@@ -781,7 +829,14 @@ uint2 MCObject::gettransient() const
 	return 0;
 }
 
-void MCObject::setrect(const MCRectangle &nrect)
+void MCObject::setrect(const MCRectangle &p_rect)
+{
+	applyrect(p_rect);
+	
+	geometrychanged(getrect());
+}
+
+void MCObject::applyrect(const MCRectangle &nrect)
 {
 	rect = nrect;
 }
@@ -796,29 +851,68 @@ void MCObject::deselect()
 	state &= ~CS_SELECTED;
 }
 
-Boolean MCObject::del()
+void MCObject::removereferences()
 {
-	fprintf(stderr, "Object: ERROR tried to delete %s\n", getname_cstring());
-	return False;
+    if (m_in_id_cache)
+        getstack()->uncacheobjectbyid(this);
+    
+    MCscreen->cancelmessageobject(this, NULL);
+    removefrom(MCfrontscripts);
+    removefrom(MCbackscripts);
+    
+    // MW-2009-11-03: Clear all current breakpoints for this object
+    MCB_clearbreaks(this);
+    
+    // If the object is marked as being used as a parentScript, flush the parentScript
+    // table so we don't get any dangling pointers.
+    if (m_is_parent_script)
+    {
+        MCParentScript::FlushObject(this);
+        m_is_parent_script = false;
+    }
+    
+    // This object is in the process of being deleted; invalidate any weak refs
+    // and prevent any new ones from being created.
+    m_weak_proxy->Clear();
+    m_weak_proxy = nil;
+}
+
+bool MCObject::isdeletable(bool p_check_flag)
+{
+    if (!parent || scriptdepth != 0 || MCdispatcher -> getmenu() == this || MCmenuobjectptr == this)
+    {
+        MCAutoValueRef t_long_name;
+        getnameproperty(P_LONG_NAME, 0, &t_long_name);
+        MCeerror->add(EE_OBJECT_CANTREMOVE, 0, 0, *t_long_name);
+        return false;
+    }
+    return true;
+}
+
+Boolean MCObject::del(bool p_check_flag)
+{
+	return True;
 }
 
 void MCObject::paste(void)
 {
-	fprintf(stderr, "Object: ERROR tried to paste %s\n", getname_cstring());
+	MCLog("Object: tried to paste %@", getname());
+	MCUnreachable();
 }
 
 void MCObject::undo(Ustruct *us)
 {
-	fprintf(stderr, "Object: ERROR tried to undo %s\n", getname_cstring());
+	MCLog("Object:: tried to paste %@", getname());
+	MCUnreachable();
 }
 
 void MCObject::freeundo(Ustruct *us)
 {}
 
-MCStack *MCObject::getstack()
+MCStackHandle MCObject::getstack()
 {
-	if (parent == NULL)
-		return MCdefaultstackptr;
+	if (!parent)
+		return MCStackHandle(MCdefaultstackptr);
 	return parent->getstack();
 }
 
@@ -835,43 +929,42 @@ Exec_stat MCObject::exechandler(MCHandler *hptr, MCParameter *params)
 	if (MCmessagemessages)
 		sendmessage(hptr -> gettype(), hptr -> getname(), True);
 	
-	scriptdepth++;
-	if (scriptdepth == 255)
-		MCfreescripts = False; // prevent recursion wrap
-	MCExecPoint ep(this, hlist, hptr);
-	if (MCtracestackptr != NULL && MCtracereturn)
+	lockforexecution();
+    MCExecContext ctxt(this, hlist, hptr);
+	if (MCtracestackptr && MCtracereturn)
 	{
 		Boolean oldtrace = MCtrace;
 		if (MCtracestackptr == getstack())
 			MCtrace = True;
-		stat = hptr->exec(ep, params);
+		stat = hptr->exec(ctxt, params);
 		if (MCtrace && !oldtrace)
 		{
-			MCB_done(ep);
+			MCB_done(ctxt);
 			MCtrace = False;
 		}
 	}
 	else
-		stat = hptr->exec(ep, params);
+		stat = hptr->exec(ctxt, params);
 	if (stat == ES_ERROR)
 	{
 		// MW-2011-06-23: [[ SERVER ]] If the handler has a file index, it
 		//   isn't attached to an object. So record the error slightly
 		//   differently.
 		if (hptr -> getfileindex() == 0)
-		{
-			MCExecPoint ep(this, NULL, NULL);
-			getprop(0, P_LONG_ID, ep, False);
-			MCeerror->add(EE_OBJECT_NAME, 0, 0, ep.getsvalue());
+        {
+            MCExecContext ctxt2(this, nil, nil);
+            MCAutoStringRef t_id;
+			getstringprop(ctxt2, 0, P_LONG_ID, False, &t_id);
+            MCeerror->add(EE_OBJECT_NAME, 0, 0, *t_id);
 		}
 		else
 		{
-			char t_buffer[U2L];
-			sprintf(t_buffer, "%u", hptr -> getfileindex());
-			MCeerror -> add(EE_SCRIPT_FILEINDEX, 0, 0, t_buffer);
+            MCAutoStringRef t_error;
+            MCStringFormat(&t_error, "%u", hptr -> getfileindex());
+            MCeerror -> add(EE_SCRIPT_FILEINDEX, 0, 0, *t_error);
 		}
 	}
-	scriptdepth--;
+	unlockforexecution();
 
 	return stat;
 }
@@ -889,38 +982,33 @@ Exec_stat MCObject::execparenthandler(MCHandler *hptr, MCParameter *params, MCPa
 	if (MCmessagemessages)
 		sendmessage(hptr -> gettype(), hptr -> getname(), True);
 
-	scriptdepth++;
-	if (scriptdepth == 255)
-		MCfreescripts = False; // prevent recursion wrap
 	MCObject *t_parentscript_object = parentscript->GetParent()->GetObject();
-	t_parentscript_object->scriptdepth++;
-	if (t_parentscript_object->scriptdepth == 255)
-		MCfreescripts = False; // prevent recursion wrap
+	t_parentscript_object->lockforexecution();
 
-	MCExecPoint ep(this, t_parentscript_object -> hlist, hptr);
-	ep.setparentscript(parentscript);
-	if (MCtracestackptr != NULL && MCtracereturn)
+    MCExecContext ctxt(this, t_parentscript_object -> hlist, hptr);
+	ctxt.SetParentScript(parentscript);
+	if (MCtracestackptr && MCtracereturn)
 	{
 		Boolean oldtrace = MCtrace;
 		if (MCtracestackptr == getstack())
 			MCtrace = True;
-		stat = hptr->exec(ep, params);
+		stat = hptr->exec(ctxt, params);
 		if (MCtrace && !oldtrace)
 		{
-			MCB_done(ep);
+			MCB_done(ctxt);
 			MCtrace = False;
 		}
 	}
 	else
-		stat = hptr->exec(ep, params);
+		stat = hptr->exec(ctxt, params);
 	if (stat == ES_ERROR)
-	{
-		MCExecPoint ep(this, NULL, NULL);
-		parentscript -> GetParent() -> GetObject() -> getprop(0, P_LONG_ID, ep, False);
-		MCeerror->add(EE_OBJECT_NAME, 0, 0, ep.getsvalue());
+    {
+        MCExecContext ctxt2(this, nil, nil);
+        MCAutoStringRef t_id;
+        parentscript -> GetParent() -> GetObject() -> getstringprop(ctxt2, 0, P_LONG_ID, False, &t_id);
+        MCeerror->add(EE_OBJECT_NAME, 0, 0, *t_id);
 	}
-	scriptdepth--;
-	t_parentscript_object->scriptdepth--;
+	t_parentscript_object->unlockforexecution();
 
 	return stat;
 }
@@ -929,10 +1017,10 @@ Exec_stat MCObject::execparenthandler(MCHandler *hptr, MCParameter *params, MCPa
 //   in a parentScript, if any, and executes it if found. [ Inherited parentscripts
 //   should be ignored for now as the semantics for those is not clear ].
 Exec_stat MCObject::handleparent(Handler_type p_handler_type, MCNameRef p_message, MCParameter *p_parameters)
-{
+{	
 	Exec_stat t_stat;
 	t_stat = ES_NOT_HANDLED;
-	
+
 	// Fetch the first parentScript (Use).
 	MCParentScriptUse *t_parentscript;
 	t_parentscript = parent_script;
@@ -979,7 +1067,7 @@ Exec_stat MCObject::handleparent(Handler_type p_handler_type, MCNameRef p_messag
 		//   instance).
 		t_parentscript = t_parentscript -> GetSuper();
 	}
-	
+
 	return t_stat;
 }
 
@@ -991,6 +1079,12 @@ Exec_stat MCObject::handleself(Handler_type p_handler_type, MCNameRef p_message,
 {	
 	Exec_stat t_stat;
 	t_stat = ES_NOT_HANDLED;
+
+    // TODO[19681]: This can be removed when all engine messages are sent with
+    // target.
+    bool t_target_was_valid = MCtargetptr.IsValid();
+    
+	MCObjectExecutionLock self_lock(this);
 
 	// Make sure this object has its script compiled.
 	parsescript(True);
@@ -1024,7 +1118,7 @@ Exec_stat MCObject::handleself(Handler_type p_handler_type, MCNameRef p_message,
 				t_main_stat = exechandler(t_handler, p_parameters);
 
 				// If there was an error we are done.
-				if (t_stat == ES_ERROR)
+				if (t_main_stat == ES_ERROR)
 					return t_main_stat;
 			}
 		}
@@ -1050,6 +1144,14 @@ Exec_stat MCObject::handleself(Handler_type p_handler_type, MCNameRef p_message,
 		if (t_stat == ES_ERROR || t_stat == ES_EXIT_ALL)
 			return t_stat;
 	}
+    
+    if (t_stat == ES_PASS || t_stat == ES_NOT_HANDLED)
+    {
+        if (t_target_was_valid && !MCtargetptr.IsValid())
+        {
+            t_main_stat = ES_NORMAL;
+        }
+    }
 
 	// Return the result of executing the main handler in the object
 	return t_main_stat;
@@ -1063,7 +1165,7 @@ Exec_stat MCObject::handle(Handler_type htype, MCNameRef mess, MCParameter *para
 	Exec_stat stat;
 	stat = handleself(htype, mess, params);
 
-	if (pass_from != nil && parent != NULL)
+	if (pass_from != nil && parent)
 	{
 		if (stat == ES_PASS || stat == ES_NOT_HANDLED)
 		{
@@ -1074,7 +1176,7 @@ Exec_stat MCObject::handle(Handler_type htype, MCNameRef mess, MCParameter *para
 		}
 	}
 
-	if (stat == ES_ERROR && MCerrorptr == NULL)
+	if (stat == ES_ERROR && !MCerrorptr)
 		MCerrorptr = this;
 
 	return stat;
@@ -1103,12 +1205,72 @@ void MCObject::closemenu(Boolean kfocus, Boolean disarm)
 		attachedmenu = NULL;
 		menudepth--;
 		if (MCmenuobjectptr == this)
-			MCmenuobjectptr = NULL;
+			MCmenuobjectptr = nil;
 	}
 }
 
 void MCObject::recompute()
 {
+}
+
+void MCObject::toolchanged(Tool p_new_tool)
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnToolChanged(p_new_tool);
+}
+
+void MCObject::layerchanged()
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnLayerChanged();
+}
+
+void MCObject::visibilitychanged(bool p_visible)
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnVisibilityChanged(p_visible);
+}
+
+void MCObject::geometrychanged(const MCRectangle &p_rect)
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnGeometryChanged(GetNativeViewRect(p_rect));
+}
+
+void MCObject::viewportgeometrychanged(const MCRectangle &p_rect)
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnViewportGeometryChanged(p_rect);
+}
+
+void MCObject::OnViewTransformChanged()
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnViewTransformChanged();
+}
+
+void MCObject::OnOpen()
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnAttach();
+}
+
+void MCObject::OnClose()
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnDetach();
+}
+
+void MCObject::OnAttach()
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnAttach();
+}
+
+void MCObject::OnDetach()
+{
+	if (getNativeLayer() != nil)
+		getNativeLayer()->OnDetach();
 }
 
 const MCRectangle& MCObject::getrect(void) const
@@ -1124,6 +1286,57 @@ MCRectangle MCObject::getrectangle(bool p_effective) const
     MCRectangle t_rect = getrect();
     MCU_reduce_rect(t_rect, gettransient());
     return t_rect;
+}
+
+bool MCObject::changeflag(bool setting, uint32_t mask)
+{
+	if (setting && !(flags & mask))
+	{
+		flags |= mask;
+		return true;
+	}
+	
+	if (!setting && (flags & mask))
+	{
+		flags &= ~mask;
+		return true;
+	}
+
+	return false;
+}
+
+bool MCObject::changeextraflag(bool setting, uint32_t mask)
+{
+	if (setting && !(extraflags & mask))
+	{
+		extraflags |= mask;
+		return true;
+	}
+	
+	if (!setting && (extraflags & mask))
+	{
+		extraflags &= ~mask;
+		return true;
+	}
+
+	return false;
+}
+
+bool MCObject::changestate(bool setting, uint32_t mask)
+{
+	if (setting && !(state & mask))
+	{
+		state |= mask;
+		return true;
+	}
+	
+	if (!setting && (state & mask))
+	{
+		state &= ~mask;
+		return true;
+	}
+
+	return false;
 }
 
 void MCObject::setflag(uint4 on, uint4 flag)
@@ -1150,11 +1363,14 @@ void MCObject::setstate(Boolean on, uint4 newstate)
 		state &= ~newstate;
 }
 
-Exec_stat MCObject::setsprop(Properties which, const MCString &s)
+
+
+Exec_stat MCObject::setsprop(Properties which, MCStringRef s)
 {
-	MCExecPoint ep(this, NULL, NULL);
-	ep.setsvalue(s);
-	return setprop(0, which, ep, False);
+    MCExecContext ctxt(this, nil, nil);
+    setstringprop(ctxt, 0, which, False, s);
+    
+    return ctxt . HasError() ? ES_ERROR : ES_NORMAL;
 }
 
 void MCObject::help()
@@ -1167,7 +1383,7 @@ void MCObject::help()
 MCCard *MCObject::getcard(uint4 cid)
 {
 	if (cid == 0)
-		return getstack()->getchild(CT_THIS, MCnullmcstring, CT_CARD);
+		return getstack()->getchild(CT_THIS, kMCEmptyString, CT_CARD);
 	return getstack()->getcardid(cid);
 }
 
@@ -1181,23 +1397,32 @@ MCParentScript *MCObject::getparentscript(void) const
 	return parent_script != NULL ? parent_script -> GetParent() : NULL;
 }
 
-Boolean MCObject::isvisible()
+bool MCObject::isvisible(bool p_effective)
 {
-	MCObject *p = this;
-	while (p->parent != NULL && p->parent->gettype() == CT_GROUP)
-	{
-		if (!(p->flags & F_VISIBLE))
-			return False;
-		p = p->parent;
-	}
-	return (p->flags & F_VISIBLE) != 0;
+	if (!getflag(F_VISIBLE))
+		return false;
+	
+	if (p_effective && parent && parent->gettype() == CT_GROUP)
+		return parent->isvisible(true);
+	
+	return true;
+}
+
+bool MCObject::showinvisible()
+{
+	MCStackHandle t_stack = getstack();
+	
+	if (!t_stack)
+		return false;
+	
+	return t_stack->geteffectiveshowinvisibleobjects();
 }
 
 Boolean MCObject::resizeparent()
 {
-	if (parent != NULL && parent->gettype() == CT_GROUP)
+	if (parent && parent->gettype() == CT_GROUP)
 	{
-		MCGroup *gptr = (MCGroup *)parent;
+		MCGroup *gptr = parent.GetAs<MCGroup>();
         
 		// MERG-2013-06-02: [[ GrpLckUpdates ]] Only recalculate the group if not locked.
         if (!gptr -> islocked())
@@ -1218,55 +1443,158 @@ Boolean MCObject::resizeparent()
 	return False;
 }
 
-Boolean MCObject::getforecolor(uint2 di, Boolean rev, Boolean hilite,
+Boolean MCObject::getforecolor(uint2 p_di, Boolean rev, Boolean hilite,
                                MCColor &c, MCPatternRef &r_pattern,
-                               int2 &x, int2 &y, MCDC *dc, MCObject *o)
+                               int2 &x, int2 &y, MCContextType dc_type,
+                               MCObject *o, bool selected)
 {
-	uint2 i;
-	if (dc->getdepth() > 1)
-	{
-		Boolean hasindex = getcindex(di, i);
-        // MM-2013-08-28: [[ RefactorGraphics ]] We now pack alpha values into pixels meaning checking against MAXUNIT4 means white will always be ignored. Not sure why this check was here previously.
-		if (hasindex) // && colors[i].pixel != MAXUINT4)
-		{
-			c = colors[i];
-			return True;
-		}
-		else
-			if (getpindex(di, i))
-			{
-				r_pattern = patterns[i].pattern;
+    uint2 di;
+    switch (p_di)
+    {
+        case DI_PSEUDO_TEXT_COLOR:
+        case DI_PSEUDO_TEXT_COLOR_SEL_FORE:
+        case DI_PSEUDO_BUTTON_TEXT:
+            di = DI_FORE;
+            break;
+            
+        case DI_PSEUDO_TEXT_BACKGROUND:
+        case DI_PSEUDO_TEXT_COLOR_SEL_BACK:
+        case DI_PSEUDO_BUTTON_TEXT_SEL:
+            di = DI_BACK;
+            break;
+            
+        case DI_PSEUDO_TEXT_BACKGROUND_SEL:
+            di = DI_HILITE;
+            break;
+        
+        default:
+            di = p_di;
+            break;
+    }
+    
+    uint2 i;
+    Boolean hasindex = getcindex(di, i);
+    // MM-2013-08-28: [[ RefactorGraphics ]] We now pack alpha values into pixels meaning checking against MAXUNIT4 means white will always be ignored. Not sure why this check was here previously.
+    if (hasindex) // && colors[i].pixel != MAXUINT4)
+    {
+        c = colors[i];
+        return True;
+    }
+    else if (getpindex(di, i))
+    {
+        r_pattern = patterns[i].pattern;
 
-				if (gettype() == CT_STACK)
-					x = y = 0;
-				else
-				{
-					x = rect.x;
-					y = rect.y;
-				}
-				return False;
-			}
-			else
-			{
-				if (di == DI_FORE && flags & F_DISABLED)
-				{
-					c = dc->getgray();
-					return True;
-				}
-				if (MClook != LF_MOTIF && hilite && flags & F_OPAQUE
-				        && !(flags & F_DISABLED))
-				{
-					if (di == DI_BACK)
-						c = dc->getwhite();
-					else
-						parent->getforecolor(di, rev, False, c, r_pattern, x, y, dc, o);
-					return True;
-				}
-				if (parent && parent != MCdispatcher)
-					return parent->getforecolor(di, rev, False, c, r_pattern, x, y, dc, o);
-			}
-	}
+        if (gettype() == CT_STACK)
+            x = y = 0;
+        else
+        {
+            x = rect.x;
+            y = rect.y;
+        }
+        return False;
+    }
+    else
+    {
+        if (di == DI_FORE && flags & F_DISABLED)
+        {
+            c = MCscreen->getgray();
+            return True;
+        }
+        if (MClook != LF_MOTIF && hilite && flags & F_OPAQUE
+                && !(flags & F_DISABLED))
+        {
+            if (p_di == DI_BACK)
+            {
+                // Use the themed colours and ignore inheritance. We do
+                // this so that controls always have the appropriate
+                // background colour (particularly fields).
+                MCPlatformControlType t_control_type;
+                MCPlatformControlPart t_control_part;
+                MCPlatformControlState t_control_state;
+                MCPlatformThemeProperty t_theme_prop;
+                MCPlatformThemePropertyType t_theme_prop_type;
+                if (o->getthemeselectorsforprop(P_BACK_COLOR, t_control_type, t_control_part, t_control_state, t_theme_prop, t_theme_prop_type))
+                {
+                    if (selected)
+                        t_control_state |= kMCPlatformControlStateSelected;
+                    
+                    if (MCPlatformGetControlThemePropColor(t_control_type, t_control_part, t_control_state, t_theme_prop, c))
+                        return True;
+                }
+                
+                // No themed colour available; fall back to white
+                c = MCscreen->getwhite();
+            }
+            else
+                parent->getforecolor(p_di, rev, hilite, c, r_pattern, x, y, dc_type, o, selected);
+            return True;
+        }
+        if (parent && parent != MCdispatcher)
+            return parent->getforecolor(p_di, rev, hilite, c, r_pattern, x, y, dc_type, o, selected);
+    }
 
+    // Try to get the colour from the system theme rather than these hard-coded values
+    MCPlatformControlType t_control_type;
+    MCPlatformControlPart t_control_part;
+    MCPlatformControlState t_control_state;
+    MCPlatformThemeProperty t_theme_prop;
+    MCPlatformThemePropertyType t_theme_prop_type;
+    Properties which;
+    switch (p_di)
+    {
+        case DI_TOP:
+            which = P_TOP_COLOR;
+            break;
+            
+        case DI_BOTTOM:
+            which = P_BOTTOM_COLOR;
+            break;
+            
+        case DI_PSEUDO_TEXT_COLOR_SEL_FORE:
+        case DI_PSEUDO_TEXT_COLOR_SEL_BACK:
+        case DI_PSEUDO_BUTTON_TEXT_SEL:
+            selected = true;
+            /* FALLTHROUGH */
+            
+        case DI_FORE:
+        case DI_PSEUDO_TEXT_COLOR:
+        case DI_PSEUDO_BUTTON_TEXT:
+            which = P_FORE_COLOR;
+            break;
+            
+        case DI_BACK:
+        case DI_PSEUDO_TEXT_BACKGROUND:
+            which = P_BACK_COLOR;
+            break;
+            
+        case DI_HILITE:
+        case DI_PSEUDO_TEXT_BACKGROUND_SEL:
+            which = P_HILITE_COLOR;
+            break;
+            
+        case DI_FOCUS:
+            which = P_FOCUS_COLOR;
+            break;
+            
+        case DI_BORDER:
+            which = P_BORDER_COLOR;
+            break;
+            
+        case DI_SHADOW:
+            which = P_SHADOW_COLOR;
+            break;
+        default:
+            MCUnreachableReturn(False);
+    }
+    if (o->getthemeselectorsforprop(which, t_control_type, t_control_part, t_control_state, t_theme_prop, t_theme_prop_type))
+    {
+        if (selected)
+            t_control_state |= kMCPlatformControlStateSelected;
+        
+        if (MCPlatformGetControlThemePropColor(t_control_type, t_control_part, t_control_state, t_theme_prop, c))
+            return True;
+    }
+    
 	switch (di)
 	{
 
@@ -1275,13 +1603,13 @@ Boolean MCObject::getforecolor(uint2 di, Boolean rev, Boolean hilite,
 	case DI_BOTTOM:
 	case DI_FORE:
 		if (rev)
-			c = dc->getwhite();
+			c = MCscreen->getwhite();
 		else
-			c = dc->getblack();
+			c = MCscreen->getblack();
 		break;
 	case DI_BACK:
-#ifdef _MACOSX
-		if (IsMacLFAM() && dc -> gettype() != CONTEXT_TYPE_PRINTER)
+#ifdef _MAC_DESKTOP
+		if (IsMacLFAM() && dc_type != CONTEXT_TYPE_PRINTER)
 		{
 			extern bool MCMacThemeGetBackgroundPattern(Window_mode p_mode, bool p_active, MCPatternRef &r_pattern);
 			x = 0;
@@ -1291,7 +1619,7 @@ Boolean MCObject::getforecolor(uint2 di, Boolean rev, Boolean hilite,
 				return False;
 		}
 #endif
-		c = dc->getbg();
+		c = MCscreen->getbg();
 		break;
 	case DI_HILITE:
 		c = o->gettype() == CT_BUTTON ? MCaccentcolor : MChilitecolor;
@@ -1306,13 +1634,13 @@ Boolean MCObject::getforecolor(uint2 di, Boolean rev, Boolean hilite,
 		}
 		break;
 	default:
-		c = dc->getblack();
+		c = MCscreen->getblack();
 		break;
 	}
 	return True;
 }
 
-void MCObject::setforeground(MCDC *dc, uint2 di, Boolean rev, Boolean hilite)
+void MCObject::setforeground(MCDC *dc, uint2 di, Boolean rev, Boolean hilite, bool selected)
 {
 	uint2 idi = di;
 	if (rev)
@@ -1326,6 +1654,7 @@ void MCObject::setforeground(MCDC *dc, uint2 di, Boolean rev, Boolean hilite)
 			idi = DI_TOP;
 			break;
 		case DI_BACK:
+        case DI_PSEUDO_BUTTON_TEXT_SEL:
 			idi = DI_HILITE;
 			break;
 		default:
@@ -1337,15 +1666,15 @@ void MCObject::setforeground(MCDC *dc, uint2 di, Boolean rev, Boolean hilite)
 	MCColor color;
 	MCPatternRef t_pattern = nil;
 	int2 x, y;
-	if (getforecolor(idi, rev, hilite, color, t_pattern, x, y, dc, this))
+	if (getforecolor(idi, rev, hilite, color, t_pattern, x, y, dc -> gettype(), this, selected))
 	{
 		MCColor fcolor;
 		if (dc->getdepth() == 1 && di != DI_BACK
 		        && getforecolor((state & CS_HILITED && flags & F_OPAQUE)
 		                        ? DI_HILITE : DI_BACK, False, False, fcolor,
-		                        t_pattern, x, y, dc, this)
-		        && color.pixel == fcolor.pixel)
-			color.pixel ^= 1;
+		                        t_pattern, x, y, dc -> gettype(), this)
+		        && MCColorGetPixel(color) == MCColorGetPixel(fcolor))
+			MCColorSetPixel(color, ~MCColorGetPixel(color));
 		dc->setforeground(color);
 		dc->setfillstyle(FillSolid, nil, 0, 0);
 	}
@@ -1376,106 +1705,12 @@ void MCObject::setforeground(MCDC *dc, uint2 di, Boolean rev, Boolean hilite)
 	}
 }
 
-Boolean MCObject::setcolor(uint2 index, const MCString &data)
-{
-	uint2 i, j;
-	if (data.getlength() == 0)
-	{
-		if (getcindex(index, i))
-			destroycindex(index, i);
-	}
-	else
-	{
-		if (!getcindex(index, i))
-		{
-			i = createcindex(index);
-			colors[i].red = colors[i].green = colors[i].blue = 0;
-			if (opened)
-				MCscreen->alloccolor(colors[i]);
-		}
-		MCColor oldcolor = colors[i];
-		if (!MCscreen->parsecolor(data, &colors[i], &colornames[i]))
-		{
-			MCeerror->add
-			(EE_OBJECT_BADCOLOR, 0, 0, data);
-			return False;
-		}
-		j = i;
-		if (getpindex(index, j))
-		{
-			if (opened)
-
-				MCpatternlist->freepat(patterns[j].pattern);
-			destroypindex(index, j);
-		}
-		if (opened)
-			MCscreen->alloccolor(colors[i]);
-	}
-	return True;
-}
-
-Boolean MCObject::setcolors(const MCString &data)
-{
-	uint2 i, j, index;
-	MCColor newcolors[8];
-	char *newcolornames[8];
-	for (i = 0 ; i < 8 ; i++)
-		newcolornames[i] = NULL;
-	if (!MCscreen->parsecolors(data, newcolors, newcolornames, 8))
-	{
-		MCeerror->add
-		(EE_OBJECT_BADCOLORS, 0, 0, data);
-		return False;
-	}
-	for (index = DI_FORE ; index <= DI_FOCUS ; index++)
-	{
-		// MW-2013-02-21: [[ Bug 10683 ]] Only clear the pattern if we are actually
-		//   setting a color.
-		if (newcolors[index] . flags != 0)
-		{
-			if (getpindex(index, j))
-			{
-				if (opened)
-					MCpatternlist->freepat(patterns[j].pattern);
-				destroypindex(index, j);
-			}
-		}
-		if (!getcindex(index, i))
-		{
-			if (newcolors[index].flags)
-			{
-				i = createcindex(index);
-				colors[i] = newcolors[index];
-				if (opened)
-					MCscreen->alloccolor(colors[i]);
-				colornames[i] = newcolornames[index];
-			}
-		}
-		else
-		{
-			if (newcolors[index].flags)
-			{
-				delete colornames[i];
-				if (opened)
-				{
-					colors[i] = newcolors[index];
-					MCscreen->alloccolor(colors[i]);
-				}
-				colornames[i] = newcolornames[index];
-			}
-			else
-				destroycindex(index, i);
-		}
-	}
-	return True;
-}
-
-Boolean MCObject::setpattern(uint2 newpixmap, const MCString &data)
+Boolean MCObject::setpattern(uint2 newpixmap, MCStringRef data)
 {
 	uint2 i;
 	bool t_isopened;
 	t_isopened = (opened != 0) || (gettype() == CT_STACK && static_cast<MCStack*>(this)->getextendedstate(ECS_ISEXTRAOPENED));
-	if (data.getlength() == 0)
+	if (MCStringIsEmpty(data))
 	{
 		if (getpindex(newpixmap, i))
 		{
@@ -1509,27 +1744,28 @@ Boolean MCObject::setpattern(uint2 newpixmap, const MCString &data)
 	return True;
 }
 
-Boolean MCObject::setpatterns(const MCString &data)
+Boolean MCObject::setpatterns(MCStringRef data)
 {
-	char *string = data.clone();
-	char *sptr = string;
 	uint2 p;
-	Boolean done = False;
+	uindex_t t_start_pos, t_end_pos;
+    t_start_pos = 0;
+    t_end_pos = t_start_pos;
 	for (p = P_FORE_PATTERN ; p <= P_FOCUS_PATTERN ; p++)
 	{
-		char *eptr;
-		if ((eptr = strchr(sptr, '\n')) != NULL)
-			*eptr++ = '\0';
-		else
-			eptr = &sptr[strlen(sptr)];
-		if (!setpattern(p - P_FORE_PATTERN, sptr))
+		MCAutoStringRef t_substring;
+        if (!MCStringFirstIndexOfChar(data, '\n', t_start_pos, kMCCompareExact, t_end_pos))
+            MCStringCopySubstring(data, MCRangeMakeMinMax(t_start_pos, MCStringGetLength(data)), &t_substring);
+        else
+        {
+            MCStringCopySubstring(data, MCRangeMakeMinMax(t_start_pos, t_end_pos), &t_substring);
+            t_start_pos = t_end_pos + 1;
+        }
+            
+        if (!setpattern(p - P_FORE_PATTERN, *t_substring))
 		{
-			delete string;
 			return False;
 		}
-		sptr = eptr;
 	}
-	delete string;
 	return True;
 }
 
@@ -1552,10 +1788,10 @@ Boolean MCObject::getcindex(uint2 di, uint2 &i)
 uint2 MCObject::createcindex(uint2 di)
 {
 	MCColor *oldcolors = colors;
-	char **oldnames = colornames;
+	MCStringRef *oldnames = colornames;
 	ncolors++;
-	colors = new MCColor[ncolors];
-	colornames = new char *[ncolors];
+	colors = new (nothrow) MCColor[ncolors];
+	colornames = new (nothrow) MCStringRef[ncolors];
 	uint2 ri = 0;
 	uint2 i = 0;
 	uint2 c = 0;
@@ -1566,7 +1802,7 @@ uint2 MCObject::createcindex(uint2 di)
 		if (i == di)
 		{
 			dflags |= m;
-			colornames[c] = NULL;
+			colornames[c] = nil;
 			ri = c++;
 		}
 		else
@@ -1580,15 +1816,20 @@ uint2 MCObject::createcindex(uint2 di)
 	}
 	if (oldcolors != NULL)
 	{
-		delete oldcolors;
-		delete oldnames;
+		delete[] oldcolors; /* Allocated with new[] */
+		delete[] oldnames; /* Allocated with new[] */
 	}
 	return ri;
 }
 
 void MCObject::destroycindex(uint2 di, uint2 i)
 {
-	delete colornames[i];
+	if (colornames[i] != nil)
+	{
+		MCValueRelease(colornames[i]);
+		colornames[i] = nil;
+	}
+	
 	ncolors--;
 	while (i < ncolors)
 	{
@@ -1666,16 +1907,16 @@ uint32_t MCObject::getcoloraspixel(uint2 di)
 	uint2 t_index;
 	if (!getcindex(di, t_index))
 	{
-		if (parent != nil && parent != MCdispatcher)
+		if (parent && parent != MCdispatcher)
 			return parent -> getcoloraspixel(di);
 		switch(di)
 		{
 		case DI_BACK:
-			return MCscreen -> background_pixel . pixel;
+			return MCColorGetPixel(MCscreen -> background_pixel);
 		case DI_HILITE:
-			return MChilitecolor . pixel;
+			return MCColorGetPixel(MChilitecolor);
 		case DI_FOCUS:
-			return MCaccentcolor . pixel;
+			return MCColorGetPixel(MCaccentcolor);
 		case DI_TOP:
 		case DI_BOTTOM:
 		case DI_FORE:
@@ -1685,35 +1926,67 @@ uint32_t MCObject::getcoloraspixel(uint2 di)
 		return 0;
 	}
 
-	if (!opened)
-		MCscreen -> alloccolor(colors[t_index]);
-
-	return colors[t_index] . pixel;
+	return MCColorGetPixel(colors[t_index]);
 }
 
 // MW-2012-02-14: [[ FontRefs ]] New method for getting the font props from the
 //   object without creating a fontstruct.
-void MCObject::getfontattsnew(MCNameRef& fname, uint2 &size, uint2 &style)
+uint32_t MCObject::getfontattsnew(MCNameRef& fname, uint2 &size, uint2 &style)
 {
-	// MW-2012-02-19: [[ SplitTextAttrs ]] If we don't have all the attrs at this
+    // Flags for which font properties have been set explicitly at some level
+    uint32_t t_explicit_flags;
+    t_explicit_flags = 0;
+    
+    // MW-2012-02-19: [[ SplitTextAttrs ]] If we don't have all the attrs at this
 	//   level, we must fetch the parent attrs first.
 	if ((m_font_flags & FF_HAS_ALL_FATTR) != FF_HAS_ALL_FATTR)
 	{
 		if (this != MCdispatcher)
 		{
-			if (parent == nil)
-				MCdefaultstackptr -> getfontattsnew(fname, size, style);
-			else
-				parent -> getfontattsnew(fname, size, style);
+			if (parent)
+				t_explicit_flags = parent -> getfontattsnew(fname, size, style);
+            else if (MCdefaultstackptr)
+                t_explicit_flags = MCdefaultstackptr -> getfontattsnew(fname, size, style);
 		}
-		else
-		{
-			// This should never happen as the dispatcher always has font props
-			// set.
-			assert(false);
-		}
+
+        MCFontRef t_default_font;
+        Boolean t_printer;
+        MCNameRef t_fname;
+        uint2 t_size, t_style;
+        
+        MCFontStruct* t_font_struct = nil;
+        
+        if (MCPlatformGetControlThemePropFont(getcontroltype(), getcontrolsubpart(), getcontrolstate(), kMCPlatformThemePropertyTextFont, t_default_font))
+            t_font_struct = MCFontGetFontStruct(t_default_font);
+
+        if (t_font_struct != nil)
+        {
+            MCdispatcher->getfontlist()->getfontstructinfo(t_fname, t_size, t_style, t_printer, t_font_struct);
+        }
+        else
+        {
+            t_fname = MCNAME(DEFAULT_TEXT_FONT);
+            t_size = DEFAULT_TEXT_SIZE;
+            t_style = 0;
+            t_printer = false;
+        }
+        
+        if ((t_explicit_flags & FF_HAS_TEXTFONT) == 0)
+            fname = t_fname;
+        
+        if ((t_explicit_flags & FF_HAS_TEXTSIZE) == 0)
+            size = t_size;
+        
+        if ((t_explicit_flags & FF_HAS_TEXTSTYLE) == 0)
+            style = t_style;
+        
+        // This should never happen as the dispatcher always has font props set.
+        //MCUnreachable();
 	}
 
+    // These flags have been set explicitly
+    t_explicit_flags |= m_font_flags & FF_HAS_ALL_FATTR;
+    
 	// If we have a textfont, replace that value.
 	if ((m_font_flags & FF_HAS_TEXTFONT) != 0)
 		fname = m_font_attrs -> name;
@@ -1725,14 +1998,10 @@ void MCObject::getfontattsnew(MCNameRef& fname, uint2 &size, uint2 &style)
 	// If we have a textstyle, replace that value.
 	if ((m_font_flags & FF_HAS_TEXTSTYLE) != 0)
 		style = m_font_attrs -> style;
+    
+    return t_explicit_flags;
 }
 
-void MCObject::getfontattsnew(const char *& fname, uint2 &size, uint2 &style)
-{
-	MCNameRef t_fname_name;
-	getfontattsnew(t_fname_name, size, style);
-	fname = MCNameGetCString(t_fname_name);
-}
 
 MCNameRef MCObject::gettextfont(void)
 {
@@ -1801,10 +2070,8 @@ Exec_stat MCObject::conditionalmessage(uint32_t p_flag, MCNameRef p_message)
 Exec_stat MCObject::dispatch(Handler_type p_type, MCNameRef p_message, MCParameter *p_params)
 {
 	// Fetch current default stack and target settings
-	MCStack *t_old_stack;
-	t_old_stack = MCdefaultstackptr;
-	MCObject *t_old_target;
-	t_old_target = MCtargetptr;
+	MCStackHandle t_old_defaultstack = MCdefaultstackptr;
+    MCObjectPartHandle t_old_target = MCtargetptr;
 	
 	// Cache the current 'this stack' (used to see if we should switch back
 	// the default stack).
@@ -1813,23 +2080,40 @@ Exec_stat MCObject::dispatch(Handler_type p_type, MCNameRef p_message, MCParamet
 	
 	// Retarget this stack and the target to be relative to the target object
 	MCdefaultstackptr = t_this_stack;
-	MCtargetptr = this;
+    MCtargetptr = MCObjectPartHandle(this);
+
 
 	// Dispatch the message
 	Exec_stat t_stat;
 	t_stat = MCU_dofrontscripts(p_type, p_message, p_params);
 	Boolean olddynamic = MCdynamicpath;
-	MCdynamicpath = MCdynamiccard != NULL;
+	MCdynamicpath = MCdynamiccard.IsValid();
 	if (t_stat == ES_PASS || t_stat == ES_NOT_HANDLED)
-		t_stat = handle(p_type, p_message, p_params, this);
+    {
+        /* If the target object was deleted in the frontscript, prevent
+         * normal message dispatch as if the frontscript did not pass the
+         * message. */
+        MCAssert(!MCtargetptr || MCtargetptr.IsBoundTo(this));
+        if (MCtargetptr)
+        {
+            // MAY-DELETE: Handle the message - this (MCtargetptr) might be unbound
+            // after this call if it is deleted.
+            t_stat = handle(p_type, p_message, p_params, this);
+        }
+        else
+        {
+            t_stat = ES_NORMAL;
+        }
+    }
 
 	// Reset the default stack pointer and target - note that we use 'send'esque
 	// semantics here. i.e. If the default stack has been changed, the change sticks.
-	if (MCdefaultstackptr == t_this_stack)
-		MCdefaultstackptr = t_old_stack;
-
+    if (MCdefaultstackptr == t_this_stack
+                && t_old_defaultstack.IsValid())
+        MCdefaultstackptr = t_old_defaultstack;
+	
 	// Reset target pointer
-	MCtargetptr = t_old_target;
+    swap(MCtargetptr, t_old_target);
 	MCdynamicpath = olddynamic;
 	
 	return t_stat;
@@ -1837,22 +2121,29 @@ Exec_stat MCObject::dispatch(Handler_type p_type, MCNameRef p_message, MCParamet
 
 Exec_stat MCObject::message(MCNameRef mess, MCParameter *paramptr, Boolean changedefault, Boolean send, Boolean p_is_debug_message)
 {
-	MCStack *mystack = getstack();
-	if (MClockmessages || MCexitall || state & CS_NO_MESSAGES || parent == NULL || (flags & F_DISABLED && mystack->gettool(this) == T_BROWSE && !send && !p_is_debug_message))
+	MCStackHandle t_stack = getstack();
+	if (MClockmessages || MCexitall || state & CS_NO_MESSAGES || !parent || (flags & F_DISABLED && t_stack->gettool(this) == T_BROWSE && !send && !p_is_debug_message))
 			return ES_NOT_HANDLED;
 
-    // AL-2013-01-14: [[ Bug 11343 ]] Moved check and time addition to MCCard::mdown methods.
-	//if (MCNameIsEqualTo(mess, MCM_mouse_down, kMCCompareCaseless) && hashandlers & HH_MOUSE_STILL_DOWN)
-    //	MCscreen->addtimer(this, MCM_idle, MCidleRate);
-
-	MCscreen->flush(mystack->getw());
-
-	MCStack *oldstackptr = MCdefaultstackptr;
-	MCObject *oldtargetptr = MCtargetptr;
+	MCscreen->flush(t_stack->getw());
+	
+	// Object's cannot be deleted whilst they are executing script. However,
+	// this method will run script when script in the object is *not* running
+	// i.e. during front scripts and passed handlers after the object handler.
+	// Due to this, we need to make sure that the object will not be destroyed
+	// whilst this method is running, but it should still be possible to use
+	// the delete command to delete the target whilst the script which is not
+	// in the object runs. To do this we ask the deleted objects system to
+	// suspend destruction of the object during this method.
+	void *t_deletion_cookie;
+	MCDeletedObjectsOnObjectSuspendDeletion(this, t_deletion_cookie);
+	
+	MCStackHandle t_old_defaultstack = MCdefaultstackptr;
+    MCObjectPartHandle oldtargetptr = MCtargetptr;
 	if (changedefault)
 	{
-		MCdefaultstackptr = mystack;
-		MCtargetptr = this;
+		MCdefaultstackptr = t_stack;
+        MCtargetptr = MCObjectPartHandle(this);
 	}
 	Boolean olddynamic = MCdynamicpath;
 	MCdynamicpath = False;
@@ -1864,34 +2155,70 @@ Exec_stat MCObject::message(MCNameRef mess, MCParameter *paramptr, Boolean chang
 	}
 	else
 	{
+        /* Take a handle to self.  This will be used to check if the
+         * frontscripts deleted the object. */
+        MCObjectHandle t_self_handle(this);
+
 		MCS_alarm(CHECK_INTERVAL);
 		MCdebugcontext = MAXUINT2;
 		stat = MCU_dofrontscripts(HT_MESSAGE, mess, paramptr);
-		Window mywindow = mystack->getw();
-		if ((stat == ES_NOT_HANDLED || stat == ES_PASS)
-		        && (MCtracewindow == DNULL
-		            || memcmp(&mywindow, &MCtracewindow, sizeof(Window))))
+		
+		if (t_stack.IsValid())
 		{
-			// PASS STATE FIX
-			Exec_stat oldstat = stat;
-			stat = handle(HT_MESSAGE, mess, paramptr, this);
-			if (oldstat == ES_PASS && stat == ES_NOT_HANDLED)
-				stat = ES_PASS;
+			Window mywindow = t_stack->getw();
+			if ((stat == ES_NOT_HANDLED || stat == ES_PASS)
+					&& (MCtracewindow == NULL
+						|| memcmp(&mywindow, &MCtracewindow, sizeof(Window))))
+			{
+                /* If the object was deleted in the frontscript,
+                 * prevent normal message dispatch as if the
+                 * frontscript did not pass the message. */
+                if (t_self_handle)
+                {
+                    // MAY-DELETE: Handle the message - this might be unbound after
+                    // this call if it is deleted.
+                    Exec_stat oldstat = stat;
+                    stat = handle(HT_MESSAGE, mess, paramptr, this);
+                    if (oldstat == ES_PASS && stat == ES_NOT_HANDLED)
+                        stat = ES_PASS;
+                }
+                else
+                {
+                    stat = ES_NORMAL;
+                }
+			}
 		}
 	}
-	if (!send || !changedefault || MCdefaultstackptr == mystack)
-		MCdefaultstackptr = oldstackptr;
-	MCtargetptr = oldtargetptr;
-	MCdynamicpath = olddynamic;
+	if ((!send || !changedefault || MCdefaultstackptr == t_stack)
+                && t_old_defaultstack.IsValid())
+		MCdefaultstackptr = t_old_defaultstack;
 
-	if (stat == ES_ERROR && MCerrorlock == 0 && !MCtrylock)
+    swap(MCtargetptr, oldtargetptr);
+	MCdynamicpath = olddynamic;
+	
+	MCDeletedObjectsOnObjectResumeDeletion(this, t_deletion_cookie);
+	
+	if (stat == ES_ERROR && !MCerrorlock && !MCtrylock)
 	{
 		if (MCnoui)
 		{
+            MCAutoPointer<char> t_mccmd;
+            if (!MCStringConvertToCString(MCcmd, &t_mccmd))
+                return ES_ERROR;
+            
 			uint2 line, pos;
 			MCeerror->geterrorloc(line, pos);
-			fprintf(stderr, "%s: Script execution error at line %d, column %d\n",
-			        MCcmd, line, pos);
+            
+            MCAutoValueRef t_object;
+            if (!names(P_NAME, &t_object))
+                return ES_ERROR;
+            
+            MCAutoPointer<char> t_object_name;
+            if (!MCStringConvertToCString((MCStringRef)*t_object, &t_object_name))
+                return ES_ERROR;
+            
+			fprintf(stderr, "%s: Script execution error at line %d, column %d in %s\n",
+			        *t_mccmd, line, pos, *t_object_name);
 		}
 		else
 			if (!send)
@@ -1903,62 +2230,45 @@ Exec_stat MCObject::message(MCNameRef mess, MCParameter *paramptr, Boolean chang
 	return stat;
 }
 
-Exec_stat MCObject::message_with_args(MCNameRef mess, const MCString &v1)
+Exec_stat MCObject::message_with_valueref_args(MCNameRef mess, MCValueRef v1)
 {
 	MCParameter p1;
-	p1.sets_argument(v1);
+	p1.setvalueref_argument(v1);
 	return message(mess, &p1);
 }
 
-Exec_stat MCObject::message_with_args(MCNameRef mess, const MCString &v1, const MCString &v2)
+Exec_stat MCObject::message_with_valueref_args(MCNameRef mess, MCValueRef v1, MCValueRef v2)
 {
 	MCParameter p1, p2;
-	p1.sets_argument(v1);
+	p1.setvalueref_argument(v1);
 	p1.setnext(&p2);
-	p2.sets_argument(v2);
+	p2.setvalueref_argument(v2);
 	return message(mess, &p1);
 }
 
-Exec_stat MCObject::message_with_args(MCNameRef mess, const MCString &v1, const MCString &v2, const MCString& v3)
+Exec_stat MCObject::message_with_valueref_args(MCNameRef mess, MCValueRef v1, MCValueRef v2, MCValueRef v3)
 {
 	MCParameter p1, p2, p3;
-	p1.sets_argument(v1);
+	p1.setvalueref_argument(v1);
 	p1.setnext(&p2);
-	p2.sets_argument(v2);
+	p2.setvalueref_argument(v2);
 	p2.setnext(&p3);
-	p3.sets_argument(v3);
+	p3.setvalueref_argument(v3);
 	return message(mess, &p1);
 }
 
-Exec_stat MCObject::message_with_args(MCNameRef mess, const MCString &v1, const MCString &v2, const MCString& v3, const MCString& v4)
+Exec_stat MCObject::message_with_valueref_args(MCNameRef mess, MCValueRef v1, MCValueRef v2, MCValueRef v3, MCValueRef v4)
 {
 	MCParameter p1, p2, p3, p4;
-	p1.sets_argument(v1);
+	p1.setvalueref_argument(v1);
 	p1.setnext(&p2);
-	p2.sets_argument(v2);
+	p2.setvalueref_argument(v2);
 	p2.setnext(&p3);
-	p3.sets_argument(v3);
+	p3.setvalueref_argument(v3);
 	p3.setnext(&p4);
-	p4.sets_argument(v4);
+	p4.setvalueref_argument(v4);
 	return message(mess, &p1);
 }
-
-Exec_stat MCObject::message_with_args(MCNameRef mess, MCNameRef v1)
-{
-	MCParameter p1;
-	p1.setnameref_unsafe_argument(v1);
-	return message(mess, &p1);
-}
-
-Exec_stat MCObject::message_with_args(MCNameRef mess, MCNameRef v1, MCNameRef v2)
-{
-	MCParameter p1, p2;
-	p1.setnameref_unsafe_argument(v1);
-	p1.setnext(&p2);
-	p2.setnameref_unsafe_argument(v2);
-	return message(mess, &p1);
-}
-
 Exec_stat MCObject::message_with_args(MCNameRef mess, int4 v1)
 {
 	MCParameter p1;
@@ -2001,130 +2311,167 @@ Exec_stat MCObject::message_with_args(MCNameRef mess, int4 v1, int4 v2, int4 v3,
 
 void MCObject::senderror()
 {
-	char *perror = NULL;
+	MCAutoStringRef t_perror;
 	if (!MCperror->isempty())
-	{
-		MCExecPoint ep(this, NULL, NULL);
-		MCerrorptr->getprop(0, P_LONG_ID, ep, False);
+    {
+        MCExecContext ctxt(this, nil, nil);
+        MCAutoStringRef t_id;
+		MCerrorptr->getstringprop(ctxt, 0, P_LONG_ID, False, &t_id);
 		MCperror->add
-		(PE_OBJECT_NAME, 0, 0, ep.getsvalue());
-		perror = MCperror->getsvalue().clone();
+        (PE_OBJECT_NAME, 0, 0, *t_id);
+		/* UNCHECKED */ MCperror->copyasstringref(&t_perror);
 		MCperror->clear();
 	}
-	if (MCerrorptr == NULL)
+	if (!MCerrorptr)
 		MCerrorptr = this;
-	MCscreen->delaymessage(MCerrorlockptr == NULL ? MCerrorptr : MCerrorlockptr, MCM_error_dialog, MCeerror->getsvalue().clone(), perror);
+	MCAutoStringRef t_eerror;
+	/* UNCHECKED */ MCeerror->copyasstringref(&t_eerror);
+	MCscreen->delaymessage(MCerrorlockptr ? MCerrorlockptr : MCerrorptr, MCM_error_dialog, *t_eerror, *t_perror);
 	MCeerror->clear();
-	MCerrorptr = NULL;
+	MCerrorptr = nil;
 }
 
 void MCObject::sendmessage(Handler_type htype, MCNameRef m, Boolean h)
 {
-	static const char *htypes[] =
-	    {
-	        "undefined", "message", "function", "getprop", "setprop"
-	    };
-	MCmessagemessages = False;
-	MCExecPoint ep(this, NULL, NULL);
-	MCresult->fetch(ep);
+	static const char *htypes[] =	{
+		"undefined",
+		"message",
+		"function",
+		"getprop",
+		"setprop",
+		"before",
+		"after",
+		"private"
+	};
+	enum { max_htype = (sizeof(htypes)/sizeof(htypes[0])) - 1 };
+    
+	MCAssert(htype <= Handler_type(max_htype));
+	MCStaticAssert(Handler_type(max_htype) == HT_MAX);
+    MCmessagemessages = False;
 
-	// MW-2011-08-22: [[ Bug 9686 ]] Make sure we save the value of 'the result'
-	//   to be restored after the (not)handled message has been processed.
-	ep.grab();
+    MCExecContext ctxt(this, nil, nil);
+    MCExecValue t_value;
+	MCresult->eval_ctxt(ctxt, t_value);
 
 	if (h)
-		message_with_args(MCM_message_handled, htypes[htype], MCNameGetOldString(m));
+		message_with_valueref_args(MCM_message_handled, MCSTR(htypes[htype]), m);
 	else
-		message_with_args(MCM_message_not_handled, htypes[htype], MCNameGetOldString(m));
+		message_with_valueref_args(MCM_message_not_handled, MCSTR(htypes[htype]), m);
 
-	MCresult->store(ep, False);
+	MCresult->give_value(ctxt, t_value);
 
 	MCmessagemessages = True;
 }
 
-Exec_stat MCObject::names(Properties which, MCExecPoint &ep, uint4 parid)
+bool MCObject::getnameproperty(Properties which, uint32_t p_part_id, MCValueRef& r_name_val)
 {
-	const char *itypestring = gettypestring();
-	char *tmptypestring = NULL;
-	if (parent != NULL && gettype() >= CT_BUTTON && getstack()->hcaddress())
-	{
-		tmptypestring = new char[strlen(itypestring) + 7];
-		if (parent->gettype() == CT_GROUP)
-			sprintf(tmptypestring, "%s %s", "bkgnd", itypestring);
-		else
-			sprintf(tmptypestring, "%s %s", "card", itypestring);
-		itypestring = tmptypestring;
-	}
-	Exec_stat stat = ES_NORMAL;
-	switch (which)
-	{
-	case P_ID:
-	case P_SHORT_ID:
-		ep.setint(obj_id);
-		break;
-	case P_ABBREV_ID:
-		ep.setstringf("%s id %d", itypestring, obj_id);
-		break;
-	case P_LONG_ID:
-		if (parent == NULL)
-		{
-			char *buffer = ep.getbuffer(strlen(itypestring) + 13);
-			sprintf(buffer, "the template%s", itypestring);
-			buffer[12] = MCS_toupper(buffer[12]);
-			ep.setstrlen();
-		}
-		else
-		{
-			MCExecPoint ep2(ep);
-			parent->getprop(parid, P_LONG_ID, ep2, False);
-			if (gettype() == CT_GROUP && parent->gettype() == CT_STACK)
-				itypestring = "bkgnd";
-			ep.setstringf("%s id %d of ", itypestring, obj_id);
-			ep.appendmcstring(ep2.getsvalue());
-		}
-		break;
-	case P_NAME:
-	case P_ABBREV_NAME:
-		if (isunnamed())
-			stat = getprop(parid, P_ABBREV_ID, ep, False);
-		else
-			ep.setstringf("%s \"%s\"", itypestring, getname_cstring());
-		break;
-	case P_SHORT_NAME:
-		if (isunnamed())
-			stat = names(P_ABBREV_ID, ep, parid);
-		else
-			ep.setnameref_unsafe(getname());
-		break;
-	case P_LONG_NAME:
-		// MW-2013-01-15: [[ Bug 2629 ]] If this control is unnamed, use the abbrev id form
-		//   but *only* for this control (continue with names the rest of the way).
-		if (parent == NULL)
-		{
-			if (!isunnamed())
-				ep.setstringf("%s \"%s\"", itypestring, getname_cstring());
-			else
-				ep.setstringf("%s id %d", itypestring, obj_id);
-		}
-		else
-		{
-			MCExecPoint ep2(ep);
-			parent->getprop(parid, P_LONG_NAME, ep2, False);
-			if (gettype() == CT_GROUP && parent->gettype() == CT_STACK)
-				itypestring = "bkgnd";
-			if (!isunnamed())
-				ep.setstringf("%s \"%s\" of ", itypestring, getname_cstring());
-			else
-				ep.setstringf("%s id %d of ", itypestring, obj_id);
-			ep.appendmcstring(ep2.getsvalue());
-		}
-		break;
-	default:
-		stat = ES_ERROR;
-		break;
-	}
-	delete tmptypestring;
-	return stat;
+    MCStringRef &r_name = (MCStringRef&)r_name_val;
+    
+    const char *itypestring = gettypestring();
+    MCAutoPointer<char[]> tmptypestring;
+    if (parent && gettype() >= CT_BUTTON && getstack()->hcaddress())
+    {
+        tmptypestring.Reset(new (nothrow) char[strlen(itypestring) + 7]);
+        if (!tmptypestring)
+            return false;
+        if (parent->gettype() == CT_GROUP)
+            sprintf(*tmptypestring, "%s %s", "bkgnd", itypestring);
+        else
+            sprintf(*tmptypestring, "%s %s", "card", itypestring);
+        itypestring = *tmptypestring;
+    }
+    switch (which)
+    {
+        case P_ID:
+        case P_SHORT_ID:
+            return MCStringFormat(r_name, "%u", obj_id);
+        case P_ABBREV_ID:
+            return MCStringFormat(r_name, "%s id %d", itypestring, obj_id);
+            
+        // The stack object has its own version of long * which we check for here. We
+        // could make 'names()' virtual and do this that way, but since there shouldn't
+        // really be an exception to how id is formatted (and there won't be for any
+        // future object types) we handle it here.
+        case P_LONG_NAME_NO_FILENAME:
+        case P_LONG_NAME:
+        case P_LONG_ID:
+            if (gettype() == CT_STACK)
+            {
+                MCStack *t_this;
+                t_this = static_cast<MCStack *>(this);
+                
+                MCStringRef t_filename;
+                t_filename = t_this -> getfilename();
+                
+                /* If the property type is 'NO_FILENAME' then we resolve the name
+                 * of the mainstack, and not its filename. */
+                if (MCStringIsEmpty(t_filename) ||
+                    which == P_LONG_NAME_NO_FILENAME)
+                {
+                    if (MCdispatcher->ismainstack(t_this))
+                    {
+                        if (!isunnamed())
+                            return MCStringFormat(r_name, "stack \"%@\"", getname());
+                        r_name = MCValueRetain(kMCEmptyString);
+                        return true;
+                    }
+                    if (isunnamed())
+                    {
+                        r_name = MCValueRetain(kMCEmptyString);
+                        return true;
+                    }
+                    which = P_LONG_NAME;
+                }
+                else
+                    return MCStringFormat(r_name, "stack \"%@\"", t_filename);
+            }
+            
+            // MW-2013-01-15: [[ Bug 2629 ]] If this control is unnamed, use the abbrev id form
+            //   but *only* for this control (continue with names the rest of the way).
+            Properties t_which_requested;
+            t_which_requested = which;
+            if ((which == P_LONG_NAME || which == P_LONG_NAME_NO_FILENAME) && isunnamed())
+                which = P_LONG_ID;
+            if (parent)
+            {
+                MCObject *t_parent_object;
+//                if (parent -> gettype() == CT_CARD)
+//                    t_parent_object = getcard(p_part_id);
+//                else
+                    t_parent_object = parent;
+                
+                MCAutoValueRef t_parent;
+                if (!t_parent_object -> getnameproperty(t_which_requested, p_part_id, &t_parent))
+                    return false;
+                if (gettype() == CT_GROUP && t_parent_object->gettype() == CT_STACK)
+                    itypestring = "bkgnd";
+                if (which == P_LONG_ID)
+                    return MCStringFormat(r_name, "%s id %d of %@", itypestring, obj_id, *t_parent);
+                return MCStringFormat(r_name, "%s \"%@\" of %@", itypestring, getname(), *t_parent);
+            }
+            return MCStringFormat(r_name, "the template%c%s", MCS_toupper(itypestring[0]), itypestring + 1);
+            
+        case P_NAME:
+        case P_ABBREV_NAME:
+            if (isunnamed())
+                return names(P_ABBREV_ID, r_name_val);
+            return MCStringFormat(r_name, "%s \"%@\"", itypestring, getname());
+        case P_SHORT_NAME:
+            if (isunnamed())
+                return names(P_ABBREV_ID, r_name_val);
+            r_name = MCValueRetain(MCNameGetString(getname()));
+            return true;
+        default:
+            break;
+    }
+    
+    // Shouldn't actually get here, so just return false.
+    return false;
+}
+
+bool MCObject::names(Properties which, MCValueRef& r_name_val)
+{
+    return getnameproperty(which, 0, r_name_val);
 }
 
 // MW-2012-10-17: [[ Bug 10476 ]] Returns true if message should be fired.
@@ -2151,32 +2498,43 @@ Boolean MCObject::parsescript(Boolean report, Boolean force)
 {
 	if (!force && hashandlers & HH_DEAD_SCRIPT)
 		return False;
-	if (script == nil || parent == NULL)
-        hashandlers = 0;
+	if (MCStringIsEmpty(_script) || !parent)
+		hashandlers = 0;
 	else
 		if (force || hlist == NULL)
 		{
 			MCscreen->cancelmessageobject(this, MCM_idle);
 			hashandlers = 0;
 			if (hlist == NULL)
-				hlist = new MCHandlerlist;
-			
-			getstack() -> unsecurescript(this);
-			
-			Parse_stat t_stat;
-			t_stat = hlist -> parse(this, script);
-			
-			getstack() -> securescript(this);
-			
+				hlist = new (nothrow) MCHandlerlist;
+            
+            Parse_stat t_stat;
+            if (_getscript() != nullptr)
+            {
+                MCDataRef t_utf8_script;
+                getstack()->startparsingscript(this, t_utf8_script);
+                
+                t_stat = hlist->parse(this, t_utf8_script);
+            
+                getstack()->stopparsingscript(this, t_utf8_script);
+            }
+            else
+            {
+                t_stat = hlist->parse(this, kMCEmptyString);
+            }
+            
 			if (t_stat != PS_NORMAL)
 			{
 				hashandlers |= HH_DEAD_SCRIPT;
-				if (report && parent != NULL)
-				{
-					MCExecPoint ep(this, NULL, NULL);
-					getprop(0, P_LONG_ID, ep, False);
-					MCperror->add(PE_OBJECT_NAME, 0, 0, ep.getsvalue());
-					message_with_args(MCM_script_error, MCperror->getsvalue());
+				if (report && parent)
+                {
+                    MCExecContext ctxt(this, nil, nil);
+                    MCAutoStringRef t_id;
+					getstringprop(ctxt, 0, P_LONG_ID, False, &t_id);
+                    MCperror->add(PE_OBJECT_NAME, 0, 0, *t_id);
+					MCAutoStringRef t_string;
+					/* UNCHECKED */ MCperror->copyasstringref(&t_string);
+					message_with_valueref_args(MCM_script_error, *t_string);
 					MCperror->clear();
 				}
 				delete hlist;
@@ -2214,6 +2572,9 @@ bool MCObject::handlesmessage(MCNameRef p_message)
 	t_object = this;
 	while(t_object != nil)
 	{
+		// Make sure the handler list has been constructed from the parsed script
+		if (t_object->hlist == nil)
+			t_object->parsescript(False, False);
 		if (t_object -> hlist != nil && should_send_message(t_object -> hlist, p_message))
             return true;
 		
@@ -2234,7 +2595,7 @@ Bool MCObject::hashandler(Handler_type p_type, MCNameRef p_message)
 
 MCHandler *MCObject::findhandler(Handler_type p_type, MCNameRef p_message)
 {
-	if (hlist != NULL || parsescript(False, False) && hlist != NULL)
+	if (hlist != NULL || (parsescript(False, False) && hlist != NULL))
 	{
 		MCHandler *t_handler;
 		if (hlist -> findhandler(p_type, p_message, t_handler) == ES_NORMAL)
@@ -2323,21 +2684,20 @@ void MCObject::draw3d(MCDC *dc, const MCRectangle &drect,
 	bwidth = MCU_min(bwidth, drect.height >> 1);
 	if (bwidth == 0)
 		return;
-	MCSegment tb[DEFAULT_BORDER * 2];
-	MCSegment bb[DEFAULT_BORDER * 2];
-	MCSegment *t = tb;
-	MCSegment *b = bb;
+	MCLineSegment tb[DEFAULT_BORDER * 2];
+	MCLineSegment bb[DEFAULT_BORDER * 2];
+	MCLineSegment *t = tb;
+	MCLineSegment *b = bb;
 	if (bwidth > DEFAULT_BORDER)
 	{
-		t = new MCSegment[bwidth * 2];
-		b = new MCSegment[bwidth * 2];
+		t = new (nothrow) MCLineSegment[bwidth * 2];
+		b = new (nothrow) MCLineSegment[bwidth * 2];
 	}
 	int2 lx = drect.x;
 	int2 rx = drect.x + drect.width;
 	int2 ty = drect.y;
 	int2 by = drect.y + drect.height;
-	uint2 i;
-
+	
 	Boolean reversed = style == ETCH_SUNKEN || style == ETCH_SUNKEN_BUTTON;
 	switch (MClook)
 	{
@@ -2373,14 +2733,18 @@ void MCObject::draw3d(MCDC *dc, const MCRectangle &drect,
 			dc->fillpolygon(t_points, 6);
 
 			gen_3d_bottom_points(t_points, lx + 1, ty + 1, rx - 1, by - 1, 1);
-			if (MClook != LF_MAC && MClook != LF_AM || style != ETCH_SUNKEN)
+			if ((MClook != LF_MAC && MClook != LF_AM) || style != ETCH_SUNKEN)
+			{
 				if (reversed)
+				{
 					if (gettype() == CT_FIELD)
 						parent->setforeground(dc, DI_BACK, False);
 					else
 						setforeground(dc, DI_BACK, False);
+				}
 				else
 					setforeground(dc, DI_BOTTOM, False);
+			}
 			dc->fillpolygon(t_points, 6);
 
 			gen_3d_bottom_points(t_points, lx, ty, rx, by, 1);
@@ -2406,8 +2770,8 @@ void MCObject::draw3d(MCDC *dc, const MCRectangle &drect,
 	}
 	if (t != tb)
 	{
-		delete t;
-		delete b;
+		delete[] t;
+		delete[] b;
 	}
 }
 
@@ -2493,95 +2857,168 @@ void MCObject::positionrel(const MCRectangle &drect,
 	}
 }
 
-Exec_stat MCObject::domess(const char *sptr)
+void MCObject::drawmarquee(MCContext *p_context, const MCRectangle& p_rect)
 {
-	const char *temp = "on message\n%s\nend message\n";
-	char *tscript = new char[strlen(temp) + strlen(sptr) - 1];
-	sprintf(tscript, temp, sptr);
-	MCHandlerlist *handlist = new MCHandlerlist;
+    p_context -> setforeground(MCscreen -> getblack());
+    p_context -> setlineatts(0, LineOnOffDash, CapButt, JoinRound);
+    p_context -> setdashes(0, dashlist, 2);
+    p_context -> drawrect(p_rect);
+    
+    p_context -> setforeground(MCscreen -> getwhite());
+    p_context -> setdashes(dashlist[0], dashlist, 2);
+    p_context -> drawrect(p_rect);
+    
+    // Reset line atts
+    p_context -> setlineatts(0, LineSolid, CapButt, JoinBevel);
+}
+
+// SN-2014-04-03 [[ Bug 12075 ]] Tooltips need to be able to resolve the text direction of their label
+void MCObject::drawdirectionaltext(MCDC *dc, int2 sx, int2 sy, MCStringRef p_string, MCFontRef font)
+{
+    
+#if defined(TARGET_SUBPLATFORM_ANDROID)
+    // AL-2014-06-24: [[ Bug 12343 ]] Restore splitting of object text into differing directional sections
+    //  when drawing on android; HarfBuzz needs all the directions resolved to display in the correct order.
+    MCAutoArray<uint8_t> t_levels;
+    
+    /* UNCHECKED */ MCBidiResolveTextDirection(p_string, MCBidiFirstStrongIsolate(p_string, 0), t_levels . PtrRef(), t_levels . SizeRef());
+    
+    MCRange t_block_range;
+
+    bool t_initially_ltr;
+    t_initially_ltr = (t_levels[0] & 1) == 0;
+    
+    uindex_t t_length = t_levels . Size();
+    
+    for (uindex_t i = 0; i < t_length; ++i)
+    {
+        uint8_t t_cur_level;
+        // Check the range of this text direction
+        if (t_initially_ltr)
+        {
+            t_cur_level = t_levels[i];
+            
+            t_block_range . offset = i;
+            while (i + 1 < t_levels . Size() && t_cur_level == t_levels[i + 1])
+                ++i;
+            
+            t_block_range . length = i + 1 - t_block_range . offset;
+        }
+        else
+        {
+            // If the resolved text direction is rtl, we need to traverse the runs backwards
+            //  for the correct display order.
+            t_cur_level = t_levels[t_length - (i + 1)];
+            
+            uindex_t t_range_end = t_length - i;
+            t_block_range . length = i;
+            while (i + 1 < t_length && t_cur_level == t_levels[t_length - (i + 2)])
+                ++i;
+            
+            t_block_range . offset = t_length - (i + 1);
+            t_block_range . length = t_range_end - t_block_range . offset;
+        }
+        
+        // RTL when the level is odd
+        dc -> drawtext_substring(sx, sy, p_string, t_block_range, font, false, kMCDrawTextNoBreak, (t_cur_level & 1) ? kMCDrawTextDirectionRTL : kMCDrawTextDirectionLTR);
+        sx += MCFontMeasureTextSubstring(font, p_string, t_block_range, getstack() -> getdevicetransform());
+    }
+#else
+    bool t_is_rtl;
+    t_is_rtl = !MCStringResolvesLeftToRight(p_string);
+    dc -> drawtext(sx, sy, p_string, font, false, kMCDrawTextNoBreak, t_is_rtl ? kMCDrawTextDirectionRTL : kMCDrawTextDirectionLTR);
+#endif
+}
+
+Exec_stat MCObject::domess(MCStringRef sptr, MCParameter* p_args, bool p_ignore_errors)
+{
+	MCAutoStringRef t_temp_script;
+	/* UNCHECKED */ MCStringFormat(&t_temp_script, "on message\n%@\nend message\n", sptr);
+	
+	MCHandlerlist *handlist = new (nothrow) MCHandlerlist;
 	// SMR 1947, suppress parsing errors
 	MCerrorlock++;
-	if (handlist->parse(this, tscript) != PS_NORMAL)
+	if (handlist->parse(this, *t_temp_script) != PS_NORMAL)
 	{
 		MCerrorlock--;
 		delete handlist;
-		delete tscript;
 		return ES_ERROR;
 	}
 	MCerrorlock--;
-	MCObject *oldtargetptr = MCtargetptr;
-	MCtargetptr = this;
+    MCObjectPartHandle oldtargetptr(this);
+    swap(oldtargetptr, MCtargetptr);
 	MCHandler *hptr;
-	handlist->findhandler(HT_MESSAGE, MCM_message, hptr);
-	MCExecPoint ep(this, handlist, hptr);
+    handlist->findhandler(HT_MESSAGE, MCM_message, hptr);
+
+    MCExecContext ctxt(this, handlist, hptr);
 	Boolean oldlock = MClockerrors;
 	MClockerrors = True;
-	Exec_stat stat = hptr->exec(ep, NULL);
+
+	Exec_stat stat = hptr->exec(ctxt, p_args);
+
 	MClockerrors = oldlock;
 	delete handlist;
-	delete tscript;
-	MCtargetptr = oldtargetptr;
+    swap(MCtargetptr, oldtargetptr);
 	if (stat == ES_NORMAL)
 		return ES_NORMAL;
-	else
-	{
-		MCeerror->clear(); // clear out bogus error messages
-		return ES_ERROR;
-	}
+    else
+    {
+        if (p_ignore_errors)
+            MCeerror->clear(); // clear out bogus error messages
+        return ES_ERROR;
+    }
 }
 
-Exec_stat MCObject::eval(const char *sptr, MCExecPoint &ep)
+void MCObject::eval(MCExecContext &ctxt, MCStringRef p_script, MCValueRef &r_value)
 {
-	const char *temp = "on eval\nreturn %s\nend eval\n";
-	char *tscript = new char[strlen(temp) + strlen(sptr) - 1];
-	sprintf(tscript, temp, sptr);
-	MCHandlerlist *handlist = new MCHandlerlist;
-	if (handlist->parse(this, tscript) != PS_NORMAL)
+	MCAutoStringRef t_temp_script;
+	/* UNCHECKED */ MCStringFormat(&t_temp_script, "on eval\nreturn %@\nend eval\n", p_script);
+	
+	MCHandlerlist *handlist = new (nothrow) MCHandlerlist;
+	if (handlist->parse(this, *t_temp_script) != PS_NORMAL)
 	{
-		ep.setstaticcstring("Error parsing expression\n");
+		r_value = MCSTR("Error parsing expression\n");
 		delete handlist;
-		delete tscript;
-		return ES_ERROR;
+		ctxt.Throw();
+		return;
 	}
-	MCObject *oldtargetptr = MCtargetptr;
-	MCtargetptr = this;
+    MCObjectPartHandle oldtargetptr(this);
+    swap(MCtargetptr, oldtargetptr);
 	MCHandler *hptr;
-	MCHandler *oldhandler = ep.gethandler();
-	MCHandlerlist *oldhlist = ep.gethlist();
+	MCHandler *oldhandler = ctxt.GetHandler();
+	MCHandlerlist *oldhlist = ctxt.GetHandlerList();
 	handlist->findhandler(HT_MESSAGE, MCM_eval, hptr);
-	ep.sethlist(handlist);
-	ep.sethandler(hptr);
+	ctxt.SetHandlerList(handlist);
+	ctxt.SetHandler(hptr);
 	Boolean oldlock = MClockerrors;
 	MClockerrors = True;
-	Exec_stat stat;
-	if (hptr->exec(ep, NULL) != ES_NORMAL)
+	
+    MCObjectExecutionLock t_self_lock(this);
+	if (hptr->exec(ctxt, NULL) != ES_NORMAL)
 	{
-		ep.setstaticcstring("Error parsing expression\n");
-		stat = ES_ERROR;
+		r_value = MCSTR("Error parsing expression\n");
+		ctxt.Throw();
 	}
 	else
 	{
-		MCresult->fetch(ep);
-		stat = ES_NORMAL;
+		MCresult->copyasvalueref(r_value);
 	}
 	MClockerrors = oldlock;
-	MCtargetptr = oldtargetptr;
-	ep.sethlist(oldhlist);
-	ep.sethandler(oldhandler);
-	delete tscript;
+    swap(MCtargetptr, oldtargetptr);
+	ctxt.SetHandlerList(oldhlist);
+	ctxt.SetHandler(oldhandler);
 	delete handlist;
-	return stat;
 }
 
 // MERG 2013-9-13: [[ EditScriptChunk ]] Added at expression that's passed through as a second parameter to editScript
-void MCObject::editscript(MCString p_at)
+void MCObject::editscript(MCStringRef p_at)
 {
-	MCExecPoint ep(this, NULL, NULL);
-	getprop(0, P_LONG_ID, ep, False);
-    if (p_at != NULL)
-        getcard()->message_with_args(MCM_edit_script, ep.getsvalue(), p_at);
+    MCAutoValueRef t_name;
+	names(P_LONG_ID, &t_name);
+    if (p_at != nil)
+        getcard()->message_with_valueref_args(MCM_edit_script, *t_name, p_at);
     else
-        getcard()->message_with_args(MCM_edit_script, ep.getsvalue());
+        getcard()->message_with_valueref_args(MCM_edit_script, *t_name);
 }
 
 void MCObject::removefrom(MCObjectList *l)
@@ -2629,9 +3066,6 @@ void MCObject::alloccolors()
 		maccolors[MAC_THUMB_GRIP] = syscolors[4];
 		maccolors[MAC_THUMB_HILITE] = syscolors[6];
 	}
-	uint2 i = MAC_NCOLORS;
-	while (i--)
-		MCscreen->alloccolor(maccolors[i]);
 }
 
 MCImageBitmap *MCObject::snapshot(const MCRectangle *p_clip, const MCPoint *p_size, MCGFloat p_scale_factor, bool p_with_effects)
@@ -2687,13 +3121,13 @@ MCImageBitmap *MCObject::snapshot(const MCRectangle *p_clip, const MCPoint *p_si
 	
 	MCGAffineTransform t_transform = MCGAffineTransformMakeTranslation(-r.x, -r.y);
 	if (p_size != nil)
-		t_transform = MCGAffineTransformScale(t_transform, p_size->x / (float)r.width, p_size->y / (float)r.height);
+		t_transform = MCGAffineTransformPreScale(t_transform, p_size->x / (float)r.width, p_size->y / (float)r.height);
 
 	MCGContextConcatCTM(t_gcontext, t_transform);
 	
 	// MW-2014-01-07: [[ bug 11632 ]] Use the offscreen variant of the context so its
 	//   type field is appropriate for use by the player.
-	MCContext *t_context = new MCOffscreenGraphicsContext(t_gcontext);
+	MCContext *t_context = new (nothrow) MCOffscreenGraphicsContext(t_gcontext);
 	t_context -> setclip(r);
 
 	// MW-2011-01-29: [[ Bug 9355 ]] Make sure we only open a control if it needs it!
@@ -2706,7 +3140,7 @@ MCImageBitmap *MCObject::snapshot(const MCRectangle *p_clip, const MCPoint *p_si
 	MCObject *t_opened_control = nil;
 	if (opened == 0)
     {
-        if (parent == nil)
+        if (!parent)
         {
             setparent(MCdefaultstackptr -> getcard());
             t_parent_added = true;
@@ -2731,6 +3165,13 @@ MCImageBitmap *MCObject::snapshot(const MCRectangle *p_clip, const MCPoint *p_si
 	{
 		t_context -> setopacity(blendlevel * 255 / 100);
 		t_context -> setfunction(GXblendSrcOver);
+
+        // PM-2014-11-11: [[ Bug 13970 ]] Make sure each player is buffered correctly for export snapshot
+        MCPlayer::SyncPlayers(getstack(), t_context);
+        
+#ifdef FEATURE_PLATFORM_PLAYER
+        MCPlatformWaitForEvent(0.0, true);
+#endif
 		if (t_effects != nil)
 			t_context -> begin_with_effects(t_effects, static_cast<MCControl *>(this) -> getrect());
 		// MW-2011-09-06: [[ Redraw ]] Render the control isolated, but not as a sprite.
@@ -2754,7 +3195,6 @@ MCImageBitmap *MCObject::snapshot(const MCRectangle *p_clip, const MCPoint *p_si
 			t_closing_control -> MCObject::close();
 		}
 	}
-
 	delete t_context;
 	MCGContextRelease(t_gcontext);
 	return t_bitmap;
@@ -2783,22 +3223,22 @@ bool MCObject::isselectable(bool p_only_object) const
 //  SAVING AND LOADING
 //
 
-IO_stat MCObject::load(IO_handle stream, const char *version)
+IO_stat MCObject::load(IO_handle stream, uint32_t version)
 {
 	IO_stat stat;
 	uint2 i;
 
 	if ((stat = IO_read_uint4(&obj_id, stream)) != IO_NORMAL)
-		return stat;
-
-	MCNameRef t_name;
-	if ((stat = IO_read_nameref(t_name, stream)) != IO_NORMAL)
-		return stat;
-	MCNameDelete(_name);
-	_name = t_name;
+		return checkloadstat(stat);
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+	MCNewAutoNameRef t_name;
+	if ((stat = IO_read_nameref_new(&t_name, stream, version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
+		return checkloadstat(stat);
+	setname(*t_name);
 
 	if ((stat = IO_read_uint4(&flags, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 
 	// MW-2012-02-19: [[ SplitTextAttrs ]] If we have a font flag, then it means
 	//   we must start off the font flags with all attrs set - this might be
@@ -2816,12 +3256,12 @@ IO_stat MCObject::load(IO_handle stream, const char *version)
 	t_has_font_index = false;
 	if (flags & F_FONT)
 	{
-		if (strncmp(version, "1.3", 3) > 0)
+		if (version > kMCStackFileFormatVersion_1_3)
 		{
 			if ((stat = IO_read_uint2(&t_font_index, stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 			if ((stat = IO_read_uint2(&fontheight, stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 
 			// MW-2012-02-19: [[ SplitTextAttrs ]] We have a font index for processing
 			//   later on.
@@ -2831,54 +3271,68 @@ IO_stat MCObject::load(IO_handle stream, const char *version)
 		{
 			char *fontname;
 			uint2 fontsize, fontstyle;
-			if ((stat = IO_read_string(fontname, stream)) != IO_NORMAL)
-				return stat;
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] This codepath is only hit on sfv <= 1300,
+			//   so will never be unicode.
+			if ((stat = IO_read_cstring_legacy(fontname, stream, 2)) != IO_NORMAL)
+				return checkloadstat(stat);
 			if ((stat = IO_read_uint2(&fontheight, stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 			if ((stat = IO_read_uint2(&fontsize, stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 			if ((stat = IO_read_uint2(&fontstyle, stream)) != IO_NORMAL)
-				return stat;
-			setfontattrs(fontname, fontsize, fontstyle);
+				return checkloadstat(stat);
+            MCAutoStringRef t_fontname;
+            /* UNCHECKED */ MCStringCreateWithCString(fontname, &t_fontname);
+			setfontattrs(*t_fontname, fontsize, fontstyle);
 			delete fontname;
 		}
 	}
-	else if (parent != nil && (parent -> m_font_flags & FF_HAS_UNICODE_TAG) != 0)
+	else if (parent && (parent -> m_font_flags & FF_HAS_UNICODE_TAG) != 0)
 		m_font_flags |= FF_HAS_UNICODE_TAG;
-
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 	if (flags & F_SCRIPT)
 	{
-		if ((stat = IO_read_string(script, stream)) != IO_NORMAL)
-			return stat;
-		
+		if ((stat = IO_read_stringref_new(_script, stream, version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
+			return checkloadstat(stat);
+        
+        // SN-2014-11-07: [[ Bug 13957 ]] It's possible to get a NULL script but having the
+        //  F_SCRIPT flag. Unset the flag in case it's needed
+        if (_script == NULL)
+            flags &= ~F_SCRIPT;
 		getstack() -> securescript(this);
 	}
 
 	if ((stat = IO_read_uint2(&dflags, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint2(&ncolors, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if (ncolors > 0)
 	{
-		colors = new MCColor[ncolors];
-		colornames = new char *[ncolors];
+		colors = new (nothrow) MCColor[ncolors];
+		colornames = new (nothrow) MCStringRef[ncolors];
 		for (i = 0 ; i < ncolors ; i++)
 		{
 			if ((stat = IO_read_mccolor(colors[i], stream)) != IO_NORMAL)
 				break;
-			if ((stat = IO_read_string(colornames[i], stream)) != IO_NORMAL)
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+			if ((stat = IO_read_stringref_new(colornames[i], stream, version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
 				break;
-			colors[i].pixel = i;
+			if (MCStringIsEmpty(colornames[i]))
+			{
+				MCValueRelease(colornames[i]);
+				colornames[i] = nil;
+			}
 		}
 		if (stat != IO_NORMAL)
 		{
 			while (i < ncolors)
-				colornames[i++] = NULL;
-			return stat;
+				colornames[i++] = nil;
+			return checkloadstat(stat);
 		}
 	}
 	if ((stat = IO_read_uint2(&npatterns, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	uint2 addflags = npatterns & 0xFFF0;
 	npatterns &= 0x0F;
 	if (npatterns > 0)
@@ -2886,25 +3340,27 @@ IO_stat MCObject::load(IO_handle stream, const char *version)
 		/* UNCHECKED */ MCMemoryNewArray(npatterns, patterns);
 		for (i = 0 ; i < npatterns ; i++)
 			if ((stat = IO_read_uint4(&patterns[i].id, stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 	}
 	if ((stat = IO_read_int2(&rect.x, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_int2(&rect.y, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint2(&rect.width, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint2(&rect.height, stream)) != IO_NORMAL)
-		return stat;
-	if (addflags & AF_CUSTOM_PROPS)
-		if ((stat = loadunnamedpropset(stream)) != IO_NORMAL)
-			return stat;
+		return checkloadstat(stat);
+	// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv < 7000, then we have just the unnamed
+	//   propset here.
+	if (version < kMCStackFileFormatVersion_7_0 && addflags & AF_CUSTOM_PROPS)
+		if ((stat = loadunnamedpropset_legacy(stream)) != IO_NORMAL)
+			return checkloadstat(stat);
 	if (addflags & AF_BORDER_WIDTH)
 		if ((stat = IO_read_uint1(&borderwidth, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 	if (addflags & AF_SHADOW_OFFSET)
 		if ((stat = IO_read_int1(&shadowoffset, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 	if (addflags & AF_TOOL_TIP)
 	{
 		// MW-2012-03-09: [[ StackFile5500 ]] If the version is 5.5 and above, then
@@ -2912,31 +3368,35 @@ IO_stat MCObject::load(IO_handle stream, const char *version)
 		//   is older.
 		// MW-2012-03-13: [[ UnicodeToolTip ]] If the file format is older than 5.5
 		//   then convert native to utf-8.
-		if (strncmp(version, "5.5", 3) < 0)
+		if (version < kMCStackFileFormatVersion_5_5)
 		{
-			char *t_native_tooltip;
-			if ((stat = IO_read_string(t_native_tooltip, stream)) != IO_NORMAL)
-				return stat;
-			MCExecPoint ep;
-			ep . setsvalue(t_native_tooltip);
-			ep . nativetoutf8();
-			tooltip = ep . getsvalue() . clone();
-			delete t_native_tooltip;
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] This code path is only hit if sfv < 5500
+			//   so leave as legacy.
+			// Read the tooltip, as encoded in its native format
+			if ((stat = IO_read_stringref_legacy(tooltip, stream, false)) != IO_NORMAL)
+				return checkloadstat(stat);
+		}
+		else if (version < kMCStackFileFormatVersion_7_0)
+		{
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] Special-case 5.5 format, read in as UTF-8
+			//   formatted.
+			// The tooltip should be written out encoded in UTF-8 (not UTF-16)
+			if ((stat = IO_read_stringref_legacy_utf8(tooltip, stream)) != IO_NORMAL)
+				return checkloadstat(stat);
 		}
 		else
 		{
-			// MW-2012-09-19: [[ Bug 10233 ]] When we read in the tooltip, make sure
-			//   we don't translate it as it is encoded as UTF-8.
-			if ((stat = IO_read_string_no_translate(tooltip, stream)) != IO_NORMAL)
-				return stat;
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] sfv >= 7000 so unicode.
+			if ((stat = IO_read_stringref_new(tooltip, stream, true)) != IO_NORMAL)
+				return checkloadstat(stat);
 		}
 	}
 	if (addflags & AF_ALT_ID)
 		if ((stat = IO_read_uint2(&altid, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 	if (addflags & AF_INK)
 		if ((stat = IO_read_uint1(&ink, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 	if (addflags & AF_CANT_SELECT)
 		extraflags |= EF_CANT_SELECT;
 	if (addflags & AF_NO_FOCUS_BORDER)
@@ -2954,71 +3414,75 @@ IO_stat MCObject::load(IO_handle stream, const char *version)
 			// we pass t_length - 1 to extendedload (after adjusting for script). We
 			// then verify we've read a nice NUL byte at the end.
 			MCObjectInputStream *t_stream = nil;
-			/* UNCHECKED */ MCStackSecurityCreateObjectInputStream(stream, t_length, t_stream);
-			t_length -= 1;
-
-			stat = t_stream -> ReadCString(script);
-			if (stat == IO_NORMAL)
+            // SN-2014-03-27 [[ Bug 11993 ]] 7.0 file format doesn't put the nil byte needed for decryption
+            // We need to provide the information to the ObjectInputStream
+			/* UNCHECKED */ MCStackSecurityCreateObjectInputStream(stream, t_length, version >= kMCStackFileFormatVersion_7_0, t_stream);
+			if (version < kMCStackFileFormatVersion_7_0)
 			{
-				if (MCtranslatechars && script != NULL)
-				{
-#ifdef __MACROMAN__
-					IO_iso_to_mac(script, strlen(script));
-#else
-					IO_mac_to_iso(script, strlen(script));
-#endif
-				}
-				t_length -= script == NULL ? 1 : strlen(script) + 1;
+				t_length -= 1;
 				
-				if (script != nil)
-					getstack() -> securescript(this);
+				MCAutoStringRef t_script_string;
+				stat = checkloadstat(t_stream -> ReadTranslatedStringRef(&t_script_string));
+				if (stat == IO_NORMAL)
+				{
+					// Adjust the remaining length based on the length of the string read
+					if (MCStringIsEmpty(*t_script_string))
+						t_length -= 1;
+					else
+						t_length -= MCStringGetLength(*t_script_string) + 1;
+
+					setscript(*t_script_string);
+					
+					if (!MCStringIsEmpty(*t_script_string))
+						getstack() -> securescript(this);
+				}
 			}
 
 			if (stat == IO_NORMAL && t_length > 0)
 				stat = extendedload(*t_stream, version, t_length);
 
 			// Read the implicit nul byte
-			if (stat == IO_NORMAL)
+			if (version < kMCStackFileFormatVersion_7_0 && stat == IO_NORMAL)
 			{
 				uint1 t_byte;
-				stat = t_stream -> ReadU8(t_byte);
+				stat = checkloadstat(t_stream -> ReadU8(t_byte));
 				if (stat == IO_NORMAL && t_byte != 0)
-					stat = IO_ERROR;
+					stat = checkloadstat(IO_ERROR);
 			}
 
 			// Make sure we flush the rest of the (unknown) stream
 			if (stat == IO_NORMAL)
-				stat = t_stream -> Flush();
+				stat = checkloadstat(t_stream -> Flush());
 			
 			delete t_stream;
 		}
 		
 		if (stat != IO_NORMAL)
-			return stat;
-
-		if (script != NULL)
-			flags |= F_SCRIPT;
+			return checkloadstat(stat);
 	}
 	else if (addflags & AF_LONG_SCRIPT)
 	{
-		if ((stat = IO_read_string(script, stream, 4)) != IO_NORMAL)
-			return stat;
-		flags |= F_SCRIPT;
+		MCAutoStringRef t_script_string;
+		// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+		if ((stat = IO_read_stringref_new(&t_script_string, stream, version >= kMCStackFileFormatVersion_7_0, 4)) != IO_NORMAL)
+			return checkloadstat(stat);
+		
+		setscript(*t_script_string);
 		
 		getstack() -> securescript(this);
 	}
 
 	if (addflags & AF_BLEND_LEVEL)
 		if ((stat = IO_read_uint1(&blendlevel, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 
 	// MW-2013-03-28: The restrictions byte is no longer relevant due to new
 	//   licensing.
-	if (strcmp(version, "2.7") >= 0)
+	if (version >= kMCStackFileFormatVersion_2_7)
 	{
 		uint1 t_restrictions;
 		if ((stat = IO_read_uint1(&t_restrictions, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 	}
 
 	// MW-2012-02-19: [[ SplitTextAttrs ]] Now that we've read the extended props
@@ -3044,15 +3508,15 @@ IO_stat MCObject::load(IO_handle stream, const char *version)
 	return IO_NORMAL;
 }
 
-IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
+IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version)
 {
 	IO_stat stat;
 	uint2 i;
 	bool t_extended;
-	t_extended = MCstackfileversion >= 2700 && p_force_ext;
+	t_extended = p_version >= kMCStackFileFormatVersion_2_7 && p_force_ext;
 
 	// Check whether there are any custom properties with array values and if so, force extension
-	if (hasarraypropsets())
+	if (p_version < kMCStackFileFormatVersion_7_0 && hasarraypropsets_legacy())
 		t_extended = true;
 
 	// MW-2008-10-28: [[ ParentScripts ]] Make sure we mark this as extended if there
@@ -3089,9 +3553,14 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	//
 	if ((stat = IO_write_uint4(t_written_id, stream)) != IO_NORMAL)
 		return stat;
-	if ((stat = IO_write_nameref(_name, stream)) != IO_NORMAL)
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+	if ((stat = IO_write_nameref_new(getname(), stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
 		return stat;
 
+	if (!MCStringIsEmpty(_script))
+		flags |= F_SCRIPT;
+	
 	uint32_t t_old_flags;
 	t_old_flags = flags;
 
@@ -3102,15 +3571,26 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	uint2 addflags = npatterns;
 	if (t_extended)
 		addflags |= AF_EXTENDED;
-	if (flags & F_SCRIPT && strlen(script) >= MAXUINT2 || t_extended)
+	
+	// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv < 7000 then we need to encode for
+	//   long scripts, and put extended data after it.
+	if (p_version < kMCStackFileFormatVersion_7_0)
 	{
-		addflags |= AF_LONG_SCRIPT;
-		flags &= ~F_SCRIPT;
+		if ((flags & F_SCRIPT && MCStringGetLength(_script) >= MAXUINT2) || t_extended)
+		{
+			addflags |= AF_LONG_SCRIPT;
+			flags &= ~F_SCRIPT;
+		}
 	}
+	
 	stat = IO_write_uint4(flags, stream);
-	if (addflags & AF_LONG_SCRIPT && script != NULL)
-		flags |= F_SCRIPT;
-
+	
+	if (p_version < kMCStackFileFormatVersion_7_0)
+	{
+		if (addflags & AF_LONG_SCRIPT && !MCStringIsEmpty(_script))
+			flags |= F_SCRIPT;
+	}
+	
 	flags = t_old_flags;
 
 	if (stat != IO_NORMAL)
@@ -3126,29 +3606,36 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		if ((stat = IO_write_uint2(fontheight, stream)) != IO_NORMAL)
 			return stat;
 	}
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 	if (flags & F_SCRIPT && !(addflags & AF_LONG_SCRIPT))
 	{
-		getstack() -> unsecurescript(this);
-		stat = IO_write_string(script, stream);
+        getstack() -> unsecurescript(this);
+        stat = IO_write_stringref_new(_script, stream, p_version >= kMCStackFileFormatVersion_7_0);
 		getstack() -> securescript(this);
 		if (stat != IO_NORMAL)
 			return stat;
 	}
+	
 	if ((stat = IO_write_uint2(dflags, stream)) != IO_NORMAL)
 		return stat;
 	if ((stat = IO_write_uint2(ncolors, stream)) != IO_NORMAL)
 		return stat;
 	for (i = 0 ; i < ncolors ; i++)
-		if ((stat = IO_write_mccolor(colors[i], stream)) != IO_NORMAL
-		        || (stat = IO_write_string(colornames[i], stream)) != IO_NORMAL)
+	{
+		if ((stat = IO_write_mccolor(colors[i], stream)) != IO_NORMAL)
 			return stat;
+		// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+		if ((stat = IO_write_stringref_new(colornames[i] != nil ? colornames[i] : kMCEmptyString, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
+			return stat;
+	}
 	if (props != NULL)
 		addflags |= AF_CUSTOM_PROPS;
 	if (borderwidth != DEFAULT_BORDER)
 		addflags |= AF_BORDER_WIDTH;
 	if (shadowoffset != DEFAULT_SHADOW)
 		addflags |= AF_SHADOW_OFFSET;
-	if (tooltip != NULL)
+	if (!MCStringIsEmpty(tooltip))
 		addflags |= AF_TOOL_TIP;
 	if (altid != 0)
 		addflags |= AF_ALT_ID;
@@ -3156,7 +3643,7 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		addflags |= AF_INK;
 
 //---- New in 2.7
-	if (MCstackfileversion >= 2700)
+	if (p_version >= kMCStackFileFormatVersion_2_7)
 	{
 		if (blendlevel != 100)
 			addflags |= AF_BLEND_LEVEL;
@@ -3184,8 +3671,8 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		return stat;
 	if ((stat = IO_write_uint2(rect.height, stream)) != IO_NORMAL)
 		return stat;
-	if (addflags & AF_CUSTOM_PROPS)
-		if ((stat = saveunnamedpropset(stream)) != IO_NORMAL)
+	if (p_version < kMCStackFileFormatVersion_7_0 && addflags & AF_CUSTOM_PROPS)
+		if ((stat = saveunnamedpropset_legacy(stream)) != IO_NORMAL)
 			return stat;
 	if (addflags & AF_BORDER_WIDTH)
 		if ((stat = IO_write_uint1(borderwidth, stream)) != IO_NORMAL)
@@ -3200,23 +3687,24 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		//   versions.
 		// MW-2012-03-13: [[ UnicodeToolTip ]] If the file format is older than 5.5
 		//   then convert utf-8 to native before saving.
-		if (MCstackfileversion < 5500)
+		if (p_version < kMCStackFileFormatVersion_5_5)
 		{
-			MCExecPoint ep;
-			char *t_native_tooltip;
-			ep . setsvalue(tooltip);
-			ep . utf8tonative();
-			t_native_tooltip = ep . getsvalue() . clone();
-			if ((stat = IO_write_string(t_native_tooltip, stream)) != IO_NORMAL)
-			{
-				delete t_native_tooltip;
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] sfv < 5500, so native output.
+            // Tooltip is encoded in the native format
+            if ((stat = IO_write_stringref_legacy(tooltip, stream, false)) != IO_NORMAL)
 				return stat;
-			}
-			delete t_native_tooltip;
+		}
+		else if (p_version < kMCStackFileFormatVersion_7_0)
+		{
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] Special-case 5.5 format - uses UTF-8.
+			// Tooltip is encoded as UTF-8
+			if ((stat = IO_write_stringref_legacy_utf8(tooltip, stream)) != IO_NORMAL)
+				return stat;
 		}
 		else
 		{
-			if ((stat = IO_write_string(tooltip, stream)) != IO_NORMAL)
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] sfv >= 7000, so use unicode.
+			if ((stat = IO_write_stringref_new(tooltip, stream, true)) != IO_NORMAL)
 				return stat;
 		}
 	}
@@ -3226,7 +3714,7 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 
 //---- New in 2.7
 	uint1 t_converted_ink;
-	if (MCstackfileversion >= 2700)
+	if (p_version >= kMCStackFileFormatVersion_2_7)
 		t_converted_ink = ink;
 	else
 		t_converted_ink = ink >= 0x19 ? GXcopy : ink;
@@ -3236,68 +3724,93 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		if ((stat = IO_write_uint1(t_converted_ink, stream)) != IO_NORMAL)
 			return stat;
 
-	if (t_extended)
+	// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv < 7000 then here we write
+	//   longscript or script+extended. Otherwise we just write out the extended area.
+	if (p_version < kMCStackFileFormatVersion_7_0)
 	{
-		uint4 t_length_offset;
-		if (MCS_isfake(stream))
-			t_length_offset = MCS_faketell(stream);
-		else
-			t_length_offset = (uint4)MCS_tell(stream);
-
-		stat = IO_write_uint4(t_length_offset, stream);
-
-		if (stat == IO_NORMAL)
+		if (t_extended)
 		{
-			MCObjectOutputStream *t_stream = nil;
-			/* UNCHECKED */ MCStackSecurityCreateObjectOutputStream(stream, t_stream);
-			getstack() -> unsecurescript(this);
-			stat = t_stream -> WriteCString(script);
-			getstack() -> securescript(this);
-			if (stat == IO_NORMAL)
-				stat = extendedsave(*t_stream, p_part);
-			if (stat == IO_NORMAL)
-				stat = t_stream -> Flush(true);
-			
-			delete t_stream;
-		}
-		if (stat == IO_NORMAL)
-			stat = IO_write_uint1(0, stream);
-		if (stat == IO_NORMAL)
-		{
-			uint4 t_cur_offset;
-			if (MCS_isfake(stream))
-				t_cur_offset = MCS_faketell(stream);
-			else
-				t_cur_offset = (uint4)MCS_tell(stream);
+			uint4 t_length_offset;
 
-			uint4 t_length;
-			t_length = MCSwapInt32HostToNetwork(t_cur_offset - t_length_offset - 4);
+			t_length_offset = MCS_tell(stream);
 
-			if (MCS_isfake(stream))
-				MCS_fakewriteat(stream, t_length_offset, &t_length, sizeof(uint4));
-			else
+			stat = IO_write_uint4(t_length_offset, stream);
+
+			if (stat == IO_NORMAL)
 			{
-				stat = MCS_seek_set(stream, t_length_offset);
+				MCObjectOutputStream *t_stream = nil;
+				/* UNCHECKED */ MCStackSecurityCreateObjectOutputStream(stream, t_stream);
+				getstack() -> unsecurescript(this);
+				stat = t_stream -> WriteStringRefNew(_script, false);
+				getstack() -> securescript(this);
 				if (stat == IO_NORMAL)
-					stat = MCS_write(&t_length, sizeof(uint4), 1, stream);
+					stat = extendedsave(*t_stream, p_part, p_version);
 				if (stat == IO_NORMAL)
-					stat = MCS_seek_set(stream, t_cur_offset);
+					stat = t_stream -> Flush(true);
+				
+				delete t_stream;
 			}
+			if (stat == IO_NORMAL)
+				stat = IO_write_uint1(0, stream);
+			if (stat == IO_NORMAL)
+			{
+				uint4 t_cur_offset;
+				
+				t_cur_offset = MCS_tell(stream);
+
+				uint4 t_length;
+				t_length = MCSwapInt32HostToNetwork(t_cur_offset - t_length_offset - 4);
+
+				MCS_writeat(&t_length, sizeof(uint4), t_length_offset, stream);
+			}
+			if (stat != IO_NORMAL)
+				return stat;
 		}
-		if (stat != IO_NORMAL)
-			return stat;
+		else if (addflags & AF_LONG_SCRIPT)
+		{
+			// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+			getstack() -> unsecurescript(this);
+			stat = IO_write_stringref_new(_script, stream, p_version >= kMCStackFileFormatVersion_7_0, 4);
+			getstack() -> securescript(this);
+			if (stat != IO_NORMAL)
+				return stat;
+		}
 	}
-	else if (addflags & AF_LONG_SCRIPT)
-	{
-		getstack() -> unsecurescript(this);
-		stat = IO_write_string(script, stream, 4);
-		getstack() -> securescript(this);
-		if (stat != IO_NORMAL)
-			return stat;
+	else
+    {
+		if (t_extended)
+		{
+			uint4 t_length_offset;
+			t_length_offset = MCS_tell(stream);
+			stat = IO_write_uint4(t_length_offset, stream);
+			if (stat == IO_NORMAL)
+			{
+				MCObjectOutputStream *t_stream = nil;
+				/* UNCHECKED */ MCStackSecurityCreateObjectOutputStream(stream, t_stream);
+				if (stat == IO_NORMAL)
+					stat = extendedsave(*t_stream, p_part, p_version);
+				if (stat == IO_NORMAL)
+					stat = t_stream -> Flush(true);
+				delete t_stream;
+			}
+			if (stat == IO_NORMAL)
+			{
+				uint4 t_cur_offset;
+				
+				t_cur_offset = MCS_tell(stream);
+				
+				uint4 t_length;
+				t_length = MCSwapInt32HostToNetwork(t_cur_offset - t_length_offset - 4);
+				
+				MCS_writeat(&t_length, sizeof(uint4), t_length_offset, stream);
+			}
+			if (stat != IO_NORMAL)
+				return stat;
+        }
 	}
 
 //---- New in 2.7
-	if (MCstackfileversion >= 2700)
+	if (p_version >= kMCStackFileFormatVersion_2_7)
 	{
 		if (addflags & AF_BLEND_LEVEL)
 			if ((stat = IO_write_uint1(blendlevel, stream)) != IO_NORMAL)
@@ -3325,7 +3838,7 @@ IO_stat MCObject::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	return IO_NORMAL;
 }
 
-IO_stat MCObject::defaultextendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_remaining)
+IO_stat MCObject::defaultextendedload(MCObjectInputStream& p_stream, uint32_t p_version, uint4 p_remaining)
 {
 	IO_stat t_stat;
 	t_stat = IO_NORMAL;
@@ -3333,11 +3846,11 @@ IO_stat MCObject::defaultextendedload(MCObjectInputStream& p_stream, const char 
 	if (p_remaining > 0)
 	{
 		uint4 t_flags, t_length, t_header_size;
-		t_stat = p_stream . ReadTag(t_flags, t_length, t_header_size);
+		t_stat = checkloadstat(p_stream . ReadTag(t_flags, t_length, t_header_size));
 		if (t_stat == IO_NORMAL)
-			t_stat = p_stream . Mark();
+			t_stat = checkloadstat(p_stream . Mark());
 		if (t_stat == IO_NORMAL)
-			t_stat = p_stream . Skip(t_length);
+			t_stat = checkloadstat(p_stream . Skip(t_length));
 		if (t_stat == IO_NORMAL)
 			p_remaining -= t_length + t_header_size;
 	}
@@ -3348,21 +3861,24 @@ IO_stat MCObject::defaultextendedload(MCObjectInputStream& p_stream, const char 
 	return t_stat;
 }
 
-IO_stat MCObject::defaultextendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+IO_stat MCObject::defaultextendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
 	IO_stat t_stat;
-	t_stat = p_stream . WriteTag(0, 0);
+	t_stat = checkloadstat(p_stream . WriteTag(0, 0));
 	if (t_stat == IO_NORMAL)
-		t_stat = MCObject::extendedsave(p_stream, p_part);
+		t_stat = MCObject::extendedsave(p_stream, p_part, p_version);
 
 	return t_stat;
 }
 
-IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
 	// First calculate the size of the array custom property data
 	uint32_t t_prop_size;
-	t_prop_size = measurearraypropsets();
+	t_prop_size = 0;
+	
+	if (p_version < kMCStackFileFormatVersion_7_0)
+		t_prop_size += measurearraypropsets_legacy();
 
 	// Calculate the tag to write out
 	uint32_t t_flags;
@@ -3390,8 +3906,16 @@ IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
 		//     uint32 id
 		//     cstring stack
 		//     cstring mainstack
-		t_size += 1 + 1 + 4 + strlen(MCNameGetCString(parent_script -> GetParent() -> GetObjectStack())) + 1;
-		t_size += 1; // was mainstack reference
+        
+        // in 5.5 format, the length of the string + 1 (for nul char) is written out,
+        // whereas in 7.0 we write out the 32-bit length and then the string.
+        
+        // AL-2014-07-31: [[ Bug 13043 ]] It is possible for utf8 string length to be different
+        // here from the char count of the string.
+        // SN-2014-10-27: [[ Bug 13554 ]] String length calculation refactored
+        t_size += 1 + 1 + 4
+                + p_stream . MeasureStringRefNew(MCNameGetString(parent_script -> GetParent() -> GetObjectStack()), p_version >= kMCStackFileFormatVersion_7_0)
+                + p_stream . MeasureStringRefNew(kMCEmptyString, p_version >= kMCStackFileFormatVersion_7_0);
 	}
 
 	// MW-2009-09-24: Slight oversight on my part means that there is no record
@@ -3421,6 +3945,30 @@ IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
 		t_flags |= OBJECT_EXTRA_FONTFLAGS;
 		t_size += 1;
 	}
+    
+    // Do we need to saving theming information?
+    MCAutoStringRef t_theme_string;
+    MCAutoStringRef t_theme_type_string;
+    if (m_theme != kMCInterfaceThemeEmpty || m_theme_type != kMCPlatformControlTypeGeneric)
+    {
+        t_flags |= OBJECT_EXTRA_THEME_INFO;
+        
+        // Calculate the size of the serialised data
+        MCExecContext ctxt;
+        MCExecValue t_value;
+        
+        MCExecFormatEnum(ctxt, kMCInterfaceThemeTypeInfo, m_theme, t_value);
+        if (t_value.type != kMCExecValueTypeStringRef)
+            return IO_ERROR;
+        t_size += p_stream.MeasureStringRefNew(t_value.stringref_value, p_version >= kMCStackFileFormatVersion_7_0);
+        t_theme_string.Give(t_value.stringref_value);
+        
+        MCExecFormatEnum(ctxt, kMCInterfaceThemeControlTypeTypeInfo, m_theme_type, t_value);
+        if (t_value.type != kMCExecValueTypeStringRef)
+            return IO_ERROR;
+        t_size += p_stream.MeasureStringRefNew(t_value.stringref_value, p_version >= kMCStackFileFormatVersion_7_0);
+        t_theme_type_string.Give(t_value.stringref_value);
+    }
 
 	// If the tag is of zero length, write nothing.
 	if (t_size == 0)
@@ -3431,7 +3979,7 @@ IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
 	t_stat = p_stream . WriteTag(t_flags, t_size);
 	
 	if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_ARRAYPROPS) != 0)
-		t_stat = savearraypropsets(p_stream);
+		t_stat = savearraypropsets_legacy(p_stream);
 	
 	if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_PARENTSCRIPT) != 0)
 	{
@@ -3440,10 +3988,12 @@ IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
 			t_stat = p_stream . WriteU8(128 + 0);
 		if (t_stat == IO_NORMAL)
 			t_stat = p_stream . WriteU32(parent_script -> GetParent() -> GetObjectId());
+		// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 		if (t_stat == IO_NORMAL)
-			t_stat = p_stream . WriteNameRef(parent_script -> GetParent() -> GetObjectStack());
+			t_stat = p_stream . WriteNameRefNew(parent_script -> GetParent() -> GetObjectStack(), p_version >= kMCStackFileFormatVersion_7_0);
+		// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 		if (t_stat == IO_NORMAL)
-			t_stat = p_stream . WriteCString(nil); // was mainstack reference
+			t_stat = p_stream . WriteStringRefNew(kMCEmptyString, p_version >= kMCStackFileFormatVersion_7_0); // was mainstack reference
 	}
 
 	if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_BITMAPEFFECTS) != 0)
@@ -3461,11 +4011,19 @@ IO_stat MCObject::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
 		// Write out the three persistent font flags.
 		t_stat = p_stream . WriteU8(m_font_flags & (FF_HAS_ALL_FATTR));
 	}
+    
+    if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_THEME_INFO))
+    {
+        // Write out the theme name and theming type
+        t_stat = p_stream.WriteStringRefNew(*t_theme_string, p_version >= kMCStackFileFormatVersion_7_0);
+        if (t_stat == IO_NORMAL)
+            t_stat = p_stream.WriteStringRefNew(*t_theme_type_string, p_version >= kMCStackFileFormatVersion_7_0);
+    }
 
 	return IO_NORMAL;
 }
 
-IO_stat MCObject::extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length)
+IO_stat MCObject::extendedload(MCObjectInputStream& p_stream, uint32_t version, uint4 p_length)
 {
 	if (p_length == 0)
 		return IO_NORMAL;
@@ -3479,7 +4037,7 @@ IO_stat MCObject::extendedload(MCObjectInputStream& p_stream, const char *p_vers
 		t_stat = p_stream . Mark();
 
 	if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_ARRAYPROPS) != 0)
-		t_stat = loadarraypropsets(p_stream);
+		t_stat = loadarraypropsets_legacy(p_stream);
 
 	if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_PARENTSCRIPT) != 0)
 	{
@@ -3493,29 +4051,28 @@ IO_stat MCObject::extendedload(MCObjectInputStream& p_stream, const char *p_vers
 		uint32_t t_id;
 		if (t_stat == IO_NORMAL)
 			t_stat = p_stream . ReadU32(t_id);
-
+		
+		// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 		MCNameRef t_stack;
 		t_stack = NULL;
 		if (t_stat == IO_NORMAL)
-			t_stat = p_stream . ReadNameRef(t_stack);
-
+			t_stat = p_stream . ReadNameRefNew(t_stack, version >= kMCStackFileFormatVersion_7_0);
+		
+		// MW-2013-12-05: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 		// This is no longer used, but might remain in older stackfiles.
-		char *t_mainstack;
-		t_mainstack = NULL;
+		MCAutoStringRef t_mainstack;
 		if (t_stat == IO_NORMAL)
-			t_stat = p_stream . ReadCString(t_mainstack);
+			t_stat = p_stream . ReadStringRefNew(&t_mainstack, version >= kMCStackFileFormatVersion_7_0);
 
 		if (t_stat == IO_NORMAL)
 		{
-			parent_script = MCParentScript::Acquire(this, t_id, t_stack);
-			if (parent_script == NULL)
-				t_stat = IO_ERROR;
+            if (!setparentscript_onload(t_id, t_stack))
+            {
+                t_stat = IO_ERROR;
+            }
+        }
 
-			s_loaded_parent_script_reference = true;
-		}
-
-		MCNameDelete(t_stack);
-		delete t_mainstack;
+		MCValueRelease(t_stack);
 	}
 	
 	if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_BITMAPEFFECTS) != 0)
@@ -3549,12 +4106,60 @@ IO_stat MCObject::extendedload(MCObjectInputStream& p_stream, const char *p_vers
 			m_font_flags = (t_font_flags & ~FF_HAS_ALL_FATTR) | (t_font_flags & FF_HAS_ALL_FATTR);
 	}
 
+    if (t_stat == IO_NORMAL && (t_flags & OBJECT_EXTRA_THEME_INFO) != 0)
+    {
+        MCAutoStringRef t_theme_string;
+        MCAutoStringRef t_theme_type_string;
+        t_stat = p_stream.ReadStringRefNew(&t_theme_string, version >= kMCStackFileFormatVersion_7_0);
+        if (t_stat == IO_NORMAL)
+            t_stat = p_stream.ReadStringRefNew(&t_theme_type_string, version >= kMCStackFileFormatVersion_7_0);
+        
+        if (t_stat == IO_NORMAL)
+        {
+            // Parse the theme name and theme type
+            MCExecContext ctxt;
+            MCExecValue t_value;
+            intenum_t t_result;
+            t_value.type = kMCExecValueTypeStringRef;
+            
+            t_value.stringref_value = MCValueRetain(*t_theme_string);
+            MCExecParseEnum(ctxt, kMCInterfaceThemeTypeInfo, t_value, t_result);
+            if (ctxt.HasError())
+            {
+                t_result = kMCInterfaceThemeEmpty;
+                ctxt.IgnoreLastError();
+            }
+            m_theme = MCInterfaceTheme(t_result);
+            
+            t_value.stringref_value = MCValueRetain(*t_theme_type_string);
+            MCExecParseEnum(ctxt, kMCInterfaceThemeControlTypeTypeInfo, t_value, t_result);
+            if (ctxt.HasError())
+            {
+                t_result = kMCPlatformControlTypeGeneric;
+                ctxt.IgnoreLastError();
+            }
+            m_theme_type = MCPlatformControlType(t_result);
+        }
+    }
+    
 	if (t_stat == IO_NORMAL)
 		t_stat = p_stream . Skip(t_length);
 
 	return t_stat;
 }
 
+bool MCObject::setparentscript_onload(uint32_t p_id, MCNameRef p_stack)
+{
+    parent_script = MCParentScript::Acquire(this, p_id, p_stack);
+    if (parent_script == NULL)
+    {
+        return false;
+    }
+    
+    s_loaded_parent_script_reference = true;
+    
+    return true;
+}
 
 // MW-2008-10-28: [[ ParentScripts ]] This method attempts to resolve the
 //   parentscript reference for this object (if any).
@@ -3577,23 +4182,29 @@ bool MCObject::resolveparentscript(void)
 	// We have a parent script, so use MCdispatcher to try and find the
 	// stack.
 	MCStack *t_stack;
-	t_stack = getstack() -> findstackname(MCNameGetOldString(t_script -> GetObjectStack()));
+	t_stack = getstack() -> findstackname(t_script -> GetObjectStack());
 
 	// Next search for the control we need.
-	MCControl *t_control;
-	t_control = NULL;
+	MCObject *t_object;
+	t_object = NULL;
 	if (t_stack != NULL)
-		t_control = t_stack -> getcontrolid(CT_BUTTON, t_script -> GetObjectId(), true);
+    {
+        if (t_script -> GetObjectId() != 0)
+            t_object = t_stack -> getcontrolid(CT_BUTTON, t_script -> GetObjectId(), true);
+        else
+            t_object = t_stack;
+    }
 
 	// If we found a control, resolve the parent script. Otherwise block it.
-	if (t_control != NULL)
+	if (t_object != NULL &&
+        t_object != this)
 	{
-		t_script -> Resolve(t_control);
+		t_script -> Resolve(t_object);
 
 		// MW-2015-05-30: [[ InheritedPscripts ]] Next we must ensure the
 		//   existence of the inheritence hierarchy, so resolve the parentScript's
 		//   parentScript.
-		if (!t_control -> resolveparentscript())
+		if (!t_object -> resolveparentscript())
 			return false;
 
 		// MW-2015-05-30: [[ InheritedPscripts ]] And then make sure it creates its
@@ -3612,12 +4223,12 @@ bool MCObject::resolveparentscript(void)
 // the behavior hierarchy. We first search the behavior chain's for successive ancestors
 // of the object, up to and including its stack. If this fails, fall back to the original
 // search.
-MCImage *MCObject::resolveimage(const MCString& p_name, uint4 p_image_id)
+MCImage *MCObject::resolveimage(MCStringRef p_name, uint4 p_image_id)
 {
 	// If the name string ptr is nil, then this is an id search.
 	bool t_is_id;
 	t_is_id = false;
-	if (p_name . getstring() == nil)
+	if (p_name == nil)
 		t_is_id = true;
 
 	MCControl *t_control;
@@ -3651,7 +4262,11 @@ MCImage *MCObject::resolveimage(const MCString& p_name, uint4 p_image_id)
 			if (t_is_id)
 				t_control = t_behavior_stack -> getcontrolid(CT_IMAGE, p_image_id, true);
 			else
-				t_control = t_behavior_stack -> getcontrolname(CT_IMAGE, p_name);
+			{
+				MCNewAutoNameRef t_name;
+				/* UNCHECKED */ MCNameCreate(p_name, &t_name);
+				t_control = t_behavior_stack -> getcontrolname(CT_IMAGE, *t_name);
+			}
 			if (t_control != NULL)
 				break;
 
@@ -3679,7 +4294,11 @@ MCImage *MCObject::resolveimage(const MCString& p_name, uint4 p_image_id)
 		if (t_is_id)
 			t_control = static_cast<MCControl *>(getstack() -> getobjid(CT_IMAGE, p_image_id));
 		else
-			t_control = static_cast<MCControl *>(getstack() -> getobjname(CT_IMAGE, p_name));
+		{
+			MCNewAutoNameRef t_name;
+			/* UNCHECKED */ MCNameCreate(p_name, &t_name);
+			t_control = static_cast<MCControl *>(getstack() -> getobjname(CT_IMAGE, *t_name));
+		}
 	}
 	
 	return static_cast<MCImage *>(t_control);
@@ -3687,134 +4306,12 @@ MCImage *MCObject::resolveimage(const MCString& p_name, uint4 p_image_id)
 
 MCImage *MCObject::resolveimageid(uint32_t p_id)
 {
-	return resolveimage(MCString(nil, 0), p_id);
+	return resolveimage(nil, p_id);
 }
 
-MCImage *MCObject::resolveimagename(const MCString& p_name)
+MCImage *MCObject::resolveimagename(MCStringRef p_name)
 {
 	return resolveimage(p_name, 0);
-}
-
-MCObjectHandle *MCObject::gethandle(void)
-{
-	if (m_weak_handle != NULL)
-	{
-		m_weak_handle -> Retain();
-		return m_weak_handle;
-	}
-
-	m_weak_handle = new MCObjectHandle(this);
-	if (m_weak_handle == NULL)
-		return NULL;
-
-	m_weak_handle -> Retain();
-
-	return m_weak_handle;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
-struct MCObjectChangeIdVisitor: public MCObjectVisitor
-{
-	uint32_t old_card_id;
-	uint32_t new_card_id;
-
-	void Process(MCCdata *p_cdata)
-	{
-		if (p_cdata == nil)
-			return;
-
-		MCCdata *t_ptr;
-		t_ptr = p_cdata;
-		do
-		{
-			if (t_ptr -> getid() == old_card_id)
-			{
-				t_ptr -> setid(new_card_id);
-				return;
-			}
-
-			t_ptr = t_ptr -> next();
-		}
-		while(t_ptr != p_cdata);
-	}
-
-	bool OnField(MCField *p_field)
-	{
-		Process(p_field -> getcdata());
-		return true;
-	}
-
-	bool OnButton(MCButton *p_button)
-	{
-		Process(p_button -> getcdata());
-		return true;
-	}
-};
-
-Exec_stat MCObject::changeid(uint32_t p_new_id)
-{
-	if (obj_id == p_new_id)
-		return ES_NORMAL;
-
-	// MW-2010-05-18: (Silently) don't allow id == 0 - this prevents people working around the
-	//   script limits, which don't come into effect on objects with 0 id.
-	if (p_new_id == 0)
-		return ES_NORMAL;
-	
-	// MW-2011-02-08: Don't allow id change if the parent is nil as this means its a template
-	//   object which doesn't really have an id.
-	if (parent == nil)
-		return ES_NORMAL;
-	
-	MCStack *t_stack;
-	t_stack = getstack();
-
-	if (t_stack -> isediting())
-	{
-		MCeerror -> add(EE_OBJECT_NOTWHILEEDITING, 0, 0);
-		return ES_ERROR;
-	}
-
-	// If the stack's id is less than the requested id then we are fine
-	// since the stack id is always greater or equal to the highest numbered
-	// control/card id. Otherwise, check the whole list of controls and cards.
-	if (p_new_id <= t_stack -> getid())
-	{
-		if (t_stack -> getcontrolid(CT_LAYER, p_new_id) != NULL ||
-			t_stack -> findcardbyid(p_new_id) != NULL)
-		{
-			MCeerror->add(EE_OBJECT_IDINUSE, 0, 0, p_new_id);
-			return ES_ERROR;
-		}
-	}
-	else
-		t_stack -> obj_id = p_new_id;
-
-	// If the object is a card, we have to reset all the control's data
-	// id's.
-	// If the object is not a card, but has a card as parent, we need to
-	// reset the card's objptr id for it.
-	if (gettype() == CT_CARD)
-	{
-		MCObjectChangeIdVisitor t_visitor;
-		t_visitor . old_card_id = obj_id;
-		t_visitor . new_card_id = p_new_id;
-		t_stack -> visit(VISIT_STYLE_DEPTH_FIRST, 0, &t_visitor);
-	}
-	else if (parent -> gettype() == CT_CARD)
-		static_cast<MCCard *>(parent) -> resetid(obj_id, p_new_id);
-
-	// MW-2012-10-10: [[ IdCache ]] If the object is in the cache, then remove
-	//   it since its id is changing.
-	if (m_in_id_cache)
-		t_stack -> uncacheobjectbyid(this);
-
-	uint4 oldid = obj_id;
-	obj_id = p_new_id;
-	message_with_args(MCM_id_changed, oldid, obj_id);
-
-	return ES_NORMAL;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3904,7 +4401,7 @@ static void compute_objectshape_mask(MCObject *p_object, const MCObjectShape& p_
 	MCGContextClipToRect(t_context, MCRectangleToMCGRectangle(t_rect));
 
 	MCContext *t_gfxcontext = nil;
-	/* UNCHECKED */ t_gfxcontext = new MCGraphicsContext(t_context);
+	/* UNCHECKED */ t_gfxcontext = new (nothrow) MCGraphicsContext(t_context);
 	
 	// Make sure the object is opened.
 	bool t_needs_open;
@@ -3962,7 +4459,7 @@ static bool mask_intersects_with_rect(const MCRectangle &p_rect, const object_ma
 		t_src_row = (uint32_t*)t_src_ptr;
 		
 		for (uint32_t x = 0; x < t_rect.width; x++)
-			if (MCGPixelGetNativeAlpha(*t_src_ptr++) > p_threshold)
+			if (MCGPixelGetNativeAlpha(*t_src_row++) > p_threshold)
 				return true;
 		
 		t_src_ptr += p_mask.image->stride;
@@ -4163,8 +4660,11 @@ bool MCObject::intersects(MCObject *p_other, uint32_t p_threshold)
 		
 		// We accumulate the normalized mask a scanline at a time.
 		uint8_t *t_this_scanline, *t_other_scanline;
-		MCMemoryNewArray(t_scanline_width, t_this_scanline);
-		MCMemoryNewArray(t_scanline_width, t_other_scanline);
+		if (!MCMemoryNewArray(t_scanline_width, t_this_scanline) ||
+		    !MCMemoryNewArray(t_scanline_width, t_other_scanline))
+    {
+      return False;
+    }
 				
 		// IM-2013-10-17: [[ FullscreenMode ]] Precompute initial pixel coords & row/column increments
 		MCGFloat t_this_x, t_this_y, t_this_x_inc, t_this_y_inc;
@@ -4228,14 +4728,28 @@ void MCObject::unlockshape(MCObjectShape& p_shape)
 
 // MW-2012-02-14: [[ FontRefs ]] New method which maps the object's concrete font
 //   on open.
-void MCObject::mapfont(void)
+bool MCObject::mapfont(bool recursive)
 {
-	// MW-2012-02-24: [[ FontRefs ]] Fix a problem with images used as icons.
+    // This may be called even when the font has already been mapped
+    if (m_font != nil)
+    {
+        if (!inheritfont())
+            return true;
+        if (!parent)
+            return false;
+        return parent->mapfont(true);
+    }
+    
+    // MW-2012-02-24: [[ FontRefs ]] Fix a problem with images used as icons.
 	//   Images don't use the fontref, so don't do anything if we are an image.
 
 	if (gettype() == CT_IMAGE)
-		return;
+		return false;
 	
+    // This is only set if an explicitly-set font was found at some point
+    bool t_explicit_font;
+    t_explicit_font = false;
+    
 	// MW-2012-03-02: [[ Bug 10044 ]] If the parent isn't open, then we won't have a
 	//   font. This causes problems for some things (like import snapshot) so in this
 	//   case we ask the parent to map it's font.
@@ -4243,19 +4757,22 @@ void MCObject::mapfont(void)
 	//   stacks with substacks have their fonts unmapped incorrectly.
 	bool t_mapped_parent;
 	t_mapped_parent = false;
-	if (parent != nil && parent -> m_font == nil)
+	if (parent && parent -> m_font == nil)
 	{
 		t_mapped_parent = true;
-		parent -> mapfont();
 	}
+    if (parent)
+        t_explicit_font = parent -> mapfont(true);
 	
 	// MW-2013-12-19: [[ Bug 11606 ]] Make sure we check for a stack using ideal layout
 	//   as this requires new font computation.
 	// If we have a font setting, then we create a new font. Otherwise we just
 	// copy the parent's font.
-	if (hasfontattrs() || (gettype() == CT_STACK && static_cast<MCStack *>(this) -> getuseideallayout()))
+	if (!inheritfont() || (gettype() == CT_STACK && static_cast<MCStack *>(this) -> getuseideallayout()))
 	{
-		// MW-2012-02-19: [[ SplitTextAttrs ]] Compute the attrs to write out. If we don't
+        t_explicit_font = true;
+        
+        // MW-2012-02-19: [[ SplitTextAttrs ]] Compute the attrs to write out. If we don't
 		//   have all of the attrs, fetch the inherited ones.
 		MCNameRef t_textfont;
 		uint2 t_textstyle, t_textsize;
@@ -4270,14 +4787,28 @@ void MCObject::mapfont(void)
 		//   set, make sure we create a printer font.
 		// MW-2013-12-04: [[ Bug 11513 ]] Make sure we check for ideal layout, rather than
 		//   just for formatForPrinting.
-		if (parent != nil && MCFontHasPrinterMetrics(parent -> m_font) ||
-			gettype() == CT_STACK && ((MCStack *)this) -> getuseideallayout())
+		if ((parent && parent -> m_font != nil && MCFontHasPrinterMetrics(parent -> m_font)) ||
+		    (gettype() == CT_STACK && ((MCStack *)this) -> getuseideallayout()))
 			t_font_style |= kMCFontStylePrinterMetrics;
 
-		// Create our font.
-		/* UNCHECKED */ MCFontCreate(t_textfont, t_font_style, t_textsize, m_font);
+        // If the font is explicitly requesting the default font for this
+        // control type, use the themed font
+        if (MCNameIsEqualToCaseless(t_textfont, MCN_font_default))
+        {
+            // Don't inherit the parent's themed font
+            if (recursive)
+                return false;
+            
+            // Get the appropriate themed font
+            MCPlatformGetControlThemePropFont(getcontroltype(), getcontrolsubpart(), getcontrolstate(), kMCPlatformThemePropertyTextFont, m_font);
+        }
+        else
+        {
+            // Explicit non-default font
+            /* UNCHECKED */ MCFontCreate(t_textfont, t_font_style, t_textsize, m_font);
+        }
 	}
-	else if (parent != nil)
+	else if (parent && t_explicit_font)
 	{
 		if (parent -> m_font == nil)
 		{
@@ -4286,12 +4817,16 @@ void MCObject::mapfont(void)
 		else
 			m_font = MCFontRetain(parent -> m_font);
 	}
-	else
-	{
-		// This should never happen as the only object with nil parent when
-		// opened should be MCdispatcher, which always has font attrs.
-		assert(false);
-	}
+    else if (recursive)
+    {
+        // No font style font - it will be resolved after unwinding
+        return false;
+    }
+    else
+    {
+        // No font style was found. Use the themed font
+        MCPlatformGetControlThemePropFont(getcontroltype(), getcontrolsubpart(), getcontrolstate(), kMCPlatformThemePropertyTextFont, m_font);
+    }
 	
 	// MW-2012-03-02: [[ Bug 10044 ]] If we had to temporarily map the parent's font
 	//   then unmap it here.
@@ -4299,6 +4834,8 @@ void MCObject::mapfont(void)
 	//   first place.
 	if (t_mapped_parent)
 		parent -> unmapfont();
+    
+    return t_explicit_font;
 }
 
 // MW-2012-02-14: [[ FontRefs ]] New method which unmaps the object's concrete font
@@ -4311,14 +4848,14 @@ void MCObject::unmapfont(void)
 
 // MW-2012-02-14: [[ FontRefs ]] New method which updates the object's concrete font
 //   when a text property, or inherited text property changes.
-bool MCObject::recomputefonts(MCFontRef p_parent_font)
+bool MCObject::recomputefonts(MCFontRef p_parent_font, bool p_force)
 {
 	// MW-2012-02-19: [[ SplitTextAttrs ]] If the object has no font attrs, then just
 	//   inherit.
-	if (!hasfontattrs())
+	if (p_parent_font != nil && inheritfont())
 	{
 		if (p_parent_font == m_font)
-			return false;
+			return p_force;
 
 		MCFontRelease(m_font);
 		m_font = MCFontRetain(p_parent_font);
@@ -4327,7 +4864,7 @@ bool MCObject::recomputefonts(MCFontRef p_parent_font)
 	}
 
 	MCFontRef t_current_font;
-	t_current_font = MCFontRetain(m_font);
+    t_current_font = m_font ? MCFontRetain(m_font) : nil;
 	
 	unmapfont();
 	mapfont();
@@ -4337,7 +4874,26 @@ bool MCObject::recomputefonts(MCFontRef p_parent_font)
 
 	MCFontRelease(t_current_font);
 
-	return t_changed;
+	return t_changed || p_force;
+}
+
+void MCObject::copyfont(MCFontRef& r_font)
+{
+    bool t_need_unmap;
+    t_need_unmap = false;
+    if (m_font == nil)
+    {
+        mapfont();
+        t_need_unmap = true;
+    }
+    
+    if (m_font != nil)
+        r_font = MCFontRetain(m_font);
+    else
+        r_font = nil;
+    
+    if (t_need_unmap)
+        unmapfont();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4357,7 +4913,7 @@ void MCObject::copyfontattrs(const MCObject& p_other)
 
 	/* UNCHECKED */ MCMemoryNew(m_font_attrs);
 	if ((m_font_flags & FF_HAS_TEXTFONT) != 0)
-		MCNameClone(p_other . m_font_attrs -> name, m_font_attrs -> name);
+        m_font_attrs -> name = MCValueRetain(p_other . m_font_attrs -> name);
 	if ((m_font_flags & FF_HAS_TEXTSIZE) != 0)
 		m_font_attrs -> size = p_other . m_font_attrs -> size;
 	if ((m_font_flags & FF_HAS_TEXTSTYLE) != 0)
@@ -4370,8 +4926,8 @@ void MCObject::clearfontattrs(void)
 	if (m_font_attrs == nil)
 		return;
 
-	MCNameDelete(m_font_attrs -> name);
-	delete m_font_attrs;
+	MCValueRelease(m_font_attrs -> name);
+	MCMemoryDelete(m_font_attrs); /* Allocated with MCMemoryNew() */
 	m_font_attrs = nil;
 
 	// MW-2012-02-19: [[ SplitTextAttrs ]] Unset all the individual fontattr flags.
@@ -4427,7 +4983,7 @@ void MCObject::setfontattrs(uint32_t p_which, MCNameRef p_textfont, uint2 p_text
 	if (p_which == 0)
 	{
 		if (m_font_attrs != nil)
-			MCNameDelete(m_font_attrs -> name);
+			MCValueRelease(m_font_attrs -> name);
 		delete m_font_attrs;
 		m_font_attrs = nil;
 		m_font_flags &= ~FF_HAS_ALL_FATTR;
@@ -4439,10 +4995,10 @@ void MCObject::setfontattrs(uint32_t p_which, MCNameRef p_textfont, uint2 p_text
 
 	if ((p_which & FF_HAS_TEXTFONT) != 0)
 	{
-		MCNameDelete(m_font_attrs -> name);
+		MCValueRelease(m_font_attrs -> name);
 		if (p_textfont != nil && !MCNameIsEmpty(p_textfont))
 		{
-			/* UNCHECKED */ MCNameClone(p_textfont, m_font_attrs -> name);
+            m_font_attrs -> name = MCValueRetain(p_textfont);
 			m_font_flags |= FF_HAS_TEXTFONT;
 		}
 		else
@@ -4483,11 +5039,11 @@ void MCObject::setfontattrs(uint32_t p_which, MCNameRef p_textfont, uint2 p_text
 
 // MW-2012-02-17: [[ LogFonts ]] Set the logical font attrs to the given values
 //   using a c-string for the name.
-void MCObject::setfontattrs(const char *p_textfont, uint2 p_textsize, uint2 p_textstyle)
+void MCObject::setfontattrs(MCStringRef p_textfont, uint2 p_textsize, uint2 p_textstyle)
 {
-	MCAutoNameRef t_textfont_name;
-	/* UNCHECKED */ t_textfont_name . CreateWithCString(p_textfont);
-	setfontattrs(FF_HAS_ALL_FATTR, t_textfont_name, p_textsize, p_textstyle);
+	MCNewAutoNameRef t_textfont_name;
+    /* UNCHECKED */ MCNameCreate(p_textfont, &t_textfont_name);
+	setfontattrs(FF_HAS_ALL_FATTR, *t_textfont_name, p_textsize, p_textstyle);
 }
 
 // MW-2012-02-19: [[ SplitTextAttrs ]] This method returns true if any of the font
@@ -4505,6 +5061,14 @@ bool MCObject::needtosavefontflags(void) const
 	return needtosavefontrecord() && (m_font_flags & FF_HAS_ALL_FATTR) != FF_HAS_ALL_FATTR;
 }
 
+bool MCObject::inheritfont() const
+{
+    return !hasfontattrs()
+        && (gettheme() == kMCInterfaceThemeLegacy)  /* Fonts depend on control type in non-legacy themes */
+        && (m_theme == kMCInterfaceThemeEmpty)      /* Can only inherit if theme is inherited too */
+        /*&& (m_theme_type == kMCPlatformControlTypeGeneric)*/;
+}
+
 // MW-2012-02-19: [[ SplitTextAttrs ]] This method returns true if a font record
 //   is needed when saving. This occurs if any of the font attr are set, the
 //   object is marked as unicode or the object has a fontheight.
@@ -4512,7 +5076,7 @@ bool MCObject::needtosavefontflags(void) const
 //   is different from ours.
 bool MCObject::needtosavefontrecord(void) const
 {
-	return hasfontattrs() || hasunicode() || fontheight != 0 || (parent != nil && parent -> hasunicode() != hasunicode());
+	return hasfontattrs() || hasunicode() || fontheight != 0 || (parent && parent -> hasunicode() != hasunicode());
 }
 
 // MW-2012-06-08: [[ Relayer ]] No-op - only implemented for containers.
@@ -4528,22 +5092,81 @@ void MCObject::relayercontrol_insert(MCControl *p_control, MCControl *p_target)
 {
 }
 
-void MCObject::scheduledelete(void)
+////////////////////////////////////////////////////////////////////////////////
+
+// Gets the current native layer (if any) associated with this object
+MCNativeLayer* MCObject::getNativeLayer() const
 {
-	appendto(MCtodelete);
-	if (m_weak_handle != nil)
-	{
-		m_weak_handle -> Clear();
-		m_weak_handle = nil;
-	}
-	
-	// MW-2012-10-10: [[ IdCache ]] Remove the object from the stack's id cache
-	//   (if it is in it!).
-	if (m_in_id_cache)
-		getstack() -> uncacheobjectbyid(this);
+	return m_native_layer;
 }
 
-MCRectangle MCObject::measuretext(const MCString& p_text, bool p_is_unicode)
+bool MCObject::GetNativeView(void *&r_view)
+{
+	if (m_native_layer == nil)
+		return false;
+	
+	return m_native_layer->GetNativeView(r_view);
+}
+
+bool MCObject::SetNativeView(void *p_view)
+{
+	bool t_success;
+	t_success = true;
+	
+	MCNativeLayer *t_layer;
+	t_layer = nil;
+	
+	if (t_success && p_view != nil)
+	{
+		t_layer = MCNativeLayer::CreateNativeLayer(this, p_view);
+		t_success = t_layer != nil;
+	}
+	
+	if (t_success)
+	{
+		if (m_native_layer != nil)
+			delete m_native_layer;
+		
+		m_native_layer = t_layer;
+		if (m_native_layer != nil)
+		{
+			if (opened)
+				m_native_layer->OnAttach();
+			
+			MCRectangle t_viewport;
+			if (getparent() != nil && getparent()->gettype() == CT_GROUP)
+				t_viewport = ((MCGroup*)getparent())->getviewportgeometry();
+			else
+			{
+				// IM-2016-02-17: [[ Bug 16944 ]] If layer is not in a group, then viewport
+				//    should be unbounded.
+				t_viewport = MCRectangleMake(INT16_MIN, INT16_MIN, UINT16_MAX, UINT16_MAX);
+			}
+				
+			m_native_layer->OnGeometryChanged(GetNativeViewRect(getrect()));
+			m_native_layer->OnViewportGeometryChanged(t_viewport);
+			m_native_layer->OnToolChanged(getstack()->gettool(this));
+			m_native_layer->OnVisibilityChanged(isvisible());
+		}
+	}
+	
+	return t_success;
+}
+
+MCRectangle MCObject::GetNativeViewRect(const MCRectangle &p_object_rect)
+{
+	return p_object_rect;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MCObject::scheduledelete(bool p_is_child)
+{
+    if (!p_is_child)
+        MCDeletedObjectsOnObjectDeleted(this);
+}
+
+MCRectangle MCObject::measuretext(MCStringRef p_text, bool p_is_unicode)
 {
     bool t_mapped_font;
     t_mapped_font = false;
@@ -4557,9 +5180,9 @@ MCRectangle MCObject::measuretext(const MCString& p_text, bool p_is_unicode)
     t_bounds . x = 0;
 	// MW-2013-08-23: [[ MeasureText ]] Shortcut if no text - useful for just
 	//   getting the font ascent/descent (as used in MCGroup methods).
-	// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-	if (p_text . getlength() != 0)
-		t_bounds . width = MCFontMeasureText(m_font, p_text . getstring(), p_text . getlength(), p_is_unicode, getstack() -> getdevicetransform());
+    // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+	if (MCStringGetLength(p_text) != 0)
+        t_bounds . width = MCFontMeasureText(m_font, p_text, getstack() -> getdevicetransform());
 	else
 		t_bounds . width = 0;
     t_bounds . y = -MCFontGetAscent(m_font);
@@ -4571,11 +5194,171 @@ MCRectangle MCObject::measuretext(const MCString& p_text, bool p_is_unicode)
     return t_bounds;
 }
 
+struct MCRequiredStackFileVersionVisitor : public MCObjectVisitor
+{
+	uint32_t required_version;
+	
+	bool OnStack(MCStack *p_stack)
+	{
+		MCStack *t_substacks = p_stack->getsubstacks();
+		
+		if (t_substacks != nil)
+		{
+			/* Check minimum version required for substacks */
+			MCStack *t_stack = t_substacks;
+			do
+			{
+				if (!t_stack->visit(kMCObjectVisitorRecursive, 0, this))
+					return false;
+				t_stack = t_stack->next();
+			}
+			while (t_stack != t_substacks);
+		}
+
+		return OnObject(p_stack);
+	}
+	
+	bool OnObject(MCObject *p_object)
+	{
+		required_version = MCMax(required_version, p_object->getminimumstackfileversion());
+		
+		// keep looking if current required version is less than the maximum
+		return required_version < kMCStackFileFormatCurrentVersion;
+	}
+	
+	// make sure blocks and paragraphs are checked
+	bool OnParagraph(MCParagraph *p_paragraph)
+	{
+		required_version = MCMax(required_version, p_paragraph->getminimumstackfileversion());
+		
+		// keep looking if current required version is less than the maximum
+		return required_version < kMCStackFileFormatCurrentVersion;
+	}
+	
+	bool OnBlock(MCBlock *p_block)
+	{
+		required_version = MCMax(required_version, p_block->getminimumstackfileversion());
+		
+		// keep looking if current required version is less than the maximum
+		return required_version < kMCStackFileFormatCurrentVersion;
+	}
+};
+
+uint32_t MCObject::geteffectiveminimumstackfileversion(void)
+{
+	MCRequiredStackFileVersionVisitor t_visitor;
+	t_visitor.required_version = kMCStackFileFormatMinimumExportVersion;
+	visit(kMCObjectVisitorRecursive, 0, &t_visitor);
+	return t_visitor.required_version;
+}
+
+uint32_t MCObject::getminimumstackfileversion(void)
+{
+	// Default minimum stack file version
+	return kMCStackFileFormatMinimumExportVersion;
+}
+
+// AL-2015-06-30: [[ Bug 15556 ]] Refactored function to sync mouse focus
+void MCObject::sync_mfocus(bool p_visiblility_changed, bool p_resize_parent)
+{
+    bool needmfocus;
+    needmfocus = false;
+    
+    if (opened && getstack() == MCmousestackptr)
+    {
+        if (!(flags & F_VISIBLE))
+        {
+            MCObject *mfocused = MCmousestackptr->getcard()->getmfocused();
+            // MW-2012-02-22: [[ Bug 10018 ]] If the target is a group then check
+            //   to see if it is the ancestor of the mfocused control; otherwise
+            //   just compare directly.
+            if (isancestorof(mfocused))
+                needmfocus = true;
+        }
+        else if (MCU_point_in_rect(rect, MCmousex, MCmousey))
+            needmfocus = true;
+    }
+	
+	if (p_visiblility_changed)
+	{
+		if (state & CS_KFOCUSED)
+			getcard(0)->kunfocus();
+		
+		// MW-2008-08-04: [[ Bug 7094 ]] If we change the visibility of the control
+		//   while its grabbed, we should ungrab it - otherwise it sticks to the
+		//   cursor.
+		if (gettype() >= CT_GROUP && getstate(CS_GRAB))
+			state &= ~CS_GRAB;
+	}
+	
+	if (p_resize_parent)
+		resizeparent();
+    
+    if (needmfocus)
+        MCmousestackptr->getcard()->mfocus(MCmousex, MCmousey);
+}
+
+bool MCObject::isancestorof(MCObject *p_object)
+{
+    if (p_object == nil)
+        return false;
+    
+    if (this == p_object)
+        return true;
+    
+    if (gettype() != CT_GROUP)
+        return false;
+    
+    return isancestorof(p_object -> getparent());
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
-bool MCObject::visit(MCVisitStyle p_style, uint32_t p_part, MCObjectVisitor *p_visitor)
+void MCObject::signallisteners(Properties which)
+{
+    if (m_listening && which != P_CUSTOM_PROPERTY_SET)
+    {
+        m_properties_changed |= kMCPropertyChangedMessageTypePropertyChanged;
+        MCobjectpropertieschanged = True;
+    }
+}
+
+void MCObject::signallistenerswithmessage(uint8_t p_message)
+{
+    if (m_listening)
+    {
+        m_properties_changed |= p_message;
+        MCobjectpropertieschanged = True;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+bool MCObject::visit_self(MCObjectVisitor *p_visitor)
 {
 	return p_visitor -> OnObject(this);
+}
+
+bool MCObject::visit(MCObjectVisitorOptions p_options, uint32_t p_part, MCObjectVisitor *p_visitor)
+{
+	bool t_continue;
+	t_continue = true;
+	
+	if (MCObjectVisitorIsDepthLast(p_options))
+		t_continue = visit_self(p_visitor);
+	
+	if (t_continue && MCObjectVisitorIsRecursive(p_options))
+		t_continue = visit_children(p_options, p_part, p_visitor);
+	
+	if (t_continue && MCObjectVisitorIsDepthFirst(p_options))
+		t_continue = visit_self(p_visitor);
+	
+	return t_continue;
+}
+
+bool MCObject::visit_children(MCObjectVisitorOptions p_options, uint32_t p_part, MCObjectVisitor *p_visitor)
+{
+	return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4644,9 +5427,24 @@ bool MCObjectVisitor::OnPlayer(MCPlayer *p_player)
 	return OnControl(p_player);
 }
 
+bool MCObjectVisitor::OnEps(MCEPS *p_eps)
+{
+    return OnControl(p_eps);
+}
+
+bool MCObjectVisitor::OnGraphic(MCGraphic *p_graphic)
+{
+    return OnControl(p_graphic);
+}
+
 bool MCObjectVisitor::OnStyledText(MCStyledText *p_styled_text)
 {
 	return OnObject(p_styled_text);
+}
+
+bool MCObjectVisitor::OnWidget(MCWidget *p_widget)
+{
+	return OnControl(p_widget);
 }
 
 bool MCObjectVisitor::OnParagraph(MCParagraph *p_paragraph)
@@ -4661,43 +5459,426 @@ bool MCObjectVisitor::OnBlock(MCBlock *p_block)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-MCObjectHandle::MCObjectHandle(MCObject *p_object)
-{
-	m_object = p_object;
-	m_references = 0;
-}
-
-MCObjectHandle::~MCObjectHandle(void)
+MCObjectProxyBase::MCObjectProxyBase(MCObject *p_object) :
+  m_object(p_object),
+  m_refcount(1)		// The pointed-to object holds a reference
 {
 }
 
-MCObject *MCObjectHandle::Get(void)
+MCObjectProxyBase::~MCObjectProxyBase()
 {
-	return m_object;
+    // Shouldn't get deleted if there are references outstanding!
+    MCAssert(m_refcount == 0);
 }
 
-void MCObjectHandle::Clear(void)
+MCObject* MCObjectProxyBase::Get()
 {
-	m_object = NULL;
+    MCAssert(m_object != nil);
+    return m_object;
 }
 
-void MCObjectHandle::Retain(void)
+void MCObjectProxyBase::Clear()
 {
-	m_references += 1;
+    if (m_object)
+    {
+	// The object is being deleted so it can no longer be reached
+	m_object = nil;
+	
+	// Release the reference the object holds to this proxy
+	Release();
+    }
 }
 
-void MCObjectHandle::Release(void)
+void MCObjectProxyBase::Retain()
 {
-	m_references -= 1;
-	if (m_references == 0)
+    m_refcount += 1;
+}
+
+void MCObjectProxyBase::Release()
+{
+    // Sanity check to prevent over-releases (which implies a bug in the Handle
+    // RAII class) as there shouldn't be another way to get a reference.
+    MCAssert(m_refcount > 0);
+    
+    if (--m_refcount <= 0)
+    {
+        delete this;
+    }
+}
+
+bool MCObjectProxyBase::ObjectExists() const
+{
+    return m_object != NULL;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+// The engine has a tendency to store pointers to objects on the stack and other
+// 'temporary' places as script executes. This means that it is unsafe to delete
+// an object unless we are sure that there is no pointer to it on the stack.
+//
+// The culprit for the stack pointers is the event handling code. Thus, whether
+// or not we can safely delete an object depends which event it was created in
+// response to. More specifically, if an object was created as a result of a wait
+// which is older than the current wait, then its deletion must be deferred because
+// it might be the target or events being handled in the current wait.
+
+struct MCDeletedObjectPool
+{
+    uindex_t references;
+    MCDeletedObjectPool *parent;
+    MCObject *to_delete;
+    bool defunct : 1;
+};
+
+static MCDeletedObjectPool *MCsparedeletedobjectpool = nil;
+static MCDeletedObjectPool *MCdeletedobjectpool = nil;
+static MCDeletedObjectPool *MCrootdeletedobjectpool = nil;
+static uint32_t MCdeletedobjectpoolfreezedepth = 0;
+
+static bool MCDeletedObjectPoolCreate(MCDeletedObjectPool*& r_pool)
+{
+    MCDeletedObjectPool *t_pool;
+    if (MCsparedeletedobjectpool != nil)
+    {
+        t_pool = MCsparedeletedobjectpool;
+        MCsparedeletedobjectpool = nil;
+        
+        t_pool -> references = 0;
+        t_pool -> parent = nil;
+        t_pool -> to_delete = nil;
+        t_pool -> defunct = false;
+    }
+    else if (!MCMemoryNew(t_pool))
+        return false;
+    
+    r_pool = t_pool;
+    
+    return true;
+}
+
+static void MCDeletedObjectPoolDestroy(MCDeletedObjectPool *p_pool)
+{
+    p_pool -> parent -> references -= 1;
+
+    if (MCsparedeletedobjectpool == nil)
+    {
+        MCsparedeletedobjectpool = p_pool;
+        return;
+    }
+    
+    MCMemoryDelete(p_pool);
+}
+
+static MCDeletedObjectPool* MCDeletedObjectPoolCleanup(MCDeletedObjectPool *p_pool)
+{
+	while (p_pool != nil && p_pool->defunct && p_pool->references == 0)
 	{
-		if (m_object != NULL)
-			m_object -> m_weak_handle = NULL;
-		delete this;
+		MCDeletedObjectPool *t_this_pool = p_pool;
+		p_pool = p_pool->parent;
+		MCDeletedObjectPoolDestroy(t_this_pool);
 	}
+	
+	return p_pool;
 }
 
-bool MCObjectHandle::Exists(void)
+/* Release the given pool. If the pool becomes unreferenced as a result,
+ * it and any defunct unreferenced ancestors are destroyed. */
+static void MCDeletedObjectPoolRelease(MCDeletedObjectPool *p_pool)
 {
-	return m_object != NULL;
+	if (p_pool == nil)
+		return;
+	
+	p_pool->references -= 1;
+	
+	MCDeletedObjectPoolCleanup(p_pool);
 }
+
+/* Mark the given pool as defunct, destroying it (and any defunct, unreferenced
+ * ancestors) if it is unreferenced. */
+static void MCDeletedObjectPoolMakeDefunct(MCDeletedObjectPool* p_pool)
+{
+	if (p_pool == nil)
+		return;
+	
+	p_pool->defunct = true;
+	
+	MCDeletedObjectPoolCleanup(p_pool);
+}
+
+/* Release the given object pool, and return the nearest non-defunct ancestor.
+ * Any intermediate, unreferenced, defunct pools are destroyed. */
+static MCDeletedObjectPool* MCDeletedObjectPoolUnwind(MCDeletedObjectPool *p_pool)
+{
+	if (p_pool == nil)
+		return nil;
+	
+	p_pool->references -= 1;
+	
+	p_pool = MCDeletedObjectPoolCleanup(p_pool);
+	
+	while (p_pool != nil && p_pool->defunct)
+		p_pool = p_pool->parent;
+	
+	return p_pool;
+}
+
+void MCDeletedObjectsSetup(void)
+{
+    // Setup occurs before the outer wait loop so if we get here we should not
+    // have a deletedobjectpool.
+    MCAssert(MCdeletedobjectpool == nil);
+	
+	// First create the root object pool - this is only drained right at the end
+	// and will only ever temporarily contain objects which have deletion suspended
+	// whilst they are executing.
+    if (!MCMemoryNew(MCrootdeletedobjectpool))
+        return;
+	
+	// Now create the root object pool which is drained during the top-level
+	// event loop.
+	if (!MCMemoryNew(MCdeletedobjectpool))
+		return;
+	
+	// Set the references to 2 - this is the reference from the active deleted object
+	// pool list, and the reference from the MCrootdeletedobjectpool var. This stops
+	// the root pool getting flushed.
+	MCrootdeletedobjectpool -> references = 2;
+	MCdeletedobjectpool -> parent = MCrootdeletedobjectpool;
+}
+
+void MCDeletedObjectsTeardown(void)
+{
+	// Teardown should always happen (at some point) after Setup so we
+	// should always have a pool to deal with.
+	MCAssert(MCdeletedobjectpool != nil);
+	
+	// Teardown occurs in X_close and can occur whilst inside a nested wait.
+	// In particular, on Mac the NSApp willTerminate method will never return
+	// meaning there are inbalanced waits on the stack. Therefore, we must
+	// 'LeaveWait' until the MCdeletedobjetpool is the root pool.
+	while(MCdeletedobjectpool -> parent != nil)
+		MCDeletedObjectsLeaveWait(true);
+	
+    // Ensure all objects in the pool are deleted.
+    MCDeletedObjectsDoDrain();
+    
+    MCMemoryDelete(MCrootdeletedobjectpool);
+    MCrootdeletedobjectpool = nil;
+    
+    if (MCsparedeletedobjectpool != nil)
+    {
+        MCMemoryDelete(MCsparedeletedobjectpool);
+        MCsparedeletedobjectpool = nil;
+    }
+}
+
+void MCDeletedObjectsFreezePool(void)
+{
+    MCdeletedobjectpoolfreezedepth += 1;
+}
+
+void MCDeletedObjectsThawPool(void)
+{    
+    MCdeletedobjectpoolfreezedepth -= 1;
+}
+
+void MCDeletedObjectsEnterWait(bool p_dispatching)
+{
+    // If the current pool is frozen, do nothing
+    if (MCdeletedobjectpoolfreezedepth > 0)
+        return;
+    
+    // If this isn't a dispatching wait, then no objects can be created.
+    if (!p_dispatching)
+        return;
+    
+    // First drain any objects in the current pool.
+    MCDeletedObjectsDoDrain();
+    
+    // Fetch the spare object pool if there is one, otherwise allocate a new
+    // one.
+    MCDeletedObjectPool *t_pool;
+    if (!MCDeletedObjectPoolCreate(t_pool))
+        return;
+    t_pool -> parent = MCdeletedobjectpool;
+    t_pool -> references = 0;
+    t_pool -> to_delete = nil;
+    t_pool -> defunct = false;
+    
+    // Reference the parent pool.
+    t_pool -> parent -> references += 1;
+    
+    // Reference the new pool.
+    MCdeletedobjectpool = t_pool;
+}
+
+void MCDeletedObjectsLeaveWait(bool p_dispatching)
+{
+    // If the current pool is frozen, do nothing
+    if (MCdeletedobjectpoolfreezedepth > 0)
+        return;
+    
+    // If this isn't a dispatching wait, then no objects can be created.
+    if (!p_dispatching)
+        return;
+    
+    // Drain any objects in the pool.
+    MCDeletedObjectsDoDrain();
+    
+    // Make the parent pool the current one.
+    MCDeletedObjectPool *t_pool;
+    t_pool = MCdeletedobjectpool;
+    MCdeletedobjectpool = MCdeletedobjectpool -> parent;
+    
+    // The previous pool is now defunct.
+    MCDeletedObjectPoolMakeDefunct(t_pool);
+    
+    // Now drain any objects which have accumulated in this pool.
+    MCDeletedObjectsDoDrain();
+}
+
+void MCDeletedObjectsDoDrain(void)
+{
+    if (MCdeletedobjectpool -> to_delete == nil)
+        return;
+    
+    // Actually delete all objects from the pool.
+    while(MCdeletedobjectpool -> to_delete != nil)
+    {
+        MCObject *t_object;
+        t_object = MCdeletedobjectpool -> to_delete -> remove(MCdeletedobjectpool -> to_delete);
+        delete t_object;
+    }
+}
+
+void MCDeletedObjectsOnObjectCreated(MCObject *p_object)
+{
+    MCdeletedobjectpool -> references += 1;
+    p_object -> setdeletedobjectpool(MCdeletedobjectpool);
+	p_object -> setdeletionissuspended(false);
+}
+
+void MCDeletedObjectsOnObjectDeleted(MCObject *p_object)
+{
+    MCDeletedObjectPool *t_pool;
+    t_pool = p_object -> getdeletedobjectpool();
+    if (t_pool == nil)
+        return;
+    
+    // Unreference the pool.
+    p_object -> setdeletedobjectpool(nil);
+    t_pool = MCDeletedObjectPoolUnwind(t_pool);
+    
+    // We now have a pool in which to place the object.
+    p_object -> appendto(t_pool -> to_delete);
+    
+    // If the pool is the current one, then schedule a drain.
+    if (t_pool == MCdeletedobjectpool)
+        MCActionsSchedule(kMCActionsDrainDeletedObjects);
+}
+
+void MCDeletedObjectsOnObjectDestroyed(MCObject *p_object)
+{
+    MCDeletedObjectPool *t_pool;
+    t_pool = p_object -> getdeletedobjectpool();
+    if (t_pool == nil)
+        return;
+    
+    MCDeletedObjectPoolRelease(t_pool);
+}
+
+void MCDeletedObjectsOnObjectSuspendDeletion(MCObject *p_object, void*& r_deletion_cookie)
+{
+	if (p_object -> getdeletionissuspended())
+	{
+		r_deletion_cookie = nil;
+		return;
+	}
+	
+	MCDeletedObjectPool *t_pool;
+	t_pool = p_object -> getdeletedobjectpool();
+	
+	MCAssert(t_pool != nil && t_pool -> parent != nil);
+	
+	// Reference parent pool to prevent deletion.
+	t_pool->parent->references += 1;
+	
+	r_deletion_cookie = t_pool;
+	p_object -> setdeletedobjectpool(t_pool -> parent);
+	p_object -> setdeletionissuspended(true);
+}
+
+void MCDeletedObjectsOnObjectResumeDeletion(MCObject *p_object, void *p_deletion_cookie)
+{
+	if (p_deletion_cookie == nil)
+		return;
+	
+	MCDeletedObjectPool *t_pool = (MCDeletedObjectPool*)p_deletion_cookie;
+	MCDeletedObjectPool *t_current_pool = p_object->getdeletedobjectpool();
+	
+	if (t_current_pool != nil)
+	{
+		// Restore the link to the saved deleted object pool, removing any reference
+		//    to the pool currently set on the object.
+		MCDeletedObjectPoolRelease(t_current_pool);
+
+		p_object -> setdeletedobjectpool(t_pool);
+	}
+	else
+	{
+		// If the current pool is nil then the object must have been deleted, so
+		//    remove the reference to the saved deleted object pool.
+		MCDeletedObjectPoolRelease(t_pool);
+	}
+	
+	p_object -> setdeletionissuspended(false);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+MCObjectPartHandle::MCObjectPartHandle(MCObject* p_object, uint32_t p_part_id)
+    : MCObjectHandle(p_object), m_part_id(p_part_id)
+{
+}
+
+MCObjectPartHandle::MCObjectPartHandle(const MCObjectPtr& p_ptr)
+    : MCObjectHandle(p_ptr.object), m_part_id(p_ptr.part_id)
+{
+}
+
+MCObjectPartHandle&
+MCObjectPartHandle::operator=(decltype(nullptr))
+{
+    MCObjectHandle::operator=(nullptr);
+    m_part_id = 0;
+    return *this;
+}
+
+MCObjectPartHandle&
+MCObjectPartHandle::operator=(const MCObjectPtr& p_ptr)
+{
+    MCObjectHandle::operator=(p_ptr.object);
+    m_part_id = p_ptr.part_id;
+    return *this;
+}
+
+MCObjectPtr
+MCObjectPartHandle::getObjectPtr() const
+{
+    if (IsValid())
+        return MCObjectPtr(Get(), getPart());
+    else
+        return MCObjectPtr(nullptr, 0);
+}
+
+void swap(MCObjectPartHandle &x_left, MCObjectPartHandle &x_right)
+{
+    using std::swap;
+    swap(x_left.m_part_id, x_right.m_part_id);
+    swap(static_cast<MCObjectHandle&>(x_left),
+         static_cast<MCObjectHandle&>(x_right));
+}
+
+///////////////////////////////////////////////////////////////////////////////

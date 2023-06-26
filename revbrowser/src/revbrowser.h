@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -17,10 +17,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef __REVBROWSER__
 #define __REVBROWSER__
 
+#include <core.h>
+
 class CWebBrowserBase
 {
 public:
-	virtual ~CWebBrowserBase(void) = 0;
+	virtual ~CWebBrowserBase(void) {};
 
 	virtual void SetVisible(bool p_visible) = 0;
 	virtual void SetBrowser(const char *p_type) = 0;
@@ -37,7 +39,7 @@ public:
 	virtual void SetInst(int p_id) = 0;
 	virtual void SetVScroll(int p_vscroll_pixels) = 0;
 	virtual void SetHScroll(int p_hscroll_pixels) = 0;
-	virtual void SetWindowId(int p_new_id) = 0;
+	virtual void SetWindowId(uintptr_t p_new_id) = 0;
 	virtual void SetUserAgent(const char *p_user_agent) = 0;
 
 	virtual bool GetBusy(void) = 0;
@@ -62,13 +64,13 @@ public:
 	virtual int GetFormattedHeight(void) = 0;
 	virtual int GetFormattedWidth(void) = 0;
 	virtual void GetFormattedRect(int& r_left, int& r_top, int& r_right, int& r_bottom) = 0;
-	virtual int GetWindowId(void) = 0;
+	virtual uintptr_t GetWindowId(void) = 0;
 	virtual char *GetUserAgent(void) = 0;
 
 	virtual char *ExecuteScript(const char *p_javascript_string) = 0;
 	virtual char *CallScript(const char *p_function_name, char **p_arguments, unsigned int p_argument_count) = 0;
 	virtual bool FindString(const char *p_string, bool p_search_up) = 0;
-	virtual void GoURL(const char *p_url, const char *target_frame = NULL) = 0;
+	virtual void GoURL(const char *p_url, const char *target_frame = nil) = 0;
 	virtual void GoBack(void) = 0;
 	virtual void GoForward(void) = 0;
 	virtual void Focus(void) = 0;
@@ -79,9 +81,19 @@ public:
 	virtual void Redraw(void) = 0;
 	virtual void MakeTextBigger(void) = 0;
 	virtual void MakeTextSmaller(void) = 0;
+
+	// IM-2014-03-06: [[ revBrowserCEF ]] Make LiveCode handler available to JavaScript
+	virtual void AddJavaScriptHandler(const char *p_handler) = 0;
+	// IM-2014-03-06: [[ revBrowserCEF ]] Unregister LiveCode handler from JavaScript
+	virtual void RemoveJavaScriptHandler(const char *p_handler) = 0;
 };
 
 CWebBrowserBase *InstantiateBrowser(int p_window_id);
+// IM-2014-03-18: [[ revBrowserCEF ]] Create new cef-based browser instance
+CWebBrowserBase *MCCefBrowserInstantiate(int p_window_id);
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Send the handler message with the given args
+void CB_Custom(int p_instance_id, const char *p_message, char **p_args, uint32_t p_arg_count, bool *r_cancel);
 
 void CB_ElementEnter(int p_instance_id, const char *p_element);
 void CB_ElementLeave(int p_instance_id, const char *p_element);
@@ -96,6 +108,9 @@ void CB_NavigateFrameComplete(int p_instance_id, const char *p_url);
 
 void CB_DocumentComplete(int p_instance_id, const char *p_url);
 void CB_DocumentFrameComplete(int p_instance_id, const char *p_url);
+
+void CB_DocumentFailed(int p_instance_id, const char *p_url, const char *p_error);
+void CB_DocumentFrameFailed(int p_instance_id, const char *p_url, const char *p_error);
 
 void CB_CreateInstance(int p_instance_id);
 void CB_DestroyInstance(int p_instance_id);

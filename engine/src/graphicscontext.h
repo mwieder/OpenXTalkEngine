@@ -1,3 +1,19 @@
+/* Copyright (C) 2003-2015 LiveCode Ltd.
+
+This file is part of LiveCode.
+
+LiveCode is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License v3 as published by the Free
+Software Foundation.
+
+LiveCode is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received a copy of the GNU General Public License
+along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
+
 #ifndef GRAPHICSCONTEXT_H
 #define GRAPHICSCONTEXT_H
 
@@ -19,6 +35,11 @@ public:
 	MCContextType gettype(void) const;
 	
 	bool changeopaque(bool p_value);
+	
+	void save();
+	void restore();
+	
+	void cliprect(const MCRectangle &p_rect);
 	
 	void setclip(const MCRectangle& rect);
 	MCRectangle getclip(void) const;
@@ -45,8 +66,9 @@ public:
 	
 	void drawline(int2 x1, int2 y1, int2 x2, int2 y2);
 	void drawlines(MCPoint *points, uint2 npoints, bool p_closed = false);
-	void drawsegments(MCSegment *segments, uint2 nsegs);
-	void drawtext(int2 x, int2 y, const char *s, uint2 length, MCFontRef p_font, Boolean image, bool p_unicode_override = false);
+	void drawsegments(MCLineSegment *segments, uint2 nsegs);
+	void drawtext(coord_t x, int2 y, MCStringRef p_string, MCFontRef p_font, Boolean image, MCDrawTextBreaking = kMCDrawTextBreak, MCDrawTextDirection = kMCDrawTextDirectionLTR);
+    void drawtext_substring(coord_t x, int2 y, MCStringRef p_string, MCRange p_range, MCFontRef p_font, Boolean image, MCDrawTextBreaking = kMCDrawTextBreak, MCDrawTextDirection = kMCDrawTextDirectionLTR);
 	void drawrect(const MCRectangle& rect, bool inside);
 	void fillrect(const MCRectangle& rect, bool inside);
 	void fillrects(MCRectangle *rects, uint2 nrects);
@@ -65,9 +87,8 @@ public:
 				 const char *prolog, const char *psprolog, uint4 psprologlength, const char *ps, uint4 length,
 				 const char *fontname, uint2 fontsize, uint2 fontstyle, MCFontStruct *font, const MCRectangle& trect);
 	void drawimage(const MCImageDescriptor& p_image, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, int2 dy);
-	
-	void drawlink(const char *link, const MCRectangle& region);
-	
+
+	void drawlink(MCStringRef link, const MCRectangle& region);
 	//int4 textwidth(MCFontStruct *f, const char *s, uint2 l, bool p_unicode_override = false);
 	
 	void applywindowshape(MCWindowShape *p_mask, uint4 p_u_width, uint4 p_u_height);
@@ -90,11 +111,15 @@ public:
 	// IM-2014-01-31: [[ HiDPI ]] Return the underlying MCGContextRef
 	MCGContextRef getgcontextref(void) const;
 	
+	bool lockgcontext(MCGContextRef& r_gcontext);
+	void unlockgcontext(MCGContextRef gcontext);
+	
+	MCGAffineTransform getdevicetransform(void);
+	
 private:
 	void init(MCGContextRef p_context);
 
 	MCGContextRef m_gcontext;
-	MCRectangle m_clip;
 	MCColor m_background;
 	uint8_t m_function;
 	uint8_t m_opacity;
@@ -113,6 +138,9 @@ private:
 	MCGFloat m_dash_phase;
 	MCGFloat *m_dash_lengths;
 	uint32_t m_dash_count;
+
+	// IM-2014-06-19: [[ Bug 12557 ]] Override for the antialias setting
+	bool m_force_antialiasing;
 };
 
 // MW-2014-01-07: [[ Bug 11632 ]] The player object distinguishes between 'screen' and 'offscreen' - in the

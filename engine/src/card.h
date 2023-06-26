@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -19,10 +19,18 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "object.h"
 
-class MCCard : public MCObject
+typedef MCObjectProxy<MCCard>::Handle MCCardHandle;
+
+class MCCard : public MCObject, public MCMixinObjectHandle<MCCard>
 {
-	friend class MCHccard;
+public:
+    
+    enum { kObjectType = CT_CARD };
+    using MCMixinObjectHandle<MCCard>::GetHandle;
+	
 protected:
+    
+    friend class MCHccard;
 	MCObjptr *objptrs;
 	MCObjptr *kfocused;
 	MCObjptr *oldkfocused;
@@ -44,6 +52,13 @@ protected:
 	static int2 startx;
 	static int2 starty;
 	static MCObjptr *removedcontrol;
+
+	static MCPropertyInfo kProperties[];
+	static MCObjectPropertyTable kPropertyTable;
+
+    virtual MCPlatformControlType getcontroltype();
+    virtual MCPlatformControlPart getcontrolsubpart();
+
 public:
 	MCCard();
 	MCCard(const MCCard &cref);
@@ -52,7 +67,11 @@ public:
 	virtual Chunk_term gettype() const;
 	virtual const char *gettypestring();
 
-	virtual bool visit(MCVisitStyle p_style, uint32_t p_part, MCObjectVisitor *p_visitor);
+	virtual const MCObjectPropertyTable *getpropertytable(void) const { return &kPropertyTable; }
+
+	virtual bool visit(MCObjectVisitorOptions p_options, uint32_t p_part, MCObjectVisitor* p_visitor);
+	virtual bool visit_self(MCObjectVisitor *p_visitor);
+	virtual bool visit_children(MCObjectVisitorOptions p_options, uint32_t p_part, MCObjectVisitor* p_visitor);
 
 	virtual void open();
 	virtual void close();
@@ -60,63 +79,79 @@ public:
 	virtual Boolean kfocusnext(Boolean top);
 	virtual Boolean kfocusprev(Boolean bottom);
 	virtual void kunfocus();
-	virtual Boolean kdown(const char *string, KeySym key);
-	virtual Boolean kup(const char *string, KeySym key);
+	virtual Boolean kdown(MCStringRef p_string, KeySym key);
+	virtual Boolean kup(MCStringRef p_string, KeySym key);
 	virtual Boolean mfocus(int2 x, int2 y);
 	virtual void mfocustake(MCControl *target);
 	virtual void munfocus();
 	virtual void mdrag(void);
 	virtual Boolean mdown(uint2 which);
-	virtual Boolean mup(uint2 which);
+	virtual Boolean mup(uint2 which, bool p_release);
 	virtual Boolean doubledown(uint2 which);
 	virtual Boolean doubleup(uint2 which);
 	virtual void timer(MCNameRef mptr, MCParameter *params);
-	virtual Exec_stat getprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
-	virtual Exec_stat setprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
 
-	virtual Boolean del();
+	virtual Boolean del(bool p_check_flag);
 	virtual void paste(void);
 
 	virtual Exec_stat handle(Handler_type, MCNameRef, MCParameter *, MCObject *pass_from);
 	virtual void recompute();
+	
+    virtual void toolchanged(Tool p_new_tool);
+	
+	virtual void OnAttach();
+	virtual void OnDetach();
+    
+	virtual void OnViewTransformChanged();
 	
 	// MW-2011-09-20: [[ Collision ]] Compute shape of card.
 	virtual bool lockshape(MCObjectShape& r_shape);
 	virtual void unlockshape(MCObjectShape& shape);
 
 	// MW-2012-02-14: [[ FontRefs ]] Recompute the font inheritence hierarchy.
-	virtual bool recomputefonts(MCFontRef parent_font);
+	virtual bool recomputefonts(MCFontRef parent_font, bool force);
 
 	// MW-2012-06-08: [[ Relayer ]] Move a control to before target.
 	virtual void relayercontrol(MCControl *p_source, MCControl *p_target);
 	virtual void relayercontrol_remove(MCControl *control);
 	virtual void relayercontrol_insert(MCControl *control, MCControl *target);
 
-	void draw(MCDC *dc, const MCRectangle &dirty, bool p_isolated);
+	virtual void geometrychanged(const MCRectangle &p_rect);
+
+    virtual void scheduledelete(bool p_is_child);
+    
+    virtual bool isdeletable(bool p_check_flag);
+    
+    void draw(MCDC *dc, const MCRectangle &dirty, bool p_isolated);
 
 	MCObject *hittest(int32_t x, int32_t y);
 	
 	// MCCard functions
-	IO_stat load(IO_handle stream, const char *version);
-	IO_stat extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length);
-	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext);
-	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part);
+	IO_stat load(IO_handle stream, uint32_t version);
+	IO_stat extendedload(MCObjectInputStream& p_stream, uint32_t version, uint4 p_length);
+	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version);
+	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version);
 
-	IO_stat saveobjects(IO_handle stream, uint4 p_part);
-	IO_stat loadobjects(IO_handle stream, const char *version);
+	IO_stat saveobjects(IO_handle stream, uint4 p_part, uint32_t p_version);
+	IO_stat loadobjects(IO_handle stream, uint32_t version);
 
 	void kfocusset(MCControl *target);
-	MCCard *clone(Boolean attach, Boolean controls);
+	MCCard *clone(Boolean attach, Boolean controls, MCStack *p_parent = nullptr);
 	void clonedata(MCCard *source);
 	void replacedata(MCStack *source);
 	Exec_stat relayer(MCControl *optr, uint2 newlayer);
-	MCCard *findname(Chunk_term type, const MCString &);
+	MCCard *findname(Chunk_term type, MCNameRef);
 	MCCard *findid(Chunk_term type, uint4 inid, Boolean alt);
 	Boolean countme(uint4 groupid, Boolean marked);
 	Boolean count(Chunk_term otype, Chunk_term ptype, MCObject *stop,
 	              uint2 &n, Boolean dohc);
-	MCControl *getchild(Chunk_term e, const MCString &,
-	                    Chunk_term o, Chunk_term p);
+	MCControl *getnumberedchild(integer_t p_number, Chunk_term p_obj_type, Chunk_term p_parent_type);
+	MCControl *getchild(Chunk_term e, MCStringRef p_expression, Chunk_term o, Chunk_term p);
+    
+    MCControl *getchildbyordinal(Chunk_term p_ordinal, Chunk_term o, Chunk_term p);
+    MCControl *getchildbyid(uinteger_t p_id, Chunk_term o, Chunk_term p);
+    MCControl *getchildbyname(MCNameRef p_name, Chunk_term o, Chunk_term p);
+    
 	Boolean getchildid(uint4 inid);
 	Exec_stat groupmessage(MCNameRef message, MCCard *other);
 	void installaccels(MCStack *stack);
@@ -129,7 +164,7 @@ public:
 	MCObjptr *newcontrol(MCControl *cptr, Boolean needredraw);
 	void resetid(uint4 oldid, uint4 newid);
 	Boolean checkid(uint4 controlid);
-	Boolean find(MCExecPoint &ep, Find_mode mode, const MCString &,
+	Boolean find(MCExecContext &ctxt, Find_mode mode, MCStringRef,
 	             Boolean firstcard, Boolean firstword);
 	MCObjptr *getrefs();
 	void clean();
@@ -147,7 +182,7 @@ public:
 	MCObjptr *getobjptrs(void) { return objptrs; }
 	MCObjptr *getobjptrforcontrol(MCControl *control);
 
-	void selectedbutton(uint2 n, Boolean bg, MCExecPoint &ep);
+	bool selectedbutton(integer_t p_family, bool p_background, MCStringRef& r_string);
 	void grab()
 	{
 		mgrabbed = True;
@@ -181,9 +216,15 @@ public:
 	
 	// IM-2013-09-13: [[ RefactorGraphics ]] render the card background
 	void drawbackground(MCContext *p_context, const MCRectangle &p_dirty);
-	// IM-2013-09-13: [[ RefactorGraphics ]] render the card selection rect
-	void drawselectionrect(MCContext *);
-	
+    
+    /* The drawselection method renders the 'selection layer' - i.e. all the
+     * selection decorations for all controls on the card. */
+    void drawselection(MCContext *p_context, const MCRectangle& p_dirty);
+    
+	// IM-2016-09-26: [[ Bug 17247 ]] request redraw of the area occupied by
+	//      selection marquee + handles
+	void dirtyselection(const MCRectangle &p_rect);
+    
 	Exec_stat openbackgrounds(bool p_is_preopen, MCCard *p_other);
 	Exec_stat closebackgrounds(MCCard *p_other);
 	
@@ -193,16 +234,16 @@ public:
 	// MW-2011-08-19: [[ Layers ]] Dirty the given rect of the viewport.
 	void layer_dirtyrect(const MCRectangle& dirty_rect);
 	// MW-2011-08-19: [[ Layers ]] A layer has been added to the card.
-	void layer_added(MCControl *control, MCObjptr *previous, MCObjptr *next);
+	void layer_added(MCControl *control, MCControl *previous, MCControl *next);
 	// MW-2011-08-19: [[ Layers ]] A layer has been removed from the card.
-	void layer_removed(MCControl *control, MCObjptr *previous, MCObjptr *next);
+	void layer_removed(MCControl *control, MCControl *previous, MCControl *next);
 	// MW-2011-08-19: [[ Layers ]] The viewport displayed in the stack has changed.
 	void layer_setviewport(int32_t x, int32_t y, int32_t width, int32_t height);
-	// MW-2011-09-23: [[ Layers ]] The selected rectangle has changed.
-	void layer_selectedrectchanged(const MCRectangle& old_rect, const MCRectangle& new_rect);
 
 	// MW-2011-08-26: [[ TileCache ]] Render all layers into the stack's tilecache.
-	void render(void);
+    void render(void);
+    void render_control(MCTileCacheRef p_tiler, MCControl *p_control, const MCRectangle& p_visible_rect, const MCGAffineTransform& p_transform, bool p_parent_is_container);
+    void render_control_reset_ids(MCControl *p_control);
 
 	// IM-2013-09-13: [[ RefactorGraphics ]] add tilecache_ prefix to render methods to make their purpose clearer
 	// MW-2011-09-23: [[ TileCache ]] Render the card's bg layer.
@@ -214,6 +255,8 @@ public:
 	//   the given layer. If nil is returned the control doesn't exist.
 	MCObject *getobjbylayer(uint32_t layer);
 
+    bool mfocus_control(int2 x, int2 y, bool p_check_selected);
+    
 	MCCard *next()
 	{
 		return (MCCard *)MCDLlist::next();
@@ -246,6 +289,77 @@ public:
 	{
 		return (MCCard *)MCDLlist::remove((MCDLlist *&)list);
 	}
+
+	////////// PROPERTY SUPPORT METHODS
+
+	void GetPropList(MCExecContext& ctxt, Properties which, uint32_t part_id, MCStringRef& r_props);
+
+	////////// PROPERTY ACCESSORS
+
+	void GetLayer(MCExecContext& ctxt, MCInterfaceLayer& r_layer);
+	void SetLayer(MCExecContext& ctxt, const MCInterfaceLayer& p_layer);
+	void GetCantDelete(MCExecContext& ctxt, bool& r_setting);
+	void SetCantDelete(MCExecContext& ctxt, bool setting);
+	void GetDontSearch(MCExecContext& ctxt, bool& r_setting);
+	void SetDontSearch(MCExecContext& ctxt, bool setting);
+	void GetMarked(MCExecContext& ctxt, bool& r_setting);
+	void SetMarked(MCExecContext& ctxt, bool setting);
+	void GetShowPict(MCExecContext& ctxt, bool& r_value);
+	void SetShowPict(MCExecContext& ctxt, bool value);
+	void GetBackgroundNames(MCExecContext& ctxt, MCStringRef& r_names);
+	void GetBackgroundIds(MCExecContext& ctxt, MCStringRef& r_ids);
+	void GetSharedGroupNames(MCExecContext& ctxt, MCStringRef& r_names);
+	void GetSharedGroupIds(MCExecContext& ctxt, MCStringRef& r_ids);
+	void GetGroupNames(MCExecContext& ctxt, MCStringRef& r_names);
+	void GetGroupIds(MCExecContext& ctxt, MCStringRef& r_ids);
+    void GetControlNames(MCExecContext& ctxt, uint32_t part_id, MCStringRef& r_names);
+    void GetControlIds(MCExecContext& ctxt, uint32_t part_id, MCStringRef& r_ids);
+    void GetChildControlNames(MCExecContext& ctxt, MCStringRef& r_names);
+    void GetChildControlIds(MCExecContext& ctxt, MCStringRef& r_ids);
+	void GetFormattedLeft(MCExecContext& ctxt, integer_t& r_value);
+	void GetFormattedTop(MCExecContext& ctxt, integer_t& r_value);
+	void GetFormattedHeight(MCExecContext& ctxt, integer_t& r_value);
+	void GetFormattedWidth(MCExecContext& ctxt, integer_t& r_value);
+	void GetFormattedRect(MCExecContext& ctxt, MCRectangle& r_rect);
+	void GetDefaultButton(MCExecContext& ctxt, MCStringRef& r_button);
+    
+	virtual void SetForePixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetBackPixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetHilitePixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetBorderPixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetTopPixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetBottomPixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetShadowPixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetFocusPixel(MCExecContext& ctxt, uinteger_t* pixel);
+	virtual void SetForeColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetBackColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetHiliteColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetBorderColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetTopColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetBottomColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetShadowColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetFocusColor(MCExecContext& ctxt, const MCInterfaceNamedColor& color);
+	virtual void SetForePattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetBackPattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetHilitePattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetBorderPattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetTopPattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetBottomPattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetShadowPattern(MCExecContext& ctxt, uinteger_t* pattern);
+	virtual void SetFocusPattern(MCExecContext& ctxt, uinteger_t* pattern);
+    virtual void SetTextHeight(MCExecContext& ctxt, uinteger_t* height);
+    virtual void SetTextFont(MCExecContext& ctxt, MCStringRef font);
+    virtual void SetTextSize(MCExecContext& ctxt, uinteger_t* size);
+    virtual void SetTextStyle(MCExecContext& ctxt, const MCInterfaceTextStyle& p_style);
+    virtual void SetTheme(MCExecContext& ctxt, intenum_t p_theme);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// navigate controls by layer
+MCControl *MCControlPreviousByLayer(MCControl *p_control);
+MCControl *MCControlNextByLayer(MCControl *p_control);
+
+////////////////////////////////////////////////////////////////////////////////
 
 #endif

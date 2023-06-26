@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,18 +21,17 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define	KEYWORDS_H
 
 #include "statemnt.h"
+#include "express.h"
 
 class MCScriptPoint;
-class MCExecPoint;
 class MCExpression;
 
 class MCGlobal : public MCStatement
 {
 public:
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &)
-	{
-		return ES_NORMAL;
+    virtual void exec_ctxt(MCExecContext &ctxt)
+    {
 	}
 	virtual uint4 linecount()
 	{
@@ -46,9 +45,8 @@ protected:
 	Boolean constant;
 public:
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &)
-	{
-		return ES_NORMAL;
+    virtual void exec_ctxt(MCExecContext &ctxt)
+    {
 	}
 	virtual uint4 linecount()
 	{
@@ -88,7 +86,7 @@ public:
 	}
 	~MCIf();
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext &ctxt);
 	virtual uint4 linecount();
 };
 
@@ -106,7 +104,7 @@ public:
 	MCRepeat();
 	~MCRepeat();
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
 	virtual uint4 linecount();
 };
 
@@ -115,7 +113,7 @@ class MCExit : public MCStatement
 	Exec_stat exit;
 public:
 	virtual Parse_stat parse(MCScriptPoint &sp);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
 	virtual uint4 linecount();
 };
 
@@ -123,7 +121,7 @@ class MCNext : public MCStatement
 {
 public:
 	virtual Parse_stat parse(MCScriptPoint &sp);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
 	virtual uint4 linecount();
 };
 
@@ -136,14 +134,14 @@ public:
 		all = False;
 	}
 	virtual Parse_stat parse(MCScriptPoint &sp);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
 	virtual uint4 linecount();
 };
 
 class MCBreak : public MCStatement
 {
 public:
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
 	virtual uint4 linecount();
 };
 
@@ -167,7 +165,7 @@ public:
 	}
 	~MCSwitch();
 	virtual Parse_stat parse(MCScriptPoint &sp);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext &);
 	virtual uint4 linecount();
 };
 
@@ -181,7 +179,7 @@ public:
 	}
 	~MCThrowKeyword();
 	virtual Parse_stat parse(MCScriptPoint &sp);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext &);
 	virtual uint4 linecount();
 };
 
@@ -199,7 +197,54 @@ public:
 	}
 	~MCTry();
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
 	virtual uint4 linecount();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class MCHandref
+{
+    MCNewAutoNameRef name;
+    MCParameter *params;
+    MCHandler *handler;
+    struct
+    {
+        unsigned container_count : 16;
+        bool resolved : 1;
+        bool global_handler : 1;
+    };
+
+public:
+    MCHandref(MCNameRef name);
+    ~MCHandref(void);
+    
+    MCParameter** getparams(void) { return &params; }
+    
+    void parse(void);
+    void exec(MCExecContext& ctxt, uint2 line, uint2 pos, bool is_function);
+};
+
+class MCComref : public MCStatement
+{
+    MCHandref command;
+public:
+    MCComref(MCNameRef n);
+    virtual ~MCComref();
+    virtual Parse_stat parse(MCScriptPoint &);
+    virtual void exec_ctxt(MCExecContext&);
+};
+
+class MCFuncref : public MCExpression
+{
+    MCHandref function;
+public:
+    MCFuncref(MCNameRef);
+    virtual ~MCFuncref();
+    virtual Parse_stat parse(MCScriptPoint &, Boolean the);
+    void eval_ctxt(MCExecContext& ctxt, MCExecValue& r_value);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #endif

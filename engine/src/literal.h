@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -24,38 +24,19 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 class MCLiteral : public MCExpression
 {
-	MCNameRef value;
+	MCValueRef value;
 public:
-	MCLiteral(MCNameRef v)
+	MCLiteral(MCValueRef v)
 	{
-		/* UNCHECKED */ MCNameClone(v, value);
+		/* UNCHECKED */ value = MCValueRetain(v);
 	}
 	~MCLiteral(void)
 	{
-		MCNameDelete(value);
+		MCValueRelease(value);
 	}
 
-	virtual Parse_stat parse(MCScriptPoint &, Boolean the);
-	virtual Exec_stat eval(MCExecPoint &);
-};
-
-class MCLiteralNumber : public MCExpression
-{
-	MCNameRef value;
-	double nvalue;
-public:
-	MCLiteralNumber(MCNameRef v, double n)
-	{
-		/* UNCHECKED */ MCNameClone(v, value);
-		nvalue = n;
-	}
-	~MCLiteralNumber(void)
-	{
-		MCNameDelete(value);
-	}
-
-	virtual Parse_stat parse(MCScriptPoint &, Boolean the);
-	virtual Exec_stat eval(MCExecPoint &);
+    virtual Parse_stat parse(MCScriptPoint &, Boolean the);
+    virtual void eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value);
 };
 
 #endif

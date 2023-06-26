@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -31,7 +31,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "context.h"
 
-#include "core.h"
+#include "imageloader.h"
 
 #include "gif_lib.h"
 
@@ -66,13 +66,13 @@ void MCImage::setframe(int32_t p_newframe)
 	currentframe = p_newframe;
 
 	notifyneeds(false);
-	
+
 	// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 	// MW-2011-11-15: [[ Bug 9863 ]] Only invalidate the whole object if it has an
 	//   owner!
-	if (parent != nil)
+	if (parent)
 		layer_redrawall();
-}
+	}
 
 void MCImage::advanceframe()
 {
@@ -134,31 +134,31 @@ static void gif_draw_image_into_canvas(MCImageBitmap *p_canvas, GifByteType *p_r
 	for(int32_t y = 0; y < p_height; y++)
 	{
 		for(int32_t x = 0; x < p_width; x++)
-		{
+{
 			uint8_t t_color;
 			t_color = t_src_ptr[x];
-			
+
 			if (t_overlay && t_color == p_transparency)
 				continue;
 				
 			uint32_t t_pixel;
 			if (t_color < p_colors -> ColorCount)
-			{
+	{
 				if (t_color != p_transparency)
 					t_pixel = gif_color_to_pixel(p_colors -> Colors[t_color]);
 				else
 					t_pixel = 0;
-			}
+		}
 			else
 				t_pixel = 0;
-				
+
 			t_dst_ptr[x] = t_pixel;
 		}
-		
+
 		t_dst_ptr += p_canvas -> stride / 4;
 		t_src_ptr += p_width;
 	}
-}
+	}
 
 void gif_fill_image_region(MCImageBitmap *p_bitmap, MCRectangle &p_region, uindex_t p_pixel)
 {
@@ -173,13 +173,13 @@ void gif_fill_image_region(MCImageBitmap *p_bitmap, MCRectangle &p_region, uinde
 
 	uint8_t *t_dst_ptr = (uint8_t*)p_bitmap->data + t_top * p_bitmap->stride + t_left * sizeof(uint32_t);
 	for (uindex_t y = t_top; y < t_bottom; y++)
-	{
+{
 		uint32_t *t_dst_row = (uint32_t*)t_dst_ptr;
 		for (uindex_t x = t_left; x < t_right; x++)
 			*t_dst_row++ = p_pixel;
 		t_dst_ptr += p_bitmap->stride;
 	}
-}
+	}
 
 static void gif_paste_image(MCImageBitmap *p_dst, MCImageBitmap *p_src, int32_t p_x_offset, int32_t p_y_offset)
 {
@@ -197,7 +197,7 @@ static void gif_paste_image(MCImageBitmap *p_dst, MCImageBitmap *p_src, int32_t 
 		t_src_ptr += p_src->stride;
 		t_dst_ptr += p_dst->stride;
 	}
-}
+		}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,47 +205,110 @@ int gif_readFunc(GifFileType *p_gif, GifByteType *p_buffer, int p_byte_count)
 {
 	IO_handle t_stream = (IO_handle)p_gif->UserData;
 	uindex_t t_byte_count = p_byte_count;
-	/* UNCHECKED */	MCS_read(p_buffer, sizeof(GifByteType), t_byte_count, t_stream);
+	/* UNCHECKED */	MCS_readfixed(p_buffer, t_byte_count, t_stream);
 	return t_byte_count;
 }
 
-bool MCImageDecodeGIF(IO_handle p_stream, MCImageFrame *&r_frames, uindex_t &r_frame_count)
+////////////////////////////////////////////////////////////////////////////////
+
+class MCGIFImageLoader : public MCImageLoader
 {
-	bool t_success = true;
+public:
+	MCGIFImageLoader(IO_handle p_stream);
+	virtual ~MCGIFImageLoader();
+	
+	virtual MCImageLoaderFormat GetFormat() { return kMCImageFormatGIF; }
+	
+	virtual bool GetFrameCount(uint32_t &r_count);
+	
+protected:
+	virtual bool LoadHeader(uint32_t &r_width, uint32_t &r_height, uint32_t &r_xhot, uint32_t &r_yhot, MCStringRef &r_name, uint32_t &r_frame_count, MCImageMetadata &r_metadata);
+	virtual bool LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count);
+	
+private:
+	GifFileType *m_gif;
+	int m_error;
+};
 
-	GifFileType *t_gif = nil;
-	int t_err = 0;
+MCGIFImageLoader::MCGIFImageLoader(IO_handle p_stream) : MCImageLoader(p_stream)
+{
+	m_gif = nil;
+	m_error = 0;
+}
 
-	MCImageBitmap *t_canvas = nil;
+MCGIFImageLoader::~MCGIFImageLoader()
+{
+	if (m_gif != nil)
+	{
+		int t_error_code;
+		DGifCloseFile(m_gif, &t_error_code);
+		m_gif = nil;
+	}
+}
 
+// IM-2014-08-25: [[ Bug 13273 ]] We don't have the frame count until the image is fully
+// loaded, so override this method to call EnsureFrames() to force frame loading.
+bool MCGIFImageLoader::GetFrameCount(uint32_t &r_count)
+{
+	if (!EnsureFrames())
+		return false;
+	
+	return MCImageLoader::GetFrameCount(r_count);
+}
+
+bool MCGIFImageLoader::LoadHeader(uint32_t &r_width, uint32_t &r_height, uint32_t &r_xhot, uint32_t &r_yhot, MCStringRef &r_name, uint32_t &r_frame_count, MCImageMetadata &r_metadata)
+{
+	bool t_success;
+	t_success = true;
+	
+	if (t_success)
+		t_success = nil != (m_gif = DGifOpen(GetStream(), gif_readFunc, &m_error));
+	
+	if (t_success)
+	{
+		r_width = m_gif->SWidth;
+		r_height = m_gif->SHeight;
+		
+		r_xhot = r_yhot = 0;
+		r_name = MCValueRetain(kMCEmptyString);
+		r_frame_count = m_gif->ImageCount;
+	}
+	
+	return t_success;
+}
+
+bool MCGIFImageLoader::LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count)
+{
+	bool t_success;
+	t_success = true;
+	
+	MCImageBitmap *t_canvas;
+	t_canvas = nil;
+	
 	// restoration info
 	MCImageBitmap *t_restore_image = nil;
 	int t_disposal_mode = DISPOSAL_UNSPECIFIED;
-	MCRectangle t_disposal_region;
+	MCRectangle t_disposal_region = kMCEmptyRectangle;
 
 	// The list of frames.
-	MCImageFrame *t_frames = nil;
+	MCBitmapFrame *t_frames = nil;
 
-	if (nil == (t_gif = DGifOpen(p_stream, gif_readFunc, &t_err)))
-		return false;
-
-	t_success = GIF_OK == DGifSlurp(t_gif);
+	t_success = GIF_OK == DGifSlurp(m_gif);
 
 	// Fetch the width and height of the virtual canvas.
 	int32_t t_width, t_height;
 
 	if (t_success)
 	{
-		t_width = t_gif -> SWidth;
-		t_height = t_gif -> SHeight;
+		t_width = m_gif -> SWidth;
+		t_height = m_gif -> SHeight;
 
 		// create the canvas image
 		t_success = MCImageBitmapCreate(t_width, t_height, t_canvas);
 	}
 
-	// The current frame count. The number of frames is not the same as the
-	// number of images in the GIF as an image with delay 0 is composited with
-	// all previous ones with delay 0 to build a single frame.
+	// The current frame count. The number of frames is the same as the
+	// number of images in the GIF.
 	uint32_t t_frame_count;
 	t_frame_count = 0;
 	
@@ -255,7 +318,7 @@ bool MCImageDecodeGIF(IO_handle p_stream, MCImageFrame *&r_frames, uindex_t &r_f
 	t_overlay = false;
 	
 	// Loop through all the images, making frames as we go.
-	for(uindex_t i = 0; t_success && i < t_gif -> ImageCount; i++)
+	for(uindex_t i = 0; t_success && i < m_gif -> ImageCount; i++)
 	{
 		// Process the disposal.
 		switch (t_disposal_mode)
@@ -286,19 +349,19 @@ bool MCImageDecodeGIF(IO_handle p_stream, MCImageFrame *&r_frames, uindex_t &r_f
 		int32_t t_image_delay;
 		int32_t t_image_disposal;
 		GifByteType *t_image_raster;
-		
+
 		// First the information from the image description.
-		t_image_region.x = t_gif -> SavedImages[i] . ImageDesc . Left;
-		t_image_region.y = t_gif -> SavedImages[i] . ImageDesc . Top;
-		t_image_region.width = t_gif -> SavedImages[i] . ImageDesc . Width;
-		t_image_region.height = t_gif -> SavedImages[i] . ImageDesc . Height;
-		t_image_colors = t_gif -> SavedImages[i] . ImageDesc . ColorMap;
-		t_image_raster = t_gif -> SavedImages[i] . RasterBits;
+		t_image_region.x = m_gif -> SavedImages[i] . ImageDesc . Left;
+		t_image_region.y = m_gif -> SavedImages[i] . ImageDesc . Top;
+		t_image_region.width = m_gif -> SavedImages[i] . ImageDesc . Width;
+		t_image_region.height = m_gif -> SavedImages[i] . ImageDesc . Height;
+		t_image_colors = m_gif -> SavedImages[i] . ImageDesc . ColorMap;
+		t_image_raster = m_gif -> SavedImages[i] . RasterBits;
 		if (t_image_colors == nil)
-			t_image_colors = t_gif -> SColorMap;
+			t_image_colors = m_gif -> SColorMap;
 		
 		// Then the information from the GCB.
-		if (GIF_OK == DGifSavedExtensionToGCB(t_gif, i, &t_image_gcb))
+		if (GIF_OK == DGifSavedExtensionToGCB(m_gif, i, &t_image_gcb))
 		{
 			t_image_transparency = t_image_gcb . TransparentColor;
 			t_image_delay = t_image_gcb . DelayTime;
@@ -309,12 +372,12 @@ bool MCImageDecodeGIF(IO_handle p_stream, MCImageFrame *&r_frames, uindex_t &r_f
 			t_image_transparency = -1;
 			t_image_delay = 0;
 			t_image_disposal = DISPOSAL_UNSPECIFIED;
-		}
-		
+			}
+			
 		// If disposal is 'previous' then cache the portion of the canvas we are
 		// about to affect.
 		if (t_image_disposal == DISPOSE_PREVIOUS)
-		{
+			{
 			if (t_restore_image != nil)
 			{
 				if (t_disposal_mode != DISPOSE_PREVIOUS ||
@@ -348,7 +411,7 @@ bool MCImageDecodeGIF(IO_handle p_stream, MCImageFrame *&r_frames, uindex_t &r_f
 			MCImageBitmapCheckTransparency(t_frame_bitmap);
 			t_frames[t_frame_count - 1].image = t_frame_bitmap;
 			t_frames[t_frame_count - 1].duration = t_image_delay * 10; // convert 1/100 seconds to milliseconds
-			t_frames[t_frame_count - 1].density = 1.0;
+			t_frames[t_frame_count - 1].x_scale = t_frames[t_frame_count - 1].y_scale = 1.0;
 		}
 
 		t_disposal_region = t_image_region;
@@ -358,21 +421,28 @@ bool MCImageDecodeGIF(IO_handle p_stream, MCImageFrame *&r_frames, uindex_t &r_f
 	MCImageFreeBitmap(t_canvas);
 	MCImageFreeBitmap(t_restore_image);
 	
-	if (GIF_OK != DGifCloseFile(t_gif))
-	{
-		MCMemoryDeallocate(t_gif);
-		t_success = false;
-	}
-	
 	if (t_success)
 	{
 		r_frames = t_frames;
-		r_frame_count = t_frame_count;
+		r_count = t_frame_count;
 	}
 	else
 		MCImageFreeFrames(t_frames, t_frame_count);
 
 	return t_success;
+}
+
+bool MCImageLoaderCreateForGIFStream(IO_handle p_stream, MCImageLoader *&r_loader)
+{
+	MCGIFImageLoader *t_loader;
+	t_loader = new (nothrow) MCGIFImageLoader(p_stream);
+	
+	if (t_loader == nil)
+		return false;
+	
+	r_loader = t_loader;
+	
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -408,8 +478,7 @@ bool MCImageEncodeGIF(MCImageIndexedBitmap *p_indexed, IO_handle p_stream, uinde
 	int t_err = 0;
 	GifFileType *t_gif = nil;
 	ColorMapObject *t_colormap = nil;
-	GifColorType *t_gifcolors = nil;
-
+	
 	MCGIFWriteContext t_context;
 	t_context.stream = p_stream;
 	t_context.byte_count = 0;
@@ -471,11 +540,9 @@ bool MCImageEncodeGIF(MCImageIndexedBitmap *p_indexed, IO_handle p_stream, uinde
 	for (uindex_t y = 0; t_success && y < p_indexed->height; y++)
 		t_success = GIF_OK == EGifPutLine(t_gif, (uint8_t*)p_indexed->data + y * p_indexed->stride, p_indexed->width);
 
-	if (GIF_ERROR == EGifCloseFile(t_gif))
-	{
+	int t_error_code;
+	if (GIF_ERROR == EGifCloseFile(t_gif, &t_error_code))
 		t_success = false;
-		MCMemoryDeallocate(t_gif);
-	}
 
 	GifFreeMapObject(t_colormap);
 

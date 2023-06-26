@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -52,7 +52,7 @@ extern bool g_engine_manipulating_container;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@interface EffectDelegate : NSObject
+@interface com_runrev_livecode_MCEffectDelegate : NSObject
 {
 	BOOL m_finished;
 }
@@ -63,7 +63,7 @@ extern bool g_engine_manipulating_container;
 - (void) blockAnimationDidStop: (NSString *)animationID finished: (NSNumber *)finished context: (void*)context;
 @end
 
-@implementation EffectDelegate
+@implementation com_runrev_livecode_MCEffectDelegate
 - (void) animationDidStart: (CAAnimation *)theAnimation
 {
 }
@@ -267,17 +267,23 @@ void layer_animation_changes(UIView *p_new_view, UIView *p_old_view, uint32_t p_
 //    push     (Push)
 //    reveal   (Reveal)
 
-extern bool MCGImageToCGImage(MCGImageRef p_src, MCGRectangle p_src_rect, bool p_copy, bool p_invert, CGImageRef &r_image);
+extern bool MCGImageToCGImage(MCGImageRef p_src, const MCGIntegerRectangle &p_src_rect, bool p_invert, CGImageRef &r_image);
 
 // IM-2013-07-18: [[ ResIndependence ]] added scale parameter to support hi-res images
 static bool MCGImageToUIImage(MCGImageRef p_image, bool p_copy, MCGFloat p_scale, UIImage *&r_uiimage)
 {
+   if (p_image == nil)
+    {
+        r_uiimage = nil;
+        return false;
+    }
+    
 	bool t_success = true;
 	
 	CGImageRef t_cg_image = nil;
 	UIImage *t_image = nil;
 	
-	t_success = MCGImageToCGImage(p_image, MCGRectangleMake(0, 0, MCGImageGetWidth(p_image), MCGImageGetHeight(p_image)), p_copy, false, t_cg_image);
+	t_success = MCGImageToCGImage(p_image, MCGIntegerRectangleMake(0, 0, MCGImageGetWidth(p_image), MCGImageGetHeight(p_image)), false, t_cg_image);
 	
 	if (t_success)
 		t_success = nil != (t_image = [UIImage imageWithCGImage:t_cg_image scale:p_scale orientation:/*0.0*/UIImageOrientationUp]);
@@ -305,7 +311,7 @@ struct effectrect_t
 	UIView *main_view;
 	UIView *composite_view;
 	UIView *background_view;
-	EffectDelegate *effect_delegate;
+	com_runrev_livecode_MCEffectDelegate *effect_delegate;
 	real8 duration;
 	UIViewAnimationTransition transition;
 };
@@ -356,7 +362,7 @@ static void effectrect_phase_2(void *p_context)
 	
 	ctxt -> duration = MCU_max(1, MCeffectrate / (ctxt -> effect->speed - VE_VERY)) / 1000.0;
 	
-	ctxt -> effect_delegate = [[EffectDelegate alloc] init];
+	ctxt -> effect_delegate = [[com_runrev_livecode_MCEffectDelegate alloc] init];
 	[ctxt -> effect_delegate setFinished:NO];
 	
 	ctxt -> composite_view = [ctxt -> main_view superview];
@@ -498,9 +504,11 @@ static void effectrect_phase_3(void *p_context)
 	}
 	
 	// MW-2011-01-05: Add support for 'sound'.
-	extern bool MCSystemPlaySound(const char *, bool);
+	extern bool MCSystemPlaySound(MCStringRef, bool);
 	if (ctxt -> effect -> sound != nil)
-		MCSystemPlaySound(ctxt -> effect -> sound, false);
+	{
+		MCSystemPlaySound(ctxt->effect->sound, false);
+	}
 }
 
 static void effectrect_phase_4(void *p_context)

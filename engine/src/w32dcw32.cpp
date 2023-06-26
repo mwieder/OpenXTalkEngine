@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,8 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
+#include "w32dsk-legacy.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -28,7 +29,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "stacklst.h"
 #include "sellst.h"
 #include "util.h"
-#include "execpt.h"
+
 #include "debug.h"
 #include "param.h"
 #include "osspec.h"
@@ -56,7 +57,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define WM_MOUSEHWHEEL                  0x020E
 #endif
 
-#define MSH_MOUSEWHEEL "MSWHEEL_ROLLMSG"
+#define MSH_MOUSEWHEEL L"MSWHEEL_ROLLMSG"
 static UINT mousewheel;
 
 #ifndef WM_THEMECHANGED
@@ -127,23 +128,33 @@ static uint2 shift_keysyms[] =
 		/* 0xD8 */ 0x0000, 0x0000, 0x0000, 0x007B, 0x007C, 0x007D, 0x0022
     };
 
-static bool build_pick_string(MCExecPoint& p_ep, HMENU p_menu, UINT32 p_command);
-
 void MCScreenDC::appendevent(MCEventnode *tptr)
 {
 	tptr->appendto(pendingevents);
 }
 
-void CALLBACK mouseproc(UINT id, UINT msg, DWORD user, DWORD dw1, DWORD dw2)
+void CALLBACK mouseproc(UINT id, UINT msg, DWORD_PTR user, DWORD_PTR dw1, DWORD_PTR dw2)
 {
 	MCScreenDC *pms = (MCScreenDC *)MCscreen;
 	pms->setmousetimer(0);
 	PostMessageA(pms->getinvisiblewindow(), WM_APP, 0, 0);
 }
 
+// SN-2014-09-10: [[ Bug 13348 ]] We need to know what was intended (key down or key up)
+// when WM_[SYS|IME_]CHAR is triggered (it seems like WM_KEYUP events are only translated 
+// to WM_CHAR when the key is kept pressed).
+enum KeyMove
+{
+	KM_KEY_DOWN,
+	KM_KEY_UP,
+	KM_NO_KEY_MOVE
+};
+
 typedef struct
 {
 	Boolean dispatch, abort, reset, handled, live;
+	// SN-2014-09-10: [[ Bug 13348 ]] KeyMove added to the stateinfo of the event
+	KeyMove keymove;
 	KeySym keysym;
 }
 stateinfo;
@@ -165,19 +176,53 @@ enum ks {
 
 KeySym MCScreenDC::getkeysym(WPARAM wParam, LPARAM lParam)
 {
+	// Behaviour:
+	//	If no control keys accumulated and this is a left Ctrl, then add LCTRL
+	//	Else, if accumulated an LCTRL and receive a right Alt, switch to RALT
+	//	Else, if accumulated a RALT or ALTGR, switch to ALTGR
+	//  Else, clear accumulated keys.
+	//
+	//  If accumulated an ALTGR and modifier state holds Ctrl+Alt, clear Ctrl-Alt
+	//	Else, clear an accumulated ALTGR
+	//
+	// So, what this is doing is:
+	//	All control keys are passed unmodified, except:
+	//		Right Alt has special behaviour after Left Ctrl: act as AltGr on subsequent keys
+
 	static int curks;
-	if (curks == KS_UNDEFINED && lParam == 0x001d0001)
+	if (curks == KS_UNDEFINED && wParam == VK_CONTROL && !(lParam & 0x01000000))
 		curks = KS_LCTRL;
 	else
-		if (curks == KS_LCTRL && lParam == 0x21380001)
+	{
+		if (curks == KS_LCTRL && wParam == VK_MENU && (lParam == 0x01000000))
 			curks = KS_RALT;
 		else
+		{
 			if (curks == KS_RALT || curks == KS_ALTGR)
 				curks = KS_ALTGR;
 			else
 				curks = KS_UNDEFINED;
-	uint2 keysym;
-	setmods();
+		}
+	}
+	KeySym keysym;
+
+	// We need to update the modifier state here. If the current event being
+	// processed is not live then we must rely on the state of MCmodifierstate
+	// as it is. Otherwise, we must fetch the synchronous key state.
+	if (curinfo -> live)
+	{
+		uint2 t_state = 0;
+		if (GetKeyState(VK_CONTROL) & 0x8000)
+			t_state |= MS_CONTROL;
+		if (GetKeyState(VK_MENU) & 0x8000)
+			t_state |= MS_MOD1;
+		if (GetKeyState(VK_SHIFT) & 0x8000)
+			t_state |= MS_SHIFT;
+		if (GetKeyState(VK_CAPITAL) & 0x0001)
+			t_state |= MS_CAPS_LOCK;
+		MCmodifierstate = t_state;
+	}
+
 	if (curks == KS_ALTGR)
 		if (MCmodifierstate & MS_CONTROL && MCmodifierstate & MS_MOD1)
 			MCmodifierstate &= ~(MS_CONTROL| MS_MOD1);
@@ -195,14 +240,20 @@ KeySym MCScreenDC::getkeysym(WPARAM wParam, LPARAM lParam)
 	return keysym;
 }
 
-void MCScreenDC::getkeysdown(MCExecPoint &ep)
+bool MCScreenDC::getkeysdown(MCListRef& r_list)
 {
+	MCAutoListRef t_list;
+	if (!MCListCreateMutable(',', &t_list))
+		return false;
+
 	BYTE keystates[256];
-	ep.clear();
 	if (GetKeyboardState((PBYTE)&keystates) == 0) // should use an async function?
-		return;
+	{
+		r_list = MCValueRetain(kMCEmptyList);
+		return true;
+	}
+
 	MCmodifierstate = querymods();
-	bool first = true;
 	KeySym ksym;
 	uint2 i;
 	for (i = 0; i < 256; i++)
@@ -218,12 +269,11 @@ void MCScreenDC::getkeysdown(MCExecPoint &ep)
 					ksym = keysyms[i];
 			}
 			if (ksym > 0)
-			{
-				ep.concatuint(ksym, EC_COMMA, first);
-				first = false;
-			}
+				if (!MCListAppendInteger(*t_list, ksym))
+					return false;
 		}
 	}
+	return MCListCopy(*t_list, r_list);
 }
 
 extern HANDLE g_notify_wakeup;
@@ -237,69 +287,77 @@ Boolean MCScreenDC::handle(real8 sleep, Boolean dispatch, Boolean anyevent,
 	curinfo->handled = False;
 	curinfo->keysym = 0;
 	curinfo->live = True;
+	// SN-2014-09-10: [[ Bug 13348 ]] No key move by default
+	curinfo->keymove = KM_NO_KEY_MOVE;
 	if (mousewheel == 0)
-		mousewheel = RegisterWindowMessageA(MSH_MOUSEWHEEL);
+		mousewheel = RegisterWindowMessageW(MSH_MOUSEWHEEL);
 	if (dispatch && pendingevents != NULL
-	        || PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)
+	        || PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)
 	        || sleep != 0
 	        && MsgWaitForMultipleObjects(1, &g_notify_wakeup, False,
 	                                     (DWORD)(sleep * 1000.0), QS_ALLINPUT)
-	        != WAIT_TIMEOUT && PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
+	        != WAIT_TIMEOUT && PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
 	{
 		if (dispatch && pendingevents != NULL)
 		{
+			MCEventnode *tptr = pendingevents->remove(pendingevents);;
 			curinfo->live = False;
-			MCEventnode *tptr = (MCEventnode *)pendingevents->remove
-			                    (pendingevents);
 			MCmodifierstate = tptr->modifier;
-			MCeventtime = tptr->time;
-			curinfo->keysym = tptr->keysym;
-			MCWindowProc(tptr->hwnd, tptr->msg, tptr->wParam, tptr->lParam);
+			msg.hwnd = tptr->hwnd;
+			msg.message = tptr->msg;
+			msg.wParam = tptr->wParam;
+			msg.lParam = tptr->lParam;
+			msg.pt.x = msg.pt.y = 0;
+            msg.time = tptr->time;
 			delete tptr;
 		}
-		else
-		{
-			Boolean dodispatch = True;
-			if (dodispatch)
-			{
-				curinfo->live = True;
-				MCeventtime = msg.time;
-				if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN
-				        || msg.message == WM_KEYUP || msg.message == WM_SYSKEYUP)
-					curinfo->keysym = getkeysym(msg.wParam, msg.lParam);
-				TranslateMessage(&msg);
 
-				bool t_char_found;
-				if ((MCruntimebehaviour & RTB_ACCURATE_UNICODE_INPUT) != 0)
-					t_char_found = PeekMessageW(&tmsg, NULL, WM_CHAR, WM_CHAR, PM_REMOVE) ||
-				                 PeekMessageW(&tmsg, NULL, WM_SYSCHAR, WM_SYSCHAR, PM_REMOVE);
-				else
-					t_char_found = PeekMessageA(&tmsg, NULL, WM_CHAR, WM_CHAR, PM_REMOVE) ||
-				                 PeekMessageA(&tmsg, NULL, WM_SYSCHAR, WM_SYSCHAR, PM_REMOVE);
-				if (t_char_found)
-				{
-					_Drawable _dw;
-					Drawable dw = &_dw;
-					dw->type = DC_WINDOW;
-					dw->handle.window = (MCSysWindowHandle)msg.hwnd;
-					if (MCdispatcher->findstackd(dw) == NULL)
-					{
-						if ((MCruntimebehaviour & RTB_ACCURATE_UNICODE_INPUT) != 0)
-							DispatchMessageW(&msg);
-						else
-							DispatchMessageA(&msg);
-					}
-					memcpy(&msg, &tmsg, sizeof(MSG));
-				}
-				if ((MCruntimebehaviour & RTB_ACCURATE_UNICODE_INPUT) != 0)
-					DispatchMessageW(&msg);
-				else
-					DispatchMessageA(&msg);
+		bool t_keymessage, t_syskeymessage;
+		t_keymessage = msg.message == WM_KEYDOWN || msg.message == WM_KEYUP;
+		t_syskeymessage = msg.message == WM_SYSKEYDOWN || msg.message == WM_SYSKEYUP;
+
+		MCeventtime = msg.time;
+		if (t_keymessage || t_syskeymessage)
+			curinfo->keysym = getkeysym(msg.wParam, msg.lParam);
+				
+		// SN-2014-09-10: [[ Bug 13348 ]] Set the key move appropriately
+		if (msg.message == WM_KEYUP || msg.message == WM_SYSKEYUP)
+			curinfo->keymove = KM_KEY_UP;
+		else if (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN)
+			curinfo->keymove = KM_KEY_DOWN;
+
+		// IM-2016-01-11: [[ Bug 16415 ]] Always use DispatchMessage for non-stack windows		
+		bool t_foreign_window;
+		t_foreign_window = MCdispatcher->findstackwindowid((uintptr_t)msg.hwnd) == nil;
+		bool t_os_dispatch;
+		t_os_dispatch = !dispatch || t_foreign_window;
+
+		if (t_keymessage || t_syskeymessage)
+		{
+			// IM-2016-01-11: [[ Bug 16415 ]] Call TranslateMessage for any hwnd.
+			//    Only remove WM_(SYS)KEYDOWN for stack windows.
+			TranslateMessage(&msg);
+
+			// If the window receiving the key message is a stack window then we
+			// only want to see WM_CHAR and not WM_KEYDOWN. However, if it is a
+			// non-stack window (like CEF Browser's) we don't want to fiddle with
+			// the message flow.
+			if (!t_foreign_window)
+			{
+				// SN-2014-09-05: [[ Bug 13348 ]] Remove the WM_KEYDOWN, WM_SYSKEYDOWN messages
+				// in case TranslateMessage succeeded, and queued a WM_[SYS]CHAR message
+				if (t_keymessage)
+					PeekMessageW(&msg, NULL, WM_CHAR, WM_DEADCHAR, PM_REMOVE);				
+				else if (t_syskeymessage)
+					PeekMessageW(&msg, NULL, WM_SYSCHAR, WM_SYSDEADCHAR, PM_REMOVE);
 			}
 		}
+
+		if (t_os_dispatch)
+			DispatchMessageW(&msg);
+		else
+			MCWindowProc(msg.hwnd, msg.message, msg.wParam, msg.lParam);
 	}
-	if (MCrecording)
-		MCtemplateplayer->handlerecord();
 
 	abort = curinfo->abort;
 	reset = curinfo->reset;
@@ -312,9 +370,15 @@ static stateinfo dummycurinfo;
 static HWND capturehwnd;
 static uint2 lastdown;
 static Boolean doubledown;
-static char lastchar;
-static WPARAM lastwParam;
+// SN-2014-09-10: [[ Bug 13348 ]] We want to keep the last codepoint now, 
+// not the last char
+static uint32_t lastcodepoint;
 static KeySym lastkeysym;
+// SN-2014-09-12: [[ Bug 13423 ]] Keeps whether a the next char follows a dead char
+static Boolean deadcharfollower = False;
+// SN-2015-05-18: [[ Bug 15040 ]] Keep an indication if we are in an Alt+<number>
+//  sequence. We don't want to send any keyDown/Up message (same as dead chars).
+static Boolean isInAltPlusSequence = False;
 static Boolean doubleclick;
 Boolean tripleclick;
 static uint4 clicktime;
@@ -329,12 +393,9 @@ void MCScreenDC::restackwindows(HWND p_window, UINT p_message, WPARAM p_wparam, 
 {
 	WINDOWPOS *t_info;
 	MCStack *t_stack;
-	_Drawable t_drawable;
-	t_drawable . handle . window = (MCSysWindowHandle)p_window;
-	t_drawable . type = DC_WINDOW;
 
 	t_info = (WINDOWPOS *)p_lparam;
-	t_stack = MCdispatcher -> findstackd(&t_drawable);
+	t_stack = MCdispatcher -> findstackwindowid((uint32_t)p_window);
 
 	if (t_stack != NULL && t_stack -> getflag(F_DECORATIONS) && (t_stack -> getdecorations() & WD_UTILITY) != 0)
 		return;
@@ -476,7 +537,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 	t_mouseloc = MCPointMake(LOWORD(lParam), HIWORD(lParam));
 
 	// IM-2014-01-28: [[ HiDPI ]] Convert screen to logical coords
-	t_mouseloc = ((MCScreenDC*)MCscreen)->screentologicalpoint(t_mouseloc);
+	t_mouseloc = MCscreen->screentologicalpoint(t_mouseloc);
 
 	// MW-2005-02-20: Seed the SSL random number generator
 #ifdef MCSSL
@@ -503,30 +564,28 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 				MCParameter *t_first_parameter = NULL;
 				MCParameter *t_current_parameter = NULL;
 
-				extern char *strndup(const char *, unsigned int);
-				char *t_command_line = strndup((char *)t_data -> lpData, t_data -> cbData);
+				MCStringRef t_tempstr;
+				MCAutoStringRef t_cmdline;
+				/* UNCHECKED */ MCStringCreateWithBytes((const byte_t*)t_data -> lpData, t_data -> cbData, kMCStringEncodingUTF16, false, t_tempstr);
+				/* UNCHECKED */ MCStringMutableCopyAndRelease(t_tempstr, &t_cmdline);
+				/* UNCHECKED */ MCStringFindAndReplaceChar(*t_cmdline, '\\', '/', kMCStringOptionCompareExact);
 
-				char *sptr = t_command_line;
-				while(*sptr)
+				uindex_t sptr = 0;
+				unichar_t t_char;
+				while((t_char = MCStringGetCharAtIndex(*t_cmdline, sptr)) != '\0')
 				{
-					if (*sptr == '\\')
-						*sptr = '/';
-					sptr++;
-				}
-				sptr = t_command_line;
-				while(*sptr)
-				{
-					char *t_argument;
+					uindex_t t_argument;
 					int t_argument_length;
 
-					while (isspace(*sptr))
-						sptr++;
+					while (iswspace(t_char))
+						t_char = MCStringGetCharAtIndex(*t_cmdline, ++sptr);
 
 					t_argument_length = 0;
-					if (*sptr == '"')
+					if (t_char == '"')
 					{
 						t_argument = ++sptr;
-						while (*sptr && *sptr != '"')
+						while ((t_char = MCStringGetCharAtIndex(*t_cmdline, sptr)) != '\0'
+							&& t_char != '"')
 						{
 							sptr++;
 							t_argument_length += 1;
@@ -535,9 +594,10 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 					else
 					{
 						t_argument = sptr;
-						while(*sptr && !isspace(*sptr))
+						// SN-2014-11-19: [[ Bug 14058 ]] We consider the characters which are NOT a space
+						while (t_char != '\0' && !iswspace(t_char))
 						{
-							sptr++;
+							t_char = MCStringGetCharAtIndex(*t_cmdline, ++sptr);
 							t_argument_length += 1;
 						}
 					}
@@ -545,9 +605,10 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 					if (t_argument_length != 0)
 					{
 						MCParameter *t_parameter;
-						MCString t_param;
-						t_param . set(t_argument, t_argument_length);
-						t_parameter = new MCParameter(t_param);
+						MCAutoStringRef t_param;
+						/* UNCHECKED */ MCStringCopySubstring(*t_cmdline, MCRangeMake(t_argument, t_argument_length), &t_param);
+						t_parameter = new (nothrow) MCParameter;
+						t_parameter -> setvalueref_argument(*t_param);
 						if (t_first_parameter == NULL)
 							t_first_parameter = t_parameter;
 						else
@@ -555,18 +616,21 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 						t_current_parameter = t_parameter;
 					}
 
-					if (*sptr)
-						sptr++;
+					if (t_char != '\0')
+						t_char = MCStringGetCharAtIndex(*t_cmdline, ++sptr);
 				}
 
 				if (MCdispatcher -> gethome() -> message(MCM_relaunch, t_first_parameter, False, True) != ES_NORMAL)
 					t_result = 0;
 				else
 				{
-					MCExecPoint t_ep;
-					MCresult -> fetch(t_ep);
+                    MCExecContext ctxt(nil, nil, nil);
+                    MCAutoValueRef t_value;
+					/* UNCHECKED */ MCresult -> eval(ctxt, &t_value);
+                    MCAutoStringRef t_string;
+                    /* UNCHECKED */ ctxt . ConvertToString(*t_value, &t_string);
 					
-					if (t_ep . getsvalue() == "background")
+                    if (MCStringIsEqualToCString(*t_string, "background", kMCCompareCaseless))
 						t_result = (LRESULT)HWND_BOTTOM;
 					else
 						t_result = MCdefaultstackptr -> getwindow() == NULL ? (LRESULT)HWND_BOTTOM : (LRESULT)(MCdefaultstackptr -> getwindow() -> handle . window);
@@ -579,8 +643,6 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 					delete t_first_parameter;
 					t_first_parameter = t_next;
 				}
-
-				free(t_command_line);
 
 				MCresult -> clear();
 			}
@@ -631,7 +693,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		}
 		else
 		{
-			MCEventnode *tptr = new MCEventnode(hwnd, msg, wParam, lParam, 0,
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, 0,
 			                                    MCmodifierstate, MCeventtime);
 			pms->appendevent(tptr);
 		}
@@ -645,105 +707,174 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		}
 		else
 		{
-			MCEventnode *tptr = new MCEventnode(hwnd, msg, wParam, lParam, 0,
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, 0,
 			                                    MCmodifierstate, MCeventtime);
 			pms->appendevent(tptr);
 		}
 		break;
 
-	case WM_SYSKEYDOWN:
-	case WM_SYSCHAR:
+	// SN-2014-09-12: [[ Bug 13423 ]] The next character typed will follow a dead char. Sets the flag.
+	case WM_DEADCHAR:
+	case WM_SYSDEADCHAR:
+		deadcharfollower = true;
+		break;
+
 	case WM_CHAR:
+	case WM_SYSCHAR:
+	case WM_IME_CHAR:
+	{
+		// Don't bother processing if we're not dispatching
+		if (!curinfo->dispatch)
+		{
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, 0,
+			                                    MCmodifierstate, MCeventtime);
+			pms->appendevent(tptr);
+			break;
+		}
+		
+		// If the repeat count > 1 then we only process one event right now
+		// and push a pending event onto the queue for the rest. This means that
+		// 'flushEvents' can purge any repeated key messages.
+		if (LOWORD(lParam) > 1)
+		{
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, MAKELPARAM(LOWORD(lParam) - 1, HIWORD(lParam)), 0, MCmodifierstate, MCeventtime);
+			pms->appendevent(tptr);
+			lParam = MAKELPARAM(1, HIWORD(lParam));
+		}
+
+		// SN-2014-09-10: [[ Bug 13348 ]] The keysym is got as for the WM_KEYDOWN case
+		if (curinfo->keysym == 0) // event came from some other dispatch
+			// SN-2014-09-12: [[ Bug 13423 ]] If we are following a dead char, no conversion needed:
+			// the message is fired without passing by MCScreenDC::handle, that's why
+			// curinfo->keysym hasn't been set, and the typed char is in wParam
+			if (deadcharfollower)
+				keysym = wParam;
+			else
+				keysym = pms->getkeysym(wParam, lParam);
+		else
+			keysym = curinfo->keysym;
+
+		lastkeysym = keysym;
+		
+		// UTF-16 or ANSI character has been received
+		WCHAR t_char;
+		t_char = LOWORD(wParam);
+
+		MCAutoStringRef t_input;
+
+		// MW-2010-11-17: [[ Bug 3892 ]] Ctrl+Alt can be the same as AltGr.
+		//   If we have Ctrl+Alt set, we discard the modifiers
+		if ((MCmodifierstate & (MS_CONTROL | MS_ALT)) == (MS_CONTROL | MS_ALT))
+			MCmodifierstate = 0;
+
+		if (IsWindowUnicode(hwnd))
+		{
+			// Window is Unicode; received characters are UTF-16
+			/* UNCHECKED */ MCStringCreateWithChars((const unichar_t*)&t_char, 1, &t_input);
+		}
+		else if (msg == WM_IME_CHAR)
+		{
+			// The window isn't Unicode and the character came from an IME
+			// Translate the characters to UTF-16
+			unichar_t t_utf16[2] = {0, 0};
+			uindex_t t_len;
+			char multibytechar[3];
+			multibytechar[0] =  HIBYTE((WORD)wParam) ;
+			multibytechar[1] =  LOBYTE((WORD)wParam) ;
+			multibytechar[2] = '\0';
+			MCU_multibytetounicode(multibytechar, 2, (char *)&t_utf16, 4,
+				                     t_len,  MCS_langidtocharset(LOWORD(GetKeyboardLayout(0))));
+			/* UNCHECKED */ MCStringCreateWithChars(t_utf16, 2, &t_input);
+		}
+		else
+		{
+			// Window isn't Unicode and the character came from something that wasn't an IME
+			// Translate the characters to UTF-16
+			WCHAR t_utf16;
+			MultiByteToWideChar(pms->input_codepage, 0, (const char *)&t_char, 1, &t_utf16, 1);
+			/* UNCHECKED */ MCStringCreateWithChars((const unichar_t*)&t_utf16, 1, &t_input);
+		}
+
+		// Translate the input character into its corresponding keysym
+		// TODO: surrogate pairs?
+		codepoint_t t_codepoint = MCStringGetCodepointAtIndex(*t_input, 0);
+		// SN-2014-09-10: [[ Bug 13348 ]] Only add the codepoint if it is not a control char
+		if (iswcntrl(t_codepoint))
+			lastcodepoint = 0;
+		else	
+			lastcodepoint = t_codepoint;
+
+		KeySym t_keysym;
+
+		// No need to send control characters as text
+		if (iswcntrl(t_char))
+			t_keysym = keysym;
+		// SN-2014-09-18: [[ MERGE-6_7_RC_2 ]] We accept the whole extended ASCII table
+		else if (t_codepoint > 0xFF)
+		{
+			// This is a non-ASCII codepoint
+			t_keysym = t_codepoint | XK_Class_codepoint;
+		}
+		else
+		{
+			// The keysym is ASCII; send as a compat keysym
+			t_keysym = t_codepoint;
+		}
+
+		if (MCtracewindow == DNULL || hwnd != (HWND)MCtracewindow->handle.window)
+		{
+			// SN-2014-09-05: [[ Bug 13348 ]] Call the appropriate message
+			//	 [[ MERGE-6_7_RC_2 ]] and add the KeyDown/Up in case we follow
+			//   a dead-key started sequence
+			// SN-2015-05-18: [[ Bug 15040 ]] We must send the char resulting
+			//  from an Alt+<number> sequence.
+            // If the current event isn't live, then we cannot trust the keymove
+            // field, so we assume that we must process it.
+			if (!curinfo->live || curinfo->keymove == KM_KEY_DOWN || deadcharfollower || isInAltPlusSequence)
+			{
+				// Pressing Alt starts a number-typing sequence.
+				//  Otherwise, we are not in such a sequence - be it because a normal
+				//  char has been typed, or because the sequence is terminated.
+				isInAltPlusSequence = (MCmodifierstate == MS_ALT);
+
+				// We don't want to send any Key message for the "+" pressed
+				//  to start the Alt+<number> sequence
+				if (isInAltPlusSequence
+						|| (!MCdispatcher->wkdown(dw, *t_input, t_keysym)
+							&& msg == WM_SYSCHAR))
+					return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
+			}
+				
+			if (curinfo->keymove == KM_KEY_UP || deadcharfollower)
+  				MCdispatcher->wkup(dw, *t_input, t_keysym);
+
+			curinfo->handled = curinfo->reset = true;
+		}
+
+		// SN-2015-05-18: [[ Bug 15040 ]] Make sure that it can't let be set to True
+		isInAltPlusSequence = False;
+
+		break;
+	}
+
 	case WM_KEYDOWN:
+	case WM_SYSKEYDOWN:
 	{
 		if (wParam == VK_CONTROL)
 			break;
 
-		char t_input_char;
-		t_input_char = (char)wParam;
-
-		if (IsWindowUnicode(hwnd))
-		{
-			if (wParam >= 128)
-			{
-				bool t_is_unicode;
-				WCHAR t_wide[1];
-			
-				// MW-2012-07-25: [[ Bug 9200 ]] Make sure we roundtrip the input character
-				//   through 1252 *not* the active code page (which could be anything).
-				t_wide[0] = (WCHAR)wParam;
-				t_is_unicode = (WideCharToMultiByte(1252, 0, t_wide, 1, &t_input_char, 1, NULL, NULL) == 0);
-				if (!t_is_unicode)
-				{
-					WCHAR t_reverse_wide[1];
-					t_is_unicode = MultiByteToWideChar(1252, 0, &t_input_char, 1, t_reverse_wide, 1) == 0;
-					if (!t_is_unicode)
-						t_is_unicode = t_reverse_wide[0] != t_wide[0];
-				}
-
-				if (t_is_unicode && (msg == WM_CHAR || msg == WM_SYSCHAR))
-				{
-					if (MCactivefield)
-					{
-						MCString t_unicode_string;
-						t_unicode_string . set((char *)t_wide, 2);
-
-						// MW-2012-02-03: [[ Unicode Block ]] Use the new finsert method to insert
-						//   text in unicode mode.
-						MCactivefield -> finsertnew(FT_IMEINSERT, t_unicode_string, LCH_UNICODE, true);
-					}
-					break;
-				}
-			}
-		}
-		else if (wParam >= 128 && (((MCScreenDC *)MCscreen) -> system_codepage) != (((MCScreenDC *)MCscreen) -> input_codepage))
-		{
-			WCHAR t_unicode_char;
-			MultiByteToWideChar((((MCScreenDC *)MCscreen) -> input_codepage), 0, &t_input_char, 1, &t_unicode_char, 1);
-
-			bool t_is_unicode;
-			t_is_unicode = (WideCharToMultiByte((((MCScreenDC *)MCscreen) -> system_codepage), 0, &t_unicode_char, 1, &t_input_char, 1, NULL, NULL) == 0);
-			if (!t_is_unicode)
-			{
-				WCHAR t_reverse_unicode_char;
-				t_is_unicode = MultiByteToWideChar((((MCScreenDC *)MCscreen) -> system_codepage), 0, &t_input_char, 1, &t_reverse_unicode_char, 1) == 0;
-				if (!t_is_unicode)
-					t_is_unicode = t_reverse_unicode_char != t_unicode_char;
-			}
-
-			if (t_is_unicode)
-			{
-				if (MCactivefield)
-				{
-					MCString t_unicode_string;
-					t_unicode_string . set((char *)&t_unicode_char, 2);
-
-					// MW-2012-02-03: [[ Unicode Block ]] Use the new finsert method to insert
-					//   text in unicode mode.
-					MCactivefield -> finsertnew(FT_IMEINSERT, t_unicode_string, LCH_UNICODE, true);
-				}
-				break;
-			}
-		}
-
-		if (msg == WM_CHAR || msg == WM_SYSCHAR)
-			wParam = t_input_char;
-
-		buffer[0] = buffer[1] = 0;
-
-		if (msg == WM_CHAR || msg == WM_SYSCHAR)
-			buffer[0] = lastchar = wParam;
-
-		// MW-2010-11-17: [[ Bug 3892 ]] Ctrl+Alt can be the same as AltGr.
-		//   If we are a CHAR message *and* have a non-control character *and* have Ctrl+Alt set, we discard the modifiers
-		if ((msg == WM_CHAR || msg == WM_SYSCHAR) && wParam >= 32 && (MCmodifierstate & (MS_CONTROL | MS_ALT)) == (MS_CONTROL | MS_ALT))
-			MCmodifierstate = 0;
-
+		// Did the event come via MCScreenDC::handle?
 		if (curinfo->keysym == 0) // event came from some other dispatch
 			keysym = pms->getkeysym(wParam, lParam);
 		else
 			keysym = curinfo->keysym;
+
+		// SN-2014-09-18: [[ MERGE-6_7_RC_2 ]] Reaching here means that any
+		// dead-key sequence is aborted. Reset the flag and the codepoint
+		deadcharfollower = False;
 		lastkeysym = keysym;
+		lastcodepoint = 0;
+
 		if (MCmodifierstate & MS_CONTROL)
 			if (wParam == VK_CANCEL || keysym == '.')
 			{
@@ -752,57 +883,102 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 				else
 					MCinterrupt = True;
 			}
-			else
-				if (msg == WM_KEYDOWN)
-					buffer[0] = lastchar = wParam;
+
 		if (curinfo->dispatch)
 		{
-			if (MCtracewindow == DNULL || hwnd != (HWND)MCtracewindow->handle.window)
+			// SN-2015-05-18: [[ Bug 15040 ]] We do not want to send any key
+			//  message if we are in an Alt+<number> sequence.
+			if ((MCtracewindow == DNULL || hwnd != (HWND)MCtracewindow->handle.window) 
+					&& !isInAltPlusSequence)
 			{
+				// The low word contains the repeat count
 				uint2 count = LOWORD(lParam);
 				while (count--)
 				{
-					if (!MCdispatcher->wkdown(dw, buffer, keysym)
-					        && (msg == WM_SYSKEYDOWN || msg == WM_SYSCHAR))
+					// This is (effectively) equivalent to TranslateAccerator. If the key gets
+					// handled at this stage, nothing further happens with it. Otherwise, it
+					// gets re-dispatched as a character input message.
+					//
+					// Parts of the engine that care about keystrokes examine the keysym member.
+					// Parts that want text only care about the string. Dispatch as stroke-only here.
+					bool t_handled;
+					t_handled = MCdispatcher->wkdown(dw, kMCEmptyString, keysym);
+
+					// Some system key strokes have special behaviour provided by DefWindowProc
+					if (!t_handled && msg == WM_SYSKEYDOWN)
 						return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
-					if (count || lParam & 0x40000000)
-						MCdispatcher->wkup(dw, buffer, keysym);
+					
+					// If the repeat count was >1, simulate the corresponding key up messages
+					// SN-2014-09-15: [[ Bug 13423 ]] We want to send a KEYUP for the dead char, if it failed to combine
+					if (count || lParam & 0x40000000 || deadcharfollower)
+						MCdispatcher->wkup(dw, kMCEmptyString, keysym);
 				}
 				curinfo->handled = curinfo->reset = True;
 			}
 		}
 		else
 		{
-			MCEventnode *tptr = new MCEventnode(hwnd, msg, wParam, lParam, keysym,
+			// Dispatch isn't currently enabled; accumulate to the event queue.
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, keysym,
 			                                    MCmodifierstate, MCeventtime);
 			pms->appendevent(tptr);
 		}
 	}
 	break;
+
 	case WM_KEYUP:
 	case WM_SYSKEYUP:
 	{	
 		if (curinfo->keysym == 0) // event came from some other dispatch
 			keysym = pms->getkeysym(wParam, lParam);
-		else
+		// SN-2014-09-15: [[ Bug 13423 ]] We don't regard the event if we are following a dead char WITH a
+		// keysym: that's the dead char itself.
+		// SN-2014-09-18: [[ MERGE-6_7_RC_2 ]] SYSKEYUP shall pass
+		else if (!deadcharfollower || msg == WM_SYSKEYUP)
 			keysym = curinfo->keysym;
-		if (keysym == lastkeysym)
-			buffer[0] = lastchar;
 		else
-			buffer[0] = 0;
-		buffer[1] = 0;
+			break;
+
+		// SN-2014-09-10: [[ Bug 13348 ]] We want to get the last codepoint translated, if any,
+		// since the KEYUP events are not translated (but when keeping pressed a key)
+		MCAutoStringRef t_string;
+
+		// SN-2014-09-18: [[ MERGE-6_7_RC_2 ]] Only build a string if there is a codepoint
+		if (lastkeysym == keysym && lastcodepoint)
+		{
+			unichar_t t_pair[2];
+			uindex_t t_char_count;
+			
+			t_char_count = MCStringCodepointToSurrogates(lastcodepoint, t_pair);
+			/* UNCHECKED */ MCStringCreateWithChars(t_pair, t_char_count, &t_string);
+		}
+		else
+		{
+			lastkeysym = keysym;
+			lastcodepoint = 0;
+			t_string = kMCEmptyString;
+		}
+
 		if (curinfo->dispatch)
 		{
 			if (MCtracewindow == DNULL || hwnd != (HWND)MCtracewindow->handle.window)
 			{
+				// Character messages handle the text keyup themselves
 				MCeventtime = GetMessageTime(); //krevent->time;
-				MCdispatcher->wkup(dw, buffer, keysym);
+				// SN-2014-09-10: [[ Bug 13348 ]] Send the string we could build from the last
+				// codepoint.
+				// SN-2015-05-18: [[ Bug 15040 ]] We don't send any key message
+				//  if we are in an Alt+<number> sequence.
+                isInAltPlusSequence = (MCmodifierstate == MS_ALT);
+				if (!isInAltPlusSequence)
+					MCdispatcher->wkup(dw, *t_string, keysym);
 				curinfo->handled = curinfo->reset = True;
 			}
 		}
 		else
 		{
-			MCEventnode *tptr = new MCEventnode(hwnd, msg, wParam, lParam, 0,
+			// Add to the event queue
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, 0,
 			                                    MCmodifierstate, MCeventtime);
 			pms->appendevent(tptr);
 		}
@@ -816,68 +992,73 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		if (!MCinlineinput)
 			return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
 		break;
-	case WM_IME_CHAR:
-		{
-			if (!MCactivefield)
-				break;
-			uint2 unicodekey = MAXUINT2;
-			uint4 destlen;
-			if (IsWindowUnicode(hwnd))
-			{
-				unicodekey = wParam;
-				destlen = 2;
-			}
-			else
-			{
-				char multibytechar[3];
-				multibytechar[0] =  HIBYTE((WORD)wParam) ;
-				multibytechar[1] =  LOBYTE((WORD)wParam) ;
-				multibytechar[2] = '\0';
-				MCU_multibytetounicode(multibytechar, 2, (char *)&unicodekey, 2,
-					                     destlen,  MCS_langidtocharset(LOWORD(GetKeyboardLayout(0))));
-			}
-			MCString unicodestr;
-			unicodestr.set((char *)&unicodekey, destlen);
-
-			// MW-2012-02-03: [[ Unicode Block ]] Use the new finsert method to insert
-			//   text in unicode mode.
-			MCactivefield->finsertnew(FT_IMEINSERT, unicodestr, 0, true);
-		}
-		break;
 	case WM_IME_COMPOSITION:
 		{
+			// Because the Win32-provided controls are not in use, proper display of IME
+			// text is the responsibility of the engine instead of the operating system.
 			if (!MCinlineinput)
 				return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
+			
+			// No point doing any IME work if there isn't an active field (IME is not
+			// allowed for shortcuts, accelerators, etc)
 			if (!MCactivefield)
 				break;
-			DWORD dwindex = 0;
+
+			// On Windows, IME input can be divided into three parts:
+			//	Composition string
+			//	Result string
+			//	Cursor
+			//
+			// The composition string is the text that the IME system has provisionally
+			// guessed to be the desired text. It is normally displayed with an underline.
+			//
+			// The results string is the text that has been accepted as correct.
+			//
+			// The cursor specifies where in the text the insertion cursor should appear.
+			//
+			// Note that the Windows IME model allows both the result string and the
+			// composition string to be presented simultaneously.
+			HIMC hIMC;
+			uint16_t t_cursorpos;
+			hIMC = ImmGetContext(hwnd);
+
+			// Update the compose cursor position
+			// TODO: pay attention to the CS_INSERTCHAR and CS_NOMOVECARET flags
+			if (!hIMC)
+				break;
+			t_cursorpos = LOWORD(ImmGetCompositionStringW(hIMC, GCS_CURSORPOS, NULL, 0));
+			MCactivefield->setcompositioncursoroffset(t_cursorpos << 1);
+
 			if (lParam & GCS_RESULTSTR)
 			{
-				MCactivefield->stopcomposition(True,False);
-				dwindex = GCS_RESULTSTR;
+				// A result string has been provided. Stop composition and display it.
+				MCactivefield->stopcomposition(True, False);
+				
+				LONG t_reslen;
+				unichar_t *t_resstr;
+				MCAutoStringRef t_string;
+				t_reslen = ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, NULL, 0);
+				t_resstr = new (nothrow) unichar_t[t_reslen/sizeof(unichar_t) + 1];
+				/* UNCHECKED */ ImmGetCompositionStringW(hIMC, GCS_RESULTSTR, t_resstr, t_reslen);
+				/* UNCHECKED */ MCStringCreateWithCharsAndRelease(t_resstr, t_reslen/2, &t_string);
+				MCactivefield->finsertnew(FT_IMEINSERT, *t_string, 0);
 			}
-			else if (lParam & GCS_COMPSTR)
-			{
-				MCactivefield->startcomposition();
-				dwindex = GCS_COMPSTR;
-			}
-			HIMC hIMC = ImmGetContext(hwnd);
-			if (!hIMC || !dwindex)
-				break;
-			int2 cursorpos = LOWORD(ImmGetCompositionStringA(hIMC, GCS_CURSORPOS,
-			                        NULL, 0));
-			MCactivefield->setcompositioncursoroffset(cursorpos << 1);
-			uint2 compstrsize = 0;
-			char *compstring = NULL;
-			compstrsize = (uint2)ImmGetCompositionStringW(hIMC, dwindex, NULL, 0);
-			compstring = new char[compstrsize+sizeof(WCHAR)];
-			ImmGetCompositionStringW(hIMC, dwindex, compstring, compstrsize);
-			MCString unicodestr(compstring, compstrsize);
 
-			// MW-2012-02-03: [[ Unicode Block ]] Use the new finsert method to insert
-			//   text in unicode mode.
-			MCactivefield->finsertnew(FT_IMEINSERT, unicodestr, 0, true);
-			delete compstring;
+			if (lParam & GCS_COMPSTR)
+			{
+				// A composition string has been provided. Start composition
+				MCactivefield->startcomposition();
+				
+				LONG t_complen;
+				unichar_t *t_compstr;
+				MCAutoStringRef t_string;
+				t_complen = ImmGetCompositionStringW(hIMC, GCS_COMPSTR, NULL, 0);
+				t_compstr = new (nothrow) unichar_t[t_complen/sizeof(unichar_t) + 1];
+				/* UNCHECKED */ ImmGetCompositionStringW(hIMC, GCS_COMPSTR, t_compstr, t_complen);
+				/* UNCHECKED */ MCStringCreateWithCharsAndRelease(t_compstr, t_complen/2, &t_string);
+				MCactivefield->finsertnew(FT_IMEINSERT, *t_string, 0);
+			}
+
 			ImmReleaseContext(hwnd, hIMC);
 		}
 		break;
@@ -930,18 +1111,18 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		if (curinfo->live && !pms->isgrabbed() && LOWORD(lParam) != HTCLIENT)
 			return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
 		MCmousestackptr = MCdispatcher->findstackd(dw);
-		if (MCmousestackptr != NULL)
+		if (MCmousestackptr)
 		{
 			MCmousestackptr->resetcursor(True);
 			if (pms->getmousetimer() == 0)
 				pms->setmousetimer(timeSetEvent(LEAVE_CHECK_INTERVAL, 100,
 				                                mouseproc, 0, TIME_ONESHOT));
 		}
-		if (omousestack != MCmousestackptr)
+		if (!MCmousestackptr.IsBoundTo(omousestack))
 		{
 			if (omousestack != NULL && omousestack != MCtracestackptr)
 				omousestack->munfocus();
-			if (MCmousestackptr != NULL && MCmousestackptr != MCtracestackptr)
+			if (MCmousestackptr && MCmousestackptr != MCtracestackptr)
 				MCmousestackptr->enter();
 		}
 		break;
@@ -954,13 +1135,13 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 				if (sptr != NULL)
 				{
 					if (lastdown != 0)
-						sptr->mup(lastdown);
+						sptr->mup(lastdown, false);
 					buffer[0] = 0x1B; // escape
 					buffer[1] = '\0';
 					Boolean oldlock = MClockmessages;
 					MClockmessages = True;
-					sptr->kdown(buffer, XK_Escape);
-					sptr->kup(buffer, XK_Escape);
+					sptr->kdown(MCSTR("\x1B"), XK_Escape);
+					sptr->kup(MCSTR("\x1B"), XK_Escape);
 					MClockmessages = oldlock;
 					sptr->munfocus();
 					pms->setgrabbed(False);
@@ -985,7 +1166,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 					MCscreen->setmouseloc(MCdispatcher->findstackd(dw), t_mouseloc);
 				if (MCtracewindow == DNULL || hwnd != (HWND)MCtracewindow->handle.window)
 				{
-					if (t_old_mousestack != NULL && MCmousestackptr != t_old_mousestack)
+					if (t_old_mousestack != NULL && !MCmousestackptr.IsBoundTo(t_old_mousestack))
 						t_old_mousestack->munfocus();
 					if (msg == WM_MOUSEMOVE)
 					{
@@ -1001,14 +1182,14 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 						}
 					}
 					else
-						if (MCmousestackptr != NULL)
+						if (MCmousestackptr)
 							MCmousestackptr->munfocus();
 					curinfo->handled = True;
 				}
 			}
 			else
 			{
-				MCEventnode *tptr = new MCEventnode(hwnd, msg, wParam, lParam, 0,
+				MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, 0,
 				                                    MCmodifierstate, MCeventtime);
 				pms->appendevent(tptr);
 			}
@@ -1017,11 +1198,12 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 			return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
 		break;
 	case WM_APP:
-		if (MCmousestackptr != NULL && MCdispatcher->getmenu() == NULL)
+		if (MCmousestackptr && MCdispatcher->getmenu() == NULL)
 		{
 			// IM-2014-04-17: [[ Bug 12227 ]] Convert logical stack rect to screen coords when testing for mouse intersection
+			// IM-2014-08-01: [[ Bug 13058 ]] Use stack view rect to get logical window rect
 			MCRectangle t_rect;
-			t_rect = pms->logicaltoscreenrect(MCmousestackptr->getrect());
+			t_rect = pms->logicaltoscreenrect(MCmousestackptr->view_getrect());
 
 			POINT p;
 			if (!GetCursorPos(&p)
@@ -1117,7 +1299,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		}
 		else
 		{
-			MCEventnode *tptr = new MCEventnode(hwnd, msg, wParam, lParam, 0,
+			MCEventnode *tptr = new (nothrow) MCEventnode(hwnd, msg, wParam, lParam, 0,
 			                                    MCmodifierstate, MCeventtime);
 			pms->appendevent(tptr);
 		}
@@ -1133,19 +1315,30 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 					if (target->isiconic())
 					{
 						MCstacks->restack(target);
-						target->view_configure(true);
+						MCdispatcher->wreshape(dw);
 						target->uniconify();
 						SetWindowPos((HWND)target -> getwindow() -> handle . window, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
 					}
 					else
-						target->view_configure(true);
+						MCdispatcher->wreshape(dw);
 				curinfo->handled = True;
 			}
 		}
 		break;
 	case WM_MOVE:
-		MCdispatcher->configure(dw);
-		curinfo->handled = True;
+		// IM-2016-04-14: [[ Bug 16749 ]] WM_MOVE can arrive before WM_SIZE when minimized.
+		//   - check if window is minimized before reconfiguring the stack
+		if (IsIconic(hwnd))
+		{
+			MCStack *target = MCdispatcher->findstackd(dw);
+			if (target != NULL)
+				target->iconify();
+		}
+		else
+		{
+			MCdispatcher->wreshape(dw);
+			curinfo->handled = True;
+		}
 		break;
 	case WM_CLOSE:
 		MCdispatcher->wclose(dw);
@@ -1160,7 +1353,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		break;
 	case WM_TIMER:
 		curinfo->handled = True;
-		if (MCmousestackptr != NULL && MCdispatcher->getmenu() == NULL)
+		if (MCmousestackptr && MCdispatcher->getmenu() == NULL)
 		{
 			int2 x, y;
 			pms->querymouse(x, y);
@@ -1170,43 +1363,22 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 			        && !MCU_point_in_rect(rect, x, y))
 			{
 				MCmousestackptr->munfocus();
-				MCmousestackptr = NULL;
+				MCmousestackptr = nil;
 			}
 		}
 		break;
 	case WM_CANCELMODE:
 		if (pms->isgrabbed())
 		{
-			buffer[0] = 0x1B;
-			buffer[1] = '\0';
 			Boolean oldlock = MClockmessages;
 			MClockmessages = True;
-			MCdispatcher->wkdown(dw, buffer, XK_Escape);
-			MCdispatcher->wkup(dw, buffer, XK_Escape);
+			MCdispatcher->wkdown(dw, MCSTR("\x1B"), XK_Escape);
+			MCdispatcher->wkup(dw, MCSTR("\x1B"), XK_Escape);
 			MClockmessages = oldlock;
 			curinfo->handled = True;
 			pms->setgrabbed(False);
 			MCmousex = MCmousey = -1; // prevent button msg from reopening menu
 			MCdispatcher->wmfocus(dw, MCmousex, MCmousey);
-		}
-		break;
-	case MM_MCINOTIFY:
-		if (wParam == MCI_NOTIFY_SUCCESSFUL)
-		{
-			MCPlayer *tptr = MCplayers;
-			while (tptr != NULL)
-			{
-				if (lParam == (LPARAM)tptr->getDeviceID())
-				{
-					if (tptr->isdisposable())
-						tptr->playstop();
-					else
-						tptr->message_with_args(MCM_play_stopped, tptr->getname());
-					break;
-				}
-				tptr = tptr->getnextplayer();
-			}
-			curinfo->handled = True;
 		}
 		break;
 	case WM_USER:
@@ -1223,7 +1395,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 			{
 				if (WSAGETSELECTERROR(lParam))
 				{
-					MCsockets[i]->error = new char[16 + I4L];
+					MCsockets[i]->error = new (nothrow) char[16 + I4L];
 					sprintf(MCsockets[i]->error, "Error %d on socket",
 					        WSAGETSELECTERROR(lParam));
 					MCsockets[i]->doclose();
@@ -1357,7 +1529,7 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 		return IsWindowUnicode(hwnd) ? DefWindowProcW(hwnd, msg, wParam, lParam) : DefWindowProcA(hwnd, msg, wParam, lParam);
 	case WM_MOUSEWHEEL:
 	case WM_MOUSEHWHEEL:
-		if (MCmousestackptr != NULL)
+		if (MCmousestackptr)
 		{
 			MCObject *mfocused = MCmousestackptr->getcard()->getmfocused();
 			if (mfocused == NULL)
@@ -1369,16 +1541,16 @@ LRESULT CALLBACK MCWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 				if (msg == WM_MOUSEWHEEL)
 				{
 					if (val < 0)
-						mfocused->kdown("", XK_WheelUp);
+						mfocused->kdown(kMCEmptyString, XK_WheelUp);
 					else
-						mfocused->kdown("", XK_WheelDown);
+						mfocused->kdown(kMCEmptyString, XK_WheelDown);
 				}
 				else if (msg == WM_MOUSEHWHEEL)
 				{
 					if (val < 0)
-						mfocused->kdown("", XK_WheelLeft);
+						mfocused->kdown(kMCEmptyString, XK_WheelLeft);
 					else
-						mfocused->kdown("", XK_WheelRight);
+						mfocused->kdown(kMCEmptyString, XK_WheelRight);
 				}
 			}
 		}

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -17,23 +17,40 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef _SECUREMODE_H
 #define _SECUREMODE_H
 
-#define MC_SECUREMODE_DISK				(1 << 0)
-#define MC_SECUREMODE_NETWORK			(1 << 1)
-#define MC_SECUREMODE_PROCESS			(1 << 2)
-#define MC_SECUREMODE_REGISTRY_READ		(1 << 3)
-#define MC_SECUREMODE_REGISTRY_WRITE	(1 << 4)
-#define MC_SECUREMODE_PRINT				(1 << 5)
-#define MC_SECUREMODE_PRIVACY			(1 << 6)
-#define MC_SECUREMODE_APPLESCRIPT		(1 << 7)
-#define MC_SECUREMODE_DOALTERNATE		(1 << 8)
-#define MC_SECUREMODE_EXTERNAL			(1 << 9)
+// AL-2014-10-29: [[ Bug 13704 ]] Define security permissions bits
+enum MCSecureModeType
+{
+    kMCSecureModeTypeDiskBit,
+    kMCSecureModeTypeNetworkBit,
+    kMCSecureModeTypeProcessBit,
+    kMCSecureModeTypeRegistryReadBit,
+    kMCSecureModeTypeRegistryWriteBit,
+    kMCSecureModeTypePrintBit,
+    kMCSecureModeTypePrivacyBit,
+    kMCSecureModeTypeApplescriptBit,
+    kMCSecureModeTypeDoalternateBit,
+    kMCSecureModeTypeExternalBit,
+    kMCSecureModeTypeExtensionBit,
+};
+
+#define MC_SECUREMODE_DISK				(1 << kMCSecureModeTypeDiskBit)
+#define MC_SECUREMODE_NETWORK			(1 << kMCSecureModeTypeNetworkBit)
+#define MC_SECUREMODE_PROCESS			(1 << kMCSecureModeTypeProcessBit)
+#define MC_SECUREMODE_REGISTRY_READ		(1 << kMCSecureModeTypeRegistryReadBit)
+#define MC_SECUREMODE_REGISTRY_WRITE	(1 << kMCSecureModeTypeRegistryWriteBit)
+#define MC_SECUREMODE_PRINT				(1 << kMCSecureModeTypePrintBit)
+#define MC_SECUREMODE_PRIVACY			(1 << kMCSecureModeTypePrivacyBit)
+#define MC_SECUREMODE_APPLESCRIPT		(1 << kMCSecureModeTypeApplescriptBit)
+#define MC_SECUREMODE_DOALTERNATE		(1 << kMCSecureModeTypeDoalternateBit)
+#define MC_SECUREMODE_EXTERNAL			(1 << kMCSecureModeTypeExternalBit)
+#define MC_SECUREMODE_EXTENSION            (1 << kMCSecureModeTypeExtensionBit)
 
 #define MC_SECUREMODE_ALL			(MC_SECUREMODE_DISK | MC_SECUREMODE_NETWORK | MC_SECUREMODE_PROCESS \
 										| MC_SECUREMODE_REGISTRY_READ | MC_SECUREMODE_REGISTRY_WRITE \
 										| MC_SECUREMODE_PRINT | MC_SECUREMODE_PRIVACY | MC_SECUREMODE_APPLESCRIPT \
-										| MC_SECUREMODE_DOALTERNATE | MC_SECUREMODE_EXTERNAL)
+										| MC_SECUREMODE_DOALTERNATE | MC_SECUREMODE_EXTERNAL | MC_SECUREMODE_EXTENSION)
 
-#define MC_SECUREMODE_MODECOUNT		(10)
+#define MC_SECUREMODE_MODECOUNT		(11)
 
 extern const char *MCsecuremode_strings[MC_SECUREMODE_MODECOUNT];
 
@@ -56,12 +73,14 @@ bool MCSecureModeCheckPrivacy(uint2 line = 0, uint2 pos = 0);
 bool MCSecureModeCheckAppleScript(uint2 line = 0, uint2 pos = 0);
 bool MCSecureModeCheckDoAlternate(uint2 line = 0, uint2 pos = 0);
 bool MCSecureModeCheckExternal(uint2 line = 0, uint2 pos = 0);
+bool MCSecureModeCheckExtension(uint2 line = 0, uint2 pos = 0);
 
 bool MCSecureModeCanAccessDisk(void);
 bool MCSecureModeCanAccessNetwork(void);
 bool MCSecureModeCanAccessPrinter(void);
 bool MCSecureModeCanAccessDoAlternate(void);
 bool MCSecureModeCanAccessExternal(void);
+bool MCSecureModeCanAccessExtension(void);
 
 // MW-2013-08-07: [[ Bug 10865 ]] New check method for whether AppleScript is
 //   enabled.

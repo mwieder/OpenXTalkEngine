@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,37 +21,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include <SkMath.h>
 
-static int dilateMask(const uint8_t *src, int src_y_stride, uint8_t *dst, int radius, int width, int height, bool transpose)
-{
-	int new_width = width + radius * 2;
-    int dst_x_stride = transpose ? height : 1;
-    int dst_y_stride = transpose ? 1 : new_width;
-	for(int y = 0; y < height; ++y)
-	{
-		uint8_t *dptr;
-		dptr = dst + y * dst_y_stride;
-		const uint8_t *sptr;
-		sptr = src + y * src_y_stride;
-		for(int x = -radius; x < width + radius; x++)
-		{
-			uint8_t v;
-			v = 0;
-			for(int z = x - radius; z < x + radius; z++)
-			{
-				if (z < 0)
-					continue;
-				if (z >= width)
-					continue;
-				if (sptr[z] > v)
-					v = sptr[z];
-			}
-			*dptr = v;
-			dptr += dst_x_stride;
-		}
-	}
-	return new_width;
-}
-
 // Dilate the input by using a distance transform. A pixel in the new mask
 // is taken to be in the dilated mask if it is within the ellipse with radii
 // xradius and yradius of a set pixel in the original mask. The maximum
@@ -64,7 +33,7 @@ void dilateDistanceXY(const uint8_t *src, uint8_t *dst, int xradius, int yradius
     
 	// Compute the x distance of each pixel from the nearest set pixel.
 	uint8_t *xd;
-	xd = new uint8_t[new_width * height];
+	xd = new (nothrow) uint8_t[new_width * height];
 	for(int y = 0; y < height; y++)
 	{
 		uint8_t *xdptr;
@@ -203,7 +172,8 @@ void dilateDistanceXY(const uint8_t *src, uint8_t *dst, int xradius, int yradius
 
     // Allocate memory for the loop
     size_t t_mem_size = new_width * new_height;
-    uint8_t *buffer = new uint8_t[t_mem_size];
+	uint8_t *buffer;
+	/* UNCHECKED */ buffer = (uint8_t*)malloc(t_mem_size);
 
     // All the destination pixels are set to the infinite distance initially
     memset(buffer, 255, t_mem_size);
@@ -261,7 +231,18 @@ void dilateDistanceXY(const uint8_t *src, uint8_t *dst, int xradius, int yradius
             //      Avoids excessive processing for rows of non-zero pixels
             x = dnext;
             next = next + 1;
-            while (next < width && sptr[next + 1] != 0)
+            
+            // MW-2014-06-24: [[ Bug ]] Only loop up to (width - 1), otherwise we get
+            //   an access overflow.
+            while (next < (width - 1) && sptr[next + 1] != 0)
+            {
+                xdptr[x] = 0;
+                x++, next++;
+            }
+            
+            // MW-2014-08-27: [[ Bug 13221 ]] If we reached the edge of the source, then we
+            //   assume the next pixel is clear.
+            if (next == width - 1)
             {
                 xdptr[x] = 0;
                 x++, next++;

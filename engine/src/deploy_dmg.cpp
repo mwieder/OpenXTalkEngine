@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,13 +16,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "filedefs.h"
 
-#include "execpt.h"
+
 #include "handler.h"
 #include "scriptpt.h"
 #include "variable.h"
@@ -32,7 +31,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
+#if DEPLOY_DMG
 // A Mac OS X device image has the following structure:
 //   DeviceHeader
 //   DevicePartion*
@@ -670,10 +669,12 @@ static uint32_t unix_date_to_hfs_date(uint32_t p_date)
 
 Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 {
+    return ES_NORMAL;
+    
+#if DEPLOY_DMG
 	bool t_success;
 	t_success = true;
 
-#if 0
 	// Open the output file
 	MCDeployFileRef t_output;
 	t_output = nil;
@@ -1283,16 +1284,16 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 	MCMemoryDeleteArray(t_leaves);
 
 	MCDeployFileClose(t_output);
-#endif
-
+    
 	return t_success ? ES_NORMAL : ES_ERROR;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef void (*log_callback)(void *, const char *, ...);
 
-#if 0
+#if DEPLOY_DMG
 static bool read_hfsplus_fork(MCDeployFileRef p_file, uint32_t p_offset, HFSPlusForkData& p_fork, uint8_t*& r_data)
 {
 	uint8_t *t_data;
@@ -1443,7 +1444,7 @@ bool MCDeployDmgDump(const char *p_dmg_file, log_callback p_log, void *p_context
 	bool t_success;
 	t_success = true;
 
-#if 0
+#if DEPLOY_DMG
 	MCDeployFileRef t_dmg;
 	t_dmg = nil;
 	if (t_success &&

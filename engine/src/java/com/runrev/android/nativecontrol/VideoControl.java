@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -23,6 +23,7 @@ import android.media.*;
 import android.view.*;
 import android.widget.*;
 
+
 import java.io.*;
 
 public class VideoControl extends NativeControl
@@ -43,7 +44,15 @@ public class VideoControl extends NativeControl
     {
         m_video_view = new ExtVideoView(context);
         
-        m_video_controller = new MediaController(context);
+        m_video_controller = new MediaController(context){
+		// PM-2015-10-19: [[ Bug 16027 ]] Make sure the controller does not disappear every
+		// time a control (i.e. Pause button) is clicked. This happened because when touching
+		// the controls, MediaController called show(sDefaultTimeout);
+			@Override
+			public void show(int timeout) {
+				super.show(0);
+			}
+		};
         m_video_view.setMediaController(m_video_controller);
         
         setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
@@ -54,7 +63,7 @@ public class VideoControl extends NativeControl
                 m_module.getEngine().wakeEngineThread();
             }
         });
-        
+		
         setOnErrorListener(new MediaPlayer.OnErrorListener() {
             @Override
             public boolean onError(MediaPlayer mp, int what, int extra)
@@ -80,6 +89,14 @@ public class VideoControl extends NativeControl
             {
                 doPropertyAvailable(AVAILABLE_PROPERTY_NATURALSIZE);
                 m_module.getEngine().wakeEngineThread();
+            }
+        });
+        
+        m_video_view.setOnMovieTouchedListener(new ExtVideoView.OnMovieTouchedListener() {
+            @Override
+            public void onMovieTouched()
+            {
+                doMovieTouched();
             }
         });
         
@@ -142,11 +159,22 @@ public class VideoControl extends NativeControl
     public void setShowController(boolean show)
     {
         if (show)
+		{
             m_video_view.setMediaController(m_video_controller);
+			m_video_view.setControllerVisible(getVisible());
+		}
         else
             m_video_view.setMediaController(null);
     }
-    
+	
+	// PM-2015-11-05: [[ Bug 16368 ]] Toggling the visibility of the android player should show/hide the controller (if any)
+	// Override setVisible() of NativeControl 
+	public void setVisible(boolean p_visible)
+	{
+		m_video_view.setControllerVisible(p_visible);
+		super.setVisible(p_visible);
+	}
+	
     public void setCurrentTime(int msec)
     {
         m_video_view.seekTo(msec);
@@ -171,7 +199,12 @@ public class VideoControl extends NativeControl
     {
         return m_video_view.getDuration();
     }
-    
+	
+	public int getPlayableDuration()
+	{
+		return m_video_view.getPlayableDuration();
+	}
+	
     public int getCurrentTime()
     {
         return m_video_view.getCurrentPosition();
@@ -222,7 +255,7 @@ public class VideoControl extends NativeControl
     {
         m_video_view.setOnErrorListener(listener);
     }
-    
+	
     public void setOnVideoSizeChangedListener(MediaPlayer.OnVideoSizeChangedListener listener)
     {
         m_video_view.setOnVideoSizeChangedListener(listener);
@@ -236,26 +269,27 @@ public class VideoControl extends NativeControl
 ////////////////////////////////////////////////////////////////////////////////
 	
 	public interface OnMovieTouchedListener
-	{
-		void onMovieTouched();
-	}
-	
-	protected OnMovieTouchedListener m_on_movie_touched_listener;
-	
-	public void setOnMovieTouchedListener(OnMovieTouchedListener p_listener)
-	{
-		m_on_movie_touched_listener = p_listener;
-	}
-	
-	protected void dispatchMovieTouched()
-	{
-		if (m_on_movie_touched_listener != null)
-			m_on_movie_touched_listener.onMovieTouched();
-	}
-	
+        {
+            void onMovieTouched();
+        }
+    
+    protected OnMovieTouchedListener m_on_movie_touched_listener;
+    
+    public void setOnMovieTouchedListener(OnMovieTouchedListener p_listener)
+    {
+        m_on_movie_touched_listener = p_listener;
+    }
+    
+    protected void dispatchMovieTouched()
+    {
+        if (m_on_movie_touched_listener != null)
+            m_on_movie_touched_listener.onMovieTouched();
+    }
+
+    	
 ////////////////////////////////////////////////////////////////////////////////
-	
     public native void doPlayerFinished();
     public native void doPlayerError();
     public native void doPropertyAvailable(int property);
+    public native void doMovieTouched();
 }

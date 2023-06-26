@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -43,7 +43,7 @@ public:
 	virtual bool Initialize(void) = 0;
 	virtual bool Finalize(void) = 0;
 
-	virtual bool Start(const char* p_string) = 0;
+	virtual bool Start(const char* p_string, bool p_is_utf8) = 0;
 
 #ifdef FEATURE_REVSPEAKTOFILE	
 	virtual bool SpeakToFile(const char* p_string, const char* p_file) = 0;

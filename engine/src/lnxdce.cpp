@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -32,7 +32,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "util.h"
 #include "date.h"
 #include "param.h"
-#include "execpt.h"
+
 #include "notify.h"
 #include "eventqueue.h"
 #include "region.h"
@@ -46,10 +46,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "resolution.h"
 
+#include <gdk/gdkkeysyms.h>
+
 #define WM_TITLE_HEIGHT 16
 
 // IM-2014-01-29: [[ HiDPI ]] Placeholder method for Linux HiDPI support
-void MCScreenDC::platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m)
+void MCScreenDC::platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable)
 {
 	device_boundrect(rect, title, m);
 }
@@ -81,44 +83,40 @@ void MCScreenDC::device_boundrect(MCRectangle &rect, Boolean title, Window_mode 
 			rect.y = srect.y + srect.height - rect.height;
 }
 
+static bool MCExposeEventFilter(GdkEvent *e, void *)
+{
+    return e->type == GDK_EXPOSE || e->type == GDK_DAMAGE;
+}
+
+bool MCLinuxRegionToMCGRegion(GdkRegion*, MCGRegionRef&);
+
 void MCScreenDC::expose()
 {
-	XEvent event;
+	GdkEvent *event;
 
-	while (True)
-	{
-		MCRegionRef t_dirty;
-		Window t_window;
-		if (XCheckTypedEvent(dpy, Expose, &event))
-		{
-			XExposeEvent *eevent = (XExposeEvent *)&event;
-			t_window = eevent -> window;
-
-			MCRegionCreate(t_dirty);
-			MCRegionIncludeRect(t_dirty, MCU_make_rect(eevent->x, eevent->y, eevent->width, eevent->height));
-			while (XCheckTypedWindowEvent(dpy, t_window, Expose, &event))
-				MCRegionIncludeRect(t_dirty,  MCU_make_rect(eevent->x, eevent->y, eevent->width, eevent->height));
-		}
-		else if (XCheckTypedEvent(dpy, GraphicsExpose, &event))
-		{
-			XGraphicsExposeEvent *geevent = (XGraphicsExposeEvent *)&event;
-			t_window = geevent -> drawable;
-
-			MCRegionCreate(t_dirty);
-			MCRegionIncludeRect(t_dirty, MCU_make_rect(geevent->x, geevent->y, geevent->width, geevent->height));
-			while (XCheckTypedWindowEvent(dpy, t_window, GraphicsExpose, &event))
-				MCRegionIncludeRect(t_dirty,  MCU_make_rect(geevent->x, geevent->y, geevent->width, geevent->height));
-		}
-		else
-			break;
-
-		MCStack *t_stack;
+    while (true)
+    {
+        MCGRegionRef t_dirty;
+        Window t_window;
+        if (GetFilteredEvent(&MCExposeEventFilter, event, NULL))
+        {
+            GdkEventExpose *eevent = (GdkEventExpose*)event;
+            t_window = eevent->window;
+            
+            MCLinuxRegionToMCGRegion(eevent->region, t_dirty);
+            
+            gdk_event_free(event);
+        }
+        else
+            break;
+        
+        MCStack *t_stack;
 		t_stack = MCdispatcher -> findstackd(t_window);
 		if (t_stack != nil)
-			t_stack -> onexpose(t_dirty);
-
-		MCRegionDestroy(t_dirty);
-	}
+			t_stack -> onexpose((MCRegionRef)t_dirty);
+        
+		MCGRegionDestroy(t_dirty);
+    }
 }
 
 Boolean MCScreenDC::abortkey()
@@ -129,21 +127,20 @@ Boolean MCScreenDC::abortkey()
 		return False;
 	MCU_play();
 	MCalarm = False;
-	XFlush(dpy);
+	gdk_display_flush(dpy);
 	Boolean abort, reset;
 	handle(False, False, abort, reset);
 	if (pendingevents != NULL)
 	{
 		MCEventnode *tptr = pendingevents;
-		KeyCode abortcode1 = XKeysymToKeycode(dpy, XK_Break);
-		KeyCode abortcode2 = XKeysymToKeycode(dpy, '.');
 		do
 		{
-			if (tptr->event.type == KeyPress)
+			if (tptr->event->type == GDK_KEY_PRESS)
 			{
-				XKeyEvent *kpevent = (XKeyEvent *)&tptr->event;
-				if (kpevent->state & ControlMask
-				        && kpevent->keycode==abortcode1 || kpevent->keycode==abortcode2)
+				GdkEventKey *kpevent = (GdkEventKey*)tptr->event;
+				if ((kpevent->state & GDK_CONTROL_MASK
+				     && kpevent->keyval == XK_Break) ||
+				    kpevent->keyval == 0x2e /*XK_period*/)
 				{
 					abort = True;
 					tptr->remove
@@ -160,10 +157,12 @@ Boolean MCScreenDC::abortkey()
 		while (tptr != pendingevents);
 	}
 	if (abort)
+    {
 		if (MCallowinterrupts && !MCdefaultstackptr->cantabort())
 			return True;
 		else
 			MCinterrupt = True;
+    }
 	return False;
 }
 
@@ -176,13 +175,26 @@ void MCScreenDC::waitreparent(Window w)
 	waitmessage(w, ReparentNotify);
 }
 
+static bool MCFocusOutFilter(GdkEvent *e, void *)
+{
+    if (e->type != GDK_FOCUS_CHANGE)
+        return false;
+    
+    if (((GdkEventFocus*)e)->in)
+        return false;
+    
+    return true;
+}
+
 void MCScreenDC::waitfocus()
 {
-	XSync(dpy, False);
-	XEvent event;
-	XFocusChangeEvent *foevent = (XFocusChangeEvent *)&event;
-	if (XCheckTypedEvent(dpy, FocusOut, &event))
-		MCdispatcher->wkunfocus(foevent->window);
+	GdkEvent *e;
+    gdk_display_sync(dpy);
+    if (GetFilteredEvent(&MCFocusOutFilter, e, NULL))
+    {
+        MCdispatcher->wkunfocus(((GdkEventFocus*)e)->window);
+        gdk_event_free(e);
+    }
 }
 
 // IM-2014-01-29: [[ HiDPI ]] Placeholder method for Linux HiDPI support
@@ -193,36 +205,33 @@ void MCScreenDC::platform_querymouse(int16_t &x, int16_t &y)
 
 void MCScreenDC::device_querymouse(int2 &x, int2 &y)
 {
-	Window root, child;
-	int rx, ry, wx, wy;
-	unsigned int state;
-	XQueryPointer(dpy, getroot(), &root, &child, &rx, &ry, &wx, &wy, &state);
-	x = rx;
-	y = ry;
+	gint rx, ry;
+    gdk_display_get_pointer(dpy, NULL, &rx, &ry, NULL);
+    x = rx;
+    y = ry;
 }
 
 uint2 MCScreenDC::querymods()
 {
 	if (lockmods)
 		return MCmodifierstate;
-	Window root, child;
-	int rx, ry, wx, wy;
-	unsigned int state;
-	XQueryPointer(dpy, getroot(), &root, &child, &rx, &ry, &wx, &wy, &state);
-	
+    
+    GdkModifierType state;
+    gdk_display_get_pointer(dpy, NULL, NULL, NULL, &state);
+
 	// MW-2010-10-13: [[ Bug 9059 ]] Map the X masks to our masks correctly - previously
 	//   this ditched the capsLock mask.
 	unsigned int t_rstate;
 	t_rstate = 0;
-	if ((state & ShiftMask) != 0)
+	if ((state & GDK_SHIFT_MASK) != 0)
 		t_rstate |= MS_SHIFT;
-	if ((state & LockMask) != 0)
+	if ((state & GDK_LOCK_MASK) != 0)
 		t_rstate |= MS_CAPS_LOCK;
-	if ((state & ControlMask) != 0)
+	if ((state & GDK_CONTROL_MASK) != 0)
 		t_rstate |= MS_CONTROL;
-	if ((state & Mod1Mask) != 0)
+	if ((state & GDK_MOD1_MASK) != 0)
 		t_rstate |= MS_MOD1;
-	if ((state & Mod2Mask) != 0)
+	if ((state & GDK_MOD2_MASK) != 0)
 		t_rstate |= MS_MOD2;
 
 	return t_rstate;
@@ -236,7 +245,7 @@ void MCScreenDC::platform_setmouse(int16_t x, int16_t y)
 
 void MCScreenDC::device_setmouse(int2 x, int2 y)
 {
-	XWarpPointer(dpy, None, getroot(), 0, 0, 0, 0, x, y);
+	gdk_display_warp_pointer(dpy, gdk_display_get_default_screen(dpy), x, y);
 }
 
 Boolean MCScreenDC::getmouse(uint2 button, Boolean& r_abort)
@@ -253,15 +262,30 @@ Boolean MCScreenDC::getmouse(uint2 button, Boolean& r_abort)
 	else
 		r_abort = False;
 	lasttime = newtime;
-	Window root, child;
-	int rx, ry, wx, wy;
-	unsigned int state;
-	XQueryPointer(dpy, getroot(), &root, &child, &rx, &ry, &wx, &wy, &state);
-	state = state >> 8 & 0x1F;
-	
-	//TS-2008-03-25 : Bug [[6199]] - Linux mouse buttons for mouse() not matching up with other platforms.
-	return button == 0 && state || state & (0x1L << button - 1);
-//	return button == 0 && state || state & ~(0x1L << button - 1);
+    
+    GdkModifierType state;
+    gdk_display_get_pointer(dpy, NULL, NULL, NULL, &state);
+
+    switch (button)
+    {
+        case 0:
+            return !!(state & GDK_BUTTON1_MASK);
+            
+        case 1:
+            return !!(state & GDK_BUTTON2_MASK);
+            
+        case 2:
+            return !!(state & GDK_BUTTON3_MASK);
+            
+        case 3:
+            return !!(state & GDK_BUTTON4_MASK);
+            
+        case 4:
+            return !!(state & GDK_BUTTON5_MASK);
+            
+        default:
+            return false;
+    }
 }
 
 Boolean MCScreenDC::getmouseclick(uint2 button, Boolean& r_abort)
@@ -282,11 +306,11 @@ Boolean MCScreenDC::getmouseclick(uint2 button, Boolean& r_abort)
 	if (pendingevents != NULL)
 		do
 		{
-			if (tptr->event.type == ButtonPress)
+			if (tptr->event->type == GDK_BUTTON_PRESS)
 			{
-				XButtonEvent *bpevent = (XButtonEvent *)&tptr->event;
+				GdkEventButton *bpevent = (GdkEventButton *)tptr->event;
 				if (button == 0
-				        || bpevent->state >> 8 & 0x1F & ~(0x1L << button - 1))
+				    || bpevent->state >> 8 & 0x1F & ~(0x1L << (button - 1)))
 				{
 					setmods(bpevent->state, 0, bpevent->button, False);
 					
@@ -311,11 +335,11 @@ Boolean MCScreenDC::getmouseclick(uint2 button, Boolean& r_abort)
 	if (tptr != pendingevents)
 		do
 		{
-			if (tptr->event.type == ButtonRelease)
+			if (tptr->event->type == GDK_BUTTON_RELEASE)
 			{
-				XButtonEvent *brevent = (XButtonEvent *)&tptr->event;
+				GdkEventButton *brevent = (GdkEventButton *)tptr->event;
 				if (button == 0
-				        || brevent->state >> 8 & 0x1F & ~(0x1L << button - 1))
+				    || brevent->state >> 8 & 0x1F & ~(0x1L << (button - 1)))
 				{
 					setmods(brevent->state, 0, brevent->button, False);
 					releaseptr = tptr;
@@ -346,6 +370,8 @@ Boolean MCScreenDC::getmouseclick(uint2 button, Boolean& r_abort)
 
 Boolean MCScreenDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 {
+    MCDeletedObjectsEnterWait(dispatch);
+    
 	MCwaitdepth++;
 	real8 curtime = MCS_time();
 	if (duration < 0.0)
@@ -358,6 +384,9 @@ Boolean MCScreenDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 	Boolean donepending = False;
 	do
 	{
+		// IM-2014-03-06: [[ revBrowserCEF ]] Call additional runloop callbacks
+		DoRunloopActions();
+
 		real8 eventtime = exittime;
 		donepending = handlepending(curtime, eventtime, dispatch);
 		siguser();
@@ -365,15 +394,16 @@ Boolean MCScreenDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 		// MM-2012-09-04: Make sure MCModeQueueEvents is called.  This is used by the property listener feature.
 		MCModeQueueEvents();
 		
-		if (MCplayers != NULL)
+		if (MCplayers)
 			IO_cleanprocesses();
 
 		if (modalclosed ||
-			(MCNotifyDispatch(dispatch == True) ||
-			 dispatch && MCEventQueueDispatch() ||
-			 handle(dispatch, anyevent, abort, reset) ||
-			 donepending) && anyevent ||
-			 abort)
+		    ((MCNotifyDispatch(dispatch == True) ||
+		      (dispatch && MCEventQueueDispatch()) ||
+		      handle(dispatch, anyevent, abort, reset) ||
+		      donepending) &&
+		     anyevent) ||
+		    abort)
 			break;
 
 		if (MCquit)
@@ -384,7 +414,16 @@ Boolean MCScreenDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 		MCRedrawUpdateScreen();
 
 		if (curtime < eventtime)
-			done = MCS_poll(donepending ? 0 : eventtime - curtime, ConnectionNumber(dpy));
+        {
+            // If there are run loop actions, ensure they are run occasionally
+            real64_t t_sleep;
+            t_sleep = eventtime - curtime;
+            if (HasRunloopActions())
+                t_sleep = MCMin(t_sleep, 0.01);
+            
+            gdk_display_sync(dpy);
+            done = MCS_poll(donepending ? 0 : t_sleep, x11::XConnectionNumber(x11::gdk_x11_display_get_xdisplay(dpy)));
+        }
 		curtime = MCS_time();
 	}
 	while (curtime < exittime && !(anyevent && (done || donepending)));
@@ -396,14 +435,16 @@ Boolean MCScreenDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 	//   any engine event handling methods need us to.
 	MCRedrawUpdateScreen();
 
+    MCDeletedObjectsLeaveWait(dispatch);
+    
 	return abort;
 }
 
 void MCScreenDC::flushevents(uint2 e)
 {
-	static int event_types[FE_LAST] = { 0, ButtonPress, ButtonRelease,
-	                                    KeyPress, KeyRelease, 1, 1,
-	                                    FocusIn, 1, 1 };
+	static int event_types[FE_LAST] = { 0, GDK_BUTTON_PRESS, GDK_BUTTON_RELEASE,
+	                                    GDK_KEY_PRESS, GDK_KEY_RELEASE, 1, 1,
+	                                    GDK_FOCUS_CHANGE, 1, 1 };
 	Boolean abort, reset;
 	handle(False, False, abort, reset);
 	if (pendingevents != NULL)
@@ -413,7 +454,7 @@ void MCScreenDC::flushevents(uint2 e)
 		do
 		{
 			done = True;
-			if (e == FE_ALL || event_types[e] == tptr->event.type)
+			if (e == FE_ALL || event_types[e] == tptr->event->type)
 			{
 				tptr->remove
 				(pendingevents);

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -17,7 +17,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "revpdfprinter.h"
 
 #include <cairo-pdf.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <float.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -213,8 +215,10 @@ bool MCPDFPrintingDevice::CanRenderPaint(const MCCustomPrinterPaint& p_paint)
 		return p_paint.gradient.type == kMCCustomPrinterGradientLinear ||
 			p_paint.gradient.type == kMCCustomPrinterGradientRadial;
 		break;
+	case kMCCustomPrinterPaintNone:
+	default:
+		return false;
 	}
-	return false;
 }
 
 bool MCPDFPrintingDevice::CanRenderImage(const MCCustomPrinterImage& p_image)
@@ -236,11 +240,8 @@ bool MCPDFPrintingDevice::BeginDocument(const MCCustomPrinterDocument& p_documen
 {
 	bool t_success = true;
 
-#ifdef _MACOSX
-	t_success = MCCStringFromNative(p_document . filename, m_filename);
-#else
-	t_success = MCCStringClone(p_document.filename, m_filename);
-#endif
+    // SN-2014-12-22: [[ Bug 14278 ]] p_document.filename is now a UTF-8 string.
+	t_success = get_filename(p_document.filename, m_filename);
 
 	if (t_success)
 	{
@@ -255,8 +256,8 @@ bool MCPDFPrintingDevice::BeginDocument(const MCCustomPrinterDocument& p_documen
 
 	if (t_success)
 	{
-		cairo_pdf_object_t t_value;
-		t_value.type = CAIRO_PDF_OBJECT_TYPE_STRING;
+		cairo_pdf_value_t t_value;
+		t_value.type = CAIRO_PDF_VALUE_TYPE_STRING;
 		if (p_document.option_count > 0)
 		{
 			t_success = MCMemoryNewArray(p_document.option_count, m_option_keys);
@@ -292,8 +293,8 @@ bool MCPDFPrintingDevice::BeginDocument(const MCCustomPrinterDocument& p_documen
 
 	if (t_success)
 	{
-		cairo_pdf_object_t t_date_object;
-		t_date_object.type = CAIRO_PDF_OBJECT_TYPE_DATE;
+		cairo_pdf_value_t t_date_object;
+		t_date_object.type = CAIRO_PDF_VALUE_TYPE_DATE;
 		t_success = set_cairo_pdf_datetime_to_now(t_date_object.date);
 		if (t_success)
 			cairo_pdf_surface_set_metadata(m_surface, "CreationDate", &t_date_object);
@@ -521,7 +522,7 @@ bool MCPDFPrintingDevice::DrawImage(const MCCustomPrinterImage& image, const MCC
 	return t_success;
 }
 
-bool MCPDFPrintingDevice::DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip)
+bool MCPDFPrintingDevice::DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text_bytes, uint32_t text_byte_count, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip)
 {
 	bool t_success = true;
 	cairo_save(m_context);
@@ -574,7 +575,7 @@ bool MCPDFPrintingDevice::DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t 
 	uint32_t t_cluster_count;
 	bool t_reverse_clusters;
 	if (t_success)
-		t_success = custom_printer_clusters_to_cairo_clusters(clusters, MCCStringLength(text), glyph_count, t_clusters, t_cluster_count, t_reverse_clusters);
+		t_success = custom_printer_clusters_to_cairo_clusters(clusters, text_byte_count, glyph_count, t_clusters, t_cluster_count, t_reverse_clusters);
 	
 	if (t_success)
 		t_success = apply_paint(paint);
@@ -584,7 +585,7 @@ bool MCPDFPrintingDevice::DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t 
 		cairo_set_font_face(m_context, t_font);
 		cairo_set_font_size(m_context, font . size);
 
-		cairo_show_text_glyphs(m_context, text, MCCStringLength(text), t_glyphs, glyph_count, t_clusters, t_cluster_count, t_reverse_clusters ? CAIRO_TEXT_CLUSTER_FLAG_BACKWARD : (cairo_text_cluster_flags_t)0);
+		cairo_show_text_glyphs(m_context, text_bytes, text_byte_count, t_glyphs, glyph_count, t_clusters, t_cluster_count, t_reverse_clusters ? CAIRO_TEXT_CLUSTER_FLAG_BACKWARD : (cairo_text_cluster_flags_t)0);
 		cairo_restore(m_context);
 		t_success = (m_status = cairo_status(m_context)) == CAIRO_STATUS_SUCCESS;
 	}
@@ -750,6 +751,10 @@ void transform_point(double &x, double &y, const MCCustomPrinterTransform &p_tra
 	x = t_x;
 }
 
+// MW-2014-08-19: [[ Bug 13220 ]] It seems Cairo doesn't like (M p) (L _)* (L p) (C)
+//   as it ends up treating it is as a degenerate point. Therefore we clean up this
+//   case - if there is a lineTo which returns to the original moveTo then a close
+//   it ignores the final lineTo.
 bool MCPDFPrintingDevice::draw_path(const MCCustomPrinterPath &p_path)
 {
 	bool t_success = true;
@@ -757,6 +762,12 @@ bool MCPDFPrintingDevice::draw_path(const MCCustomPrinterPath &p_path)
 	MCCustomPrinterPathCommand *t_commands = p_path.commands;
 	MCCustomPrinterPoint *t_points = p_path.coords;
 
+    double t_first_x, t_first_y;
+    t_first_x = t_first_y = DBL_MAX;
+    
+    double t_last_x, t_last_y;
+    t_last_x = t_last_y = DBL_MAX;
+    
 	while (t_success && *t_commands != kMCCustomPrinterPathEnd)
 	{
 		switch (*t_commands++)
@@ -764,12 +775,23 @@ bool MCPDFPrintingDevice::draw_path(const MCCustomPrinterPath &p_path)
 		case kMCCustomPrinterPathMoveTo:
 			{
 				cairo_move_to(m_context, t_points->x, t_points->y);
+                t_first_x = t_points -> x;
+                t_first_y = t_points -> y;
 				t_points++;
 			}
 			break;
 		case kMCCustomPrinterPathLineTo:
 			{
-				cairo_line_to(m_context, t_points->x, t_points->y);
+                if (t_last_x != t_points -> x || t_last_y != t_points -> y)
+                {
+                    if (*t_commands != kMCCustomPrinterPathClose ||
+                        (t_first_x != t_points -> x || t_first_y != t_points -> y))
+                    {
+                        cairo_line_to(m_context, t_points->x, t_points->y);
+                        t_last_x = t_points -> x;
+                        t_last_y = t_points -> y;
+                    }
+                }
 				t_points++;
 			}
 			break;
@@ -789,6 +811,9 @@ bool MCPDFPrintingDevice::draw_path(const MCCustomPrinterPath &p_path)
 				t_points += 3;
 			}
 			break;
+		case kMCCustomPrinterPathEnd:
+			/* Shouldn't ever be reached */
+			abort();
 		}
 		t_success = (m_status = cairo_status(m_context)) == CAIRO_STATUS_SUCCESS;
 	}
@@ -846,6 +871,8 @@ bool MCPDFPrintingDevice::apply_paint(const MCCustomPrinterPaint &p_paint)
 				break;
 			case kMCCustomPrinterGradientRadial:
 				t_paint_pattern = cairo_pattern_create_radial(0, 0, 0, 0, 0, t_extent);
+				break;
+			default:
 				break;
 			}
 			if (p_paint.gradient.repeat > 1 && !p_paint.gradient.wrap)
@@ -937,6 +964,8 @@ bool MCPDFPrintingDevice::apply_paint(const MCCustomPrinterPaint &p_paint)
 
 			init_matrix(t_transform, p_paint.gradient.transform);
 		}
+		break;
+	case kMCCustomPrinterPaintNone:
 		break;
 	}
 	if (t_paint_pattern != nil && t_success)
@@ -1098,6 +1127,11 @@ bool MCPDFPrintingDevice::create_surface_from_image(const MCCustomPrinterImage &
 
 	// PNG image data
 	case kMCCustomPrinterImagePNG:
+		t_success = false;
+		break;
+			
+	// [[ Bug 12699 ]] Handle unrecognised image type
+	default:
 		t_success = false;
 		break;
 	}
@@ -1307,44 +1341,9 @@ bool custom_printer_clusters_to_cairo_clusters(const uint32_t *p_cp_clusters, ui
 	r_clusters = t_clusters;
 	r_cluster_count = t_cluster_count;
 	r_reverse_clusters = t_reverse;
-
-#if 0
-	fprintf(stderr, "\nInput:  ");
-	for(uint32_t i = 0; i < p_count; i++)
-		fprintf(stderr, "%04x ", p_cp_clusters[i]);
-	fprintf(stderr, "\nOutput: ");
-	for(uint32_t i = 0; i < t_cluster_count; i++)
-		fprintf(stderr, "%02x/%02x ", t_clusters[i] . num_bytes, t_clusters[i] . num_glyphs);
-	fprintf(stderr, "\n");
-#endif
 	
 	return true;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// We scarecly use any C++ features so to avoid having to link with the heavy
-// stdc++ library, we just define what we need.
-
-#if defined(_MACOSX) || defined(TARGET_SUBPLATFORM_IPHONE)
-void * operator new (long unsigned int p_amount)
-#else
-// MP-2013-05-02: [[ x64 ]] Make sure we use the right type for 64-bit.
-void * operator new (size_t p_amount)
-#endif
-{
-	void *t_result;
-	if (!MCMemoryAllocate(p_amount, t_result))
-		return nil;
-	return t_result;
-}
-
-void operator delete(void *p_block)
-{
-	MCMemoryDeallocate(p_block);
-}
-
-extern "C" void __cxa_pure_virtual() { while (1); }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1379,7 +1378,7 @@ struct LibInfo __libinfo =
 	__libexports
 };
 
-__attribute((section("__DATA,__libs"))) volatile struct LibInfo *__libinfoptr_revpdfprinter = &__libinfo;
+__attribute((section("__DATA,__libs"))) volatile struct LibInfo *__libinfoptr_revpdfprinter __attribute__((__visibility__("default"))) = &__libinfo;
 }
 #endif
 

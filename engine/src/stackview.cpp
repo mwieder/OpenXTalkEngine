@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,11 +16,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-//#include "globdefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "filedefs.h"
-
+#include "globals.h"
 #include "stack.h"
 #include "card.h"
 
@@ -31,6 +30,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "tilecache.h"
 #include "redraw.h"
+#include "player.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,52 +81,6 @@ bool MCStackFullscreenModeFromString(const char *p_string, MCStackFullscreenMode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct MCRegionTransformContext
-{
-	MCRegionRef region;
-	MCGAffineTransform transform;
-};
-
-bool MCRegionTransformCallback(void *p_context, const MCRectangle &p_rect)
-{
-	MCRegionTransformContext *t_context;
-	t_context = static_cast<MCRegionTransformContext*>(p_context);
-
-	MCRectangle t_transformed_rect;
-	t_transformed_rect = MCRectangleGetTransformedBounds(p_rect, t_context->transform);
-
-	return MCRegionIncludeRect(t_context->region, t_transformed_rect);
-}
-
-bool MCRegionTransform(MCRegionRef p_region, const MCGAffineTransform &p_transform, MCRegionRef &r_transformed_region)
-{
-	bool t_success;
-	t_success = true;
-
-	MCRegionRef t_new_region;
-	t_new_region = nil;
-
-	t_success = MCRegionCreate(t_new_region);
-
-	if (t_success)
-	{
-		MCRegionTransformContext t_context;
-		t_context.region = t_new_region;
-		t_context.transform = p_transform;
-
-		t_success = MCRegionForEachRect(p_region, MCRegionTransformCallback, &t_context);
-	}
-
-	if (t_success)
-		r_transformed_region = t_new_region;
-	else
-		MCRegionDestroy(t_new_region);
-
-	return t_success;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void MCStack::view_init(void)
 {
 	m_view_fullscreen = false;
@@ -160,6 +114,9 @@ void MCStack::view_copy(const MCStack &p_view)
 	
 	m_view_stack_visible_rect = p_view.m_view_stack_visible_rect;
 	
+    // FG-2014-01-30 [[ Valgrind ]] Unitinialized value
+    m_view_rect = p_view.m_view_rect;
+
 	// MW-2011-08-26: [[ TileCache ]] Stacks start off with no tilecache.
 	m_view_tilecache = nil;
 	m_view_bg_layer_id = 0;
@@ -173,6 +130,10 @@ void MCStack::view_copy(const MCStack &p_view)
 
 	// IM-2014-01: [[ HiDPI ]] Initialize the view backing surface scale
 	m_view_backing_scale = p_view.m_view_backing_scale;
+
+    // SN-2014-14-10: [[ ViewRect ]] Ensure that the view rect is copied (uninitialised m_view_rect
+    //  might lead to a crash)
+    m_view_rect = p_view.m_view_rect;
 }
 
 void MCStack::view_destroy(void)
@@ -189,15 +150,23 @@ void MCStack::view_setfullscreen(bool p_fullscreen)
 {
 	bool t_fullscreen = view_getfullscreen();
 	
+	// IM-2014-02-12: [[ Bug 11783 ]] We may also need to reset the fonts on Windows when
+	//   fullscreen is changed
+	bool t_ideal_layout;
+	t_ideal_layout = getuseideallayout();
+
 	m_view_fullscreen = p_fullscreen;
 	
 	// IM-2014-01-16: [[ StackScale ]] Reopen the window after changing fullscreen
 	if (t_fullscreen != view_getfullscreen())
 	{
+		// IM-2014-05-27: [[ Bug 12321 ]] Work out here whether or not we need to purge fonts
+		if ((t_ideal_layout != getuseideallayout()) && opened)
+			m_purge_fonts = true;
+
 		reopenwindow();
 		
-		// IM-2014-01-16: [[ StackScale ]] Update view transform after changing view property
-		view_update_transform();
+		// IM-2014-05-27: [[ Bug 12321 ]] Move view transform update to reopenwindow() to allow stack rect to be reset correctly before reopening
 	}
 }
 
@@ -239,10 +208,15 @@ MCRectangle MCStack::view_getrect(void) const
 
 void MCStack::view_set_content_scale(MCGFloat p_scale)
 {
+	if (m_view_content_scale == p_scale)
+		return;
+	
 	m_view_content_scale = p_scale;
 	
 	// IM-2014-01-16: [[ StackScale ]] Update view transform after changing view property
-	view_update_transform();
+	view_update_transform(true);
+	// IM-2014-10-22: [[ Bug 13746 ]] Update window mask when stack scale changes
+	loadwindowshape();
 }
 
 MCGFloat MCStack::view_get_content_scale(void) const
@@ -320,16 +294,16 @@ MCGAffineTransform view_get_stack_transform(MCStackFullscreenMode p_mode, MCRect
 	case kMCStackFullscreenShowAll:
 		t_scale = MCMin((MCGFloat)p_screen_rect.width / (MCGFloat)p_stack_rect.width, (MCGFloat)p_screen_rect.height / (MCGFloat)p_stack_rect.height);
 		t_transform = MCGAffineTransformMakeTranslation(-(MCGFloat)p_stack_rect.width / 2.0, -(MCGFloat)p_stack_rect.height / 2.0);
-		t_transform = MCGAffineTransformScale(t_transform, t_scale, t_scale);
-		t_transform = MCGAffineTransformTranslate(t_transform, (MCGFloat)p_screen_rect.width / 2.0, (MCGFloat)p_screen_rect.height / 2.0);
+		t_transform = MCGAffineTransformPreScale(t_transform, t_scale, t_scale);
+		t_transform = MCGAffineTransformPreTranslate(t_transform, (MCGFloat)p_screen_rect.width / 2.0, (MCGFloat)p_screen_rect.height / 2.0);
 
 		return t_transform;
 
 	case kMCStackFullscreenNoBorder:
 		t_scale = MCMax((MCGFloat)p_screen_rect.width / (MCGFloat)p_stack_rect.width, (MCGFloat)p_screen_rect.height / (MCGFloat)p_stack_rect.height);
 		t_transform = MCGAffineTransformMakeTranslation(-(MCGFloat)p_stack_rect.width / 2.0, -(MCGFloat)p_stack_rect.height / 2.0);
-		t_transform = MCGAffineTransformScale(t_transform, t_scale, t_scale);
-		t_transform = MCGAffineTransformTranslate(t_transform, (MCGFloat)p_screen_rect.width / 2.0, (MCGFloat)p_screen_rect.height / 2.0);
+		t_transform = MCGAffineTransformPreScale(t_transform, t_scale, t_scale);
+		t_transform = MCGAffineTransformPreTranslate(t_transform, (MCGFloat)p_screen_rect.width / 2.0, (MCGFloat)p_screen_rect.height / 2.0);
 
 		return t_transform;
 
@@ -339,6 +313,8 @@ MCGAffineTransform view_get_stack_transform(MCStackFullscreenMode p_mode, MCRect
 		t_rect = MCU_center_rect(p_screen_rect, p_stack_rect);
 		// IM-2013-12-19: [[ Bug 11590 ]] Adjust for screen rect origins other than 0,0
 		return MCGAffineTransformMakeTranslation(t_rect.x - p_screen_rect.x, t_rect.y - p_screen_rect.y);
+    default:
+        MCUnreachableReturn(MCGAffineTransformMakeIdentity());
 	}
 }
 
@@ -347,8 +323,8 @@ void MCStack::view_on_rect_changed(void)
 	// IM-2013-10-03: [[ FullscreenMode ]] if the view rect has changed, update the tilecache geometry
 	view_updatetilecacheviewport();
 	
-	if (view_getfullscreen())
-		view_dirty_all();
+	if (view_getfullscreen() || view_platform_dirtyviewonresize())
+		dirtyall();
 }
 
 void MCStack::view_setrect(const MCRectangle &p_rect)
@@ -450,11 +426,21 @@ void MCStack::view_calculate_viewports(const MCRectangle &p_stack_rect, MCRectan
 	// IM-2014-01-16: [[ StackScale ]] append scale transform to fullscreenmode transform
 	r_transform = MCGAffineTransformConcat(view_get_stack_transform(t_mode, MCGRectangleGetIntegerBounds(t_scaled_rect), t_view_rect), t_transform);
 }
+
+#if defined(_MOBILE)
+#include "mblsyntax.h"
+#endif
 	
-void MCStack::view_update_transform(void)
+void MCStack::view_update_transform(bool p_ensure_onscreen)
 {
 	MCRectangle t_view_rect;
 	MCGAffineTransform t_transform;
+    
+#if defined(_MOBILE)
+    MCOrientation t_orientation;
+    MCSystemGetOrientation(t_orientation);
+    MCOrientationGetRectForOrientation(t_orientation ,m_view_requested_stack_rect);
+#endif
 	
 	// IM-2014-01-16: [[ StackScale ]] Use utility method to calculate new values
 	view_calculate_viewports(m_view_requested_stack_rect, m_view_adjusted_stack_rect, t_view_rect, t_transform);
@@ -467,16 +453,46 @@ void MCStack::view_update_transform(void)
 	
 	// IM-2013-10-03: [[ FullscreenMode ]] if the transform has changed, redraw everything
 	// IM-2013-12-20: [[ ShowAll ]] if the stack viewport has changed, redraw everything
-	if (!MCU_equal_rect(t_stack_visible_rect, m_view_stack_visible_rect) || !MCGAffineTransformIsEqual(t_transform, m_view_transform))
+	bool t_rect_changed, t_transform_changed;
+	t_rect_changed = !MCU_equal_rect(t_stack_visible_rect, m_view_stack_visible_rect);
+	t_transform_changed = !MCGAffineTransformIsEqual(t_transform, m_view_transform);
+	if (t_rect_changed || t_transform_changed)
 	{
 		m_view_transform = t_transform;
 		m_view_stack_visible_rect = t_stack_visible_rect;
 		
-		view_dirty_all();
+		dirtyall();
+		if (t_transform_changed)
+			this->OnViewTransformChanged();
 	}
 	
-	// IM-2014-01-16: [[ StackScale ]] Update view rect if needed
-	view_setrect(t_view_rect);
+	// PM-2015-07-17: [[ Bug 13754 ]] Make sure stack does not disappear off screen when changing the scalefactor
+    MCRectangle t_bounded_rect;
+    if (p_ensure_onscreen)
+    {
+        // AL-2015-10-01: [[ Bug 16017 ]] Remember location of stacks on a second monitor
+        const MCDisplay* t_nearest_display;
+        t_nearest_display = MCscreen -> getnearestdisplay(t_view_rect);
+        
+        if (t_nearest_display != nil)
+        {
+			MCRectangle t_screen_rect;
+            t_screen_rect = t_nearest_display -> viewport;
+            t_bounded_rect = MCU_bound_rect(t_view_rect, t_screen_rect . x, t_screen_rect . y, t_screen_rect . width, t_screen_rect . height);
+        }
+        else
+        {
+            // In noUI mode, we don't have a nearest display.
+            t_bounded_rect = MCU_bound_rect(t_view_rect, 0, 0, MCscreen -> getwidth(), MCscreen -> getheight());
+        }
+    }
+    else
+    {
+        t_bounded_rect = t_view_rect;
+    }
+    
+    // IM-2014-01-16: [[ StackScale ]] Update view rect if needed
+    view_setrect(t_bounded_rect);
 }
 
 MCRectangle MCStack::view_setstackviewport(const MCRectangle &p_rect)
@@ -493,7 +509,10 @@ void MCStack::view_configure(bool p_user)
 {
 	MCRectangle t_view_rect;
 	mode_getrealrect(t_view_rect);
-	
+
+	// IM-2014-10-29: [[ Bug 13812 ]] Remove need resize check and unset flag
+	m_view_need_resize = false;
+
 	if (!MCU_equal_rect(t_view_rect, m_view_rect))
 	{
 		// IM-2014-02-13: [[ StackScale ]] Test if the view size has changed
@@ -501,6 +520,7 @@ void MCStack::view_configure(bool p_user)
 		t_resize = t_view_rect.width != m_view_rect.width || t_view_rect.height != m_view_rect.height;
 		
 		m_view_rect = t_view_rect;
+		
 		view_on_rect_changed();
 		
 		if (view_getfullscreen())
@@ -545,7 +565,10 @@ MCRectangle MCStack::view_getstackvisiblerect(void)
 
 void MCStack::view_render(MCGContextRef p_target, MCRectangle p_rect)
 {
-	// redraw borders if visible
+    if (getextendedstate(ECS_DONTDRAW))
+        return;
+    
+    // redraw borders if visible
 
 	// scale & position stack redraw rect
 	// update stack region
@@ -626,6 +649,11 @@ bool MCStack::view_getacceleratedrendering(void)
 
 void MCStack::view_setacceleratedrendering(bool p_value)
 {
+#ifdef _SERVER
+    // We don't have accelerated rendering on Server
+    return;
+#else
+    
 	// If we are turning accelerated rendering off, then destroy the tilecache.
 	if (!p_value)
 	{
@@ -634,7 +662,7 @@ void MCStack::view_setacceleratedrendering(bool p_value)
 		
 		// MW-2012-03-15: [[ Bug ]] Make sure we dirty the stack to ensure all the
 		//   layer mode attrs are rest.
-		view_dirty_all();
+		dirtyall();
 		
 		return;
 	}
@@ -652,7 +680,7 @@ void MCStack::view_setacceleratedrendering(bool p_value)
 	t_compositor_type = kMCTileCacheCompositorCoreGraphics;
 	t_tile_size = 32;
 	t_cache_limit = 32 * 1024 * 1024;
-#elif defined(_WINDOWS_DESKTOP) || defined(_LINUX_DESKTOP)
+#elif defined(_WINDOWS_DESKTOP) || defined(_LINUX_DESKTOP) || defined(__EMSCRIPTEN__)
 	t_compositor_type = kMCTileCacheCompositorSoftware;
 	t_tile_size = 32;
 	t_cache_limit = 32 * 1024 * 1024;
@@ -678,13 +706,16 @@ void MCStack::view_setacceleratedrendering(bool p_value)
 		t_tile_size = 64, t_cache_limit = 32 * 1024 * 1024;
 	else
 		t_tile_size = 64, t_cache_limit = 64 * 1024 * 1024;
+#else
+#   error "No tile cache implementation defined for this platform"
 #endif
 	
 	MCTileCacheCreate(t_tile_size, t_cache_limit, m_view_tilecache);
 	view_updatetilecacheviewport();
 	MCTileCacheSetCompositor(m_view_tilecache, t_compositor_type);
 	
-	view_dirty_all();
+	dirtyall();
+#endif /* !_SERVER */
 }
 
 //////////
@@ -716,7 +747,7 @@ void MCStack::view_setcompositortype(MCTileCacheCompositorType p_type)
 		MCTileCacheSetCompositor(m_view_tilecache, p_type);
 	}
 	
-	view_dirty_all();
+	dirtyall();
 }
 
 //////////
@@ -734,7 +765,7 @@ void MCStack::view_setcompositorcachelimit(uint32_t p_limit)
 	if (m_view_tilecache != nil)
 	{
 		MCTileCacheSetCacheLimit(m_view_tilecache, p_limit);
-		view_dirty_all();
+		dirtyall();
 	}
 }
 
@@ -758,7 +789,7 @@ void MCStack::view_setcompositortilesize(uint32_t p_size)
 	if (m_view_tilecache != nil)
 	{
 		MCTileCacheSetTileSize(m_view_tilecache, p_size);
-		view_dirty_all();
+		dirtyall();
 	}
 }
 
@@ -879,9 +910,21 @@ bool MCStack::view_snapshottilecache(const MCRectangle &p_stack_rect, MCGImageRe
 // IM-2013-10-14: [[ FullscreenMode ]] Move update region tracking into view abstraction
 void MCStack::view_apply_updates()
 {
+	// IM-2014-09-23: [[ Bug 13349 ]] Sync window geometry before any redraw updates.
+	if (m_view_need_resize)
+	{
+		view_update_geometry();
+		m_view_need_redraw = true;
+	}
+	
 	// Ensure the content is up to date.
 	if (m_view_need_redraw)
 	{
+		// IM-2014-09-30: [[ Bug 13501 ]] Unset need_redraw flag here to prevent further updates while drawing
+
+		// We no longer need to redraw.
+		m_view_need_redraw = false;
+		
 		// MW-2012-04-20: [[ Bug 10185 ]] Only update if there is a window to update.
 		//   (we can get here if a stack has its window taken over due to go in window).
 		if (window != nil)
@@ -904,9 +947,6 @@ void MCStack::view_apply_updates()
 			// Clear the update region.
 			MCRegionSetEmpty(m_view_update_region);
 		}
-		
-		// We no longer need to redraw.
-		m_view_need_redraw = false;
 	}
 }
 
@@ -916,17 +956,17 @@ void MCStack::view_reset_updates()
 	MCRegionDestroy(m_view_update_region);
 	m_view_update_region = nil;
 	m_view_need_redraw = false;
+	
+	// IM-2014-09-23: [[ Bug 13349 ]] reset geometry update flag
+	m_view_need_resize = false;
 }
 
 // IM-2013-10-14: [[ FullscreenMode ]] Move update region tracking into view abstraction
 void MCStack::view_dirty_rect(const MCRectangle &p_rect)
 {
-	MCRectangle t_view_rect;
-	t_view_rect = MCRectangleMake(0, 0, m_view_rect.width, m_view_rect.height);
-	
-	MCRectangle t_dirty_rect;
-	t_dirty_rect = MCU_intersect_rect(p_rect, t_view_rect);
-	
+    MCRectangle t_visible_rect = MCRectangleGetTransformedBounds(view_getstackvisiblerect(), view_getviewtransform());
+    MCRectangle t_dirty_rect = MCU_intersect_rect(p_rect, t_visible_rect);
+
 	if (t_dirty_rect.width == 0 || t_dirty_rect.height == 0)
 		return;
 	
@@ -942,14 +982,6 @@ void MCStack::view_dirty_rect(const MCRectangle &p_rect)
 	MCRedrawScheduleUpdateForStack(this);
 }
 
-// IM-2013-10-14: [[ FullscreenMode ]] Move update region tracking into view abstraction
-void MCStack::view_dirty_all(void)
-{
-	view_dirty_rect(MCRectangleMake(0, 0, m_view_rect.width, m_view_rect.height));
-	
-	dirtyall();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 MCRectangle MCStack::view_getwindowrect(void) const
@@ -959,7 +991,26 @@ MCRectangle MCStack::view_getwindowrect(void) const
 
 MCRectangle MCStack::view_setgeom(const MCRectangle &p_rect)
 {
+	// IM-2014-09-23: [[ Bug 13349 ]] Defer window resizing if the screen is locked.
+	if ((MCRedrawIsScreenLocked() || !MCRedrawIsScreenUpdateEnabled()) && (opened && getflag(F_VISIBLE)))
+	{
+		m_view_need_resize = true;
+		MCRedrawScheduleUpdateForStack(this);
+		
+		return p_rect;
+	}
+	
+	dirtyall();
 	return view_platform_setgeom(p_rect);
+}
+
+void MCStack::view_update_geometry()
+{
+	if (m_view_need_resize &&
+        window != NULL)
+		view_platform_setgeom(m_view_rect);
+	
+	m_view_need_resize = false;
 }
 
 MCGFloat MCStack::view_getbackingscale(void) const
@@ -974,9 +1025,14 @@ void MCStack::view_setbackingscale(MCGFloat p_scale)
 	
 	m_view_backing_scale = p_scale;
 
-	// reset tilecache if the backing scale has changed
+	// IM-2014-06-30: [[ Bug 12715 ]] backing scale changes occur when redrawing the whole stack,
+	// so we need to update the tilecache here before continuing to draw.
+	
+	view_flushtilecache();
 	view_updatetilecacheviewport();
-	view_dirty_all();
+	view_updatetilecache();
+	// IM-2014-10-22: [[ Bug 13746 ]] Update window mask when backing scale changes
+	loadwindowshape();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

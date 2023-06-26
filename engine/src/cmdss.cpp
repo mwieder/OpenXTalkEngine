@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -23,7 +23,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "mcio.h"
 
 #include "scriptpt.h"
-#include "execpt.h"
+
 #include "handler.h"
 #include "cmds.h"
 #include "visual.h"
@@ -44,6 +44,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "globals.h"
 #include "securemode.h"
 #include "redraw.h"
+#include "exec.h"
+#include "variable.h"
+#include "stackfileformat.h"
 
 MCCompact::~MCCompact()
 {
@@ -53,7 +56,7 @@ delete target;
 Parse_stat MCCompact::parse(MCScriptPoint &sp)
 {
 	initpoint(sp);
-	target = new MCChunk(False);
+	target = new (nothrow) MCChunk(False);
 	if (target->parse(sp, False) != PS_NORMAL)
 	{
 		MCperror->add
@@ -63,28 +66,23 @@ Parse_stat MCCompact::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCCompact::exec(MCExecPoint &ep)
+void MCCompact::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCCompact */ LEGACY_EXEC
 	MCObject *optr;
 	uint4 parid;
 
-	if (target->getobj(ep, optr, parid, True) != ES_NORMAL)
-	{
-		MCeerror->add
-		(EE_COMPACT_NOTARGET, line, pos);
-		return ES_ERROR;
+    if (!target->getobj(ctxt, optr, parid, True))
+    {
+        ctxt . LegacyThrow(EE_COMPACT_NOTARGET);
+        return;
 	}
 	if (optr->gettype() != CT_STACK)
-	{
-		MCeerror->add
-		(EE_COMPACT_NOTASTACK, line, pos);
-		return ES_ERROR;
+    {
+        ctxt . LegacyThrow(EE_COMPACT_NOTASTACK);
+        return;
 	}
-	MCStack *sptr = (MCStack *)optr;
-	sptr->compact();
-	return ES_NORMAL;
-#endif /* MCCompact */
+    MCStack *sptr = (MCStack *)optr;
+    MCLegacyExecCompactStack(ctxt, sptr);
 }
 
 MCGo::~MCGo()
@@ -99,6 +97,7 @@ MCGo::~MCGo()
 	delete background;
 	delete card;
 	delete window;
+	delete widget;
 }
 
 Parse_stat MCGo::parse(MCScriptPoint &sp)
@@ -113,15 +112,18 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 
 	initpoint(sp);
 	if (sp.skip_token(SP_FACTOR, TT_PROPERTY, P_INVISIBLE) == PS_NORMAL)
-		visible = False;
+		visibility_type = kMCInterfaceExecGoVisibilityExplicitInvisible;
+	if (sp.skip_token(SP_FACTOR, TT_PROPERTY, P_VISIBLE) == PS_NORMAL)
+		visibility_type = kMCInterfaceExecGoVisibilityExplicitVisible;
 	while (True)
 	{
 		if (sp.next(type) != PS_NORMAL)
+		{
 			if (need_target)
 			{
 				if (ct_class(oterm) == CT_ORDINAL)
 				{
-					card = new MCCRef;
+					card = new (nothrow) MCCRef;
 					card->otype = CT_CARD;
 					card->etype = oterm;
 					return PS_NORMAL;
@@ -135,6 +137,7 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 			}
 			else
 				break;
+		}
 		if (type == ST_ID && (sp.lookup(SP_FACTOR, te) == PS_NORMAL
 		                      || sp.lookup(SP_GO, te) == PS_NORMAL))
 		{
@@ -154,15 +157,16 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 					        || sp.lookup(SP_COMMAND, te) != PS_NORMAL
 					        || te->type != TT_STATEMENT)
 					{
-						uint2 newmode;
-						if (!MCU_stoui2(sp.gettoken(), newmode)
-						        || newmode < 1 || newmode >= WM_LAST)
+                        MCAutoNumberRef t_mode;
+
+                        if (!MCNumberParse(sp.gettoken_stringref(), &t_mode)
+						        || MCNumberFetchAsInteger(*t_mode) < 1 || MCNumberFetchAsInteger(*t_mode) >= WM_LAST)
 						{
 							MCperror->add
 							(PE_GO_NOMODE, sp);
 							return PS_ERROR;
 						}
-						mode = (Window_mode)newmode;
+                        mode = (Window_mode)MCNumberFetchAsUnsignedInteger(*t_mode);
 						return PS_NORMAL;
 					}
 					switch (te->which)
@@ -259,7 +263,20 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 					case CT_BACKWARD:
 					case CT_FORWARD:
 						{
-							card = new MCCRef;
+							if (sp.skip_token(SP_FACTOR, TT_IN) == PS_NORMAL)
+							{
+								widget = new (nothrow) MCChunk(False);
+								if (widget->parse(sp, False) != PS_NORMAL)
+								{
+									MCperror->add(PE_GO_BADWIDGETEXP, sp);
+									return PS_ERROR;
+								}
+								direction = nterm;
+								
+								break;
+							}
+
+							card = new (nothrow) MCCRef;
 							card->etype = nterm;
 							MCScriptPoint oldsp(sp);
 							MCerrorlock++;
@@ -274,13 +291,13 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 						break;
 					case CT_START:
 					case CT_FINISH:
-						card = new MCCRef;
+						card = new (nothrow) MCCRef;
 						card->etype = nterm;
 						sp.skip_token(SP_FACTOR, TT_CHUNK, CT_CARD);
 						break;
 					case CT_HOME:
 					case CT_HELP:
-						stack = new MCCRef;
+						stack = new (nothrow) MCCRef;
 						stack->etype = nterm;
 						break;
 					default:
@@ -299,10 +316,10 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 						(PE_GO_BADCHUNKORDER, sp);
 						return PS_ERROR;
 					}
-					curref = new MCCRef;
+					curref = new (nothrow) MCCRef;
 					if (oterm == CT_UNDEFINED)
 					{
-						if (nterm >= CT_FIELD || nterm == CT_URL)
+						if (nterm >= CT_FIRST_TEXT_CHUNK || nterm == CT_URL)
 						{
 							sp.backup();
 							nterm = CT_CARD;
@@ -371,7 +388,7 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 						return PS_ERROR;
 					}
 					sp.backup();
-					card = new MCCRef;
+					card = new (nothrow) MCCRef;
 					card->otype = CT_CARD;
 					card->etype = CT_EXPRESSION;
 					if (sp.parseexp(False, True, &card->startpos) != PS_NORMAL)
@@ -397,7 +414,7 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 					return PS_ERROR;
 				}
 				sp.backup();
-				stack = new MCCRef;
+				stack = new (nothrow) MCCRef;
 				stack->otype = CT_STACK;
 				stack->etype = CT_EXPRESSION;
 				if (sp.parseexp(False, True, &stack->startpos) != PS_NORMAL)
@@ -417,45 +434,44 @@ Parse_stat MCGo::parse(MCScriptPoint &sp)
 	}
 	return PS_NORMAL;
 }
-#ifdef /* MCGo::findstack */ LEGACY_EXEC
-MCStack *MCGo::findstack(MCExecPoint &ep, Chunk_term etype, MCCard *&cptr)
-{
-	MCStack *sptr = NULL;
 
-	MCresult->clear(False);
-	uint4 offset;
-	if (MCU_offset(SIGNATURE, ep.getsvalue(), offset) || (ep . getsvalue() . getlength() > 8 && strncmp(ep . getsvalue() . getstring(), "REVO", 4) == 0))
-	{
-		IO_handle stream = MCS_fakeopen(ep.getsvalue());
-		if (MCdispatcher->readfile(NULL, NULL, stream, sptr) != IO_NORMAL)
-		{
-			MCS_close(stream);
-			if (MCresult->isclear())
-				MCresult->sets("can't build stack from string");
-			return NULL;
-		}
-		MCS_close(stream);
-		return sptr;
-	}
-	if (etype == CT_STACK)
-		return NULL;
-	if (etype == CT_ID)
-		sptr = MCdefaultstackptr->findstackid(ep.getuint4());
-	else
-		sptr = MCdefaultstackptr->findstackname(ep.getsvalue());
-	if (sptr != NULL)
-		return sptr;
+MCStack *MCGo::findstack(MCExecContext &ctxt, MCStringRef p_value, Chunk_term etype, MCCard *&cptr)
+{
+    MCStack *sptr = nullptr;
+
+    if (MCInterfaceStringCouldBeStack(p_value))
+    {
+        sptr = MCInterfaceTryToEvalStackFromString(p_value);
+        if (sptr == nullptr)
+        {
+            if (MCresult->isclear())
+                ctxt . SetTheResultToCString("can't build stack from string");
+        }
+        return sptr;
+    }
+    
+    if (etype == CT_STACK)
+        return nullptr;
+    else
+        sptr = MCdefaultstackptr->findstackname_string(p_value);
+
+    if (sptr != nullptr)
+        return sptr;
+
 	MCObject *objptr;
-	MCChunk *tchunk = new MCChunk(False);
+	MCChunk *tchunk = new (nothrow) MCChunk(False);
 	MCerrorlock++;
-	MCScriptPoint sp(ep);
+    // AL-2014-11-10: [[ Bug 13972 ]] Parsing the chunk without passing through the context results
+    //  in a parse error for unquoted stack and card names, since there is then no handler in which to
+    //  create a new unquoted literal variable.
+    MCScriptPoint sp(ctxt, p_value);
 	Parse_stat stat = tchunk->parse(sp, False);
 	if (stat == PS_NORMAL)
 	{
 		uint4 parid;
-		if (tchunk->getobj(ep, objptr, parid, True) == ES_NORMAL)
-			stat = PS_NORMAL;
-		else
+        if (tchunk->getobj(ctxt, objptr, parid, True))
+            stat = PS_NORMAL;
+        else
 			stat = PS_ERROR;
 	}
 	MCerrorlock--;
@@ -475,412 +491,264 @@ MCStack *MCGo::findstack(MCExecPoint &ep, Chunk_term etype, MCCard *&cptr)
 			break;
 		}
 	}
-	else
+    else
 		if (MCresult->isclear())
-			MCresult->sets("no such card");
+            ctxt . SetTheResultToCString("no such card");
 	return sptr;
 }
-#endif /* MCGo::findstack */
 
-Exec_stat MCGo::exec(MCExecPoint &ep)
+void MCGo::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCGo */ LEGACY_EXEC
 	MCStack *sptr = MCdefaultstackptr;
 	MCControl *bptr = NULL;
 	MCCard *cptr = NULL;
-	MCRectangle rel;
-	MCStack *parentptr;
 
-	// MW-2011-02-27: [[ Bug ]] Make sure that if we open as a sheet, we have a parent pointer!
-	if (ep.getobj()->getstack()->getopened() || MCtopstackptr == NULL)
-		parentptr = ep.getobj() -> getstack();
-	else
-		parentptr = MCtopstackptr;
+    ctxt . SetTheResultToEmpty();
+    
+	// go ( forward | backward ) in widget ...
+	if (widget != nil)
+	{
+		MCObject *t_object;
+		uint32_t t_parid;
 
-	rel = parentptr -> getrect();
-
-	MCresult->clear(False);
+		if (!widget->getobj(ctxt, t_object, t_parid, True) || t_object->gettype() != CT_WIDGET)
+		{
+			ctxt.LegacyThrow(EE_GO_BADWIDGETEXP);
+			return;
+		}
+		
+		if (direction == CT_BACKWARD)
+			MCInterfaceExecGoBackInWidget(ctxt, (MCWidget*)t_object);
+		else
+			MCInterfaceExecGoForwardInWidget(ctxt, (MCWidget*)t_object);
+		
+		return;
+	}
 	
-	MCString nc = "No such card";
 	if (stack == NULL && background == NULL && card == NULL)
 	{
-		MCeerror->add(EE_GO_NODEST, line, pos);
-		return ES_ERROR;
+        ctxt . LegacyThrow(EE_GO_NODEST);
+        return;
 	}
 
+	bool t_is_home;
+	t_is_home = false;
 	if (stack != NULL)
 	{
 		switch (stack->etype)
 		{
 		case CT_HELP:
-			sptr = MCdefaultstackptr->findstackname(MChelpnamestring);
-			if (sptr == NULL)
-			{
-				if (MCresult->isclear())
-					MCresult->sets(nc);
-				return ES_NORMAL;
-			}
+			sptr = MCdefaultstackptr->findstackname(MCNAME("help"));
 			break;
 		case CT_HOME:
+			t_is_home = true;
 			sptr = MCdispatcher->gethome();
-			if (sptr != MCdefaultstackptr)
-			{
-				MCdefaultstackptr->close();
-				MCdefaultstackptr->checkdestroy();
-			}
 			break;
 		case CT_THIS:
 		case CT_EXPRESSION:
 		case CT_ID:
 			if (stack->etype == CT_THIS)
 				sptr = MCdefaultstackptr;
-			else
+            else if (stack -> etype == CT_ID)
+            {
+                uinteger_t t_stack_id;
+                if (!ctxt . EvalExprAsStrictUInt(stack -> startpos, EE_GO_BADSTACKEXP, t_stack_id))
+                    return;
+
+                sptr = MCdefaultstackptr->findstackid(t_stack_id);
+            }
+            else
 			{
-				if (stack->startpos->eval(ep) != ES_NORMAL)
-				{
-					MCeerror->add(EE_GO_BADSTACKEXP, line, pos);
-					return ES_ERROR;
-				}
-				sptr = findstack(ep, stack->etype, cptr);
+                MCAutoStringRef t_value;
+                if (!ctxt . EvalExprAsStringRef(stack -> startpos, EE_GO_BADSTACKEXP, &t_value))
+                    return;
+
+                sptr = findstack(ctxt, *t_value, stack->etype, cptr);
 			}
-			if (sptr != NULL && stack->next != NULL)
+
+			if (sptr != nullptr && stack->next != NULL)
 			{
 				switch (stack->next->etype)
 				{
 				case CT_ID:
+                {
+                    uinteger_t t_stack_id;
+                    if (!ctxt . EvalExprAsStrictUInt(stack -> next -> startpos, EE_CHUNK_BADSTACKEXP, t_stack_id))
+                        return;
+
+                    sptr = sptr -> findsubstackid(t_stack_id);
+                }
+                    break;
 				case CT_EXPRESSION:
-					if (stack->next->startpos->eval(ep) != ES_NORMAL)
-					{
-						MCeerror->add(EE_CHUNK_BADSTACKEXP, line, pos);
-						return ES_ERROR;
-					}
-					if (stack->next->etype == CT_ID)
-						sptr = sptr->findsubstackid(ep.getuint4());
-					else
-						sptr = sptr->findsubstackname(ep.getsvalue());
+                {
+                    MCNewAutoNameRef t_name;
+                    if (!ctxt . EvalExprAsNameRef(stack -> next -> startpos, EE_CHUNK_BADSTACKEXP, &t_name))
+                        return;
+
+                    sptr = sptr -> findsubstackname(*t_name);
+                }
 					break;
 				default:
-					MCeerror->add(EE_CHUNK_BADSTACKEXP, line, pos);
-					return ES_ERROR;
+                    ctxt . LegacyThrow(EE_CHUNK_BADSTACKEXP);
+                    return;
 				}
-			}
-			if (sptr == NULL)
-			{
-				if (MCresult->isclear())
-					MCresult->sets(nc);
-				return ES_NORMAL;
 			}
 			break;
 		default:
-			return ES_ERROR;
-		}
-		if (mode == WM_PULLDOWN || mode == WM_POPUP || mode == WM_OPTION)
-		{
-			MCButton *bptr = (MCButton *)ep.getobj();
-			if (ep.getobj()->gettype() == CT_BUTTON && bptr->attachmenu(sptr))
-				rel = MCU_recttoroot(bptr->getstack(), bptr->getrect());
-			else
-			{
-				MCeerror->add(EE_GO_CANTATTACH, line, pos);
-				return ES_ERROR;
-			}
+            ctxt . Throw();
+            return;
 		}
 	}
-	sptr->stopedit();
-
-	if (background != NULL)
+    
+    // SN-2014-05-13 [[ Bug 12423 ]]
+    // Temporary fix: stopedit put back where it was before refactoring
+    if (sptr != nil)
+        sptr -> stopedit();
+	
+	if (background != NULL && sptr != nil)
 	{
 		switch (ct_class(background->etype))
 		{
 		case CT_ORDINAL:
-			bptr = sptr->getbackground(background->etype, MCnullmcstring, CT_GROUP);
+			bptr = sptr->getbackground(background->etype, kMCEmptyString, CT_GROUP);
 			break;
 		case CT_ID:
 		case CT_EXPRESSION:
-			if (background->startpos->eval(ep) != ES_NORMAL)
-			{
-				MCeerror->add(EE_GO_BADBACKGROUNDEXP, line, pos);
-				return ES_ERROR;
-			}
-			bptr = sptr->getbackground(background->etype, ep.getsvalue(), CT_GROUP);
+        {
+            MCAutoStringRef t_string;
+            if (!ctxt . EvalExprAsStringRef(background -> startpos, EE_GO_BADBACKGROUNDEXP, &t_string))
+                return;
+
+            bptr = sptr->getbackground(background->etype, *t_string, CT_GROUP);
+        }
 			break;
 		default:
 			break;
 		}
-		if (bptr == NULL)
-		{
-			if (MCresult->isclear())
-				MCresult->sets(nc);
-			return ES_NORMAL;
-		}
-		sptr->setbackground(bptr);
 	}
 
-	int2 i;
-	if (card != NULL)
+    if (bptr != nil)
+        sptr -> setbackground(bptr);
+    
+	real8 n;
+	bool t_is_recent;
+	t_is_recent = false;
+	if (card != NULL && sptr != nil)
+	{
 		switch (ct_class(card->etype))
 		{
 		case CT_DIRECT:
-			sptr->clearbackground();
+            sptr -> clearbackground();
+			t_is_recent = true;
+			switch (card->etype)
+			{
+            case CT_BACKWARD:
+            case CT_FORWARD:
+                if (!ctxt . EvalOptionalExprAsDouble(card -> startpos, 1.0, EE_GO_BADCARDEXP, n))
+                    return;
+
+                break;
+            case CT_START:
+            case CT_FINISH:
+                break;
+            default:
+                ctxt . Throw();
+                return;
+			}
+			break;
+		case CT_ORDINAL:
+				if (card->etype == CT_RECENT)
+					t_is_recent = true;
+                // AL-2014-09-10: [[ Bug 13394 ]] Go marked card missing in refactor
+                else if (marked)
+                    sptr -> setmark();
+				cptr = sptr->getchild(card->etype, kMCEmptyString, card->otype);
+			break;
+		case CT_ID:
+		case CT_EXPRESSION:
+		{
+            MCAutoStringRef t_exp;
+            if (!ctxt . EvalExprAsStringRef(card -> startpos, EE_GO_BADCARDEXP, &t_exp))
+            {
+                sptr -> clearbackground();
+                return;
+            }
+
+            // AL-2014-09-10: [[ Bug 13394 ]] Go marked card missing in refactor
+            if (marked)
+                sptr -> setmark();
+            
+			cptr = sptr->getchild(card->etype, *t_exp, card->otype);
+
+            // SN-2014-06-03 [[ Bug 12552]] go to url "internet stack path" does not work
+            // If getchild() failed, we try to find a stack from the expression
+            if (cptr == NULL)
+            {
+				sptr = findstack(ctxt, *t_exp, CT_STACK, cptr);
+				if (sptr == nullptr)
+				{
+					if (MCresult->isclear())
+						MCresult->setvalueref(MCSTR("No such a card"));
+
+					return;
+				}
+				cptr = (MCCard *)sptr->getchild(CT_THIS, kMCEmptyString, CT_CARD);
+            }
+		}
+			break;
+		default:
+            sptr -> clearbackground();
+			fprintf(stderr, "Go: ERROR no card type %d\n", card->etype);
+            ctxt . Throw();
+            return;
+		}
+        sptr -> clearbackground();
+        sptr -> clearmark();
+	}
+	else
+        if (cptr == nil && sptr != nil)
+            cptr = (MCCard *)sptr->getchild(CT_THIS, kMCEmptyString, CT_CARD);
+    
+	MCAutoStringRef t_window;
+    if (!thisstack)
+    {
+        if (!ctxt . EvalOptionalExprAsNullableStringRef(window, EE_GO_BADWINDOWEXP, &t_window))
+            return;
+	}
+
+    ctxt . SetLineAndPos(line, pos);
+	if (t_is_home)
+		MCInterfaceExecGoHome(ctxt, cptr);
+	else if (t_is_recent)
+	{
+		switch (ct_class(card->etype))
+		{
+		case CT_DIRECT:
 			switch (card->etype)
 			{
 			case CT_BACKWARD:
 			case CT_FORWARD:
-				real8 n;
-				if (card->startpos != NULL)
-				{
-					if (card->startpos->eval(ep) != ES_NORMAL || ep.ton() != ES_NORMAL)
-					{
-						sptr->clearbackground();
-						if (MCresult->isclear())
-							MCresult->sets(nc);
-						return ES_NORMAL;
-					}
-					n = ep.getnvalue();
-				}
-				else
-					n = 1.0;
-				i = (int2)(card->etype == CT_FORWARD ? n : -n);
-				MCrecent->gorel(i);
+				MCInterfaceExecGoCardRelative(ctxt, card->etype == CT_FORWARD, n);
 				break;
 			case CT_START:
 			case CT_FINISH:
-				MCrecent->godirect(card->etype == CT_START);
+				MCInterfaceExecGoCardEnd(ctxt, card->etype == CT_START);
 				break;
 			default:
-				return ES_ERROR;
-			}
-			return ES_NORMAL;
-		case CT_ORDINAL:
-			if (card->etype == CT_RECENT)
-			{
-				MCrecent->gorel(-1);
-				return ES_NORMAL;
-			}
-			else
-			{
-				if (marked)
-					sptr->setmark();
-				cptr = sptr->getchild(card->etype, MCnullmcstring, card->otype);
+				break;
 			}
 			break;
-		case CT_ID:
-		case CT_EXPRESSION:
-			if (card->startpos->eval(ep) != ES_NORMAL)
-			{
-
-				sptr->clearbackground();
-				if (MCresult->isclear())
-					MCresult->sets(nc);
-				return ES_NORMAL;
-			}
-			if (marked)
-				sptr->setmark();
-			cptr = sptr->getchild(card->etype, ep.getsvalue(), card->otype);
-			if (cptr == NULL)
-			{
-				sptr = findstack(ep, CT_STACK, cptr);
-				if (sptr == NULL)
-				{
-					if (MCresult->isclear())
-						MCresult->sets(nc);
-					return ES_NORMAL;
-				}
-				cptr = (MCCard *)sptr->getchild(CT_THIS, MCnullmcstring, CT_CARD);
-			}
+		case CT_ORDINAL:
+			MCInterfaceExecGoRecentCard(ctxt);
 			break;
 		default:
-			sptr->clearbackground();
-			fprintf(stderr, "Go: ERROR no card type %d\n", card->etype);
-			return ES_ERROR;
+			break;
 		}
+	}
+	else if (window != nil)
+		MCInterfaceExecGoCardInWindow(ctxt, cptr, *t_window, visibility_type, thisstack == True);
 	else
-		if (cptr == NULL)
-			cptr = (MCCard *)sptr->getchild(CT_THIS, MCnullmcstring, CT_CARD);
-
-	Window_mode wm = mode;
-	if (wm == WM_LAST && sptr->userlevel() != 0 && window == NULL && !thisstack)
-		wm = (Window_mode)(sptr->userlevel() + WM_TOP_LEVEL_LOCKED);
-
-	sptr->clearmark();
-	sptr->clearbackground();
-
-	uint2 oldw = sptr->getrect().width;
-	uint2 oldh = sptr->getrect().height;
-	if (cptr == NULL)
-	{
-		if (MCresult->isclear())
-			MCresult->sets(nc);
-		return ES_NORMAL;
-	}
-
-	// Here 'oldstack' is the pointer to the stack's window we are taking over.
-	// If it turns out NULL then we aren't subverting another stacks' window to
-	// our cause :o)
-	MCStack *oldstack = NULL;
-	if (window != NULL || thisstack)
-	{
-		Window w = DNULL;
-		if (thisstack)
-		{
-			oldstack = MCdefaultstackptr;
-			w = oldstack->getwindow();
-		}
-		else
-		{
-			if (window->eval(ep) != ES_NORMAL)
-			{
-				MCeerror->add(EE_GO_BADWINDOWEXP, line, pos);
-				return ES_ERROR;
-			}
-			if (ep.ton() == ES_NORMAL && MCscreen->uint4towindow(ep.getuint4(), w))
-				oldstack = MCdispatcher->findstackd(w);
-			else
-				oldstack = ep.getobj()->getstack()->findstackname(ep.getsvalue());
-		}
-		
-		if (oldstack == NULL || !oldstack->getopened())
-		{
-			MCeerror->add(EE_GO_BADWINDOWEXP, line, pos);
-			return ES_ERROR;
-		}
-		
-		if (oldstack == sptr)
-			oldstack = NULL;
-		else
-		{
-			// MW-2011-10-01: [[ Effects ]] Snapshot the old stack window.
-			if (!MCRedrawIsScreenLocked() && MCcur_effects != NULL)
-				oldstack -> snapshotwindow(oldstack -> getcurcard() -> getrect());
-			
-			// MW-2011-10-01: [[ Redraw ]] Lock the screen until we are done.
-			MCRedrawLockScreen();
-			
-			// MW-2012-09-19: [[ Bug 10383 ]] Use the 'real' mode - otherwise we get one
-			//   modified for ICONIC or CLOSED states which screw things up a bit!
-			wm = oldstack->getrealmode();
-			if (wm == WM_MODAL || wm == WM_SHEET)
-			{
-				MCRedrawUnlockScreen();
-				MCeerror->add(EE_GO_BADWINDOWEXP, line, pos);
-				return ES_ERROR;
-			}
-			oldstack->kunfocus();
-			sptr->close();
-			
-			MCPlayer *tptr = MCplayers;
-			while (tptr != NULL)
-			{
-				MCPlayer *oldptr = tptr;
-				tptr = tptr->getnextplayer();
-				if (oldptr->getstack() == oldstack)
-					oldptr->close();
-			}
-
-			if (!sptr->takewindow(oldstack))
-			{
-				MCRedrawUnlockScreen();
-				MCeerror->add(EE_GO_BADWINDOWEXP, line, pos);
-				return ES_ERROR;
-			}
-		}
-	}
-	else if (mode != WM_LAST && wm >= WM_MODELESS)
-	{
-		// MW-2011-08-18: [[ Redraw ]] Move to use redraw lock/unlock.
-		MCRedrawForceUnlockScreen();
-	}
-
-	Boolean oldtrace = MCtrace;
-	MCtrace = False;
-
-	// MW-2007-02-11: [[ Bug 4029 ]] - 'go invisible' fails to close stack window if window already open
-	if (!visible && sptr -> getflag(F_VISIBLE))
-	{
-		if (sptr -> getwindow() != NULL)
-			MCscreen -> closewindow(sptr -> getwindow());
-		sptr->setflag(False, F_VISIBLE);
-	}
-
-	// MW-2011-02-27: [[ Bug ]] Make sure that if we open as a sheet, we have a parent pointer!
-	if (wm != WM_SHEET && wm != WM_DRAWER)
-		parentptr = nil;
-
-	Exec_stat stat = ES_NORMAL;
-	Boolean added = False;
-	if (MCnexecutioncontexts < MAX_CONTEXTS)
-	{
-		ep.setline(line);
-		MCexecutioncontexts[MCnexecutioncontexts++] = &ep;
-		added = True;
-	}
-
-#ifdef _MOBILE
-	// MW-2011-01-30: [[ Effects ]] On Mobile, we must twiddle with snapshots to
-	//   ensure go stack with visual effect works.
-	if (oldstack == nil && MCcur_effects != nil && MCdefaultstackptr != sptr)
-	{
-		MCdefaultstackptr -> snapshotwindow(MCdefaultstackptr -> getcurcard() -> getrect());
-		sptr -> takewindowsnapshot(MCdefaultstackptr);
-		MCRedrawLockScreen();
-	}
-#endif	
-	
-	if (sptr->setcard(cptr, True, True) == ES_ERROR
-	        || sptr->openrect(rel, wm, parentptr, WP_DEFAULT, OP_NONE) == ES_ERROR)
-	{
-		MCtrace = oldtrace;
-		stat = ES_ERROR;
-	}
-	
-	if (oldstack != NULL)
-	{
-		MCRectangle trect = sptr->getcurcard()->getrect();
-		sptr->getcurcard()->message_with_args(MCM_resize_stack, trect.width, trect.height, oldw, oldh);
-		
-		MCRedrawUnlockScreen();
-		
-		if (MCcur_effects != nil)
-		{
-			Boolean t_abort;
-			sptr -> effectrect(sptr -> getcurcard() -> getrect(), t_abort);
-		}
-		
-		Boolean oldlock = MClockmessages;
-		MClockmessages = True;
-		oldstack->close();
-		MClockmessages = oldlock;
-		sptr->kfocus();
-	}
-	
-#ifdef _MOBILE
-	// MW-2011-01-30: [[ Effects ]] Apply any stack level visual efect.
-	if (oldstack == nil && MCcur_effects != nil && MCdefaultstackptr != sptr)
-	{
-		MCRedrawUnlockScreen();
-		
-		// MW-2011-10-17: [[ Bug 9811 ]] Make sure we configure the new card now.
-		MCRedrawDisableScreenUpdates();
-		sptr -> view_configure(True);
-		MCRedrawEnableScreenUpdates();
-			
-		Boolean t_abort;
-		sptr -> effectrect(sptr -> getcurcard() -> getrect(), t_abort);
-	}
-#endif	
-
-	if (added)
-		MCnexecutioncontexts--;
-	
-	MCtrace = oldtrace;
-	if (sptr->getmode() == WM_TOP_LEVEL || sptr->getmode() == WM_TOP_LEVEL_LOCKED)
-		MCdefaultstackptr = sptr;
-	if (MCmousestackptr != NULL)
-		MCmousestackptr->resetcursor(True);
-	if (MCabortscript)
-		return ES_ERROR;
-	return stat;
-#endif /* MCGo */
+        MCInterfaceExecGoCardAsMode(ctxt, cptr, mode, visibility_type, thisstack == True);
 }
 
 MCHide::~MCHide()
@@ -946,7 +814,7 @@ Parse_stat MCHide::parse(MCScriptPoint &sp)
 		(PE_HIDE_BADTARGET, sp);
 		return PS_ERROR;
 	}
-	object = new MCChunk(False);
+	object = new (nothrow) MCChunk(False);
 	if (object->parse(sp, False) != PS_NORMAL)
 	{
 		MCperror->add
@@ -956,7 +824,7 @@ Parse_stat MCHide::parse(MCScriptPoint &sp)
 	if (sp.skip_token(SP_REPEAT, TT_UNDEFINED) == PS_NORMAL)
 	{
 		sp.skip_token(SP_COMMAND, TT_STATEMENT, S_VISUAL);
-		effect = new MCVisualEffect;
+		effect = new (nothrow) MCVisualEffect;
 		if (effect->parse(sp) != PS_NORMAL)
 		{
 			MCperror->add
@@ -967,90 +835,39 @@ Parse_stat MCHide::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCHide::exec(MCExecPoint &ep)
+void MCHide::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCHide */ LEGACY_EXEC
 	switch (which)
 	{
 	case SO_GROUPS:
-		MClinkatts.underline = False;
-		
-		// MW-2011-08-17: [[ Redraw ]] We've changed a global property that could
-		//   affect the display of all stacks.
-		MCRedrawDirtyScreen();
+		MCInterfaceExecHideGroups(ctxt);
 		break;
 	case SO_OBJECT:
-		MCObject *optr;
-		uint4 parid;
-		if (object->getobj(ep, optr, parid, True) != ES_NORMAL)
+    {
+		MCObjectPtr t_target;
+        if (!object->getobj(ctxt, t_target, True))
 		{
-			MCeerror->add(EE_HIDE_NOOBJ, line, pos);
-			return ES_ERROR;
+            ctxt . LegacyThrow(EE_HIDE_NOOBJ);
+            return;
 		}
-			
-		// MW-2011-09-13: [[ Effects ]] Only apply the effect if the screen is not
-		//   locked.
-		if (effect != NULL && !MCRedrawIsScreenLocked())
-		{
-			if (effect->exec(ep) != ES_NORMAL)
-			{
-				MCeerror->add(EE_HIDE_BADEFFECT, line, pos);
-				return ES_NORMAL;
-			}
-			
-			// MW-2010-04-26: [[ Bug 8661 ]] Make sure we use the effective rect for
-			//   effectarea computation.
-			MCRectangle t_rect;
-			if (optr -> gettype() >= CT_GROUP)
-				t_rect = static_cast<MCControl *>(optr) -> geteffectiverect();
-			else
-				t_rect = optr -> getrect();
-			
-			// MW-2011-09-13: [[ Effects ]] Cache the rect we want to play the effect
-			//   in.
-			optr -> getstack() -> snapshotwindow(t_rect);
-			
-			// MW-2011-11-15: [[ Bug 9846 ]] Lock the screen to prevent the snapshot
-			//   being dumped inadvertantly.
-			MCRedrawLockScreen();
-			
-			// MW-2011-11-15: [[ Bug 9846 ]] Make sure we use the same mechanism to
-			//   set visibility as the non-effect case.
-			optr->setsprop(P_VISIBLE, MCfalsemcstring);
-			
-			MCRedrawUnlockScreen();
-			
-			// Run the effect - this will use the previously cached image.
-			Boolean abort = False;
-			optr -> getstack() -> effectrect(t_rect, abort);
-			
-			if (abort)
-			{
-				MCeerror->add(EE_HANDLER_ABORT, line, pos);
-				return ES_ERROR;
-			}
-		}
+		if (effect != NULL)
+			MCInterfaceExecHideObjectWithEffect(ctxt, t_target, effect);
 		else
-			optr->setsprop(P_VISIBLE, MCfalsemcstring);
+			MCInterfaceExecHideObject(ctxt, t_target);
+    }
 		break;
 	case SO_MENU:
-		MCscreen->hidemenu();
+		MCInterfaceExecHideMenuBar(ctxt);
 		break;
 	case SO_TASKBAR:
-		MCscreen->hidetaskbar();
+		MCInterfaceExecHideTaskBar(ctxt);
 		break;
 	case SO_MESSAGE:
-		{
-			MCStack *mb = ep.getobj()->getstack()->findstackname(MCmessagenamestring);
-			if (mb != NULL)
-				mb->close();
-		}
+		MCIdeExecHideMessageBox(ctxt);
 		break;
 	default:
 		break;
-	}
-	return ES_NORMAL;
-#endif /* MCHide */
+    }
 }
 
 MCLock::~MCLock(void)
@@ -1064,6 +881,7 @@ Parse_stat MCLock::parse(MCScriptPoint &sp)
 	const LT *te;
 
 	initpoint(sp);
+    sp.skip_token(SP_FACTOR, TT_THE);
 	if (sp.next(type) != PS_NORMAL)
 	{
 		MCperror->add(PE_LOCK_NOTARGET, sp);
@@ -1114,72 +932,54 @@ Parse_stat MCLock::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCLock::exec(MCExecPoint &ep)
+void MCLock::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCLock */ LEGACY_EXEC
+	
 	switch(which)
 	{
 	case LC_COLORMAP:
-		MClockcolormap = True;
+		MCLegacyExecLockColormap(ctxt);
 		break;
 	case LC_CURSOR:
-		MClockcursor = True;
+		MCInterfaceExecLockCursor(ctxt);
 		break;
 	case LC_ERRORS:
-		MClockerrors = True;
-		MCerrorlockptr = ep.getobj();
+		MCEngineExecLockErrors(ctxt);
 		break;
 	case LC_MENUS:
-		MClockmenus = True;
+		MCInterfaceExecLockMenus(ctxt);
 		break;
 	case LC_MSGS:
-		MClockmessages = True;
+		MCEngineExecLockMessages(ctxt);
 		break;
 	case LC_MOVES:
-		MClockmoves = True;
+		MCInterfaceExecLockMoves(ctxt);
 		break;
 	case LC_RECENT:
-		MClockrecent = True;
+		MCInterfaceExecLockRecent(ctxt);
 		break;
 	case LC_SCREEN:
-		MCRedrawLockScreen();
+		MCInterfaceExecLockScreen(ctxt);
 		break;
 	// MW-2011-09-13: [[ Effects ]] If the screen is not locked capture a snapshot
 	//   of the default stack.
 	case LC_SCREEN_FOR_EFFECT:
-		if (!MCRedrawIsScreenLocked())
 		{
-			// MW-2011-09-24: [[ Effects ]] Process the 'rect' clause (if any).
-			if (rect == nil)
-				MCcur_effects_rect = MCdefaultstackptr -> getcurcard() -> getrect();
-			else
-			{
-				int2 i1, i2, i3, i4;
-				
-				if (rect -> eval(ep) != ES_NORMAL)
-				{
-					MCeerror -> add(EE_LOCK_BADRECT, line, pos);
-					return ES_ERROR;
-				}
-				
-				if (!MCU_stoi2x4(ep . getsvalue(), i1, i2, i3, i4))
-				{
-					MCeerror->add(EE_LOCK_NAR, 0, 0, ep . getsvalue());
-					return ES_ERROR;
-				}
-				
-				MCU_set_rect(MCcur_effects_rect, i1, i2, i3 - i1, i4 - i2);
-			}
-
-			MCdefaultstackptr -> snapshotwindow(MCcur_effects_rect);
+			MCRectangle t_region;
+            MCRectangle *t_region_ptr;
+            t_region_ptr = &t_region;
+            if (!ctxt . EvalOptionalExprAsRectangle(rect, nil, EE_LOCK_BADRECT, t_region_ptr))
+                return;
+			
+			MCInterfaceExecLockScreenForEffect(ctxt, t_region_ptr);
 		}
-		MCRedrawLockScreen();
 		break;
+    case LC_CLIPBOARD:
+        MCPasteboardExecLockClipboard(ctxt);
+        break;
 	default:
 		break;
-	}
-	return ES_NORMAL;
-#endif /* MCLock */
+    }
 }
 
 MCPop::~MCPop()
@@ -1214,7 +1014,7 @@ Parse_stat MCPop::parse(MCScriptPoint &sp)
 		(PE_POP_BADPREP, sp);
 		return PS_ERROR;
 	}
-	dest = new MCChunk(True);
+	dest = new (nothrow) MCChunk(True);
 	if (dest->parse(sp, False) != PS_NORMAL)
 	{
 		MCperror->add
@@ -1224,41 +1024,20 @@ Parse_stat MCPop::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCPop::exec(MCExecPoint &ep)
+void MCPop::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCPop */ LEGACY_EXEC
-	MCCard *cptr = MCcstack->popcard();
-	if (dest == NULL)
-	{
-		MCStack *sptr = cptr->getstack();
-		//    if (sptr != MCdefaultstackptr) {
-		//      MCdefaultstackptr->close();
-		//      MCdefaultstackptr->checkdestroy();
-		//    }
-		MCdefaultstackptr = sptr;
-		Boolean oldtrace = MCtrace;
-		MCtrace = False;
-		if (sptr->setcard(cptr, True, False) == ES_ERROR
-		        || sptr->openrect(sptr->getrect(), WM_LAST, NULL, WP_DEFAULT, OP_NONE) == ES_ERROR)
-		{
-			MCtrace = oldtrace;
-			return ES_ERROR;
-		}
-		MCtrace = oldtrace;
-	}
+	if (dest == NULL) 
+		MCInterfaceExecPopToLast(ctxt);
 	else
 	{
-		cptr->getprop(0, P_LONG_ID, ep, False);
-		if (dest->set
-		        (ep, prep) != ES_NORMAL)
-		{
-			MCeerror->add
-			(EE_POP_CANTSET, line, pos);
-			return ES_ERROR;
-		}
-	}
-	return ES_NORMAL;
-#endif /* MCPop */
+		MCAutoStringRef t_element;
+		MCInterfaceExecPop(ctxt, &t_element);
+
+		if (dest->set(ctxt, prep, *t_element))
+            return;
+        ctxt . LegacyThrow(EE_POP_CANTSET);
+    }
+
 }
 
 MCPush::~MCPush()
@@ -1294,7 +1073,7 @@ Parse_stat MCPush::parse(MCScriptPoint &sp)
 			sp . backup();
 		}
 
-		card = new MCChunk(False);
+		card = new (nothrow) MCChunk(False);
 		if (card -> parse(sp, False) != PS_NORMAL)
 		{
 			MCperror->add(PE_PUSH_BADEXP, sp);
@@ -1304,109 +1083,153 @@ Parse_stat MCPush::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCPush::exec(MCExecPoint &ep)
+void MCPush::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCPush */ LEGACY_EXEC
-	MCObject *optr;
-	uint4 parid;
-	if (card == NULL)
+    if (card == NULL)
+	{
 		if (recent)
-			MCcstack->pushcard(MCrecent->getrel(0));
+			MCInterfaceExecPushRecentCard(ctxt);
 		else
-			MCcstack->pushcard(MCdefaultstackptr->getcurcard());
+			MCInterfaceExecPushCurrentCard(ctxt);
+	}
 	else
 	{
-		if (card->getobj(ep, optr, parid, True) != ES_NORMAL)
+		MCObject *optr;
+		uint4 parid;
+        if (!card->getobj(ctxt, optr, parid, True))
 		{
-			MCeerror->add(EE_PUSH_NOTARGET, line, pos);
-			return ES_ERROR;
+            ctxt . LegacyThrow(EE_PUSH_NOTARGET);
+            return;
 		}
 		if (optr->gettype() != CT_CARD)
 		{
-			MCeerror->add(EE_PUSH_NOTACARD, line, pos);
-			return ES_ERROR;
+            ctxt . LegacyThrow(EE_PUSH_NOTACARD);
+            return;
 		}
-		MCcstack->pushcard((MCCard *)optr);
-	}
-	return ES_NORMAL;
-#endif /* MCPush */
+		MCInterfaceExecPushCard(ctxt, (MCCard *)optr);
+    }
 }
 
 MCSave::~MCSave()
 {
 	delete target;
 	delete filename;
+    delete format;
 }
 
 Parse_stat MCSave::parse(MCScriptPoint &sp)
 {
-	Symbol_type type;
-	const LT *te;
-
 	initpoint(sp);
-	target = new MCChunk(False);
+	target = new (nothrow) MCChunk(False);
 	if (target->parse(sp, False) != PS_NORMAL)
 	{
 		MCperror->add
 		(PE_SAVE_BADEXP, sp);
 		return PS_ERROR;
 	}
-	if (sp.next(type) != PS_NORMAL)
-		return PS_NORMAL;
-	if (sp.lookup(SP_FACTOR, te) != PS_NORMAL || te->which != PT_AS)
+
+	/* Parse optional "as _" clause */
+	if (sp.skip_token(SP_FACTOR, TT_PREP, PT_AS) == PS_NORMAL)
 	{
-		sp.backup();
-		return PS_NORMAL;
+		if (sp.parseexp(False, True, &filename) != PS_NORMAL)
+		{
+			MCperror->add(PE_SAVE_BADFILEEXP, sp);
+			return PS_ERROR;
+		}
 	}
-	if (sp.parseexp(False, True, &filename) != PS_NORMAL)
+
+	/* Parse optional "with format _" or "with newest format" clauses */
+	if (sp.skip_token(SP_REPEAT, TT_UNDEFINED, RF_WITH) == PS_NORMAL)
 	{
-		MCperror->add
-		(PE_SAVE_BADFILEEXP, sp);
-		return PS_ERROR;
+		if (sp.skip_token(SP_FACTOR, TT_PREP, PT_NEWEST) == PS_NORMAL)
+		{
+			if (sp.skip_token(SP_FACTOR, TT_FUNCTION, F_FORMAT) != PS_NORMAL)
+			{
+				MCperror->add(PE_SAVE_BADFORMATEXP, sp);
+				return PS_ERROR;
+			}
+			newest_format = true;
+		}
+		else
+		{
+			if (sp.skip_token(SP_FACTOR, TT_FUNCTION, F_FORMAT) != PS_NORMAL)
+			{
+				MCperror->add(PE_SAVE_BADFORMATEXP, sp);
+				return PS_ERROR;
+			}
+			if (sp.parseexp(False, True, &format) != PS_NORMAL)
+			{
+				MCperror->add(PE_SAVE_BADFORMATEXP, sp);
+				return PS_ERROR;
+			}
+		}
 	}
+
 	return PS_NORMAL;
 }
 
-Exec_stat MCSave::exec(MCExecPoint &ep)
+void MCSave::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCSave */ LEGACY_EXEC
-	MCObject *optr;
+    MCObject *optr;
 	uint4 parid;
 
-	MCresult->clear(False);
-	if (MCsecuremode & MC_SECUREMODE_DISK)
+    if (!target->getobj(ctxt, optr, parid, True))
 	{
-		MCeerror->add
-		(EE_DISK_NOPERM, line, pos);
-		return ES_ERROR;
-	}
-	if (target->getobj(ep, optr, parid, True) != ES_NORMAL)
-	{
-		MCeerror->add
-		(EE_SAVE_NOTARGET, line, pos);
-		return ES_ERROR;
+        ctxt . LegacyThrow(EE_SAVE_NOTARGET);
+        return;
 	}
 	if (optr->gettype() != CT_STACK)
 	{
-		MCeerror->add
-		(EE_SAVE_NOTASTACK, line, pos);
-		return ES_ERROR;
+        ctxt . LegacyThrow(EE_SAVE_NOTASTACK);
+        return;
 	}
-	MCStack *sptr = (MCStack *)optr;
+
+	MCStack *t_stack = static_cast<MCStack *>(optr);
+
+	MCAutoStringRef t_filename;
 	if (filename != NULL)
 	{
-		if (filename->eval(ep) != ES_NORMAL)
+        if (!ctxt . EvalExprAsStringRef(filename, EE_SAVE_BADNOFILEEXP, &t_filename))
+            return;
+	}
+
+	MCAutoStringRef t_format;
+	if (format != NULL)
+	{
+		if (!ctxt.EvalExprAsStringRef(format, EE_SAVE_BADNOFORMATEXP, &t_format))
+			return;
+	}
+
+	if (NULL != filename)
+	{
+		if (NULL != format)
 		{
-			MCeerror->add
-			(EE_SAVE_BADNOFILEEXP, line, pos);
-			return ES_ERROR;
+			MCInterfaceExecSaveStackAsWithVersion(ctxt, t_stack, *t_filename, *t_format);
+		}
+		else if (newest_format)
+		{
+			MCInterfaceExecSaveStackAsWithNewestVersion(ctxt, t_stack, *t_filename);
+		}
+		else
+		{
+			MCInterfaceExecSaveStackAs(ctxt, t_stack, *t_filename);
 		}
 	}
 	else
-		ep.clear();
-	sptr->saveas(ep.getsvalue());
-	return ES_NORMAL;
-#endif /* MCSave */
+	{
+		if (NULL != format)
+		{
+			MCInterfaceExecSaveStackWithVersion(ctxt, t_stack, *t_format);
+		}
+		else if (newest_format)
+		{
+			MCInterfaceExecSaveStackWithNewestVersion(ctxt, t_stack);
+		}
+		else
+		{
+			MCInterfaceExecSaveStack(ctxt, t_stack);
+		}
+	}
 }
 
 MCShow::~MCShow()
@@ -1486,7 +1309,7 @@ Parse_stat MCShow::parse(MCScriptPoint &sp)
 		(PE_SHOW_BADTARGET, sp);
 		return PS_ERROR;
 	}
-	ton = new MCChunk(False);
+	ton = new (nothrow) MCChunk(False);
 	if (ton->parse(sp, False) != PS_NORMAL)
 	{
 		MCperror->add
@@ -1509,7 +1332,7 @@ Parse_stat MCShow::parse(MCScriptPoint &sp)
 	if (sp.skip_token(SP_REPEAT, TT_UNDEFINED) == PS_NORMAL)
 	{
 		sp.skip_token(SP_COMMAND, TT_STATEMENT, S_VISUAL);
-		effect = new MCVisualEffect;
+		effect = new (nothrow) MCVisualEffect;
 		if (effect->parse(sp) != PS_NORMAL)
 		{
 			MCperror->add
@@ -1520,129 +1343,67 @@ Parse_stat MCShow::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCShow::exec(MCExecPoint &ep)
+void MCShow::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCShow */ LEGACY_EXEC
-	uint2 count;
 	switch (which)
 	{
 	case SO_GROUPS:
-		MClinkatts.underline = True;
-
-		// MW-2011-08-17: [[ Redraw ]] We've changed a global property that could
-		//   affect the display of all stacks.
-		MCRedrawDirtyScreen();
+		MCInterfaceExecShowGroups(ctxt);
 		break;
 	case SO_ALL:
-		MCdefaultstackptr->count(CT_CARD, CT_UNDEFINED, NULL, count);
-		MCdefaultstackptr->flip(count);
+		MCInterfaceExecShowAllCards(ctxt);
 		break;
 	case SO_MARKED:
-		MCdefaultstackptr->setmark();
-		MCdefaultstackptr->count(CT_CARD, CT_UNDEFINED, NULL, count);
-		MCdefaultstackptr->flip(count);
-		MCdefaultstackptr->clearmark();
+		MCInterfaceExecShowMarkedCards(ctxt);
 		break;
 	case SO_CARD:
-		if (ton == NULL || ton->eval(ep) != ES_NORMAL || ep.ton() != ES_NORMAL)
-		{
-			MCeerror->add(EE_SHOW_BADNUMBER, line, pos);
-			return ES_ERROR;
-		}
-		count = ep.getuint2();
-		MCdefaultstackptr->flip(count);
+	{
+        uinteger_t t_count;
+
+        if (ton == nil)
+        {
+            ctxt . LegacyThrow(EE_SHOW_BADNUMBER);
+            return;
+        }
+        else if (!ctxt . EvalOptionalExprAsUInt(ton, 0, EE_SHOW_BADNUMBER, t_count))
+            return;
+
+		MCInterfaceExecShowCards(ctxt, t_count);
+	}
 		break;
 	case SO_PICTURE:
 		break;
 	case SO_OBJECT:
-		MCObject *optr;
-		uint4 parid;
-		if (ton->getobj(ep, optr, parid, True) != ES_NORMAL)
+    {
+		MCObjectPtr t_target;
+        if (!ton->getobj(ctxt, t_target, True))
 		{
-			MCeerror->add
-			(EE_SHOW_NOOBJ, line, pos);
-			return ES_ERROR;
+            ctxt . LegacyThrow(EE_SHOW_NOOBJ);
+            return;
 		}
-		if (location != NULL)
-		{
-			if (location->eval(ep) != ES_NORMAL)
-			{
-				MCeerror->add
-				(EE_SHOW_NOLOCATION, line, pos);
+		MCPoint t_location;
+        MCPoint *t_location_ptr = &t_location;
+        if (!ctxt . EvalOptionalExprAsPoint(location, nil, EE_SHOW_NOLOCATION, t_location_ptr))
+            return;
 
-				return ES_ERROR;
-			}
-			if (optr->setprop(parid, P_LOCATION, ep, False) != ES_NORMAL)
-			{
-				MCeerror->add
-				(EE_SHOW_BADLOCATION, line, pos, ep.getsvalue());
-				return ES_ERROR;
-			}
-		}
-		if (effect != NULL && !MCRedrawIsScreenLocked())
-		{
-			if (effect->exec(ep) != ES_NORMAL)
-			{
-				MCeerror->add(EE_SHOW_BADEFFECT, line, pos);
-				return ES_NORMAL;
-			}
-
-			// MW-2010-04-26: [[ Bug 8661 ]] Make sure we use the effective rect for
-			//   effectarea computation.
-			MCRectangle t_rect;
-			if (optr -> gettype() >= CT_GROUP)
-				t_rect = static_cast<MCControl *>(optr) -> geteffectiverect();
-			else
-				t_rect = optr -> getrect();
-			
-			// MW-2011-09-13: [[ Effects ]] Cache the rect we want to play the effect
-			//   in.
-			optr -> getstack() -> snapshotwindow(t_rect);
-			
-			// MW-2011-11-15: [[ Bug 9846 ]] Lock the screen to prevent the snapshot
-			//   being dumped inadvertantly.
-			MCRedrawLockScreen();
-			
-			// MW-2011-11-15: [[ Bug 9846 ]] Make sure we use the same mechanism to
-			//   set visibility as the non-effect case.
-			optr->setsprop(P_VISIBLE, MCtruemcstring);
-			
-			MCRedrawUnlockScreen();
-			
-			// Run the effect - this will use the previously cached image.
-			Boolean abort = False;
-			optr->getstack()->effectrect(t_rect, abort);
-			
-			if (abort)
-			{
-				MCeerror->add(EE_HANDLER_ABORT, line, pos);
-				return ES_ERROR;
-			}
-		}
+		if (effect != NULL)
+			MCInterfaceExecShowObjectWithEffect(ctxt, t_target, t_location_ptr, effect);
 		else
-			optr->setsprop(P_VISIBLE, MCtruemcstring);
+			MCInterfaceExecShowObject(ctxt, t_target, t_location_ptr);
+    }
 		break;
 	case SO_MENU:
-		MCscreen->showmenu();
+		MCInterfaceExecShowMenuBar(ctxt);
 		break;
 	case SO_TASKBAR:
-		MCscreen->showtaskbar();
+		MCInterfaceExecShowTaskBar(ctxt);
 		break;
 	case SO_MESSAGE:
-		{
-			MCStack *mb = ep.getobj()->getstack()->findstackname(MCmessagenamestring);
-
-			// MW-2007-08-14: [[ Bug 3310 ]] - "show message box" toplevels rather than palettes
-			if (mb != NULL)
-				mb->openrect(ep.getobj()->getstack()->getrect(), WM_PALETTE,
-				             NULL, WP_DEFAULT, OP_NONE);
-		}
+		MCIdeExecShowMessageBox(ctxt);
 		break;
 	default:
 		break;
-	}
-	return ES_NORMAL;
-#endif /* MCShow */
+    }
 }
 
 MCSubwindow::~MCSubwindow()
@@ -1651,18 +1412,34 @@ MCSubwindow::~MCSubwindow()
 	delete at;
 	delete parent;
 	delete aligned;
+	
+	delete widget;
+	delete properties;
 }
 
 Parse_stat MCSubwindow::parse(MCScriptPoint &sp)
 {
 	initpoint(sp);
-	target = new MCChunk(False);
-	if (target->parse(sp, False) != PS_NORMAL)
+	
+	if (sp.skip_token(SP_FACTOR, TT_CHUNK, CT_WIDGET) == PS_NORMAL)
 	{
-		MCperror->add
-		(PE_SUBWINDOW_BADEXP, sp);
-		return PS_ERROR;
+		if (sp.parseexp(False, True, &widget) != PS_NORMAL)
+		{
+			MCperror->add(PE_SUBWINDOW_BADEXP, sp);
+			return PS_ERROR;
+		}
 	}
+	else
+	{
+		target = new (nothrow) MCChunk(False);
+		if (target->parse(sp, False) != PS_NORMAL)
+		{
+			MCperror->add
+			(PE_SUBWINDOW_BADEXP, sp);
+			return PS_ERROR;
+		}
+	}
+	
 	if (sp.skip_token(SP_FACTOR, TT_PREP, PT_AT) == PS_NORMAL)
 	{
 		if (sp.parseexp(False, True, &at) != PS_NORMAL)
@@ -1704,236 +1481,181 @@ Parse_stat MCSubwindow::parse(MCScriptPoint &sp)
 		}
 
 	}
+	if (sp.skip_token(SP_REPEAT, TT_UNDEFINED, RF_WITH) == PS_NORMAL)
+	{
+		sp.skip_token(SP_FACTOR, TT_PROPERTY, P_PROPERTIES);
+		if (sp.parseexp(False, True, &properties) != PS_NORMAL)
+		{
+			MCperror->add(PE_SUBWINDOW_BADEXP, sp);
+			return PS_ERROR;
+		}
+	}
 	return PS_NORMAL;
 }
 
 
-Exec_stat MCSubwindow::exec(MCExecPoint &ep)
+void MCSubwindow::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCSubwindow */ LEGACY_EXEC
+	if (widget != nil)
+	{
+		MCNewAutoNameRef t_kind;
+		if (!ctxt.EvalExprAsNameRef(widget, EE_SUBWINDOW_BADEXP, &t_kind))
+			return;
+		
+		MCPoint t_at;
+		MCPoint *t_at_ptr = &t_at;
+		if (!ctxt.EvalOptionalExprAsPoint(at, nil, EE_SUBWINDOW_BADEXP, t_at_ptr))
+			return;
+		
+		MCAutoArrayRef t_properties;
+		if (!ctxt.EvalOptionalExprAsArrayRef(properties, kMCEmptyArray, EE_SUBWINDOW_BADEXP, &t_properties))
+			return;
+		
+		MCInterfaceExecPopupWidget(ctxt, *t_kind, t_at_ptr, *t_properties);
+		return;
+	}
+	
+	
 	MCObject *optr;
+	MCNewAutoNameRef optr_name;
 	uint4 parid;
-	MCresult->clear(False);
-	MCerrorlock++;
-	if (target->getobj(ep, optr, parid, True) != ES_NORMAL
-	        || optr->gettype() != CT_BUTTON && optr->gettype() != CT_STACK)
+	ctxt . SetTheResultToEmpty();
+    MCerrorlock++;
+
+    // Need to have a second MCExecContext as getobj may throw a non-fatal error
+    MCExecContext ctxt2(ctxt);
+    if (!target -> getobj(ctxt2, optr, parid, True)
+        || (optr->gettype() != CT_BUTTON && optr->gettype() != CT_STACK))
 	{
 		MCerrorlock--;
-		if (target->eval(ep) != ES_NORMAL)
-		{
-			MCeerror->add
-			(EE_SUBWINDOW_BADEXP, line, pos);
-			return ES_ERROR;
-		}
-		optr = ep.getobj()->getstack()->findstackname(ep.getsvalue());
-	}
+        if (!ctxt . EvalExprAsNameRef(target, EE_SUBWINDOW_BADEXP, &optr_name))
+            return;
+    }
 	else
 		MCerrorlock--;
-	if (optr == NULL)
+
+	if (optr != nil && optr -> gettype() == CT_BUTTON)
 	{
-		if (MCresult->isclear())
-			MCresult->sets("can't find stack");
-		return ES_NORMAL;
-	}
-	if (optr->gettype() == CT_BUTTON)
-	{
-		if (mode != WM_POPUP || MCmousestackptr == NULL)
+		if (mode != WM_POPUP)
 		{
-			MCeerror->add
-			(EE_SUBWINDOW_NOSTACK, line, pos, ep.getsvalue());
-			return ES_ERROR;
+            ctxt . LegacyThrow(EE_SUBWINDOW_NOSTACK, *optr_name);
+            return;
 		}
-		if (at != NULL)
-			if (at->eval(ep) != ES_NORMAL
-			        || !MCU_stoi2x2(ep.getsvalue(), MCmousex, MCmousey))
-			{
-				MCeerror->add
-				(EE_SUBWINDOW_BADEXP, line, pos);
-				return ES_ERROR;
-			}
-		MCButton *bptr = (MCButton *)optr;
-		bptr->setmenumode(WM_POPUP);
-		if (bptr->findmenu())
-		{
-			if (MCbuttonstate)
-				MCtargetptr -> mup(0);
-			bptr->openmenu(True);
-		}
-		return ES_NORMAL;
+
+		MCPoint t_location;
+        MCPoint *t_location_ptr = &t_location;
+        if (!ctxt . EvalOptionalExprAsPoint(at, nil, EE_SUBWINDOW_BADEXP, t_location_ptr))
+            return;
+
+		MCInterfaceExecPopupButton(ctxt, (MCButton *)optr, t_location_ptr);
 	}
-	MCStack *stackptr = (MCStack *)optr;
-	if (mode != WM_PULLDOWN && mode != WM_POPUP && mode != WM_OPTION)
-		MCU_watchcursor(ep.getobj()->getstack(), False);
-
-	// MW-2007-05-01: Reverting this as it causes problems :o(
-	//stackptr -> setflag(True, F_VISIBLE);
-
-	MCStack *olddefault = MCdefaultstackptr;
-	Boolean oldtrace = MCtrace;
-	MCtrace = False;
-	if (mode >= WM_MODELESS)
-		MCRedrawForceUnlockScreen();
-	switch (mode)
+	else
 	{
-	case WM_TOP_LEVEL:
-	case WM_MODELESS:
-	case WM_PALETTE:
-	case WM_MODAL:
-	{
-		MCStack *t_target;
-		if (MCdefaultstackptr->getopened() || MCtopstackptr == NULL)
-			t_target = MCdefaultstackptr;
-		else
-			t_target = MCtopstackptr;
-
-		stackptr->openrect(t_target -> getrect(), mode, NULL, WP_DEFAULT, OP_NONE);
-	}
-	break;
-	case WM_SHEET:
-	case WM_DRAWER:
+		switch (mode)
 		{
-			MCStack *parentptr = NULL;
-			MCerrorlock++;
-			if (parent != NULL)
-			{
-				if (parent->eval(ep) != ES_NORMAL)
-				{
-					MCeerror->add
-					(EE_SUBWINDOW_BADEXP, line, pos);
-					return ES_ERROR;
-				}
-				parentptr = ep.getobj()->getstack()->findstackname(ep.getsvalue());
-				if  (parentptr == NULL || !parentptr->getopened())
-				{
-					MCeerror->add
-					(EE_SUBWINDOW_BADEXP, line, pos);
-					return ES_ERROR;
-				}
-			}
-			if (thisstack)
-				parentptr = MCdefaultstackptr;
-			if (parentptr == stackptr)
-				parentptr = NULL;
-			Window_position wpos = WP_DEFAULT;
-			Object_pos walign = OP_CENTER;
-			if (mode == WM_DRAWER)
-			{
-				if (at != NULL)
-				{
-					if (at->eval(ep) != ES_NORMAL)
-					{
-						MCeerror->add
-						(EE_SUBWINDOW_BADEXP, line, pos);
-						return ES_ERROR;
-					}
-					char *positionstr = ep.getsvalue().clone();
-					char *alignment = NULL;
-					char *sptr = positionstr;
-					if ((sptr = strchr(positionstr, ',')) != NULL)
-					{
-						*sptr = '\0';
-						sptr++;
-						alignment = strclone(sptr);
-					}
-					if (aligned != NULL)
-					{
-						if (aligned->eval(ep) != ES_NORMAL)
-						{
-							MCeerror->add
-							(EE_SUBWINDOW_BADEXP, line, pos);
-							return ES_ERROR;
-						}
-						alignment = ep.getsvalue().clone();
-					}
-					if (MCU_strncasecmp("right", positionstr,
-					                    strlen("right")) == 0)
-						wpos = WP_PARENTRIGHT;
-					else if (MCU_strncasecmp("left", positionstr,
-					                         strlen("left")) == 0)
-						wpos = WP_PARENTLEFT;
-					else if (MCU_strncasecmp("top", positionstr,
-					                         strlen("top")) == 0)
-						wpos = WP_PARENTTOP;
-					else if (MCU_strncasecmp("bottom", positionstr,
-					                         strlen("bottom")) == 0)
-						wpos = WP_PARENTBOTTOM;
-					if (alignment != NULL)
-					{
-						if (MCU_strncasecmp("right", alignment,
-						                    strlen("right")) == 0)
-							walign = OP_RIGHT;
-						else if (MCU_strncasecmp("bottom", alignment,
-						                         strlen("bottom")) == 0)
-							walign = OP_BOTTOM;
-						else if (MCU_strncasecmp("top", alignment,
-						                         strlen("top")) == 0)
-							walign = OP_TOP;
-						else if (MCU_strncasecmp("left", alignment,
-						                         strlen("left")) == 0)
-							walign = OP_LEFT;
-						else if (MCU_strncasecmp("center", alignment,
-						                         strlen("center")) == 0)
-							walign = OP_CENTER;
-						delete alignment;
-					}
-					delete positionstr;
-				}
-			}
-			if (parentptr != NULL && parentptr->getopened())
-				stackptr->openrect(parentptr->getrect(), mode,  parentptr, wpos, walign);
-			else if (MCdefaultstackptr->getopened() || MCtopstackptr == NULL)
-				stackptr->openrect(MCdefaultstackptr->getrect(), mode,  MCdefaultstackptr, wpos, walign);
+		case WM_TOP_LEVEL:
+		case WM_MODELESS:
+		case WM_PALETTE:
+		case WM_MODAL:
+			if (*optr_name != nil)
+				MCInterfaceExecOpenStackByName(ctxt, *optr_name, mode);
 			else
-				stackptr->openrect(MCtopstackptr->getrect(), mode, MCtopstackptr, wpos, walign);
+				MCInterfaceExecOpenStack(ctxt, (MCStack *)optr, mode);
+		break;
+		case WM_SHEET:
+		case WM_DRAWER:
+			{
+				MCNewAutoNameRef t_parent_name;
+                if (!ctxt . EvalOptionalExprAsNullableNameRef(parent, EE_SUBWINDOW_BADEXP, &t_parent_name))
+                    return;
+
+				if (mode == WM_SHEET)
+				{
+					if (*optr_name != nil)
+						MCInterfaceExecSheetStackByName(ctxt, *optr_name, *t_parent_name, thisstack == True);
+					else
+						MCInterfaceExecSheetStack(ctxt, (MCStack *)optr, *t_parent_name, thisstack == True);
+				}
+				else
+				{
+					Window_position t_pos = WP_DEFAULT;
+					Object_pos t_align = OP_CENTER;
+					if (at != NULL)
+					{
+                        MCAutoStringRef t_position_data;
+                        if (!ctxt . EvalExprAsStringRef(at, EE_SUBWINDOW_BADEXP, &t_position_data))
+                            return;
+
+						MCAutoStringRef t_position;
+						MCAutoStringRef t_alignment;
+						uindex_t t_delimiter;
+
+                        if (aligned != NULL)
+                        {
+                            if (!ctxt . EvalExprAsStringRef(aligned, EE_SUBWINDOW_BADEXP, &t_alignment))
+                                return;
+
+                            MCStringCopy(*t_position_data, &t_position);
+                        }
+						else if (MCStringFirstIndexOfChar(*t_position_data, ',', 0, kMCCompareExact, t_delimiter))
+						{
+							MCStringCopySubstring(*t_position_data, MCRangeMake(0, t_delimiter), &t_position);
+							t_delimiter++;
+							MCStringCopySubstring(*t_position_data, MCRangeMakeMinMax(t_delimiter, MCStringGetLength(*t_position_data)), &t_alignment);
+						}
+                        // AL-2014-04-07: [[ Bug 12138 ]] 'drawer ... at <position>' codepath resulted in t_position uninitialised
+                        else
+                            t_position = *t_position_data;
+                        
+						if (MCStringIsEqualToCString(*t_position, "right", kMCCompareCaseless))
+							t_pos = WP_PARENTRIGHT;
+						else if (MCStringIsEqualToCString(*t_position, "left", kMCCompareCaseless))
+							t_pos = WP_PARENTLEFT;
+						else if (MCStringIsEqualToCString(*t_position, "top", kMCCompareCaseless))
+							t_pos = WP_PARENTTOP;
+						else if (MCStringIsEqualToCString(*t_position, "bottom", kMCCompareCaseless))
+							t_pos = WP_PARENTBOTTOM;
+						if (*t_alignment != nil)
+						{
+							if (MCStringIsEqualToCString(*t_alignment, "right", kMCCompareCaseless))
+								t_align = OP_RIGHT;
+							else if (MCStringIsEqualToCString(*t_alignment, "bottom", kMCCompareCaseless))
+								t_align = OP_BOTTOM;
+							else if (MCStringIsEqualToCString(*t_alignment, "top", kMCCompareCaseless))
+								t_align = OP_TOP;
+							else if (MCStringIsEqualToCString(*t_alignment, "left", kMCCompareCaseless))
+								t_align = OP_LEFT;
+							else if (MCStringIsEqualToCString(*t_alignment, "center", kMCCompareCaseless))
+								t_align = OP_CENTER;
+						}
+					}
+					if (optr == nil)
+						MCInterfaceExecDrawerStackByName(ctxt, *optr_name, *t_parent_name, thisstack == True, t_pos, t_align);
+					else
+						MCInterfaceExecDrawerStack(ctxt, (MCStack *)optr, *t_parent_name, thisstack == True, t_pos, t_align);
+				}
+				break;
+			}
+		case WM_PULLDOWN:
+		case WM_POPUP:
+		case WM_OPTION:
+		{
+			MCPoint t_location;
+            MCPoint *t_location_ptr = &t_location;
+            if (!ctxt . EvalOptionalExprAsPoint(at, nil, EE_SUBWINDOW_BADEXP, t_location_ptr))
+                return;
+
+			if (optr == nil)
+				MCInterfaceExecPopupStackByName(ctxt, *optr_name, t_location_ptr, mode);
+			else
+				MCInterfaceExecPopupStack(ctxt, (MCStack *)optr, t_location_ptr, mode);
+		}
+		break;
+		default:
+			fprintf(stderr, "Subwindow: ERROR bad mode\n");
 			break;
 		}
-	case WM_PULLDOWN:
-	case WM_POPUP:
-	case WM_OPTION:
-		{
-			// MW-2007-04-10: [[ Bug 4260 ]] We shouldn't attempt to attach a menu to a control that is descendent of itself
-			if (MCtargetptr -> getstack() == stackptr)
-			{
-				MCeerror->add(EE_SUBWINDOW_BADEXP, line, pos);
-				return ES_ERROR;
-			}
-
-			if (MCtargetptr->attachmenu(stackptr))
-			{
-				MCRectangle rel = MCU_recttoroot(MCtargetptr->getstack(),
-				                                 MCtargetptr->getrect());
-				if (mode == WM_POPUP && at != NULL)
-					if (at->eval(ep) != ES_NORMAL
-					        || !MCU_stoi2x2(ep.getsvalue(), MCmousex, MCmousey))
-					{
-						MCeerror->add(EE_SUBWINDOW_BADEXP, line, pos);
-						return ES_ERROR;
-					}
-				stackptr->openrect(rel, mode, NULL, WP_DEFAULT,OP_NONE);
-				if (MCabortscript)
-				{
-					MCtrace = oldtrace;
-					return ES_ERROR;
-				}
-			}
-		}
-		break;
-	default:
-		fprintf(stderr, "Subwindow: ERROR bad mode\n");
-		break;
-	}
-	if (MCwatchcursor)
-	{
-		MCwatchcursor = False;
-		stackptr->resetcursor(True);
-		if (MCmousestackptr != NULL && MCmousestackptr != stackptr)
-			MCmousestackptr->resetcursor(True);
-	}
-	MCtrace = oldtrace;
-	if (mode > WM_TOP_LEVEL)
-		MCdefaultstackptr = olddefault;
-	return ES_NORMAL;
-#endif /* MCSubwindow */
+    }
 }
 
 MCUnlock::~MCUnlock()
@@ -1948,6 +1670,7 @@ Parse_stat MCUnlock::parse(MCScriptPoint &sp)
 	const LT *te;
 
 	initpoint(sp);
+    sp.skip_token(SP_FACTOR, TT_THE);
 	if (sp.next(type) != PS_NORMAL)
 	{
 		MCperror->add
@@ -1966,7 +1689,7 @@ Parse_stat MCUnlock::parse(MCScriptPoint &sp)
 		if (sp.skip_token(SP_REPEAT, TT_UNDEFINED) == PS_NORMAL)
 		{
 			sp.skip_token(SP_COMMAND, TT_STATEMENT, S_VISUAL);
-			effect = new MCVisualEffect;
+			effect = new (nothrow) MCVisualEffect;
 			if (effect->parse(sp) != PS_NORMAL)
 			{
 				MCperror->add
@@ -1981,46 +1704,41 @@ Parse_stat MCUnlock::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCUnlock::exec(MCExecPoint &ep)
+void MCUnlock::exec_ctxt(MCExecContext &ctxt)
 {
-#ifdef /* MCUnlock */ LEGACY_EXEC
 	switch (which)
 	{
-	case LC_COLORMAP:
-		MClockcolormap = False;
-		break;
-	case LC_CURSOR:
-		MClockcursor = False;
-		MCdefaultstackptr->resetcursor(False);
-		break;
-	case LC_ERRORS:
-		MClockerrors = False;
-		break;
-	case LC_MENUS:
-		MClockmenus = False;
-		MCscreen->updatemenubar(True);
-		break;
-	case LC_MSGS:
-		MClockmessages = False;
-		break;
-	case LC_MOVES:
-		MClockmoves = False;
-		break;
-	case LC_RECENT:
-		MClockrecent = False;
-		break;
-	case LC_SCREEN:
-		// MW-2011-08-18: [[ Redraw ]] Update to use redraw.
-		if (effect != nil && effect -> exec(ep) != ES_NORMAL)
-		{
-			MCeerror->add(EE_UNLOCK_BADEFFECT, line, pos);
-			return ES_ERROR;
-		}
-		MCRedrawUnlockScreenWithEffects();
-		break;
-	default:
-		break;
-	}
-	return ES_NORMAL;
-#endif /* MCUnlock */
+		case LC_COLORMAP:
+			MCLegacyExecUnlockColormap(ctxt);
+			break;
+		case LC_CURSOR:
+			MCInterfaceExecUnlockCursor(ctxt);
+			break;
+		case LC_ERRORS:
+			MCEngineExecUnlockErrors(ctxt);
+			break;
+		case LC_MENUS:
+			MCInterfaceExecUnlockMenus(ctxt);
+			break;
+		case LC_MSGS:
+			MCEngineExecUnlockMessages(ctxt);
+			break;
+		case LC_MOVES:
+			MCInterfaceExecUnlockMoves(ctxt);
+			break;
+		case LC_RECENT:
+			MCInterfaceExecUnlockRecent(ctxt);
+			break;
+		case LC_SCREEN:
+			if (effect != nil)
+				MCInterfaceExecUnlockScreenWithEffect(ctxt, effect);
+			else
+				MCInterfaceExecUnlockScreen(ctxt);
+			break;
+        case LC_CLIPBOARD:
+            MCPasteboardExecUnlockClipboard(ctxt);
+            break;
+		default:
+			break;
+    }
 }

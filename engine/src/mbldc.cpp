@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -30,7 +30,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "notify.h"
 
 #include "mbldc.h"
-#include "core.h"
 
 #include "resolution.h"
 
@@ -107,13 +106,10 @@ struct MCActiveTouch
 MCScreenDC::MCScreenDC(void)
 {
 	// Initialize the window stacks.
-	m_main_windows = new MCWindowStack;
+	m_main_windows = new (nothrow) MCWindowStack;
 	
 	// Initialize the list of active touches.
 	m_active_touches = nil;
-	
-	// MW-2013-06-18: [[ XPlatNotify ]] Initialize the notify module.
-	MCNotifyInitialize();
 }
 
 MCScreenDC::~MCScreenDC(void)
@@ -123,9 +119,6 @@ MCScreenDC::~MCScreenDC(void)
 	
 	// Delete the main windows stack.
 	delete m_main_windows;
-	
-	// MW-2013-06-18: [[ XPlatNotify ]] Finalize the notify module.
-	MCNotifyFinalize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,28 +133,19 @@ void MCScreenDC::common_open(void)
 	
 	black_pixel.red = black_pixel.green = black_pixel.blue = 0;
 	white_pixel.red = white_pixel.green = white_pixel.blue = 0xFFFF;
-	black_pixel.pixel = 0;
-	white_pixel.pixel = 0xFFFFFF;
 	
 	MCselectioncolor = MCpencolor = black_pixel;
-	alloccolor(MCselectioncolor);
-	alloccolor(MCpencolor);
 	
 	MConecolor = MCbrushcolor = white_pixel;
-	alloccolor(MCbrushcolor);
 	
 	gray_pixel.red = gray_pixel.green = gray_pixel.blue = 0x8080;
-	alloccolor(gray_pixel);
 	
 	MChilitecolor.red = MChilitecolor.green = 0x0000;
 	MChilitecolor.blue = 0x8080;
-	alloccolor(MChilitecolor);
 	
 	MCaccentcolor = MChilitecolor;
-	alloccolor(MCaccentcolor);
 	
 	background_pixel.red = background_pixel.green = background_pixel.blue = 0xC0C0;
-	alloccolor(background_pixel);
 	
 	// Initialize the common vars.
 	m_window_left = 0;
@@ -230,7 +214,7 @@ void MCScreenDC::handle_key_press(uint32_t p_modifiers, uint32_t p_char_code, ui
 	if (p_char_code >= 32 && p_char_code < 128)
 		p_key_code = p_char_code;
 	
-	MCEventQueuePostKeyPress(t_stack, p_modifiers, p_char_code, p_key_code);
+	MCEventQueuePostKeyPress(t_stack, p_modifiers, p_char_code, p_key_code, kMCEventKeyStatePressed);
 }
 
 void MCScreenDC::handle_key_focus(bool p_gain_focus)
@@ -257,6 +241,13 @@ void MCScreenDC::handle_motion(MCEventMotionType p_type, double p_timestamp)
 
 void MCScreenDC::process_touch(MCEventTouchPhase p_phase, void *p_touch_handle, int32_t p_timestamp, int32_t p_x, int32_t p_y)
 {
+	/* It is possible for the engine to receive touch messages between initial startup and
+	 * there being a stack shown, so ignore the touch if there is no current window. */
+	if (m_current_window == nil)
+	{
+		return;
+	}
+
 	MCActiveTouch *t_touch, *t_previous_touch;
 	t_previous_touch = nil;
 	for(t_touch = m_active_touches; t_touch != nil; t_previous_touch = t_touch, t_touch = t_touch -> next)
@@ -270,7 +261,7 @@ void MCScreenDC::process_touch(MCEventTouchPhase p_phase, void *p_touch_handle, 
 			uint32_t t_touch_id;
 			t_touch_id = ++m_last_touch_id;
 			
-			t_touch = new MCActiveTouch;
+			t_touch = new (nothrow) MCActiveTouch;
 			t_touch -> ident = t_touch_id;
 			t_touch -> touch = p_touch_handle;
 			t_touch -> next = m_active_touches;
@@ -410,7 +401,7 @@ void MCScreenDC::raisewindow(Window p_window)
 	open_window(p_window);
 }
 
-void MCScreenDC::setname(Window p_window, const char *p_new_name)
+void MCScreenDC::setname(Window p_window, MCStringRef p_new_name)
 {
 }
 
@@ -497,6 +488,9 @@ void MCScreenDC::refresh_window(Window p_window)
 		//   the need to only do OpenGL calls on the main thread.
         t_old_stack -> deactivatetilecache();
 		
+		// IM-2016-08-17: [[ Bug 18100 ]] Detach old stack from window
+		t_old_stack->OnDetach();
+		
 		m_current_window = nil;
 		m_current_focus = false;
 		m_mouse_x = -100000;
@@ -524,6 +518,9 @@ void MCScreenDC::refresh_window(Window p_window)
 		if (!m_current_focus)
 			focus_window(p_window);
 		
+		// IM-2016-08-17: [[ Bug 18100 ]] Attach new stack to window
+		t_new_stack->OnAttach();
+		
 #ifdef _IOS_MOBILE
 		// MW-2012-03-05: [[ ViewStack ]] Make sure we tell the app's view
 		//   which stack to use.
@@ -533,7 +530,7 @@ void MCScreenDC::refresh_window(Window p_window)
 		do_fit_window(false, true);
 		
 		if (t_need_redraw)
-			t_new_stack -> view_dirty_all();
+			t_new_stack -> dirtyall();
 	}
 }
 
@@ -542,7 +539,7 @@ void MCScreenDC::redraw_current_window(void)
 	MCStack *t_stack;
 	t_stack = (MCStack *)m_current_window;
 	if (t_stack != nil)
-		t_stack -> view_dirty_all();
+		t_stack -> dirtyall();
 }
 
 void MCScreenDC::unfocus_current_window(void)
@@ -558,7 +555,7 @@ void MCScreenDC::unfocus_current_window(void)
 MCMobileBitmap *MCMobileBitmapCreate(uint32_t width, uint32_t height, bool mono)
 {
 	MCMobileBitmap *t_bitmap;
-	t_bitmap = new MCMobileBitmap;
+	t_bitmap = new (nothrow) MCMobileBitmap;
 	t_bitmap -> width = width;
 	t_bitmap -> height = height;
 	if (mono)
@@ -687,15 +684,15 @@ void MCScreenDC::freecursor(MCCursorRef c)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-uint4 MCScreenDC::dtouint4(Drawable d)
+uintptr_t MCScreenDC::dtouint(Drawable d)
 {
 	if (d == DNULL)
 		return 0;
 	
-	return (uint4)d -> handle . pixmap;
+	return (uintptr_t)d -> handle . pixmap;
 }
 
-Boolean MCScreenDC::uint4towindow(uint4, Window &w)
+Boolean MCScreenDC::uinttowindow(uintptr_t, Window &w)
 {
 	return False;
 }
@@ -790,17 +787,20 @@ Boolean MCScreenDC::istripleclick()
 	return False;
 }
 
-void MCScreenDC::getkeysdown(MCExecPoint &ep)
+bool MCScreenDC::getkeysdown(MCListRef& r_list)
 {
+	r_list = MCValueRetain(kMCEmptyList);
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-uint1 MCScreenDC::fontnametocharset(const char *oldfontname)
+uint1 MCScreenDC::fontnametocharset(MCStringRef p_fontname)
 {
 	return 0;
 }
 
+/*
 char *MCScreenDC::charsettofontname(uint1 charset, const char *oldfontname)
 {
 	const char *t_charset;
@@ -814,6 +814,7 @@ char *MCScreenDC::charsettofontname(uint1 charset, const char *oldfontname)
 	}
 	return strclone(oldfontname);
 }
+*/
 
 void MCScreenDC::clearIME(Window w)
 {
@@ -837,8 +838,8 @@ protected:
 	void DoInitialize(void) { }
 	void DoFinalize(void) { }
 	
-	bool DoReset(const char *name) { return false; }
-	bool DoResetSettings(const MCString& settings) { return false; }
+	bool DoReset(MCStringRef name) { return false; }
+	bool DoResetSettings(MCDataRef settings) { return false; }
 	void DoResync(void) {}
 	
 	const char *DoFetchName(void) { return NULL; }
@@ -846,17 +847,13 @@ protected:
 	
 	MCPrinterDialogResult DoPrinterSetup(bool p_window_modal, Window p_owner)  { return PRINTER_DIALOG_RESULT_ERROR; }
 	MCPrinterDialogResult DoPageSetup(bool p_window_modal, Window p_owner) { return PRINTER_DIALOG_RESULT_ERROR; }
-	MCPrinterResult DoBeginPrint(const char *p_document, MCPrinterDevice*& r_device) { return PRINTER_RESULT_ERROR; }
+	MCPrinterResult DoBeginPrint(MCStringRef p_document, MCPrinterDevice*& r_device) { return PRINTER_RESULT_ERROR; }
 	MCPrinterResult DoEndPrint(MCPrinterDevice* p_device) { return PRINTER_RESULT_ERROR; }
 };
 
 MCPrinter *MCScreenDC::createprinter(void)
 {
 	return new MCDummyPrinter;
-}
-
-void MCScreenDC::listprinters(MCExecPoint& ep)
-{
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -899,14 +896,7 @@ MCPasteboard *MCScreenDC::getclipboard(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-MCDragAction MCScreenDC::dodragdrop(MCPasteboard *p_pasteboard, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint *p_image_offset)
-{
-	return DRAG_ACTION_NONE;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-MCScriptEnvironment *MCScreenDC::createscriptenvironment(const char *p_language)
+MCScriptEnvironment *MCScreenDC::createscriptenvironment(MCStringRef p_language)
 {
 	return NULL;
 }
@@ -943,7 +933,7 @@ void MCScreenDC::platform_setmouse(int16_t p_x, int16_t p_y)
 	device_setmouse(t_loc.x, t_loc.y);
 }
 
-void MCScreenDC::platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m)
+void MCScreenDC::platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable)
 {
 	MCRectangle t_rect;
 	t_rect = rect;

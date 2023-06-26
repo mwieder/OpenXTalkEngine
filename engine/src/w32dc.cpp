@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -27,14 +27,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "stack.h"
 #include "util.h"
 #include "stacklst.h"
-#include "execpt.h"
+
 #include "globals.h"
-#include "core.h"
 #include "notify.h"
 
 #include "w32dc.h"
 #include "w32printer.h"
-#include "w32context.h"
+#include "resolution.h"
+#include "mode.h"
+
+#include "w32compat.h"
 
 #include "mctheme.h"
 
@@ -70,7 +72,6 @@ MCScreenDC::MCScreenDC()
 	grabbingclipboard = False;
 	exposures = False;
 	opened = 0;
-	dnddata = NULL;
 	taskbarhidden = False;
 
 	backdrop_active = false;
@@ -84,15 +85,14 @@ MCScreenDC::MCScreenDC()
 	m_printer_dc_locked = false;
 	m_printer_dc_changed = false;
 
-	m_clipboard = NULL;
-
-	MCNotifyInitialize();
+	/* Initialize metrics with sensible defaults. */
+	m_metrics_x_dpi = 96;
+	m_metrics_y_dpi = 96;
+	memset(&m_metrics_non_client, 0, sizeof(m_metrics_non_client));
 }
 
 MCScreenDC::~MCScreenDC()
 {
-	MCNotifyFinalize();
-
 	showtaskbar();
 	while (opened)
 		close(True);
@@ -102,7 +102,7 @@ MCScreenDC::~MCScreenDC()
 		for (i = 0 ; i < ncolors ; i++)
 		{
 			if (colornames[i] != NULL)
-				delete colornames[i];
+				MCValueRelease(colornames[i]);
 		}
 		delete colors;
 		delete colornames;
@@ -120,7 +120,7 @@ bool MCScreenDC::hasfeature(MCPlatformFeature p_feature)
 	switch(p_feature)
 	{
 	case PLATFORM_FEATURE_WINDOW_TRANSPARENCY:
-		return MCmajorosversion >= 0x0500;
+		return MCmajorosversion >= MCOSVersionMake(5,0,0);
 	break;
 
 	case PLATFORM_FEATURE_OS_COLOR_DIALOGS:
@@ -141,7 +141,7 @@ bool MCScreenDC::hasfeature(MCPlatformFeature p_feature)
 	return false;
 }
 // TD-2013-07-01 [[ DynamicFonts ]]
-bool MCScreenDC::loadfont(const char *p_path, bool p_globally, void*& r_loaded_font_handle)
+bool MCScreenDC::loadfont(MCStringRef p_path, bool p_globally, void*& r_loaded_font_handle)
 {
 	bool t_success = true;
     DWORD t_private = NULL;
@@ -150,38 +150,50 @@ bool MCScreenDC::loadfont(const char *p_path, bool p_globally, void*& r_loaded_f
         t_private = FR_PRIVATE;
     
 	if (t_success)
-		t_success = (MCS_exists(p_path, True) == True);
+		t_success = (MCS_exists(p_path, true) == True);
 	
+    MCAutoStringRefAsWString t_wide_path;
+    if (t_success)
+        t_success = t_wide_path . Lock(p_path);
+    
 	if (t_success)
-		t_success = (AddFontResourceExA(p_path, t_private, 0) != 0);
+		t_success = (AddFontResourceExW(*t_wide_path, t_private, 0) != 0);
     
 	if (t_success && p_globally)
 		PostMessage(HWND_BROADCAST, WM_FONTCHANGE, 0, 0);
     
+	if (t_success && !p_globally)
+		t_success = MCGFontAddPlatformFileResource(p_path);
+
 	return t_success;
 }
 
 
-bool MCScreenDC::unloadfont(const char *p_path, bool p_globally, void *r_loaded_font_handle)
+bool MCScreenDC::unloadfont(MCStringRef p_path, bool p_globally, void *r_loaded_font_handle)
 {
     bool t_success = true;
     DWORD t_private = NULL;
     
-    if (p_globally)
+    if (!p_globally)
         t_private = FR_PRIVATE;
     
+    MCAutoStringRefAsWString t_wide_path;
     if (t_success)
-		t_success = (RemoveFontResourceExA(p_path, t_private, 0) != 0);
+        t_success = t_wide_path . Lock(p_path);
+    
+    if (t_success)
+		t_success = (RemoveFontResourceExW(*t_wide_path, t_private, 0) != 0);
     
 	if (t_success && p_globally)
 		PostMessage(HWND_BROADCAST, WM_FONTCHANGE, 0, 0);
     
+	if (t_success && !p_globally)
+		t_success = MCGFontRemovePlatformFileResource(p_path);
+
 	return t_success;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
-extern int UTF8ToUnicode(const char *p_source_str, int p_source, uint2 *p_dest_str, int p_dest);
 
 LPWSTR MCScreenDC::convertutf8towide(const char *p_utf8_string)
 {
@@ -189,7 +201,7 @@ LPWSTR MCScreenDC::convertutf8towide(const char *p_utf8_string)
 	t_new_length = UTF8ToUnicode(p_utf8_string, strlen(p_utf8_string), NULL, 0);
 
 	LPWSTR t_result;
-	t_result = new WCHAR[t_new_length + 2];
+	t_result = new (nothrow) WCHAR[t_new_length + 2];
 
 	t_new_length = UTF8ToUnicode(p_utf8_string, strlen(p_utf8_string), (uint2*)t_result, t_new_length);
 	t_result[t_new_length / 2] = 0;
@@ -206,7 +218,7 @@ LPCSTR MCScreenDC::convertutf8toansi(const char *p_utf8_string)
 	t_length = WideCharToMultiByte(CP_ACP, 0, t_wide, -1, NULL, 0, NULL, NULL);
 
 	LPSTR t_result;
-	t_result = new CHAR[t_length];
+	t_result = new (nothrow) CHAR[t_length];
 	WideCharToMultiByte(CP_ACP, 0, t_wide, -1, t_result, t_length, NULL, NULL);
 
 	delete t_wide;
@@ -221,9 +233,11 @@ MCPrinter *MCScreenDC::createprinter(void)
 	return new MCWindowsPrinter;
 }
 
-void MCScreenDC::listprinters(MCExecPoint& ep)
+bool MCScreenDC::listprinters(MCStringRef& r_printers)
 {
-	ep . clear();
+	MCAutoListRef t_list;
+	if (!MCListCreateMutable('\n', &t_list))
+		return false;
 
 	DWORD t_flags;
 	DWORD t_level;
@@ -234,22 +248,26 @@ void MCScreenDC::listprinters(MCExecPoint& ep)
 	DWORD t_bytes_needed;
 	t_printer_count = 0;
 	t_bytes_needed = 0;
-	if (EnumPrintersA(t_flags, NULL, t_level, NULL, 0, &t_bytes_needed, &t_printer_count) == 0 && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
-		return;
-
-	char *t_printers;
-	t_printers = new char[t_bytes_needed];
-	if (EnumPrintersA(t_flags, NULL, t_level, (LPBYTE)t_printers, t_bytes_needed, &t_bytes_needed, &t_printer_count) != 0)
+	if (EnumPrintersW(t_flags, NULL, t_level, NULL, 0, &t_bytes_needed, &t_printer_count) != 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
 	{
-		for(uint4 i = 0; i < t_printer_count; ++i)
+		MCAutoPointer<byte_t> t_printers;
+		if (!MCMemoryNewArray(t_bytes_needed, &t_printers))
+			return false;
+
+		if (EnumPrintersW(t_flags, NULL, t_level, (LPBYTE)*t_printers, t_bytes_needed, &t_bytes_needed, &t_printer_count) != 0)
 		{
-			const char *t_printer_name;
-			t_printer_name = ((PRINTER_INFO_4A *)t_printers)[i] . pPrinterName;
-			ep . concatcstring(t_printer_name, EC_RETURN, i == 0);
+			for(uint4 i = 0; i < t_printer_count; ++i)
+			{
+				MCAutoStringRef t_printer_name;
+				if (!MCStringCreateWithWString(((PRINTER_INFO_4W *)*t_printers)[i] . pPrinterName, &t_printer_name))
+					return false;
+				if (!MCListAppend(*t_list, *t_printer_name))
+					return false;
+			}
 		}
 	}
 
-	delete t_printers;
+	return MCListCopyAsString(*t_list, r_printers);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -271,123 +289,43 @@ MCStack *MCScreenDC::platform_getstackatpoint(int32_t x, int32_t y)
 	if (t_window == nil)
 		return nil;
 		
-	_Drawable d;
-	d . type = DC_WINDOW;
-	d . handle . window = (MCSysWindowHandle)t_window;
-		
-	return MCdispatcher -> findstackd(&d);
+	return MCdispatcher->findstackwindowid((uint32_t)t_window);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// IM-2014-01-28: [[ HiDPI ]] Weak-linked IsProcessDPIAware function
-typedef BOOL (WINAPI *IsProcessDPIAwarePtr)(VOID);
-bool MCWin32IsProcessDPIAware(bool &r_aware)
+void MCScreenDC::updatemetrics(void)
 {
-	static IsProcessDPIAwarePtr s_IsProcessDPIAware = NULL;
-	static bool s_init = true;
-
-	if (s_init)
-	{
-		s_IsProcessDPIAware = (IsProcessDPIAwarePtr)GetProcAddress(GetModuleHandleA("user32.dll"), "IsProcessDPIAware");
-		s_init = false;
-	}
-
-	if (s_IsProcessDPIAware == nil)
-		return false;
-
-	r_aware = s_IsProcessDPIAware();
-
-	return true;
-}
-
-//////////
-
-typedef enum __MCW32ProcessDPIAwareness
-{
-	kMCW32ProcessDPIUnaware,
-	kMCW32ProcessSystemDPIAware,
-	kMCW32ProcessPerMonitorDPIAware,
-} MCW32ProcessDPIAwareness;
-
-// IM-2014-01-28: [[ HiDPI ]] Weak-linked GetProcessDPIAwareness function
-typedef HRESULT (WINAPI *GetProcessDPIAwarenessPTR)(HANDLE hprocess, MCW32ProcessDPIAwareness *value);
-bool MCWin32GetProcessDPIAwareness(MCW32ProcessDPIAwareness &r_awareness)
-{
-	static GetProcessDPIAwarenessPTR s_GetProcessDPIAwareness = NULL;
-	static bool s_init = true;
-
-	if (s_init)
-	{
-		s_GetProcessDPIAwareness = (GetProcessDPIAwarenessPTR)GetProcAddress(GetModuleHandleA("shcore.dll"), "GetProcessDPIAwareness");
-		s_init = false;
-	}
-
-	if (s_GetProcessDPIAwareness == nil)
-		return false;
-
-	HRESULT t_result;
-	t_result = s_GetProcessDPIAwareness(NULL, &r_awareness);
-
-	return t_result == S_OK;
-}
-
-//////////
-
-typedef enum __MCW32MonitorDPIType
-{
-	kMCW32MDTEffectiveDPI,
-	kMCW32MDTAngularDPI,
-	kMCW32MDTRawDPI,
-	kMCW32MDTDefault = kMCW32MDTEffectiveDPI,
-} MCW32MonitorDPIType;
-
-// IM-2014-01-28: [[ HiDPI ]] Weak-linked GetDPIForMonitor function
-typedef HRESULT (WINAPI *GetDPIForMonitorPTR)(HMONITOR hmonitor, MCW32MonitorDPIType dpiType, UINT *dpiX, UINT *dpiY);
-bool MCWin32GetDPIForMonitor(HMONITOR p_monitor, uint32_t &r_xdpi, uint32_t &r_ydpi)
-{
-	static GetDPIForMonitorPTR s_GetDPIForMonitor = NULL;
-	static bool s_init = true;
-
-	if (s_init)
-	{
-		s_GetDPIForMonitor = (GetDPIForMonitorPTR)GetProcAddress(GetModuleHandleA("shcore.dll"), "GetDPIForMonitor");
-		s_init = false;
-	}
-
-	if (s_GetDPIForMonitor == nil)
-		return false;
-
-	HRESULT t_result;
-	UINT t_x, t_y;
-	t_result = s_GetDPIForMonitor(p_monitor, kMCW32MDTEffectiveDPI, &t_x, &t_y);
-
-	if (t_result != S_OK)
-		return false;
-
-	r_xdpi = t_x;
-	r_ydpi = t_y;
-
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// IM-2014-01-28: [[ HiDPI ]] Return the x & y dpi of the main screen
-bool MCWin32GetScreenDPI(uint32_t &r_xdpi, uint32_t &r_ydpi)
-{
+	/* Get the DC representing the whole 'screen' so we can get default dpi
+	 * metrics from it. */
 	HDC t_dc;
 	t_dc = GetDC(NULL);
+	if (t_dc != NULL)
+	{
+		m_metrics_x_dpi = GetDeviceCaps(t_dc, LOGPIXELSX);
+		m_metrics_y_dpi = GetDeviceCaps(t_dc, LOGPIXELSY);
+		ReleaseDC(NULL, t_dc);
+	}
+	else
+	{
+		m_metrics_x_dpi = 96;
+		m_metrics_y_dpi = 96;
+	}
 
-	if (t_dc == NULL)
-		return false;
+	/* Fetch the 'non-client-metrics' which contains the names of fonts to use
+	 * which match the current system settings. */
+	m_metrics_non_client.cbSize = sizeof(m_metrics_non_client);
+	if (!SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(m_metrics_non_client), &m_metrics_non_client, 0))
+	{
+		memset(&m_metrics_non_client, 0, sizeof(m_metrics_non_client));
+	}
+}
 
-	r_xdpi = GetDeviceCaps(t_dc, LOGPIXELSX);
-	r_ydpi = GetDeviceCaps(t_dc, LOGPIXELSY);
+///////////////////////////////////////////////////////////////////////////////
 
-	ReleaseDC(NULL, t_dc);
-
-	return true;
+void *MCScreenDC::GetNativeWindowHandle(Window p_win)
+{
+	return p_win != nil ? p_win->handle.window : nil;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -400,8 +338,14 @@ MCGFloat MCWin32GetLogicalToScreenScale(void)
 {
 	// TODO - determine the correct value on Win8.1 - this may depend on the display in question
 
+	// IM-2014-08-08: [[ Bug 12372 ]] If pixel scaling is disabled, then
+	// we don't need to scale from logical -> screen.
+	if (!MCResGetUsePixelScaling())
+		return 1.0;
+
 	uint32_t t_x, t_y;
-	/* UNCHECKED */ MCWin32GetScreenDPI(t_x, t_y);
+	t_x = ((MCScreenDC *)MCscreen)->getscreenxdpi();
+	t_y = ((MCScreenDC *)MCscreen)->getscreenydpi();
 
 	return (MCGFloat) MCMax(t_x, t_y) / NORMAL_DENSITY;
 }
@@ -413,13 +357,16 @@ MCGFloat MCWin32GetLogicalToScreenScale(void)
 //   For Per-Monitor-DPI-aware applications, this will be the effective DPI scale of the given monitor
 bool MCWin32GetMonitorPixelScale(HMONITOR p_monitor, MCGFloat &r_pixel_scale)
 {
-	uint32_t t_xdpi, t_ydpi;
-
+	UINT t_xdpi, t_ydpi;
+	HRESULT t_result;
+	
 	// try to get per-monitor DPI setting
-	if (!MCWin32GetDPIForMonitor(p_monitor, t_xdpi, t_ydpi) &&
-		// fallback to the global system DPI setting
-		!MCWin32GetScreenDPI(t_xdpi, t_ydpi))
-			return false;
+	if (!MCWin32GetDpiForMonitor(t_result, p_monitor, kMCWin32MDTDefault, &t_xdpi, &t_ydpi) ||
+		t_result != S_OK)
+	{
+		t_xdpi = ((MCScreenDC *)MCscreen)->getscreenxdpi();
+		t_ydpi = ((MCScreenDC *)MCscreen)->getscreenydpi();
+	}
 
 	r_pixel_scale = (MCGFloat)MCMax(t_xdpi, t_ydpi) / NORMAL_DENSITY;
 
@@ -428,14 +375,26 @@ bool MCWin32GetMonitorPixelScale(HMONITOR p_monitor, MCGFloat &r_pixel_scale)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// IM-2014-08-08: [[ Bug 12372 ]] Set up dpi-awareness if pixel scaling is enabled
+void MCResPlatformInitPixelScaling()
+{
+	if (MCModeCanEnablePixelScaling() && MCModeGetPixelScalingEnabled())
+	{
+		BOOL t_result;
+		/* UNCHECKED */ MCWin32SetProcessDPIAware(t_result);
+	}
+}
+
 // IM-2014-01-27: [[ HiDPI ]] Return whether the application is DPI-aware
 bool MCResPlatformSupportsPixelScaling(void)
 {
-	bool t_aware;
-	if (MCWin32IsProcessDPIAware(t_aware))
-		return t_aware;
+	BOOL t_aware;
+	if (!MCWin32IsProcessDPIAware(t_aware) || !t_aware)
+		return false;
 
-	return false;
+	// IM-2014-08-08: [[ Bug 12372 ]] Support for pixel scaling depends on
+	// whether or not it is enabled for the current environment.
+	return MCModeGetPixelScalingEnabled();
 }
 
 // IM-2014-01-27: [[ HiDPI ]] On Windows, DPI-awareness can only be set at app startup or in the app manifest

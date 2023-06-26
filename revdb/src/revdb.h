@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -19,7 +19,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 typedef DBConnection *(*new_connectionrefptr) ();
 typedef void (*release_connectionrefptr) (DBConnection *dbref);
 typedef void (*idcounterrefptr) (unsigned int *tidcounter);
+typedef void (*set_callbacksrefptr)(const DBcallbacks *callbacks);
 
-struct DATABASEREC;
+struct DATABASEREC
+{
+    char dbname[255];
+    idcounterrefptr idcounterptr;
+    new_connectionrefptr  newconnectionptr;
+    release_connectionrefptr releaseconnectionptr;
+    set_callbacksrefptr setcallbacksptr;
+    void *driverref;
+};
 
 typedef vector<DATABASEREC *> DATABASERECList;

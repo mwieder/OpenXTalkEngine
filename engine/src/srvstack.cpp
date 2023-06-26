@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "objdefs.h"
 #include "parsedef.h"
 
-#include "execpt.h"
+
 #include "dispatch.h"
 #include "stack.h"
 #include "card.h"
@@ -43,6 +43,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "graphics_util.h"
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void MCResPlatformInitPixelScaling(void)
+{
+}
 
 // IM-2014-01-31: [[ HiDPI ]] Pixel scaling not supported on server
 bool MCResPlatformSupportsPixelScaling(void)
@@ -100,31 +104,6 @@ MCStack *MCStack::findstackd(Window w)
 }
 
 
-MCStack *MCStack::findchildstackd(Window w,uint2 &ccount,uint2 cindex)
-{
-	Window pwindow = getparentwindow();
-	if (pwindow != DNULL && w == pwindow)
-		if  (++ccount == cindex)
-			return this;
-	if (substacks != NULL)
-	{
-		MCStack *tptr = substacks;
-		do
-		{
-			pwindow = tptr->getparentwindow();
-			if (pwindow != DNULL && w == pwindow)
-			{
-				ccount++;
-				if (ccount == cindex)
-					return tptr;
-			}
-			tptr = (MCStack *)tptr->next();
-		}
-		while (tptr != substacks);
-	}
-	return NULL;
-}
-
 void MCStack::realize(void)
 {
 	start_externals();
@@ -140,6 +119,11 @@ void MCStack::sethints(void)
 
 void MCStack::destroywindowshape(void)
 {
+}
+
+bool MCStack::view_platform_dirtyviewonresize() const
+{
+	return false;
 }
 
 MCRectangle MCStack::view_platform_setgeom(const MCRectangle &p_rect)
@@ -162,7 +146,7 @@ void MCStack::stop_externals()
 	unloadexternals();
 }
 
-void MCStack::openwindow(Boolean override)
+void MCStack::platform_openwindow(Boolean override)
 {
 	MCscreen -> openwindow(window, override);
 }
@@ -172,6 +156,11 @@ void MCStack::setopacity(unsigned char p_level)
 }
 
 void MCStack::updatemodifiedmark(void)
+{
+}
+
+// MERG-2014-06-02: [[ IgnoreMouseEvents ]] Stub for ignoreMouseEvents.
+void MCStack::updateignoremouseevents(void)
 {
 }
 
@@ -215,3 +204,21 @@ void MCStack::redrawicon(void)
 void MCStack::enablewindow(bool enable)
 {
 }
+
+// MERG-2015-10-12: [[ DocumentFilename ]] Stub for documentFilename.
+void MCStack::updatedocumentfilename(void)
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool MCStack::configure_window_buffer()
+{
+	return true;
+}
+
+void MCStack::release_window_buffer()
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////

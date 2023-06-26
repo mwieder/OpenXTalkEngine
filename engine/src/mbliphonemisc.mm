@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "unicode.h"
 #include "textlayout.h"
 
 #include <CoreText/CoreText.h>
@@ -30,29 +29,22 @@ int32_t MCCustomPrinterComputeFontSize(void *font)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char *MCSystemLowercaseInternational(const MCString& p_string)
+bool MCSystemRequestPermission(MCStringRef p_permission, bool& r_granted)
 {
-	char *t_lc_string;
-	t_lc_string = p_string . clone();
-	for(uindex_t i = 0; t_lc_string[i] != '\0'; i++)
-		t_lc_string[i] = MCS_tolower(t_lc_string[i]);
-	return t_lc_string;
+    // Not implemented
+    return false;
 }
 
-int MCSystemCompareInternational(const char *p_left, const char *p_right)
+bool MCSystemPermissionExists(MCStringRef p_permission, bool& r_exists)
 {
-	CFStringRef t_left_ref, t_right_ref;
-	t_left_ref = CFStringCreateWithCStringNoCopy(NULL, p_left, kCFStringEncodingMacRoman, kCFAllocatorNull);
-	t_right_ref = CFStringCreateWithCStringNoCopy(NULL, p_right, kCFStringEncodingMacRoman, kCFAllocatorNull);
-	
-	// MW-2013-03-12: [[ Bug 10445 ]] Make sure we compare the string 'localized'.
-	int t_result;
-	t_result = CFStringCompare(t_left_ref, t_right_ref, kCFCompareLocalized);
-	
-	CFRelease(t_left_ref);
-	CFRelease(t_right_ref);
-	
-	return t_result;
+    // Not implemented
+    return false;
+}
+
+bool MCSystemHasPermission(MCStringRef p_permission, bool& r_permission_granted)
+{
+    // Not implemented
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

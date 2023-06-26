@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,13 +18,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 // List of windows in their stacking order
 //
 #ifndef	STACKLIST_H
-#define	STACKTLIST_H
+#define	STACKLIST_H
 
 #include "dllst.h"
 
 typedef struct _Accelerator
 {
-	uint2 key;
+	KeySym key;
 	uint2 mods;
 	MCButton *button;
 	MCStack *stack;
@@ -33,7 +33,7 @@ Accelerator;
 
 typedef struct _Mnemonic
 {
-	char key;
+	KeySym key;
 	MCButton *button;
 }
 Mnemonic;
@@ -91,15 +91,17 @@ class MCStacklist
 	uint2 nmenus;
 	Accelerator *accelerators;
 	uint2 naccelerators;
-	Boolean locktop;
 	Boolean restart;
 	Boolean active;
 
 	// MW-2011-08-17: [[ Redraw ]] This is true if something needs updating.
 	bool dirty;
+	
+	// IM-2016-11-22: [[ Bug 18852 ]] true if this stacklist should set the topstack when its contents change
+	bool m_manage_topstack;
 
 public:
-	MCStacklist();
+	MCStacklist(bool p_manage_topstack);
 	~MCStacklist();
 	void add(MCStack *sptr);
 	void remove(MCStack *sptr);
@@ -109,13 +111,13 @@ public:
 
 	void destroy();
 	Boolean isempty();
-	void stackprops(MCExecPoint &, Properties p);
+	bool stackprops(MCExecContext& ctxt, Properties p_property, MCListRef& r_list);
 	Boolean doaccelerator(KeySym key);
-	void addaccelerator(MCButton *button, MCStack *stack, uint2 key, uint1 mods);
+	void addaccelerator(MCButton *button, MCStack *stack, KeySym key, uint1 mods);
 	void deleteaccelerator(MCButton *button, MCStack *stack);
-	void changeaccelerator(MCButton *button, uint2 key, uint1 mods);
-	MCButton *findmnemonic(char key);
-	void addmenu(MCButton *button, char key);
+	void changeaccelerator(MCButton *button, KeySym key, uint1 mods);
+	MCButton *findmnemonic(KeySym p_key);
+	void addmenu(MCButton *button, KeySym p_key);
 	void deletemenu(MCButton *button);
 
 	void setcmap();
@@ -161,6 +163,8 @@ public:
     
    // MW-2014-04-10: [[ Bug 12175 ]] Moved from MCDispatcher - method for reopening all windows.
     void reopenallstackwindows(void);
+    
+    void hidepaletteschanged(void);
 };
 
 #endif

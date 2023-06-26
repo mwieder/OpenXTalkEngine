@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -25,7 +25,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "stack.h"
 #include "aclip.h"
 #include "card.h"
-#include "control.h"
+#include "mccontrol.h"
 #include "player.h"
 #include "sellst.h"
 #include "visual.h"
@@ -36,7 +36,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "region.h"
 #include "globals.h"
 #include "context.h"
-#include "execpt.h"
+
 
 #include "graphicscontext.h"
 
@@ -51,9 +51,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 static uint2 Checkersize = 64;
 static uint2 Venetiansize = 64;
+#if INCLUDE_ZOOM_EFFECT
 static uint2 Zoomsize = 16;
-
-static int2 dissolve_array[DISSOLVE_SIZE] = { 13, 2, 10, 7, 14, 8, 11, 3, 0, 5, 12, 9, 1, 6, 4, 15};
+#endif
 
 static Boolean barneffect_step(const MCRectangle &drect, MCStackSurface *p_target, MCGImageRef p_start, MCGImageRef p_end, Visual_effects dir, uint4 delta, uint4 duration);
 static Boolean checkerboardeffect_step(const MCRectangle &drect, MCStackSurface *p_target, MCGImageRef p_start, MCGImageRef p_end, Visual_effects dir, uint4 delta, uint4 duration);
@@ -164,7 +164,7 @@ bool MCStackRenderEffect(MCStackSurface *p_target, MCRegionRef p_region, void *p
 			break;
 #endif
 			
-#ifdef FEATURE_QUICKTIME
+#ifdef FEATURE_QUICKTIME_EFFECTS
 		case VE_QTEFFECT:
 			t_drawn = MCQTEffectStep(context->effect_area, p_target, context->delta, context->duration);
 			break;
@@ -187,7 +187,7 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 
 	// If the window isn't opened or hasn't been attached (plugin) or if we have no
 	// snapshot to use, this is a no-op.
-	if (!opened || !mode_haswindow() || m_snapshot == nil)
+	if (!opened || !haswindow() || m_snapshot == nil)
 	{
 		while(t_effects != NULL)
 		{
@@ -233,10 +233,12 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 	t_device_rect = MCRectangleGetScaledBounds(t_effect_area, t_scale);
 	t_user_rect = MCRectangleGetTransformedBounds(t_device_rect, MCGAffineTransformInvert(t_transform));
 	
+#ifdef _MAC_DESKTOP
 	// IM-2013-08-29: [[ RefactorGraphics ]] get device height for CoreImage effects
 	// IM-2013-09-30: [[ FullscreenMode ]] Use view rect to get device height
 	uint32_t t_device_height;
 	t_device_height = floor(view_getrect().height * t_scale);
+#endif /* _MAC_DESKTOP */
 	
 	// Make a region of the effect area
 	// IM-2013-08-29: [[ ResIndependence ]] scale effect region to device coords
@@ -245,14 +247,6 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 	/* UNCHECKED */ MCRegionCreate(t_effect_region);
 	/* UNCHECKED */ MCRegionSetRect(t_effect_region, t_effect_area);
 	
-#if defined(FEATURE_QUICKTIME)
-	// MW-2010-07-07: Make sure QT is only loaded if we actually are doing an effect
-	if (t_effects != nil)
-		if (!MCdontuseQTeffects)
-			if (!MCtemplateplayer -> isQTinitted())
-				MCtemplateplayer -> initqt();
-#endif	
-
 	// Lock the screen to prevent any updates occuring until we want them.
 	MCRedrawLockScreen();
 
@@ -282,7 +276,8 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 			// Render the final image.
 			MCGContextRef t_context = nil;
 			
-			/* UNCHECKED */ MCGContextCreate(t_device_rect.width, t_device_rect.height, true, t_context);
+			// IM-2014-05-20: [[ GraphicsPerformance ]] Create opaque context for snapshot
+			/* UNCHECKED */ MCGContextCreate(t_device_rect.width, t_device_rect.height, false, t_context);
 			
 			MCGContextTranslateCTM(t_context, -t_device_rect.x, -t_device_rect.y);
 			
@@ -298,7 +293,7 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 				case VE_INVERSE:
 					{
 						MCContext *t_old_context = nil;
-						/* UNCHECKED */ t_old_context = new MCGraphicsContext(t_context);
+						/* UNCHECKED */ t_old_context = new (nothrow) MCGraphicsContext(t_context);
 						curcard->draw(t_old_context, t_user_rect, false);
 						delete t_old_context;
 						
@@ -330,7 +325,7 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 				default:
 				{
 					MCContext *t_old_context = nil;
-					/* UNCHECKED */ t_old_context = new MCGraphicsContext(t_context);
+					/* UNCHECKED */ t_old_context = new (nothrow) MCGraphicsContext(t_context);
 					curcard->draw(t_old_context, t_user_rect, false);
 					delete t_old_context;
 				}
@@ -356,12 +351,14 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 		if (t_effects -> sound != NULL)
 		{
 			MCAudioClip *acptr;
-			if ((acptr = (MCAudioClip *)getobjname(CT_AUDIO_CLIP, t_effects->sound)) == NULL)
+            MCNewAutoNameRef t_sound;
+            /* UNCHECKED */ MCNameCreate(t_effects->sound, &t_sound);
+			if ((acptr = (MCAudioClip *)getobjname(CT_AUDIO_CLIP, *t_sound)) == NULL)
 			{
 				IO_handle stream;
-				if ((stream = MCS_open(t_effects->sound, IO_READ_MODE, True, False, 0)) != NULL)
+				if ((stream = MCS_open(t_effects->sound, kMCOpenFileModeRead, True, False, 0)) != NULL)
 				{
-					acptr = new MCAudioClip;
+					acptr = new (nothrow) MCAudioClip;
 					acptr->setdisposable();
 					if (!acptr->import(t_effects->sound, stream))
 					{
@@ -377,8 +374,10 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 				MCU_play_stop();
 				MCacptr = acptr;
 				MCU_play();
-				if (MCacptr != NULL)
+#ifndef FEATURE_PLATFORM_AUDIO
+				if (MCacptr)
 					MCscreen->addtimer(MCacptr, MCM_internal, PLAY_RATE);
+#endif
 			}
 			
 			if (MCscreen->wait((real8)MCsyncrate / 1000.0, False, True))
@@ -391,16 +390,20 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 		// Initialize CoreImage of QTEffects if needed.
 		if (t_effects -> type != VE_PLAIN)
 		{
+            MCAutoPointer<char> t_name;
+            /* UNCHECKED */ MCStringConvertToCString(t_effects -> name, &t_name);
 #ifdef _MAC_DESKTOP
 			// IM-2013-08-29: [[ ResIndependence ]] use scaled effect rect for CI effects
-			if (t_effects -> type == VE_UNDEFINED && MCCoreImageEffectBegin(t_effects -> name, t_initial_image, t_final_image, t_device_rect, t_device_height, t_effects -> arguments))
+			if (t_effects -> type == VE_UNDEFINED && MCCoreImageEffectBegin(*t_name, t_initial_image, t_final_image, t_device_rect, t_device_height, t_effects -> arguments))
 				t_effects -> type = VE_CIEFFECT;
 			else
 #endif
-#ifdef FEATURE_QUICKTIME
+#ifdef FEATURE_QUICKTIME_EFFECTS
 				// IM-2013-08-29: [[ ResIndependence ]] use scaled effect rect for QT effects
-				if (t_effects -> type == VE_UNDEFINED && MCQTEffectBegin(t_effects -> type, t_effects -> name, t_effects -> direction, t_initial_image, t_final_image, t_device_rect))
+				if (t_effects -> type == VE_UNDEFINED && MCQTEffectBegin(t_effects -> type, *t_name, t_effects -> direction, t_initial_image, t_final_image, t_device_rect))
 					t_effects -> type = VE_QTEFFECT;
+#else
+				;
 #endif
 		}
 		
@@ -416,14 +419,9 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 			{
 				t_context.delta = t_delta;
 				
-				Boolean t_drawn = False;
 				view_platform_updatewindowwithcallback(t_effect_region, MCStackRenderEffect, &t_context);
 				
-				// Now redraw the window with the new image.
-//				if (t_drawn)
-				{
-					MCscreen -> sync(getw());
-				}
+                MCscreen -> sync(getw());
 				
 				// Update the window's blendlevel (if needed)
 				if (old_blendlevel != blendlevel)
@@ -479,7 +477,7 @@ void MCStack::effectrect(const MCRectangle& p_area, Boolean& r_abort)
 			MCCoreImageEffectEnd();
 		else
 #endif
-#ifdef FEATURE_QUICKTIME
+#ifdef FEATURE_QUICKTIME_EFFECTS
 			if (t_effects -> type == VE_QTEFFECT)
 				MCQTEffectEnd();
 #endif
@@ -686,6 +684,9 @@ Boolean pusheffect_step(const MCRectangle &drect, MCStackSurface *p_target, MCGI
 			t_end_dst = MCGRectangleTranslate(t_start_dst, 0.0, -(MCGFloat)drect.height);
 			break;
 			
+		default:
+			MCUnreachable();
+			break;
 	}
 	
 	p_target->Composite(t_start_dst, p_start, t_src_rect, 1.0, kMCGBlendModeCopy);
@@ -729,6 +730,9 @@ Boolean revealeffect_step(const MCRectangle &drect, MCStackSurface *p_target, MC
 			t_end_src = MCGRectangleMake(0.0, 0.0, t_dst_rect.size.width, size);
 			break;
 			
+		default:
+			MCUnreachable();
+			break;
 	}
 	
 	t_end_dst = MCGRectangleTranslate(t_end_src, t_dst_rect.origin.x, t_dst_rect.origin.y);
@@ -771,11 +775,15 @@ Boolean scrolleffect_step(const MCRectangle &drect, MCStackSurface *p_target, MC
 			height = drect.height * t_position;
 			t_end_dst = MCGRectangleTranslate(t_end_src, 0.0, -t_end_src.size.height + height);
 			break;
+			
+		default:
+			MCUnreachable();
+			break;
 	}
 	
 	t_end_dst.origin.x += drect.x;
 	t_end_dst.origin.y += drect.y;
-	
+    
 	p_target->Composite(t_start_dst, p_start, t_start_src, 1.0, kMCGBlendModeCopy);
 	p_target->Composite(t_end_dst, p_end, t_end_src, 1.0, kMCGBlendModeCopy);
 	
@@ -800,6 +808,10 @@ Boolean shrinkeffect_step(const MCRectangle &drect, MCStackSurface *p_target, MC
 			
 		case VE_BOTTOM:
 			t_top = drect.height - height;
+			break;
+			
+		default:
+			MCUnreachable();
 			break;
 	}
 	t_bottom = t_top + height;
@@ -832,7 +844,7 @@ Boolean stretcheffect_step(const MCRectangle &drect, MCStackSurface *p_target, M
 {
 	uint2 height = drect.height * delta / duration;
 	
-	uint32_t t_top, t_bottom;
+	uint32_t t_top;
 	
 	switch (dir)
 	{
@@ -847,8 +859,11 @@ Boolean stretcheffect_step(const MCRectangle &drect, MCStackSurface *p_target, M
 		case VE_BOTTOM:
 			t_top = drect.height - height;
 			break;
+			
+		default:
+			MCUnreachable();
+			break;
 	}
-	t_bottom = t_top + height;
 	
 	MCGRectangle t_start_src, t_start_dst;
 	MCGRectangle t_end_src, t_end_dst;
@@ -919,6 +934,10 @@ Boolean wipeeffect_step(const MCRectangle &drect, MCStackSurface *p_target, MCGI
 			t_start_src = MCGRectangleMake(0.0, size, drect.width, drect.height - size);
 			t_end_src = MCGRectangleMake(0.0, 0.0, drect.width, size);
 			break;
+			
+		default:
+			MCUnreachable();
+			break;
 	}
 	
 	t_start_dst = MCGRectangleTranslate(t_start_src, drect.x, drect.y);
@@ -963,7 +982,7 @@ Boolean zoomeffect_step(const MCRectangle &drect, MCStackSurface *p_target, MCGI
 	return True;
 }
 
-#if 0
+#if INCLUDE_ZOOM_EFFECT
 Boolean zoomeffect_step(const MCRectangle &drect, MCStackSurface *p_target, MCGImageRef p_start, MCGImageRef p_end, Visual_effects dir, uint4 delta, uint4 duration)
 {
 

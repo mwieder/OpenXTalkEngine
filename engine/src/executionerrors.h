@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -47,8 +47,8 @@ enum Exec_errors
 	// {EE-0006} acos: error in source expression
 	EE_ACOS_BADSOURCE,
 	
-	// {EE-0007} acos: domain error
-	EE_ACOS_DOMAIN,
+	// {EE-0007} numeric: domain error
+	EE_MATH_DOMAIN,
 	
 	// {EE-0008} add: error in matrix operation
 	EE_ADD_BADARRAY,
@@ -107,8 +107,8 @@ enum Exec_errors
 	// {EE-0026} asin: error in source expression
 	EE_ASIN_BADSOURCE,
 	
-	// {EE-0027} asin: domain error
-	EE_ASIN_DOMAIN,
+	// {EE-0027} UNUSED
+	EE_UNUSED_0027,
 	
 	// {EE-0028} ask: error in question expression
 	EE_ASK_BADQUESTION,
@@ -125,14 +125,14 @@ enum Exec_errors
 	// {EE-0032} atan2: error in second expression
 	EE_ATAN2_BADS2,
 	
-	// {EE-0033} atan2: domain error
-	EE_ATAN2_DOMAIN,
+	// {EE-0033} UNUSED
+	EE_UNUSED_0033,
 	
 	// {EE-0034} atan: error in source expression
 	EE_ATAN_BADSOURCE,
 	
-	// {EE-0035} atan: domain error
-	EE_ATAN_DOMAIN,
+	// {EE-0035} UNUSED
+	EE_UNUSED_0035,
 	
 	// {EE-0036} average: error in source expression
 	EE_AVERAGE_BADSOURCE,
@@ -416,8 +416,8 @@ enum Exec_errors
 	// {EE-0129} cos: error in source expression
 	EE_COS_BADSOURCE,
 	
-	// {EE-0130} cos: domain error
-	EE_COS_DOMAIN,
+	// {EE-0130} UNUSED
+	EE_UNUSED_0130,
 	
 	// {EE-0131} create: error in bad parent or background expression
 	EE_CREATE_BADBGORCARD,
@@ -482,11 +482,11 @@ enum Exec_errors
 	// {EE-0151} divide: can't divide scalar by array
 	EE_DIVIDE_MISMATCH,
 	
-	// {EE-0152} divide: range error (overflow)
-	EE_DIVIDE_RANGE,
+	// {EE-0152} numeric: range error (overflow)
+	EE_MATH_RANGE,
 	
-	// {EE-0153} divide: divide by zero
-	EE_DIVIDE_ZERO,
+	// {EE-0153} numeric: divide by zero
+	EE_MATH_ZERO,
 	
 	// {EE-0154} Operators div: error in matrix operation
 	EE_DIV_BADARRAY,
@@ -500,11 +500,11 @@ enum Exec_errors
 	// {EE-0157} Operators div: can't divide scalar by matrix
 	EE_DIV_MISMATCH,
 	
-	// {EE-0158} Operators div: range error (overflow)
-	EE_DIV_RANGE,
+	// {EE-0158} UNUSED
+	EE_UNUSED_0158,
 	
-	// {EE-0159} Operators div: divide by zero
-	EE_DIV_ZERO,
+	// {EE-0159} UNUSED
+	EE_UNUSED_0159,
 	
 	// {EE-0160} do: aborted
 	EE_DO_ABORT,
@@ -575,20 +575,20 @@ enum Exec_errors
 	// {EE-0182} exp10: error in source expression
 	EE_EXP10_BADSOURCE,
 	
-	// {EE-0183} exp10: domain error
-	EE_EXP10_DOMAIN,
+	// {EE-0183} UNUSED
+	EE_UNUSED_0183,
 	
 	// {EE-0184} exp1: error in source expression
 	EE_EXP1_BADSOURCE,
 	
-	// {EE-0185} exp1: domain error
-	EE_EXP1_DOMAIN,
+	// {EE-0185} UNUSED
+	EE_UNUSED_0185,
 	
 	// {EE-0186} exp2: error in source expression
 	EE_EXP2_BADSOURCE,
 	
-	// {EE-0187} exp2: domain error
-	EE_EXP2_DOMAIN,
+	// {EE-0187} UNUSED
+	EE_UNUSED_0187,
 	
 	// {EE-0188} export: error in file (or mask file) name expression
 	EE_EXPORT_BADNAME,
@@ -614,8 +614,8 @@ enum Exec_errors
 	// {EE-0195} exp: error in source expression
 	EE_EXP_BADSOURCE,
 	
-	// {EE-0196} exp: domain error
-	EE_EXP_DOMAIN,
+	// {EE-0196} UNUSED
+	EE_UNUSED_0196,
 	
 	// {EE-0197} extents: error in variable expression
 	EE_EXTENTS_BADSOURCE,
@@ -881,14 +881,14 @@ enum Exec_errors
 	// {EE-0284} ln1: error in source expression
 	EE_LN1_BADSOURCE,
 	
-	// {EE-0285} ln1: domain error
-	EE_LN1_DOMAIN,
+	// {EE-0285} UNUSED
+	EE_UNUSED_0285,
 	
 	// {EE-0286} ln: error in source expression
 	EE_LN_BADSOURCE,
 	
-	// {EE-0287} ln: domain error
-	EE_LN_DOMAIN,
+	// {EE-0287} UNUSED
+	EE_UNUSED_0287,
 	
 	// {EE-0288} load: error in url expression
 	EE_LOAD_BADURLEXP,
@@ -902,14 +902,14 @@ enum Exec_errors
 	// {EE-0291} log10: error in source expression
 	EE_LOG10_BADSOURCE,
 	
-	// {EE-0292} log10: domain error
-	EE_LOG10_DOMAIN,
+	// {EE-0292} UNUSED
+	EE_UNUSED_0292,
 	
 	// {EE-0293} log2: error in source expression
 	EE_LOG2_BADSOURCE,
 	
-	// {EE-0294} log2: domain error
-	EE_LOG2_DOMAIN,
+	// {EE-0294} UNUSED
+	EE_UNUSED_0294,
 	
 	// {EE-0295} longFilePath: error in file expression
 	EE_LONGFILEPATH_BADSOURCE,
@@ -971,8 +971,8 @@ enum Exec_errors
 	// {EE-0314} Operators -: range error (overflow) in array operation
 	EE_MINUS_MISMATCH,
 	
-	// {EE-0315} Operators -: range error (overflow)
-	EE_MINUS_RANGE,
+	// {EE-0315} UNUSED
+	EE_UNUSED_0315,
 	
 	// {EE-0316} min: error in source expression
 	EE_MIN_BADSOURCE,
@@ -989,11 +989,11 @@ enum Exec_errors
 	// {EE-0320} Operators mod: can't divide scalar by matrix
 	EE_MOD_MISMATCH,
 	
-	// {EE-0321} Operators mod: range error (overflow)
-	EE_MOD_RANGE,
+	// {EE-0321} UNUSED
+	EE_UNUSED_0321,
 	
-	// {EE-0322} Operators mod: divide by zero
-	EE_MOD_ZERO,
+	// {EE-0322} UNUSED
+	EE_UNUSED_0322,
 	
 	// {EE-0323} mouse: error in source expression
 	EE_MOUSE_BADSOURCE,
@@ -1037,8 +1037,8 @@ enum Exec_errors
 	// {EE-0336} multiply: can't multiply scalar by array
 	EE_MULTIPLY_MISMATCH,
 	
-	// {EE-0337} multiply: range error (overflow)
-	EE_MULTIPLY_RANGE,
+	// {EE-0337} UNUSED
+	EE_UNUSED_0337,
 	
 	// {EE-0338} Operators <>: error in operands
 	EE_NOTEQUAL_OPS,
@@ -1160,11 +1160,11 @@ enum Exec_errors
 	// {EE-0377} Operators /: can't divide scalar by matrix
 	EE_OVER_MISMATCH,
 	
-	// {EE-0378} Operators /: range error (overflow)
-	EE_OVER_RANGE,
+	// {EE-0378} UNUSED
+	EE_UNUSED_0378,
 	
-	// {EE-0379} Operators /: divide by zero
-	EE_OVER_ZERO,
+	// {EE-0379} UNUSED
+	EE_UNUSED_0379,
 	
 	// {EE-0380} param: error in expression
 	EE_PARAM_BADEXP,
@@ -1214,8 +1214,8 @@ enum Exec_errors
 	// {EE-0395} Operators +: error in right operand
 	EE_PLUS_BADRIGHT,
 	
-	// {EE-0396} Operators +: range error (overflow)
-	EE_PLUS_RANGE,
+	// {EE-0396} UNUSED
+	EE_UNUSED_0396,
 	
 	// {EE-0397} pop: can't set destination
 	EE_POP_CANTSET,
@@ -1232,8 +1232,8 @@ enum Exec_errors
 	// {EE-0401} pow: error in right operand
 	EE_POW_BADRIGHT,
 	
-	// {EE-0402} pow: range error (overflow)
-	EE_POW_RANGE,
+	// {EE-0402} UNUSED
+	EE_UNUSED_0402,
 	
 	// {EE-0403} print: can't get 'from' or 'to' coordinates
 	EE_PRINT_CANTGETCOORD,
@@ -1673,8 +1673,8 @@ enum Exec_errors
 	// {EE-0548} sin: error in source expression
 	EE_SIN_BADSOURCE,
 	
-	// {EE-0549} sin: domain error
-	EE_SIN_DOMAIN,
+	// {EE-0549} UNUSED
+	EE_UNUSED_0549,
 	
 	// {EE-0550} sort: can't find object to sort
 	EE_SORT_BADTARGET,
@@ -1691,8 +1691,8 @@ enum Exec_errors
 	// {EE-0554} sqrt: error in source expression
 	EE_SQRT_BADSOURCE,
 	
-	// {EE-0555} sqrt: domain error
-	EE_SQRT_DOMAIN,
+	// {EE-0555} UNUSED
+	EE_UNUSED_0555,
 	
 	// {EE-0556} Stack: bad decoration
 	EE_STACK_BADDECORATION,
@@ -1793,8 +1793,8 @@ enum Exec_errors
 	// {EE-0588} textHeightSum: can't find object
 	EE_TAN_BADSOURCE,
 	
-	// {EE-0589} tan: error in source expression
-	EE_TAN_DOMAIN,
+	// {EE-0589} UNUSED
+	EE_UNUSED_0589,
 	
 	// {EE-0590} tan: domain error
 	EE_TEXT_HEIGHT_SUM_NOOBJECT,
@@ -1814,8 +1814,8 @@ enum Exec_errors
 	// {EE-0595} Operators *: error in right operand
 	EE_TIMES_BADRIGHT,
 	
-	// {EE-0596} Operators *: range error (overflow)
-	EE_TIMES_RANGE,
+	// {EE-0596} UNUSED
+	EE_UNUSED_0596,
 	
 	// {EE-0597} toLower: error in source expression
 	EE_TOLOWER_BADSOURCE,
@@ -1964,11 +1964,11 @@ enum Exec_errors
 	// {EE-0645} wrap: type mismatch
 	EE_WRAP_MISMATCH,
 	
-	// {EE-0646} wrap: overflow
-	EE_WRAP_RANGE,
+	// {EE-0646} UNUSED
+	EE_UNUSED_0646,
 	
-	// {EE-0647} wrap: division by zero
-	EE_WRAP_ZERO,
+	// {EE-0647} UNUSED
+	EE_UNUSED_0647,
 	
 	// {EE-0648} begins/ends with: illegal type for right operand
 	EE_BEGINSENDS_BADRIGHT,
@@ -1976,8 +1976,8 @@ enum Exec_errors
 	// {EE-0649} begins/ends with: illegal type for left operand
 	EE_BEGINSENDS_BADLEFT,
 	
-	// {EE-0650} load extension: bad filename
-	EE_LOAD_BADEXTENSIONEXP,
+	// {EE-0650} UNUSED
+	EE_UNUSED_0650,
 	
 	// {EE-0651} UNUSED
 	EE_UNUSED_0651,
@@ -2334,6 +2334,7 @@ enum Exec_errors
 	EE_RELAYER_NOTARGET,
 
 	// {EE-0769} relayer: couldn't resolve source control
+
 	EE_RELAYER_NOSOURCE,
 
 	// {EE-0770} relayer: source not a control
@@ -2431,7 +2432,7 @@ enum Exec_errors
 
 	// IM-2013-09-22: [[ FullscreenMode ]]
 	// {EE-0800} fullscreenmode: not a valid mode
-	EE_STACK_BADFULLSCREENMODE,
+    EE_STACK_BADFULLSCREENMODE,
 	
 	// IM-2013-12-04: [[ PixelScale ]]
 	// {EE-0801} pixelScale: not a valid scale value
@@ -2440,22 +2441,345 @@ enum Exec_errors
 	// IM-2014-01-07: [[ StackScale ]]
 	// {EE-0802} scaleFactor: not a valid scale value
 	EE_STACK_BADSCALEFACTOR,
-
+	
 	// IM-2014-01-30: [[ HiDPI ]]
 	// {EE-0803} pixelScale: the pixelScale property cannot be set on this platform
 	EE_PROPERTY_PIXELSCALENOTSUPPORTED,
-
+	
 	// IM-2014-01-30: [[ HiDPI ]]
 	// {EE-0804} usePixelScaling: the usePixelScaling property cannot be set on this platform
 	EE_PROPERTY_USEPIXELSCALENOTSUPPORTED,
-    
+	
 	// MM-2014-02-12: [[ SecureSocket ]]
 	// {EE-0805} secure: error in socket expression
 	EE_SECURE_BADNAME,
+	
+	// PM-2014-04-15: [[Bug 12105]]
+	// {EE-0806} paramCount: could not find handler
+	EE_PARAMCOUNT_NOHANDLER,
+	
+	// MW-2015-05-28: [[ Bug 12463 ]]
+	// {EE-0807} send: too many pending messages
+	EE_SEND_TOOMANYPENDING,
+	
+	// MM-2014-06-13: [[ Bug 12567 ]] New variant secure socket <socket> with verification for host <host>
+	// {EE-0808} secure: error in host name expression
+	EE_SECURE_BADHOST,
+	
+	// MM-2014-06-13: [[ Bug 12567 ]] New variant open socket <socket> with verification for host <host>
+	// {EE-0809} open: error in host name expression
+	EE_OPEN_BADHOST,
+	
+	// SN-2014-12-15: [[ Bug 14211 ]] Add an error when using a parsed bad extents (such as 'next')
+	// {EE-0810} Chunk: bad extents provided
+	EE_CHUNK_BADEXTENTS,
+	
+	// {EE-0811} external: unlicensed
+	EE_EXTERNAL_UNLICENSED,
+
+    // {EE-0812} Import: no image selected, or image not open
+    EE_IMPORT_NOSELECTED,
+
+    // {EE-0813} Resolve image: error in source expression
+    EE_RESOLVE_IMG_BADEXP,
+
+    // {EE-0814} Internal BSDiff: error in old file expression
+    EE_INTERNAL_BSDIFF_BADOLD,
+
+    // {EE-0815} Internal BSDiff: error in new file expression
+    EE_INTERNAL_BSDIFF_BADNEW,
+
+    // {EE-0816} Internal BSDiff: error in patch filename expression
+    EE_INTERNAL_BSDIFF_BADPATCH,
+
+    // {EE-0817} Internal Bootstrap: error in stack file
+    EE_INTERNAL_BOOTSTRAP_BADSTACK,
+
+    // {EE-0818} IDE script configure: error in settings expression
+    EE_IDE_BADARRAY,
+
+    // {EE-0819} IDE script replace: error in text expression
+    EE_IDE_BADTEXT,
+
+    // {EE-0820} IDE script classify: error in script expression
+    EE_IDE_BADSCRIPT,
+
+    // {EE-0821} IDE filter control: error in pattern expression
+    EE_IDE_BADPATTERN,
+
+    // {EE-0822} Engine PutInto: error in variable expression
+    EE_ENGINE_PUT_BADVARIABLE,
+
+    // {EE-0823} Engine DeleteVariableChunk: error in expression
+    EE_ENGINE_DELETE_BADVARCHUNK,
+
+    // {EE-0824} IDE Extract: error in segment expression
+    EE_IDE_EXTRACT_BADSEGMENT,
+
+    // {EE-0825} IDE Extract: error in section name expression
+    EE_IDE_EXTRACT_BADSECTION,
+
+    // {EE-0826} IDE Extract: error in filename expression
+    EE_IDE_EXTRACT_BADFILENAME,
     
-    // PM-2014-04-15: [[Bug 12105]]
-    // {EE-0806} paramCount: could not find handler
-    EE_PARAMCOUNT_NOHANDLER,
+    // {EE-0827} MCInternalPayloadPatch: error in output filename expression
+    EE_OUTPUT_BADFILENAME,
+    
+    // {EE-0828} MCInternalListTasksWithModule: error in module expression
+    EE_INTERNAL_TASKS_BADMODULE,
+    
+    // {EE-0829} MCInternalCanDeleteFile: error in filename expression
+    EE_INTERNAL_DELETE_BADFILENAME,
+    
+    // {EE-0830} MCInternalCanDeleteKey: error in key expression
+    EE_INTERNAL_DELETE_BADKEY,
+
+    // {EE-0831} MCHandler: error in expression
+    EE_HANDLER_BADEXP,
+    
+    // {EE-0832} textDecode: bad data expression
+    EE_TEXTDECODE_BADDATA,
+    
+    // {EE-0833} textDecode: bad text encoding expression
+    EE_TEXTDECODE_BADENCODING,
+    
+    // {EE-0834} textDecode: could not decode data
+    EE_TEXTDECODE_FAILED,
+    
+    // {EE-0835} textEncode: bad text expression
+    EE_TEXTENCODE_BADTEXT,
+    
+    // {EE-0836} textEncode: bad text encoding expression
+    EE_TEXTENCODE_BADENCODING,
+    
+    // {EE-0837} textEncode: could not encode text
+    EE_TEXTENCODE_FAILED,
+    
+    // {EE-0838} normalizeText: bad normal form
+    EE_NORMALIZETEXT_BADFORM,
+    
+    // {EE-0839} normalizeText: bad text expression
+    EE_NORMALIZETEXT_BADTEXT,
+    
+    // {EE-0840} codepointProperty: bad codepoint
+    EE_CODEPOINTPROPERTY_BADCODEPOINT,
+
+    // {EE-0841} codepointProperty: bad property name
+    EE_CODEPOINTPROPERTY_BADPROPERTY,
+	
+	// SN-2014-05-06: [[ Bug 12360 ]]
+	// {EE-0842} open: bad text encoding
+	EE_OPEN_BADENCODING,
+	
+	// {EE-0843} open: unsupported encoding
+	EE_OPEN_UNSUPPORTED_ENCODING,
+	
+	// AL-2014-10-17: [[ BiDi ]] Returns the result of applying the bi-directional algorithm to text
+	// {EE-0844} bidiDirection: error in source expression
+	EE_BIDIDIRECTION_BADSOURCE,
+	
+	// MW-2014-10-23: Improve the error message you get from 'start using <name>'
+	// {EE-0845} start: script of specified stack won't compile
+	EE_START_WONTCOMPILE,
+	
+	// SN-2014-12-16: [[ Bug 14181 ]] hostnameToAddress should have no message on server
+	// {EE-0846} hostnameToAddress: callbacks are not allowed on server
+	EE_HOSTNAME_BADMESSAGE,
+
+    // {EE-0847} Error evaluating expression
+    EE_EXPR_EVALERROR,
+    
+    // {EE-0848} Property: value is not a character
+    EE_PROPERTY_NAC,
+    
+    // {EE-0849} Property: value is not a string
+    EE_PROPERTY_NAS,
+    
+    // {EE-0850} Property: value is not a color
+    EE_PROPERTY_NOTACOLOR,
+    
+    // {EE-0851} Property: value is not a rectangle
+    EE_PROPERTY_NOTARECT,
+    
+    // {EE-0852} Property: value is not a point
+    EE_PROPERTY_NOTAPOINT,
+    
+    // {EE-0853} Property: value is not a pair of integers
+    EE_PROPERTY_NOTAINTPAIR,
+    
+    // {EE-0854} Property: value is not a quadruple of integers
+    EE_PROPERTY_NOTAINTQUAD,
+    
+    // {EE-0855} Property: invalid enumeration value
+    EE_PROPERTY_BADENUMVALUE,
+    
+    // {EE-0856} Backdrop: invalid value
+    EE_BACKDROP_INVALIDVALUE,
+    
+    // {EE-0857} Property: value is not an array
+    EE_PROPERTY_NOTANARRAY,
+    
+    // {EE-0858} MCInternalPayloadPatch: error in patch item expression
+    EE_INTERNAL_PATCH_BADITEM,
+    
+    // {EE-0859} MCInternalPayloadPatch: error in base item expression
+    EE_INTERNAL_BASE_BADITEM,
+
+	// MDW-2014-09-28: [[ feature_floor ]]
+	// {EE-0860} floor: bad parameter
+	EE_FLOOR_BADSOURCE,
+
+	// MDW-2014-09-28: [[ feature_floor ]]
+	// {EE-0861} ceil: bad parameter
+    EE_CEIL_BADSOURCE,
+
+    // {EE-0862} commandArguments: bad parameter
+    EE_COMMANDARGUMENTS_BADPARAM,
+    
+    // AL-2015-07-07: The following error codes are 8.0 specific so should have their numbers
+    //  incremented whenever new codes are merged up from below.
+    // MW-2014-12-10: [[ Extensions ]] The error codes used to indicate an extension error.
+    // {EE-0863} extension: error occurred with domain
+    EE_EXTENSION_ERROR_DOMAIN,
+    // {EE-0864} extension: error occurred with description
+    EE_EXTENSION_ERROR_DESCRIPTION,
+    // {EE-0865} extension: error occurred with file
+    EE_EXTENSION_ERROR_FILE,
+    // {EE-0866} extension: error occurred with line
+    EE_EXTENSION_ERROR_LINE,
+    
+    // {EE-0867} load: error in extension expression
+    EE_LOAD_BADEXTENSION,
+    
+    // {EE-0868} load: error in resource path expression
+    EE_LOAD_BADRESOURCEPATH,
+    
+    // {EE-0869} System error: function
+    EE_SYSTEM_FUNCTION,
+
+    // {EE-0870} System error: code
+    EE_SYSTEM_CODE,
+
+    // {EE-0871} System error: message
+    EE_SYSTEM_MESSAGE,
+    
+    // {EE-0872} Import: bad array
+    EE_IMPORT_BADARRAY,
+    
+    // {EE-0873} Import: not an object array
+    EE_IMPORT_NOTANOBJECTARRAY,
+
+    // {EE-0874} clipboard: bad item type or data
+    EE_CLIPBOARD_BADREP,
+    
+    // {EE-0875} clipboard: failed to insert item
+    EE_CLIPBOARD_INSERTFAILED,
+    
+    // {EE-0876} clipboard: clipboard not locked
+    EE_CLIPBOARD_NOTLOCKED,
+    
+    // {EE-0877} clipboard: already locked
+    EE_CLIPBOARD_ALREADYLOCKED,
+    
+    // {EE-0878} clipboard: needs to be cleared (contains external data)
+    EE_CLIPBOARD_EXTERNALDATA,
+	
+	// {EE-0879} go: error in widget expression
+	EE_GO_BADWIDGETEXP,
+	
+	// {EE-0880} launch: error in widget expression
+	EE_LAUNCH_BADWIDGETEXP,
+
+	// {EE-0881} do: error in widget expression
+	EE_DO_BADWIDGETEXP,
+
+    // {EE-0882} documentFilename: bad filename
+    EE_DOCUMENTFILENAME_BADFILENAME, 
+
+	// {EE-0883} save: error in file format expression
+	EE_SAVE_BADNOFORMATEXP,
+	
+	// {EE-0884} replace: not a field chunk
+	EE_REPLACE_BADFIELDCHUNK,
+	
+	// {EE-0885} call: too few arguments
+	EE_INVOKE_TOOFEWARGS,
+	
+	// {EE-0886} call: too many arguments
+	EE_INVOKE_TOOMANYARGS,
+    
+    // {EE-0887} Stack: script only stacks can not be password protected
+    EE_SCRIPT_ONLY_STACK_NOPASSWORD,
+    
+    // {EE-0888} revert: can't find stack
+    EE_REVERT_NOSTACK,
+    
+    // {EE-0889} vectordot: error in first parameter
+    EE_VECTORDOT_BADLEFT,
+    
+    // {EE-0890} vectordot: error in second parameter
+    EE_VECTORDOT_BADRIGHT,
+    
+    // {EE-0891} vectordot: arrays are not key-wise compatible
+    EE_VECTORDOT_MISMATCH,
+
+	// {EE-0892} files: error in folder parameter
+	EE_FILES_BADFOLDER,
+
+	// {EE-0893} folders: error in folder parameter
+	EE_FOLDERS_BADFOLDER,
+
+    // {EE-0894} no target object
+    EE_NOTARGET,
+
+    // {EE-0895} image: cannot change image while being edited
+    EE_IMAGE_MUTABLELOCK,
+
+    // {EE-0896} graphic : too many points
+    EE_GRAPHIC_TOOMANYPOINTS,
+
+	// {EE-0897} extension: error occurred with column
+	EE_EXTENSION_ERROR_COLUMN,
+	
+	// {EE-0898} parentScript: can't change parent while parent script is executing
+    EE_PARENTSCRIPT_EXECUTING,
+    
+    // {EE-0899} call: type conversion error
+    EE_INVOKE_TYPEERROR,
+
+    // {EE-0900} open: error in from address expression
+    EE_OPEN_BADFROMADDRESS,
+
+    // {EE-0901} messageDigest: error in digest type parameter
+    EE_MESSAGEDIGEST_BADTYPE,
+
+    // {EE-0902} messageDigest: error in message data parameter
+    EE_MESSAGEDIGEST_BADDATA,
+
+    // {EE-0903} snapshot: no screen
+    EE_SNAPSHOT_FAILED,
+
+    // {EE-0904} stack: password protecting stacks not supported in this edition
+    EE_STACK_PASSWORD_NOT_SUPPORTED,
+    
+    // {EE-0905} files: error in kind parameter
+    EE_FILES_BADKIND,
+    
+    // {EE-0906} folders: error in kind parameter
+    EE_FOLDERS_BADKIND,
+
+    // {EE-0907} library mapping: bad mapping
+    EE_BAD_LIBRARY_MAPPING,
+
+    // {EE-0908} fontLanguage: bad font name
+    EE_FONTLANGUAGE_BADFONTNAME,
+    
+    // {EE-0909} android permission: bad permission name
+    EE_BAD_PERMISSION_NAME,
+    
+    // {EE-0910} Property: value is not a data
+    EE_PROPERTY_NOTADATA
+    
 };
 
 extern const char *MCexecutionerrors;

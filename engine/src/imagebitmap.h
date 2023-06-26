@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,6 +18,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define __MC_IMAGE_BITMAP_H__
 
 #include "graphics.h"
+#include "sysdefs.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,23 +93,36 @@ void MCImageBitmapExtractMask(MCImageBitmap *p_bitmap, void *p_mask, uint32_t p_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct MCImageFrame
+struct MCBitmapFrame
 {
 	MCImageBitmap *image;
 	uint32_t duration;
 	
 	// IM-2013-10-30: [[ FullscreenMode ]] add density value to image frames
-	MCGFloat density;
+	// IM-2014-08-07: [[ Bug 13021 ]] Split density into x / y scale components
+	MCGFloat x_scale;
+	MCGFloat y_scale;
 };
 
-void MCImageFreeFrames(MCImageFrame *p_frames, uindex_t p_count);
+void MCImageFreeFrames(MCBitmapFrame *p_frames, uindex_t p_count);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // MW-2013-05-04: Methods to determine the type of potential image data.
-bool MCImageDataIsJPEG(const MCString& data);
-bool MCImageDataIsPNG(const MCString& data);
-bool MCImageDataIsGIF(const MCString& data);
+bool MCImageDataIsJPEG(MCDataRef p_data);
+bool MCImageDataIsPNG(MCDataRef p_data);
+bool MCImageDataIsGIF(MCDataRef p_data);
+bool MCImageDataIsBMP(MCDataRef p_data);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// IM-2014-04-14: [[ ImageRepUpdate ]] Legacy bitmap conversion
+MCGRaster MCImageBitmapGetMCGRaster(MCImageBitmap *p_bitmap, bool p_is_premultiplied);
+MCImageBitmap MCImageBitmapFromMCGRaster(const MCGRaster &p_raster);
+bool MCImageBitmapCopyAsMCGImage(MCImageBitmap *p_bitmap, bool p_is_premultiplied, MCGImageRef &r_image);
+bool MCImageBitmapCopyAsMCGImageAndRelease(MCImageBitmap *&x_bitmap, bool p_is_premultiplied, MCGImageRef &r_image);
+// IM-2014-09-02: [[ Bug 13295 ]] Add optional target size param.
+bool MCImageBitmapCreateWithTransformedMCGImage(MCGImageRef p_src, MCGAffineTransform p_transform, MCGImageFilter p_quality, const MCGIntegerSize *p_target_size, MCImageBitmap *&r_bitmap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

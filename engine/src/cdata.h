@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -32,22 +32,23 @@ public:
 	MCCdata();
 	MCCdata(uint4 newid);
 	MCCdata(const MCCdata &fref);
+	MCCdata(const MCCdata &fref, MCField* p_new_owner);
 	~MCCdata();
-	IO_stat load(IO_handle stream, MCObject *parent, const char *version);
-	IO_stat save(IO_handle stream, Object_type type, uint4 p_part);
+	IO_stat load(IO_handle stream, MCObject *parent, uint32_t version);
+	IO_stat save(IO_handle stream, Object_type type, uint4 p_part, MCObject *parent, uint32_t p_version);
 	uint4 getid();
 	void setid(uint4 newid);
 	MCParagraph *getparagraphs();
 	void setparagraphs(MCParagraph *&newpar);
 	Boolean getset();
 	void setset(Boolean newdata);
-	void setdata(int4 newdata)
+	void setdata(uintptr_t newdata)
 	{
 		data = (void *)newdata;
 	}
-	int4 getdata()
+	uintptr_t getdata()
 	{
-		return (int4)(intptr_t)data;
+		return (uintptr_t)data;
 	}
 	MCCdata *next()
 	{
@@ -81,6 +82,13 @@ public:
 	{
 		return (MCCdata *)MCDLlist::remove((MCDLlist *&)list);
 	}
+	
+private:
+	
+	// Clones the data from the given other MCCdata object, setting the
+	// paragraphs of the data to have the given field as the parent object
+	// (set to nil for non-field card data).
+	void CloneData(const MCCdata& fref, MCField* p_new_owner);
 };
 
 #endif

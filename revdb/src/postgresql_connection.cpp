@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,12 +16,14 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "dbpostgresql.h"
 
+extern bool load_ssl_library();
+
 /*DBCONNECTION_POSTGRESQL - CONNECTION OBJECT FOR MYSQL DATABASES CHILD OF DBCONNECTION*/
 
 char *strndup(const char *p_string, int p_length)
 {
 	char *t_result;
-	t_result = new char[p_length + 1];
+	t_result = new (nothrow) char[p_length + 1];
 	memcpy(t_result, p_string, p_length);
 	t_result[p_length] = '\0';
 	return t_result;
@@ -59,20 +61,122 @@ Bool DBConnection_POSTGRESQL::connect(char **args, int numargs)
 	if (t_delimiter != NULL)
 	{
 		t_port = (t_delimiter + (1 * sizeof(char)));
-		*t_delimiter = NULL;
+		*t_delimiter = '\0';
 	}
-	
-	dbconn = NULL;
-	dbconn = PQsetdbLogin(t_host, t_port, NULL, NULL, t_database, t_user, t_password);
+
+    const char *t_sslmode;
+    t_sslmode = NULL;
+    const char *t_sslcompression;
+    t_sslcompression = NULL;
+    const char *t_sslcert;
+    t_sslcert = NULL;
+    const char *t_sslkey;
+    t_sslkey = NULL;
+    const char *t_sslrootcert;
+    t_sslrootcert = NULL;
+    const char *t_sslcrl;
+    t_sslcrl = NULL;
+
+    // extract any ssl options spcified as key value pairs in the final args to revOpenDatabase
+    // e.g. sslmode=require
+    const char *t_ssl_opt_key;
+    t_ssl_opt_key = NULL;
+    const char *t_ssl_opt_val;
+    t_ssl_opt_val = NULL;
+    for (int i = 4; i < numargs; i++)
+    {
+        t_delimiter = strchr(args[i], '=');
+        if (t_delimiter != NULL)
+        {
+            t_ssl_opt_key = args[i];
+            t_ssl_opt_val = (t_delimiter + sizeof(char));
+
+            size_t t_key_length;
+            t_key_length = (size_t)(t_delimiter - args[i]);
+
+            if (*t_ssl_opt_val != '\0')
+            {
+                if (strncmp(t_ssl_opt_key, "sslmode", t_key_length) == 0)
+                    t_sslmode = t_ssl_opt_val;
+                else if (strncmp(t_ssl_opt_key, "sslcompression", t_key_length) == 0)
+                    t_sslcompression = t_ssl_opt_val;
+                else if (strncmp(t_ssl_opt_key, "sslcert", t_key_length) == 0)
+                    t_sslcert = t_ssl_opt_val;
+                else if (strncmp(t_ssl_opt_key, "sslkey", t_key_length) == 0)
+                    t_sslkey = t_ssl_opt_val;
+                else if (strncmp(t_ssl_opt_key, "sslrootcert", t_key_length) == 0)
+                    t_sslrootcert = t_ssl_opt_val;
+                else if (strncmp(t_ssl_opt_key, "sslcrl", t_key_length) == 0)
+                    t_sslcrl = t_ssl_opt_val;
+            }
+        }
+    }
+
+    bool t_have_ssl;
+    t_have_ssl = load_ssl_library();
+
+    // if an ssl mode (other than disable) has been passed, make sure we can load libopenssl
+    // if no ssl mode has been passed, use prefer if we have libopenssl (try an ssl connection, if that fails try non-ssl)
+    // if we don't have libopenssl, use disable (don't attempt an ssl connection)
+    const char *t_sslmode_prefer = "prefer";
+    const char *t_sslmode_disable = "disable";
+    if (t_sslmode != NULL)
+    {
+        if (strcmp(t_sslmode, "disable") != 0 && !t_have_ssl)
+        {
+            errorMessageSet("revdb,unable to load SSL library");
+            return false;
+        }
+    }
+    else if (t_have_ssl)
+        t_sslmode = t_sslmode_prefer;
+    else
+        t_sslmode = t_sslmode_disable;
+
+    const char *t_connect_keys[] =
+    {
+        "host",
+        "port",
+        "dbname",
+        "user",
+        "password",
+
+        "sslmode",
+        "sslcompression",
+        "sslcert",
+        "sslkey",
+        "sslrootcert",
+        "sslcrl",
+
+        NULL,
+    };
+    const char *t_connect_values[] =
+    {
+        t_host,
+        t_port,
+        t_database,
+        t_user,
+        t_password,
+
+        t_sslmode,
+        t_sslcompression,
+        t_sslcert,
+        t_sslkey,
+        t_sslrootcert,
+        t_sslcrl,
+
+        NULL,
+    };
+
+    dbconn = NULL;
+    dbconn = PQconnectdbParams(t_connect_keys, t_connect_values, 0);
 
 	// OK-2008-05-16 : Bug where failed connections to postgres databases would
 	// not return any error information. According to the postgres docs, dbconn
 	// will only be null if there was not enough memory to allocate it.
 	if (dbconn == NULL)
 	{
-		char *t_error_message;
-		t_error_message = strdup("revdb,insufficient memory to connect to database");
-		errorMessageSet(t_error_message);
+		errorMessageSet("revdb,insufficient memory to connect to database");
 		return false;
 	}
 
@@ -290,7 +394,7 @@ DBCursor *DBConnection_POSTGRESQL::sqlQuery(char *p_query, DBString *p_arguments
 		t_column_count = PQnfields(t_postgres_result);
 		if (t_column_count != 0)
 		{
-			t_cursor = new DBCursor_POSTGRESQL();
+			t_cursor = new (nothrow) DBCursor_POSTGRESQL();
 			if (!t_cursor -> open((DBConnection *)this, t_postgres_result))
 			{
 				delete t_cursor;
@@ -335,40 +439,42 @@ char *DBConnection_POSTGRESQL::getErrorMessage(Bool p_last)
 
 void DBConnection_POSTGRESQL::getTables(char *buffer, int *bufsize)
 {
-	int rowseplen = 1;
-	char rowsep[] = "\n";
-	if (!buffer) {
-		*bufsize = 2500;
-		return;
-	}
-	char tsql[] = "SELECT tablename FROM pg_tables WHERE tablename NOT LIKE 'pg%'";
-	DBCursor *newcursor = sqlQuery(tsql , NULL, 0, 0);
-	if (newcursor)
-	{
-		char *result = buffer;
-		char *resultptr = result;
-		unsigned int colsize = 0;
-		if (!newcursor->getEOF())
-		{
-			while (True){
-				unsigned int colsize;
-				char *coldata = newcursor->getFieldDataBinary(1,colsize);
-				colsize = strlen(coldata);
-				if (((resultptr-result) + (int)colsize + rowseplen + 16 ) > *bufsize)
-					break;
-				memcpy(resultptr,coldata,colsize);
-				resultptr+=colsize;
-				newcursor->next();
-				if (newcursor->getEOF()) break;
-				memcpy(resultptr,rowsep,rowseplen);
-				resultptr+=rowseplen;
-			}
-		}
-		deleteCursor(newcursor->GetID());
-		*resultptr++ = '\0';
-		*bufsize = resultptr-result;
-	}
-	newcursor = NULL;
+	if (!buffer)
+    {
+        if (!m_internal_buffer)
+        {
+            m_internal_buffer = new large_buffer_t;
+        }
+        
+        long buffersize = 0;
+        char tsql[] = "SELECT tablename FROM pg_tables WHERE tablename NOT LIKE 'pg%'";
+        DBCursor *newcursor = sqlQuery(tsql, NULL, 0, 0);
+        if (newcursor) 
+        {
+            if (!newcursor->getEOF())
+            {
+                while (True)
+                {
+                    unsigned int colsize;
+                    char *coldata = newcursor->getFieldDataBinary(1,colsize);
+                    colsize = strlen(coldata);
+                    m_internal_buffer->append(coldata, colsize);
+                    m_internal_buffer->append('\n');
+                    buffersize += colsize + 1;
+                    newcursor->next();
+                    if (newcursor->getEOF()) 
+                        break;
+                }
+            }
+            deleteCursor(newcursor->GetID());
+            *bufsize = buffersize+1;
+            m_internal_buffer->append('\0');
+        }
+        return;
+    }
+    memcpy((void *) buffer, m_internal_buffer->ptr(), m_internal_buffer->length());
+    delete m_internal_buffer;
+    m_internal_buffer = nullptr;
 }
 
 void DBConnection_POSTGRESQL::transBegin()

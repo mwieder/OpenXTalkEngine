@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "unicode.h"
 #include "textlayout.h"
 
 #include <Foundation/Foundation.h>
@@ -55,9 +54,8 @@ void MCTextLayoutFinalize(void)
 
 static CTFontRef ctfont_from_fontstruct(MCFontStruct *p_font_struct)
 {
-	UIFont *t_ui_font;
-	t_ui_font = (UIFont *)p_font_struct -> fid;
-	return CTFontCreateWithName((CFStringRef)[t_ui_font fontName], [t_ui_font pointSize], nil);
+    // MM-2014-06-04: [[ CoreText ]] Fonts are now already coretext font refs. No extra work needed here anymore.
+    return (CTFontRef)CFRetain((CTFontRef) p_font_struct -> fid);
 }
 
 static CTFontRef ctfont_from_ctfont(CTFontRef p_ct_font)

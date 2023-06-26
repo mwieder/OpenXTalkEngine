@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,13 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #ifndef __MC_TEXT_LAYOUT__
 #define __MC_TEXT_LAYOUT__
-
-#ifndef __MC_CORE__
-#include "core.h"
-#endif
-
-#ifndef __MC_DCDEFS__
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

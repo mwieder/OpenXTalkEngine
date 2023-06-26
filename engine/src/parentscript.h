@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -62,7 +62,7 @@ public:
 	void ClearVars(void);
 
 	// Remap all the existing variables.
-	void PreserveVars(uint32_t *p_map, MCNameRef *p_new_var_inits, uint32_t p_new_var_count);
+	void PreserveVars(uint32_t *p_map, MCValueRef *p_new_var_inits, uint32_t p_new_var_count);
 
 private:
 	MCParentScriptUse(MCParentScript *p_parent, MCObject *p_referrer);
@@ -130,7 +130,7 @@ public:
 	static void FlushStack(MCStack *p_stack);
 
 	// Remap all the existing variables for each use using the given map.
-	static void PreserveVars(MCObject *p_object, uint32_t *p_map, MCNameRef *p_new_var_inits, uint32_t p_new_var_count);
+	static void PreserveVars(MCObject *p_object, uint32_t *p_map, MCValueRef *p_new_var_inits, uint32_t p_new_var_count);
 
 	// Clear all the existing variables for each use.
 	static void ClearVars(MCObject *p_object);
@@ -174,6 +174,8 @@ public:
 
 	// Return whether the parent script is blocked from resolution.
 	bool IsBlocked(void) const;
+    
+    bool CopyUses(MCArrayRef& r_use);
 
 private:
 	MCParentScript(void);

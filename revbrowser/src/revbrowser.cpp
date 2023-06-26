@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -61,28 +61,6 @@ inline char *IntToStr(int p_value)
 	return t_string;
 }
 
-void DispatchMetaCardMessage(const char *messagename, const char *tmessage)
-{
-	int retvalue = 0;
-	SetGlobal("XBrowservar",tmessage,&retvalue);
-	char *mcmessage = nil;
-    // AL-2013-11-01 [[ Bug 11289 ]] Use libcore methods to prevent potential buffer overflows in revbrowser
-    MCCStringFormat(mcmessage,"global XBrowservar;send \"%s\" && %s to current card of stack the topstack;put current card of stack topstack;put 0 into Xbrowservar",messagename,tmessage); //of stack the topstack
-	SendCardMessage(mcmessage, &retvalue);
-	delete mcmessage;
-}
-
-void DispatchMetaCardMessage(const char *messagename, const char *tmessage, int instID)
-{
-	int retvalue = 0;
-	SetGlobal("XBrowservar",tmessage,&retvalue);
-	char *mcmessage = nil;
-    // AL-2013-11-01 [[ Bug 11289 ]] Use libcore methods to prevent potential buffer overflows in revbrowser
-    MCCStringFormat(mcmessage, "global XBrowservar;send \"%s %s,%s\" to current card of stack the topstack;put 0 into Xbrowservar",messagename,tmessage,instID);
-	SendCardMessage(mcmessage, &retvalue);
-    delete mcmessage;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  INSTANCE HANDLING
@@ -105,6 +83,7 @@ public:
 	int GetCallbackDepth(int p_id);
 	
 	bool Callback(int p_instance_id, const char *p_message, const char *p_url = NULL);
+	bool Callback(int p_id, const char *p_message, char **p_args, uint32_t p_arg_count, bool &r_pass);
 
 	void SetActiveInstanceId(int t_id);
 
@@ -124,6 +103,9 @@ private:
 	BrowserInstance *m_instances;
 	BrowserInstance *m_active_instance;
 	int m_last_instance_id;
+
+	bool FindInstanceById(int p_id, BrowserInstance *&r_instance);
+	void SendMessage(BrowserInstance *p_instance, const char *p_message, bool &r_pass);
 };
 
 static BrowserInstances s_browsers;
@@ -152,10 +134,24 @@ BrowserInstances::~BrowserInstances(void)
 	}
 }
 
+bool BrowserInstances::FindInstanceById(int p_id, BrowserInstance *&r_instance)
+{
+	for(BrowserInstance *t_instance = m_instances; t_instance != nil; t_instance = t_instance->next)
+	{
+		if (t_instance->instance_id == p_id)
+		{
+			r_instance = t_instance;
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void BrowserInstances::Add(CWebBrowserBase *p_browser, bool p_is_xbrowser)
 {
 	BrowserInstance *t_instance;
-	t_instance = new BrowserInstance;
+	t_instance = new (nothrow) BrowserInstance;
 	t_instance -> next = m_instances;
 	t_instance -> instance_id = ++m_last_instance_id;
 	t_instance -> stack_id = NULL;
@@ -217,18 +213,18 @@ CWebBrowserBase *BrowserInstances::GetActiveInstance(void)
 
 CWebBrowserBase *BrowserInstances::GetInstance(int p_id)
 {
-	for(BrowserInstance *t_instance = m_instances; t_instance != NULL; t_instance = t_instance -> next)
-		if (t_instance -> instance_id == p_id)
-			return t_instance -> browser;
-
-	return NULL;
+	BrowserInstance *t_instance;
+	if (FindInstanceById(p_id, t_instance))
+		return t_instance->browser;
+	else
+		return nil;
 }
 
 void BrowserInstances::SetActiveInstanceId(int p_id)
 {
-	for(BrowserInstance *t_instance = m_instances; t_instance != NULL; t_instance = t_instance -> next)
-		if (t_instance -> instance_id == p_id)
-			m_active_instance = t_instance;
+	BrowserInstance *t_instance;
+	if (FindInstanceById(p_id, t_instance))
+		m_active_instance = t_instance;
 }
 
 char *BrowserInstances::GetInstanceIds(void)
@@ -251,14 +247,196 @@ char *BrowserInstances::GetInstanceIds(void)
 int BrowserInstances::GetCallbackDepth(int p_id)
 {
 	BrowserInstance *t_instance;
-	for(t_instance = m_instances; t_instance != NULL; t_instance = t_instance -> next)
-		if (t_instance -> instance_id == p_id)
-			break;
+	if (FindInstanceById(p_id, t_instance))
+		return t_instance->callback_depth;
+	else
+		return 0;
+}
 
-	if (t_instance != NULL)
-		return t_instance -> callback_depth;
+bool is_escape_char(char p_char)
+{
+	return p_char == '"';
+}
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Handle double-quote in strings by generating LC expression
+// that evaluates to the original string (using string concatenation with the "quote" constant)
+bool MCCStringQuote(const char *p_string, char *&r_quoted)
+{
+	if (p_string == nil || p_string[0] == '\0')
+		return MCCStringClone("\"\"", r_quoted);
+
+	bool t_success;
+	t_success = true;
+
+	char *t_quoted;
+	t_quoted = nil;
+
+	while (t_success && *p_string)
+	{
+		if (!is_escape_char(*p_string))
+		{
+			const char *t_run_start;
+			t_run_start = p_string;
+
+			uint32_t t_run_length;
+			t_run_length = 0;
+
+			while (*p_string != '\0' && !is_escape_char(*p_string))
+				p_string++;
+
+			t_run_length = p_string - t_run_start;
+
+			t_success = MCCStringAppendFormat(t_quoted, t_quoted == nil ? "\"%*.*s\"" : "&\"%*.*s\"", t_run_length, t_run_length, t_run_start);
+		}
+		else if (*p_string == '"')
+		{
+			t_success = MCCStringAppend(t_quoted, t_quoted == nil ? "quote" : "&quote");
+			p_string++;
+		}
+	}
+
+	if (t_success)
+		r_quoted = t_quoted;
+	else if (t_quoted != nil)
+		MCCStringFree(t_quoted);
+
+	return t_success;
+}
+
+#define MCSCRIPT_CALLBACK "\
+local tID=%d;\
+local tWinID=%d\
+%s;%s\
+global XBrowservar;\
+if XBrowservar is empty or the windowId of XBrowservar is not tWinID then;\
+repeat for each line tLine in the openStacks;\
+if the windowId of stack tLine is tWinID then;\
+put the long id of stack tLine into XBrowservar;\
+exit repeat;\
+end if;\
+end repeat;\
+end if;\
+send \"%s tID%s\" to this card of XBrowservar"
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Create script to call handler with the given parameters
+bool revBrowserCreateCallbackScript(int p_id, int p_window_id, const char *p_message, char **p_args, uint32_t p_arg_count, char *&r_script)
+{
+	bool t_success;
+	t_success = true;
+
+	char *t_assigns;
+	t_assigns = nil;
+
+	char *t_locals;
+	t_locals = nil;
+
+	for (uint32_t i = 0; t_success && i < p_arg_count; i++)
+	{
+		char *t_quoted_string;
+		t_quoted_string = nil;
+
+		t_success = MCCStringQuote(p_args[i], t_quoted_string);
+		if (t_success)
+		{
+			t_success = MCCStringAppendFormat(t_locals, ", tArg%d", i);
+			if (t_success)
+				t_success = MCCStringAppendFormat(t_assigns, "put %s into tArg%d;", t_quoted_string, i);
+		}
+
+		if (t_quoted_string != nil)
+			MCCStringFree(t_quoted_string);
+	}
+
+	char *t_script;
+	t_script = nil;
+
+	if (t_success)
+	{
+		// IM-2014-03-13: [[ revBrowserCEF ]] fix const ptr compile error
+		const char *t_locals_str = t_locals ? t_locals : "";
+		const char *t_assigns_str = t_assigns ? t_assigns : "";
+		t_success = MCCStringFormat(t_script, MCSCRIPT_CALLBACK, p_id, p_window_id, t_locals_str, t_assigns_str, p_message, t_locals_str);
+	}
+	if (t_locals)
+		MCCStringFree(t_locals);
+	if (t_assigns)
+		MCCStringFree(t_assigns);
+
+	if (t_success)
+		r_script = t_script;
+	else
+	{
+		if (t_script)
+			MCCStringFree(t_script);
+	}
+
+	return t_success;
+}
+
+bool BrowserInstances::Callback(int p_id, const char *p_message, char **p_args, uint32_t p_arg_count, bool &r_pass)
+{
+	bool t_success;
+	t_success = true;
+
+	BrowserInstance *t_instance;
+	if (t_success)
+		t_success = FindInstanceById(p_id, t_instance);
+
+	if (t_success)
+	{
+		int t_retval;
+		if (t_instance -> stack_id != NULL)
+			SetGlobalUTF8("XBrowservar", t_instance -> stack_id, &t_retval);
+		else
+			SetGlobalUTF8("XBrowservar", "", &t_retval);
+	}
+
+	char *t_script;
+	t_script = nil;
+
+	if (t_success)
+		t_success = revBrowserCreateCallbackScript(p_id, t_instance->browser->GetWindowId(), p_message, p_args, p_arg_count, t_script);
+
+	bool t_pass;
+	if (t_success)
+		SendMessage(t_instance, t_script, t_pass);
+
+	if (t_script)
+		MCCStringFree(t_script);
+
+	if (t_success)
+		r_pass = t_pass;
+
+	return t_success;
+}
+
+void BrowserInstances::SendMessage(BrowserInstance *p_instance, const char *p_message, bool &r_pass)
+{
+	int t_retval;
+	SetGlobal(p_instance->xbrowser_callbacks ? "XBrowserCancel" : "browserCancel", "FALSE", &t_retval);
+
+	p_instance -> callback_depth += 1;
+	SendCardMessageUTF8(p_message, &t_retval);
+	p_instance -> callback_depth -= 1;
 	
-	return 0;
+	if (p_instance -> stack_id != NULL)
+		free(p_instance -> stack_id);
+
+	p_instance -> stack_id = GetGlobalUTF8("XBrowservar", &t_retval);
+
+	bool t_pass;
+
+	char *t_cancel;
+	t_cancel = GetGlobalUTF8(p_instance -> xbrowser_callbacks ? "XBrowserCancel" : "browserCancel", &t_retval);
+	if (t_cancel != NULL)
+	{
+		t_pass = !StrToBool(t_cancel);
+		free(t_cancel);
+	}
+	else
+		t_pass = true;
+
+	r_pass = t_pass;
 }
 
 bool BrowserInstances::Callback(int p_id, const char *p_message, const char *p_argument)
@@ -301,18 +479,14 @@ end if;\
 send \"browser%s\" && %d, quote & \"%s\" & quote to this card of XBrowservar";
 
 	BrowserInstance *t_instance;
-	for(t_instance = m_instances; t_instance != NULL; t_instance = t_instance -> next)
-		if (t_instance -> instance_id == p_id)
-			break;
-
-	if (t_instance == NULL)
+	if (!FindInstanceById(p_id, t_instance))
 		return true;
 
 	int t_retval;
 	if (t_instance -> stack_id != NULL)
-		SetGlobal("XBrowservar", t_instance -> stack_id, &t_retval);
+		SetGlobalUTF8("XBrowservar", t_instance -> stack_id, &t_retval);
 	else
-		SetGlobal("XBrowservar", "", &t_retval);
+		SetGlobalUTF8("XBrowservar", "", &t_retval);
 
 	int t_window_id;
 	t_window_id = t_instance -> browser -> GetWindowId();
@@ -331,18 +505,18 @@ send \"browser%s\" && %d, quote & \"%s\" & quote to this card of XBrowservar";
 			MCCStringFormat(t_message, s_message_template_with_argument, t_window_id, t_window_id, p_message, p_id, p_argument);
 	}
 
-	SetGlobal(t_instance -> xbrowser_callbacks ? "XBrowserCancel" : "browserCancel", "FALSE", &t_retval);
+	SetGlobalUTF8(t_instance -> xbrowser_callbacks ? "XBrowserCancel" : "browserCancel", "FALSE", &t_retval);
 	
 	t_instance -> callback_depth += 1;
-	SendCardMessage(t_message, &t_retval);
+	SendCardMessageUTF8(t_message, &t_retval);
 	t_instance -> callback_depth -= 1;
 	
-    delete t_message;
+    MCCStringFree (t_message);
     
 	if (t_instance -> stack_id != NULL)
 		free(t_instance -> stack_id);
 
-	t_instance -> stack_id = GetGlobal("XBrowservar", &t_retval);
+	t_instance -> stack_id = GetGlobalUTF8("XBrowservar", &t_retval);
 
 	bool t_pass;
 
@@ -435,6 +609,15 @@ BrowserProp browserProperties[] =
 //
 //  CALLBACKS
 //
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Send a custom callback with the given params
+void CB_Custom(int p_instance_id, const char *p_message, char **p_args, uint32_t p_arg_count, bool *r_cancel)
+{
+	bool t_success, t_pass;
+	t_success = s_browsers.Callback(p_instance_id, p_message, p_args, p_arg_count, t_pass);
+
+	*r_cancel = t_success && !t_pass;
+}
 
 // Callback:
 //   XBrowser_BeforeNavigate pURL
@@ -566,6 +749,21 @@ void CB_DocumentComplete(int p_instance_id, const char *p_url)
 }
 
 // Callback:
+//   browserDocumentFailed pInstanceId, pURL, pErrorMessage
+// Description:
+//   The browser sends this message when a given URL has failed to load.
+//
+void CB_DocumentFailed(int p_instance_id, const char *p_url, const char *p_error)
+{
+	const char *t_params[2];
+	t_params[0] = p_url;
+	t_params[1] = p_error;
+	
+	bool t_pass;
+	s_browsers . Callback(p_instance_id, "browserDocumentFailed", (char**)t_params, 2, t_pass);
+}
+
+// Callback:
 //   XBrowser_DocumentCompleteFrame pURL, pInstanceId
 // Description:
 //   The browser sends this message when a given URL has finished
@@ -574,6 +772,21 @@ void CB_DocumentComplete(int p_instance_id, const char *p_url)
 void CB_DocumentFrameComplete(int p_instance_id, const char *p_url)
 {
 	s_browsers . Callback(p_instance_id, "DocumentCompleteFrame", p_url);
+}
+
+// Callback:
+//   browserDocumentFailedFrame pInstanceId, pURL, pErrorMessage
+// Description:
+//   The browser sends this message when a given URL has failed to load into a frame.
+//
+void CB_DocumentFrameFailed(int p_instance_id, const char *p_url, const char *p_error)
+{
+	const char *t_params[2];
+	t_params[0] = p_url;
+	t_params[1] = p_error;
+	
+	bool t_pass;
+	s_browsers . Callback(p_instance_id, "browserDocumentFailedFrame", (char**)t_params, 2, t_pass);
 }
 
 // Callback:
@@ -601,7 +814,7 @@ void CB_NewWindow(int p_instance_id, const char *p_url)
 // Result:
 //   The instance ID of the new browser.
 //
-void commonBrowserOpen(bool p_is_xbrowser, char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
+void commonBrowserOpen(bool p_is_xbrowser, bool p_is_cef_browser, char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
 {
 	char *result = NULL;
 	char inID[255];
@@ -609,7 +822,11 @@ void commonBrowserOpen(bool p_is_xbrowser, char *args[], int nargs, char **retst
 	if( nargs > 0  )
 	{
 		CWebBrowserBase *t_browser;
-		t_browser = InstantiateBrowser(atoi(args[0]));
+		if (p_is_cef_browser)
+			t_browser = MCCefBrowserInstantiate(atoi(args[0]));
+		else
+			t_browser = InstantiateBrowser(atoi(args[0]));
+
 
 		if (t_browser != NULL)
 		{
@@ -641,12 +858,18 @@ void commonBrowserOpen(bool p_is_xbrowser, char *args[], int nargs, char **retst
 
 void revBrowserOpen(char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
 {
-	commonBrowserOpen(false, args, nargs, retstring, pass, error);
+	commonBrowserOpen(false, false, args, nargs, retstring, pass, error);
+}
+
+// IM-2014-03-18: [[ revBrowserCEF ]] create new browser instance using CEF
+void revBrowserOpenCef(char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
+{
+	commonBrowserOpen(false, true, args, nargs, retstring, pass, error);
 }
 
 void XBrowserOpen(char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
 {
-	commonBrowserOpen(true, args, nargs, retstring, pass, error);
+	commonBrowserOpen(true, false, args, nargs, retstring, pass, error);
 }
 
 // Command:
@@ -730,7 +953,7 @@ void revBrowserFind(CWebBrowserBase *p_instance, char *args[], int nargs, char *
 	if (t_result == NULL)
 		t_search_up = strcmp(args[1], "up") == 0;
 	
-	if (t_browser != NULL)
+	if (t_result == NULL && t_browser != NULL)
 		if (!t_browser -> FindString(args[0], t_search_up))
 			t_result = "not found";
 			
@@ -808,7 +1031,7 @@ void revBrowserExecuteScript(CWebBrowserBase *p_instance, char *args[], int narg
 		t_result = t_browser -> ExecuteScript(args[0]);
 		if (t_result == NULL)
 		{
-			*retstring = "error in script";
+			*retstring = strdup("error in script");
 			*error = True;
 		}
 		else
@@ -1108,6 +1331,57 @@ void revBrowserSnapshot(CWebBrowserBase *p_instance, char *args[], int nargs, ch
 	*retstring = result != NULL ? result: (char *)calloc(1,0);
 }
 
+// IM-2014-03-06: [[ revBrowserCEF ]] Allows a LiveCode handler to be called from within JavaScript
+// creates a JS function with the same name as the handler within a global liveCode JS object
+void revBrowserAddJavaScriptHandler(CWebBrowserBase *p_instance, char *p_args[], int p_arg_count, char **r_result, Bool *r_pass, Bool *r_error)
+{
+    bool t_success;
+	t_success = true;
+
+	// We must be given 1 argument. The argument is the handler name to add.
+	if (t_success)
+	{
+		if (p_arg_count != 1)
+		{
+			/* UNCHECKED */ MCCStringClone("incorrect number of arguments", *r_result);
+			t_success = false;
+		}
+	}
+
+	if (t_success)
+		p_instance->AddJavaScriptHandler(p_args[0]);
+
+	*r_error = !t_success;
+	*r_pass = False;
+	if (*r_result == nil)
+		/* UNCHECKED */ MCCStringClone("", *r_result);
+}
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Removes the named handler function from the global liveCode JS object
+void revBrowserRemoveJavaScriptHandler(CWebBrowserBase *p_instance, char *p_args[], int p_arg_count, char **r_result, Bool *r_pass, Bool *r_error)
+{
+    bool t_success;
+	t_success = true;
+
+	// We must be given 1 argument. The argument is the handler name to add.
+	if (t_success)
+	{
+		if (p_arg_count != 1)
+		{
+			/* UNCHECKED */ MCCStringClone("incorrect number of arguments", *r_result);
+			t_success = false;
+		}
+	}
+
+	if (t_success)
+		p_instance->RemoveJavaScriptHandler(p_args[0]);
+
+	*r_error = !t_success;
+	*r_pass = False;
+	if (*r_result == nil)
+		/* UNCHECKED */ MCCStringClone("", *r_result);
+}
+
 // Function:
 //   revBrowserGet(pInstanceId, pProperty)
 // Description:
@@ -1154,8 +1428,19 @@ void revBrowserGetProp(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 	{
 		int t_left, t_top, t_right, t_bottom;
 		t_browser -> GetRect(t_left, t_top, t_right, t_bottom);
+
+		// IM-2014-07-09: [[ Bug 12225 ]] Convert browser rect to stack coords
+		MCRectangle32 t_rect;
+		t_rect.x = t_left;
+		t_rect.y = t_top;
+		t_rect.width = t_right - t_left;
+		t_rect.height = t_bottom - t_top;
+
+		int t_success;
+		/* UNCHECKED */ WindowToStackRect(t_browser->GetWindowId(), &t_rect, &t_success);
+
         // AL-2013-11-01 [[ Bug 11289 ]] Use libcore methods to prevent potential buffer overflows in revbrowser
-        MCCStringFormat(result,"%d,%d,%d,%d", t_left, t_top, t_right, t_bottom);
+        MCCStringFormat(result,"%d,%d,%d,%d", t_rect.x, t_rect.y, t_rect.x + t_rect.width, t_rect.y + t_rect.height);
 	}
 	break;
 	
@@ -1163,8 +1448,19 @@ void revBrowserGetProp(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 	{
 		int t_left, t_top, t_right, t_bottom;
 		t_browser -> GetFormattedRect(t_left, t_top, t_right, t_bottom);
+
+		// IM-2014-07-09: [[ Bug 12225 ]] Convert browser rect to stack coords
+		MCRectangle32 t_rect;
+		t_rect.x = t_left;
+		t_rect.y = t_top;
+		t_rect.width = t_right - t_left;
+		t_rect.height = t_bottom - t_top;
+
+		int t_success;
+		/* UNCHECKED */ WindowToStackRect(t_browser->GetWindowId(), &t_rect, &t_success);
+
         // AL-2013-11-01 [[ Bug 11289 ]] Use libcore methods to prevent potential buffer overflows in revbrowser
-		 MCCStringFormat(result,"%d,%d,%d,%d", t_left, t_top, t_right, t_bottom);
+        MCCStringFormat(result,"%d,%d,%d,%d", t_rect.x, t_rect.y, t_rect.x + t_rect.width, t_rect.y + t_rect.height);
 	}
 	break;
 
@@ -1254,7 +1550,7 @@ void revBrowserGetProp(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 	break;
 	}
 
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = result != NULL ? result: (char *)calloc(1,1);
 }
 
 // Property:
@@ -1360,7 +1656,17 @@ void revBrowserSetProp(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 
 			if (sscanf(args[1], "%lf,%lf,%lf,%lf", &t_left, &t_top, &t_right, &t_bottom) == 4)
 			{
-				t_browser -> SetRect((int)(t_left + 0.00000001), (int)(t_top + 0.00000001), (int)(t_right + 0.00000001), (int)(t_bottom + 0.00000001));
+				// IM-2014-07-09: [[ Bug 12225 ]] Convert stack rect to window coords
+				MCRectangle32 t_rect;
+				t_rect.x = (int)(t_left + 0.00000001);
+				t_rect.y = (int)(t_top + 0.00000001);
+				t_rect.width = ((int)(t_right + 0.00000001)) - t_rect.x;
+				t_rect.height = ((int)(t_bottom + 0.00000001)) - t_rect.y;
+
+				int t_success;
+				/* UNCHECKED */ StackToWindowRect(t_browser->GetWindowId(), &t_rect, &t_success);
+
+				t_browser -> SetRect(t_rect.x, t_rect.y, t_rect.x + t_rect.width, t_rect.y + t_rect.height);
 			}
 			else
 			{
@@ -1423,7 +1729,7 @@ void revBrowserSetProp(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 		break;
 		
 		case BROWSERPROP_HSCROLL:
-			t_browser -> SetHScroll(atof(args[1]));
+			t_browser -> SetHScroll(atoi(args[1]));
 		break;
 
 		case BROWSERPROP_WINDOWID:
@@ -1480,8 +1786,9 @@ void XBrowserSetProp(char *args[], int nargs, char **retstring, Bool *pass, Bool
 			return;
 		}
 	}
-	else if (nargs == 2)
+	else
 	{
+        MCAssert(nargs == 2);
 		t_browser = s_browsers . GetActiveInstance();
 		if (t_browser == NULL)
 		{
@@ -1507,12 +1814,16 @@ void revBrowserInstances(char *p_arguments[], int p_argument_count, char **r_res
 //  SHUTDOWN
 //
 
-#ifndef _WINDOWS
 extern "C"
 {
+#ifdef _WINDOWS
+	void __declspec(dllexport) shutdownXtable(void);
+#else
 	void shutdownXtable(void) __attribute__((visibility("default")));
+#endif
 }
 
+void MCCefFinalise(void);
 void shutdownXtable(void)
 {
 	for(;;)
@@ -1523,8 +1834,9 @@ void shutdownXtable(void)
 			break;
 		s_browsers . Delete(t_browser);
 	}
+
+	MCCefFinalise();
 }
-#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -1616,39 +1928,42 @@ template<BrowserHandler u_handler> void revBrowserWrapper(char *p_arguments[], i
 }
 
 EXTERNAL_BEGIN_DECLARATIONS("revBrowser")
-	EXTERNAL_DECLARE_FUNCTION_OBJC("revBrowserOpen", revBrowserOpen)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserClose", revBrowserWrapper<revBrowserClose>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserStop", revBrowserWrapper<revBrowserStop>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserRefresh", revBrowserWrapper<revBrowserRefresh>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserNavigate", revBrowserWrapper<revBrowserNavigate>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserForward", revBrowserWrapper<revBrowserForward>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserBack", revBrowserWrapper<revBrowserBack>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserPrint", revBrowserWrapper<revBrowserPrint>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserRedraw", revBrowserWrapper<revBrowserRedraw>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserMakeTextBigger", revBrowserWrapper<revBrowserMakeTextBigger>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserMakeTextSmaller", revBrowserWrapper<revBrowserMakeTextSmaller>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserSet", revBrowserWrapper<revBrowserSetProp>)
-	EXTERNAL_DECLARE_FUNCTION_OBJC("revBrowserGet", revBrowserWrapper<revBrowserGetProp>)
-	EXTERNAL_DECLARE_FUNCTION_OBJC("revBrowserInstances", revBrowserInstances)
-	EXTERNAL_DECLARE_FUNCTION_OBJC("revBrowserExecuteScript", revBrowserWrapper<revBrowserExecuteScript>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserSnapshot", revBrowserWrapper<revBrowserSnapshot>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("revBrowserFind", revBrowserWrapper<revBrowserFind>)
-	EXTERNAL_DECLARE_FUNCTION_OBJC("revBrowserCallScript", revBrowserWrapper<revBrowserCallScript>)
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Open", XBrowserOpen)
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Close", XBrowserWrapper<revBrowserClose> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Stop", XBrowserWrapper<revBrowserStop> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Halt", XBrowserWrapper<revBrowserStop> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Refresh", XBrowserWrapper<revBrowserRefresh> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Navigate", XBrowserWrapper2<revBrowserNavigate> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Forward", XBrowserWrapper<revBrowserForward> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Back", XBrowserWrapper<revBrowserBack> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Set", XBrowserSetProp)
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Focus", XBrowserWrapper<revBrowserFocus> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Unfocus", XBrowserWrapper<revBrowserUnfocus> )
-	EXTERNAL_DECLARE_FUNCTION_OBJC("XBrowser_Get", XBrowserGetProp)
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Print", XBrowserWrapper<revBrowserPrint> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Redraw", XBrowserWrapper<revBrowserRedraw> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_MakeTextBigger", XBrowserWrapper<revBrowserMakeTextBigger> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_MakeTextSmaller", XBrowserWrapper<revBrowserMakeTextSmaller> )
-	EXTERNAL_DECLARE_COMMAND_OBJC("XBrowser_Init", XBrowserInit)
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("revBrowserOpen", revBrowserOpen)
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("revBrowserOpenCef", revBrowserOpenCef)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserClose", revBrowserWrapper<revBrowserClose>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserStop", revBrowserWrapper<revBrowserStop>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserRefresh", revBrowserWrapper<revBrowserRefresh>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserNavigate", revBrowserWrapper<revBrowserNavigate>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserForward", revBrowserWrapper<revBrowserForward>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserBack", revBrowserWrapper<revBrowserBack>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserPrint", revBrowserWrapper<revBrowserPrint>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserRedraw", revBrowserWrapper<revBrowserRedraw>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserMakeTextBigger", revBrowserWrapper<revBrowserMakeTextBigger>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserMakeTextSmaller", revBrowserWrapper<revBrowserMakeTextSmaller>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserSet", revBrowserWrapper<revBrowserSetProp>)
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("revBrowserGet", revBrowserWrapper<revBrowserGetProp>)
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("revBrowserInstances", revBrowserInstances)
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("revBrowserExecuteScript", revBrowserWrapper<revBrowserExecuteScript>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserSnapshot", revBrowserWrapper<revBrowserSnapshot>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserFind", revBrowserWrapper<revBrowserFind>)
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("revBrowserCallScript", revBrowserWrapper<revBrowserCallScript>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserAddJavaScriptHandler", revBrowserWrapper<revBrowserAddJavaScriptHandler>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("revBrowserRemoveJavaScriptHandler", revBrowserWrapper<revBrowserRemoveJavaScriptHandler>)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Open", XBrowserOpen)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Close", XBrowserWrapper<revBrowserClose> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Stop", XBrowserWrapper<revBrowserStop> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Halt", XBrowserWrapper<revBrowserStop> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Refresh", XBrowserWrapper<revBrowserRefresh> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Navigate", XBrowserWrapper2<revBrowserNavigate> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Forward", XBrowserWrapper<revBrowserForward> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Back", XBrowserWrapper<revBrowserBack> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Set", XBrowserSetProp)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Focus", XBrowserWrapper<revBrowserFocus> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Unfocus", XBrowserWrapper<revBrowserUnfocus> )
+	EXTERNAL_DECLARE_FUNCTION_OBJC_UTF8("XBrowser_Get", XBrowserGetProp)
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Print", XBrowserWrapper<revBrowserPrint> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Redraw", XBrowserWrapper<revBrowserRedraw> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_MakeTextBigger", XBrowserWrapper<revBrowserMakeTextBigger> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_MakeTextSmaller", XBrowserWrapper<revBrowserMakeTextSmaller> )
+	EXTERNAL_DECLARE_COMMAND_OBJC_UTF8("XBrowser_Init", XBrowserInit)
 EXTERNAL_END_DECLARATIONS

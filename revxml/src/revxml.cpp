@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -217,7 +217,7 @@ void REVXML_QUIT()
 }
 
 //------------------------------------UTILITY FUNCTIONS--------------------------
-void DispatchMetaCardMessage(char *messagename,char *tmessage)
+void DispatchMetaCardMessage(const char *messagename, const char *tmessage)
 {
 int retvalue = 0;
 SetGlobal("xmlvariable",tmessage,&retvalue);
@@ -227,7 +227,7 @@ sprintf(mcmessage,"global xmlvariable;try;send \"%s xmlvariable\" to current car
 SendCardMessage(mcmessage, &retvalue);
 }
 
-bool stringToBool(char *p_string)
+bool stringToBool(const char *p_string)
 {
 	if (stricmp(p_string, "true") == 0)
 		return true;
@@ -287,11 +287,11 @@ void CB_endElement(const char *name)
 //MESSAGE: XMLElementData data - sent when element data is encountered between tags
 void CB_elementData(const char *data, int length)
 {
-	char *buffer = new char[length+1];
+	char *buffer = new (nothrow) char[length+1];
 	memcpy(buffer, data, length);
 	buffer[length] = '\0';
 	DispatchMetaCardMessage("revStartXMLData",(char *)buffer);
-	delete buffer;
+	delete[] buffer;
 }
 
 
@@ -385,14 +385,15 @@ void XML_NewDocument(char *args[], int nargs, char **retstring,
 	*pass = False;
 	*error = False;
 	char *result = NULL;
-	CXMLDocument *newdoc = new CXMLDocument;
-	if (nargs < 2){
 
+	if (nargs < 2){
 
 		*error = True;
 		result = istrdup(xmlerrors[XMLERR_BADARGUMENTS]);
 	}
 	else{
+		CXMLDocument *newdoc = new (nothrow) CXMLDocument;
+
 		Bool wellformed = util_strnicmp(args[1],"TRUE",4) == 0;
 		
 		Bool buildtree = True;
@@ -456,20 +457,24 @@ void XML_AddDTD(char *args[], int nargs, char **retstring,
 	static int dtdcounter = 0;
 	char *result = NULL;
 	if (dtdcounter)
-	if (nargs != 2){
-		*error = True;
-		result = istrdup(xmlerrors[XMLERR_BADARGUMENTS]);
-	}
-	else{
-		int docid = atoi(args[0]);
-		CXMLDocument *tdoc = doclist.find(docid);
-		if (!tdoc)
-			result = istrdup(xmlerrors[XMLERR_BADDOCID]);
-		else  if (!tdoc->AddDTD(args[1], strlen(args[1]))) {
-			result = (char *)malloc(1024);
-			sprintf(result,"%s\n%s",xmlerrors[XMLERR_BADDTD],tdoc->GetError());
-		}
-	}
+    {
+        if (nargs != 2)
+        {
+            *error = True;
+            result = istrdup(xmlerrors[XMLERR_BADARGUMENTS]);
+        }
+        else
+        {
+            int docid = atoi(args[0]);
+            CXMLDocument *tdoc = doclist.find(docid);
+            if (!tdoc)
+                result = istrdup(xmlerrors[XMLERR_BADDOCID]);
+            else  if (!tdoc->AddDTD(args[1], strlen(args[1]))) {
+                result = (char *)malloc(1024);
+                sprintf(result,"%s\n%s",xmlerrors[XMLERR_BADDTD],tdoc->GetError());
+            }
+        }
+    }
 	*retstring = (result != NULL ? result : (char *)calloc(1,1));
 }
 
@@ -482,7 +487,6 @@ Example: if xml_ValidateDTD(docid,dtddata) is empty then put "validated"
 void XML_ValidateDTD(char *args[], int nargs, char **retstring,
 				Bool *pass, Bool *error)
 {
-	static int dtdcounter = 0;
 	*pass = False;
 	*error = False;
 	char *result = NULL;
@@ -533,7 +537,7 @@ void XML_NewDocumentFromFile(char *args[], int nargs, char **retstring,
 	if (!*error)
 	{
 		Bool wellformed = util_strnicmp(args[1],"TRUE",4) == 0;
-		CXMLDocument *newdoc = new CXMLDocument;
+		CXMLDocument *newdoc = new (nothrow) CXMLDocument;
 		Bool buildtree = True;
 		Bool sendmessages = False;
 		if (nargs >= 3)
@@ -573,9 +577,9 @@ void XML_NewDocumentFromFile(char *args[], int nargs, char **retstring,
 			sprintf(result,"%s\n%s",xmlerrors[XMLERR_BADXML],newdoc->GetError());
 			delete newdoc;
 		}
-		delete tfile;
+		free(tfile);
 		free(t_native_path);
-		free(t_resolved_path);
+		delete[] t_resolved_path; /* Allocated with new[] */
 		
 	}
 	*retstring = (result != NULL ? result : (char *)calloc(1,1));
@@ -892,17 +896,25 @@ char *XML_ManipulateElement(int p_source_tree, char *p_source_node, int p_destin
 	CXMLElement t_destination_element;
 	if (!t_destination_doc -> GetElementByPath(&t_destination_element, p_destination_node))
 		return istrdup(xmlerrors[XMLERR_BADELEMENT]);
+    
+    // If we are copying, then we first duplicate the node before moving it
+    if (p_copy)
+        t_source_element . CopyElement(&t_source_element, true);
+    
+    if (p_source_tree == p_destination_tree)
+    {
+        // Now move the source element to the new location, returning an error if fails
+        if (!t_destination_element . MoveElement(&t_source_element, p_sibling, p_before))
+            return istrdup(xmlerrors[XMLERR_BADCOPY]);
+    }
+    else
+    {
+        if (!t_destination_element . MoveRemoteElement(&t_source_element, p_sibling, p_before))
+            return istrdup(xmlerrors[XMLERR_BADCOPY]);
+    }
 
-	// If we are copying, then we first duplicate the node before moving it
-	if (p_copy)
-		t_source_element . CopyElement(&t_source_element, true);
-
-	// Now move the source element to the new location, returning an error if fails
-	if (!t_destination_element . MoveElement(&t_source_element, p_sibling, p_before))
-		return istrdup(xmlerrors[XMLERR_BADCOPY]);
-
-	// If succeeded, we return the new path of the moved element.
-	return t_source_element . GetPath();
+    // If succeeded, we return the new path of the moved element.
+    return t_source_element . GetPath();
 }
 
 
@@ -1136,31 +1148,39 @@ void XML_AddXML(char *args[], int nargs, char **retstring,
 	*pass = False;
 	*error = False;
 	char *result = NULL;
-	if (nargs != 3){
+	if (nargs != 3)
+    {
 		*error = True;
 		result = istrdup(xmlerrors[XMLERR_BADARGUMENTS]);
 	}
-	else{
+	else
+    {
 		int docid = atoi(args[0]);
 		CXMLDocument *tdoc = doclist.find(docid);
 		CXMLElement telement;
 		if (!tdoc)
-
 			result = istrdup(xmlerrors[XMLERR_BADDOCID]);
-		else {
+		else
+        {
 			if (!tdoc->GetElementByPath(&telement,args[1]))
 				result = istrdup(xmlerrors[XMLERR_BADELEMENT]);
-			else {
-				CXMLElement newelement;
-				CXMLDocument tdoc;
-				if (!tdoc.Read(args[2],strlen(args[2]),False)){
+			else
+            {
+				CXMLDocument tnewdoc;
+				if (!tnewdoc.Read(args[2],strlen(args[2]),False))
+                {
 					result = (char *)malloc(1024);
-					sprintf(result,"%s\n%s",xmlerrors[XMLERR_BADXML],tdoc.GetError());
+					sprintf(result,"%s\n%s",xmlerrors[XMLERR_BADXML],tnewdoc.GetError());
 				}
-				else {
-					tdoc.GetRootElement(&newelement);
-					telement.AddElement(&newelement);
-					result = newelement.GetPath();
+				else
+                {
+                    // MW-2014-06-12: [[ Bug 12628 ]] Use Remote operation to copy the root out of the new document.
+                    CXMLElement newelement;
+					tnewdoc.GetRootElement(&newelement);
+                    if (!telement.MoveRemoteElement(&newelement, false, false))
+                        result = istrdup(xmlerrors[XMLERR_BADCOPY]);
+                    else
+                        result = newelement.GetPath();
 				}
 			}
 		}
@@ -1326,20 +1346,19 @@ void XML_SetElementContents(char *args[], int nargs, char **retstring, Bool *pas
                         t_new_node_list = xmlStringGetNodeList(tdoc -> GetDocPtr(), t_encoded_string);
 
                         // Create a new text element to hold the content
-                        CXMLElement *t_new_element;
-                        t_new_element = new CXMLElement();
-                        t_new_element -> SetNodePtr(t_new_node_list);
+                        CXMLElement t_new_element;
+                        t_new_element.SetNodePtr(t_new_node_list);
 
                         // Save the previous first child element
                         xmlNodePtr t_old_first_element;
                         t_old_first_element = telement . GetNodePtr() -> children;
 
                         // Set the new text element to be the first child
-                        telement . GetNodePtr() -> children = t_new_element -> GetNodePtr();
+                        telement . GetNodePtr() -> children = t_new_element.GetNodePtr();
                         telement . GetNodePtr() -> children -> next = t_old_first_element;
 
                         if (t_old_first_element != NULL)
-                            t_old_first_element -> prev = t_new_element -> GetNodePtr();
+                            t_old_first_element -> prev = t_new_element.GetNodePtr();
                     }
 				}
 				else
@@ -1847,7 +1866,7 @@ Input: [0]=xml document id
 [2]= attribute name
 [3]= attribute value
 Output: error message on bad attribute or bad element 
-Example: XML_SetAttributeValue docid,elementpath,"product","revolution"
+Example: XML_SetAttributeValue docid,elementpath,"product","livecode"
 */
 void XML_SetAttributeValue(char *args[], int nargs, char **retstring,
 						   Bool *pass, Bool *error)
@@ -2072,13 +2091,18 @@ void XML_ListByAttributeValue(char *args[], int nargs, char **retstring,
 				CXMLElementEnumerator tenum(&telement,maxdepth);
 				while (tenum.Next(childfilter))
 				{
-					CXMLElement *curelement = tenum.GetElement();
-						char *attributevalue = curelement->GetAttributeValue(attname, True);
+                    if (attname != nullptr)
+                    {
+                        char *attributevalue =
+                            tenum.GetElement()->GetAttributeValue(attname, True);
+
 						if (attributevalue){
 							util_concatstring(attributevalue, strlen(attributevalue), 
 							result, buflen , bufsize);
+                            free(attributevalue);
 						}
-						util_concatstring(itemsep, itemseplen,result, buflen , bufsize);
+                    }
+                    util_concatstring(itemsep, itemseplen,result, buflen , bufsize);
 				}
 				if (buflen)
 					result[buflen-itemseplen] = '\0'; //strip trailing item seperator
@@ -2161,12 +2185,14 @@ void XML_FindElementByAttributeValue(char *args[], int nargs, char **retstring, 
 							t_comparison_result = util_strncmp(attvalue, tvalue, strlen(tvalue));
 						else
 							t_comparison_result = util_strnicmp(attvalue, tvalue, strlen(tvalue));
-
-						if (t_comparison_result == 0)
-						{
-							result = curelement -> GetPath();
-							break;
-						}
+                        
+                        free(tvalue);
+                        
+                        if (t_comparison_result == 0)
+                        {
+                            result = curelement -> GetPath();
+                            break;
+                        }
 					}
 
 				}
@@ -2724,7 +2750,7 @@ void XML_xsltLoadStylesheet(char *args[], int nargs, char **retstring, Bool *pas
 				cur = xsltParseStylesheetDoc(xmlDoc);
 				if (NULL != cur)
 				{
-					CXMLDocument *newdoc = new CXMLDocument(cur);
+					CXMLDocument *newdoc = new (nothrow) CXMLDocument(cur);
 					doclist.add(newdoc);
 					unsigned int docid = newdoc->GetID();
 
@@ -2781,7 +2807,7 @@ void XML_xsltLoadStylesheetFromFile(char *args[], int nargs, char **retstring, B
 		cur = xsltParseStylesheetFile((const xmlChar *)t_native_path);
 		if (NULL != cur)
 		{
-			CXMLDocument *newdoc = new CXMLDocument(cur);
+			CXMLDocument *newdoc = new (nothrow) CXMLDocument(cur);
 			doclist.add(newdoc);
 			unsigned int docid = newdoc->GetID();
 			result = (char *)malloc(INTSTRSIZE);
@@ -2865,12 +2891,11 @@ void XML_xsltApplyStylesheet(char *args[], int nargs, char **retstring, Bool *pa
 {
 	*pass = False;
 	*error = False;
-	xmlDocPtr xmlDoc, res;
+	xmlDocPtr res;
 	xsltStylesheetPtr cur = NULL;
 	int nbparams = 0;
 	const char *params[16 + 1];
-	char *result;
-
+	
 	xmlChar *doc_txt_ptr;
 	int doc_txt_len;
 
@@ -2883,7 +2908,7 @@ void XML_xsltApplyStylesheet(char *args[], int nargs, char **retstring, Bool *pa
 			xmlDocPtr xmlDoc = xmlDocument->GetDocPtr();
 			if (NULL != xmlDoc)
 			{
-				int docID = atoi(args[1]);
+				docID = atoi(args[1]);
 				CXMLDocument *xsltDocument = doclist.find(docID);
 				
 				// MW-2013-09-11: [[ RevXmlXslt ]] Only try to fetch the xsltContext if
@@ -2939,7 +2964,7 @@ void XML_xsltApplyStylesheetFile(char *args[], int nargs, char **retstring, Bool
 {
 	*pass = False;
 	*error = False;
-	xmlDocPtr xmlDoc, res;
+	xmlDocPtr res;
 	xsltStylesheetPtr cur = NULL;
 	int nbparams = 0;
 	const char *params[16 + 1];
@@ -3105,6 +3130,6 @@ BOOL WINAPI DllMain(HINSTANCE tInstance, DWORD dwReason, LPVOID lpReserved)
 extern "C"
 {
 	extern struct LibInfo __libinfo;
-	__attribute((section("__DATA,__libs"))) volatile struct LibInfo *__libinfoptr_revxml = &__libinfo;
+	__attribute((section("__DATA,__libs"))) volatile struct LibInfo *__libinfoptr_revxml __attribute__((__visibility__("default"))) = &__libinfo;
 }
 #endif

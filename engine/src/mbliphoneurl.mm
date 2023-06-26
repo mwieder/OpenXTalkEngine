@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -17,7 +17,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "prefix.h"
 
 #include "system.h"
-#include "core.h"
 
 #include "mbliphoneapp.h"
 
@@ -26,6 +25,42 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+typedef bool (*MCHTTPParseHeaderCallback)(MCStringRef p_key, MCStringRef p_value, void *p_context);
+bool MCHTTPParseHeaders(MCStringRef p_headers, MCHTTPParseHeaderCallback p_callback, void *p_context)
+{
+    bool t_success = true;
+    MCAutoArrayRef t_lines;
+    if (!MCStringSplit(p_headers, MCSTR("\n"), nil, kMCCompareExact, &t_lines))
+        return false;
+    uindex_t nlines = MCArrayGetCount(*t_lines);
+    for (int i = 0 ; i < nlines && t_success == true; i++)
+    {
+        // Note: 'lines' is an array of strings
+        MCValueRef t_lineval = nil;
+        if (!MCArrayFetchValueAtIndex(*t_lines, i + 1, t_lineval))
+            t_success = false;
+        MCStringRef t_line = (MCStringRef)(t_lineval);
+        
+        MCAutoStringRef t_key, t_val;
+        if (!MCStringDivideAtChar(t_line, ':', kMCCompareExact, &t_key, &t_val))
+            return false;
+        
+        uindex_t t_start;
+        t_start = 0;
+        
+        while (MCStringGetNativeCharAtIndex(*t_val, t_start) == ' ')
+            t_start ++;
+        
+        MCAutoStringRef t_val_no_spaces;
+        if (!MCStringCopySubstring(*t_val, MCRangeMake(t_start, MCStringGetLength(*t_val) - t_start), &t_val_no_spaces))
+            t_success = false;
+        
+        t_success = p_callback(*t_key, *t_val, p_context);
+        
+    }
+    return t_success;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // MW-2013-10-02: [[ MobileSSLVerify ]] When true, SSL verification is turned off.
@@ -33,58 +68,7 @@ static bool s_disable_ssl_verification = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef bool (*MCHTTPParseHeaderCallback)(const char *p_key, uint32_t p_key_length, const char *p_value, uint32_t p_value_length, void *p_context);
-bool MCHTTPParseHeaders(const char *p_headers, MCHTTPParseHeaderCallback p_callback, void *p_context)
-{
-	bool t_success = true;
-	uint32_t t_index;
-	
-	const char *t_current_line = p_headers;
-	const char *t_next_line;
-	t_success = p_headers != nil;
-	
-	while (t_success && t_current_line != nil && !(t_current_line[0] == '\0' || t_current_line[0] == '\n'))
-	{
-		uint32_t t_line_length;
-		if (MCCStringFirstIndexOf(t_current_line, '\n', t_line_length))
-			t_next_line = t_current_line + t_line_length + 1;
-		else
-		{
-			t_next_line = nil;
-			t_line_length = MCCStringLength(t_current_line);
-		}
-		
-		t_success = MCCStringFirstIndexOf(t_current_line, ':', t_index);
-
-		if (t_success)
-			t_success = t_next_line == nil || t_index < (t_next_line - t_current_line);
-		if (t_success)
-		{
-			uint32_t t_key_length, t_value_length;
-			const char *t_key, *t_value;
-			
-			t_key = t_current_line;
-			t_key_length = t_index;
-			
-			t_value = t_current_line + t_index + 1;
-			t_value_length = t_line_length - (t_index + 1);
-			
-			while (t_value[0] == ' ')
-			{
-				t_value ++;
-				t_value_length --;
-			}
-			
-			t_success = p_callback(t_key, t_key_length, t_value, t_value_length, p_context);
-		}
-		
-		t_current_line = t_next_line;
-	}
-	
-	return t_success;
-}
-
-bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const char *p_value, uint32_t p_value_length, void *p_context)
+bool UrlRequestSetHTTPHeader(MCStringRef p_key, MCStringRef p_value, void *p_context)
 {
 	NSMutableURLRequest *t_request;
 	t_request = (NSMutableURLRequest*)p_context;
@@ -93,8 +77,8 @@ bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const cha
 	NSString *t_key = nil;
 	NSString *t_value = nil;
 	
-	t_key = [[NSString alloc] initWithBytes: p_key length: p_key_length encoding:NSMacOSRomanStringEncoding];
-	t_value = [[NSString alloc] initWithBytes: p_value length: p_value_length encoding:NSMacOSRomanStringEncoding];
+    t_key = MCStringConvertToAutoreleasedNSString(p_key);
+    t_value = MCStringConvertToAutoreleasedNSString(p_value);
 	
 	t_success = (t_key != nil && t_value != nil);
 	
@@ -103,17 +87,13 @@ bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const cha
 		[t_request setValue: t_value forHTTPHeaderField: t_key];
 	}
 	
-	if (t_key != nil)
-		[t_key release];
-	
-	if (t_value != nil)
-		[t_value release];
-	
+    // PM-2014-10-27: [[ Bug 13778 ]] (Removed code: Make sure we do not release t_key and t_value since they are autoreleased)
+		
 	return t_success;
 }
 
 @class MCSystemUrlTimer;
-@interface MCSystemUrlDelegate : NSObject
+@interface com_runrev_livecode_MCSystemUrlDelegate : NSObject
 {
 	MCSystemUrlCallback m_callback;
 	void *m_context;
@@ -144,7 +124,7 @@ bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const cha
 
 @end
 
-@implementation MCSystemUrlDelegate
+@implementation com_runrev_livecode_MCSystemUrlDelegate
 
 - initWithCallback:(MCSystemUrlCallback)callback context: (void*)context
 {
@@ -226,15 +206,21 @@ bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const cha
 	if (!m_loading)
 		return;
 	
-	MCString t_data;
-	t_data . set((const char *)[data bytes], [data length]);
-	m_callback(m_context, kMCSystemUrlStatusLoading, &t_data);
+    // AL-2014-07-15: [[ Bug 12478 ]] Pass a DataRef to url callbacks
+    MCAutoDataRef t_data;
+    MCDataCreateWithBytes((const byte_t *)[data bytes], [data length], &t_data);
+	
+	m_callback(m_context, kMCSystemUrlStatusLoading, *t_data);
 }
 
 - (void)connection: (NSURLConnection *)connection didFailWithError: (NSError *)error
 {
 	[self cancelTimer];
-	m_callback(m_context, kMCSystemUrlStatusError, [[error localizedDescription] cStringUsingEncoding: NSMacOSRomanStringEncoding]);
+
+    // AL-2014-07-15: [[ Bug 12478 ]] Pass a StringRef to url callbacks for error.
+    MCAutoStringRef t_error;
+    MCStringCreateWithCFStringRef((CFStringRef)[error localizedDescription], &t_error);
+	m_callback(m_context, kMCSystemUrlStatusError, *t_error);
 	[connection release];
 }
 
@@ -244,7 +230,11 @@ bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const cha
     if (m_status_error)
     {
         NSString *t_err_string = [NSString stringWithFormat:@"%d %@", m_status_code, [NSHTTPURLResponse localizedStringForStatusCode:m_status_code]];
-        m_callback(m_context, kMCSystemUrlStatusError, [ t_err_string cStringUsingEncoding: NSMacOSRomanStringEncoding]);
+        
+        // AL-2014-07-15: [[ Bug 12478 ]] Pass a StringRef to url callbacks for error.
+        MCAutoStringRef t_error;
+        MCStringCreateWithCFStringRef((CFStringRef)t_err_string, &t_error);
+        m_callback(m_context, kMCSystemUrlStatusError, *t_error);
     }
     else
     {
@@ -282,11 +272,11 @@ bool UrlRequestSetHTTPHeader(const char *p_key, uint32_t p_key_length, const cha
 @end
 
 extern real8 MCsockettimeout;
-extern char *MChttpheaders;
+extern MCStringRef MChttpheaders;
 
 struct load_url_t
 {
-	const char *url;
+	MCStringRef url;
 	MCSystemUrlCallback callback;
 	void *context;
 	bool success;
@@ -305,7 +295,7 @@ static void do_system_load_url(void *p_ctxt)
 	t_request = nil;
 	if (t_success)
 	{
-		t_url = [NSURL URLWithString: [NSString stringWithCString: ctxt -> url encoding: NSMacOSRomanStringEncoding]];
+		t_url = [NSURL URLWithString: MCStringConvertToAutoreleasedNSString(ctxt -> url )];
 		t_request = [NSMutableURLRequest requestWithURL: t_url
 											cachePolicy: NSURLRequestUseProtocolCachePolicy
 										timeoutInterval: MCsockettimeout];
@@ -313,17 +303,17 @@ static void do_system_load_url(void *p_ctxt)
 			t_success = false;
 	}
 	
-	if (t_success && MChttpheaders != nil && MChttpheaders[0] != '\0')
+	if (t_success && MChttpheaders != nil && !MCStringIsEmpty(MChttpheaders))
 	{
 		if ([[t_url scheme] isEqualToString: @"http"] || [[t_url scheme] isEqualToString: @"https"])
 			t_success = MCHTTPParseHeaders(MChttpheaders, UrlRequestSetHTTPHeader, t_request);
 	}
 	
-	MCSystemUrlDelegate *t_delegate;
+	com_runrev_livecode_MCSystemUrlDelegate *t_delegate;
 	t_delegate = nil;
 	if (t_success)
 	{
-		t_delegate = [[MCSystemUrlDelegate alloc] initWithCallback: ctxt -> callback context: ctxt -> context];
+		t_delegate = [[com_runrev_livecode_MCSystemUrlDelegate alloc] initWithCallback: ctxt -> callback context: ctxt -> context];
 		if (t_delegate == nil)
 			t_success = false;
 	}
@@ -348,7 +338,7 @@ static void do_system_load_url(void *p_ctxt)
 	ctxt -> success = t_success;
 }
 
-bool MCSystemLoadUrl(const char *p_url, MCSystemUrlCallback p_callback, void *p_context)
+bool MCSystemLoadUrl(MCStringRef p_url, MCSystemUrlCallback p_callback, void *p_context)
 {
 	load_url_t ctxt;
 	ctxt . url = p_url;
@@ -360,16 +350,16 @@ bool MCSystemLoadUrl(const char *p_url, MCSystemUrlCallback p_callback, void *p_
 	return ctxt . success;
 }
 
-@interface PostUrlTimeoutMonitor : NSObject
+@interface com_runrev_livecode_MCPostUrlTimeoutMonitor : NSObject
 {
 	NSURLConnection *m_connection;
 	NSTimer *m_timer;
-	MCSystemUrlDelegate *m_delegate;
+	com_runrev_livecode_MCSystemUrlDelegate *m_delegate;
 }
 @end
 
-@implementation PostUrlTimeoutMonitor
-- (PostUrlTimeoutMonitor*) initWithTimeInterval:(NSTimeInterval)interval withConnection:(NSURLConnection*)connection withDelegate:(MCSystemUrlDelegate*)delegate
+@implementation com_runrev_livecode_MCPostUrlTimeoutMonitor
+- (com_runrev_livecode_MCPostUrlTimeoutMonitor*) initWithTimeInterval:(NSTimeInterval)interval withConnection:(NSURLConnection*)connection withDelegate:(com_runrev_livecode_MCSystemUrlDelegate*)delegate
 {
 	self = [super init];
 	if (self)
@@ -401,8 +391,8 @@ bool MCSystemLoadUrl(const char *p_url, MCSystemUrlCallback p_callback, void *p_
 
 struct post_url_t
 {
-	const char *url;
-	const void *data;
+	MCStringRef url;
+	MCDataRef data;
 	uint32_t length;
 	MCSystemUrlCallback callback;
 	void *context;
@@ -419,13 +409,13 @@ static void do_post_url(void *p_ctxt)
 	NSMutableURLRequest *t_request = nil;
 	NSURLConnection *t_connection = nil;
 	NSData *t_data = nil;
-	MCSystemUrlDelegate *t_delegate = nil;
-	PostUrlTimeoutMonitor *t_timeout_monitor = nil;
+	com_runrev_livecode_MCSystemUrlDelegate *t_delegate = nil;
+	com_runrev_livecode_MCPostUrlTimeoutMonitor *t_timeout_monitor = nil;
 	
 	if (t_success)
 	{
 		t_request = [NSMutableURLRequest
-					 requestWithURL:[NSURL URLWithString: [NSString stringWithCString: ctxt -> url encoding: NSMacOSRomanStringEncoding]]
+					 requestWithURL:[NSURL URLWithString: MCStringConvertToAutoreleasedNSString(ctxt -> url )]
 					 cachePolicy: NSURLRequestUseProtocolCachePolicy
 					 timeoutInterval: MCsockettimeout];
 		t_success = (t_request != nil);
@@ -435,18 +425,18 @@ static void do_post_url(void *p_ctxt)
 	{
 		[t_request setHTTPMethod: @"POST"];
 		[t_request setValue: @"application/x-www-form-urlencoded" forHTTPHeaderField: @"Content-Type"];
-		t_data = [NSData dataWithBytes: ctxt -> data length: ctxt -> length];
+		t_data = [NSData dataWithBytes: MCDataGetBytePtr(ctxt -> data) length: ctxt -> length];
 		t_success = (t_data != nil);
 		if (t_success)
 			[t_request setHTTPBody: t_data];
 	}
 	
-	if (t_success && MChttpheaders != nil && MChttpheaders[0] != '\0')
+	if (t_success && MChttpheaders != nil && !MCStringIsEmpty(MChttpheaders))
 		t_success = MCHTTPParseHeaders(MChttpheaders, UrlRequestSetHTTPHeader, t_request);
 	
 	if (t_success)
 	{
-		t_delegate = [[MCSystemUrlDelegate alloc] initWithCallback: ctxt -> callback context: ctxt -> context];
+		t_delegate = [[com_runrev_livecode_MCSystemUrlDelegate alloc] initWithCallback: ctxt -> callback context: ctxt -> context];
 		t_success = (t_delegate != nil);
 	}
 	
@@ -458,7 +448,7 @@ static void do_post_url(void *p_ctxt)
 	
 	if (t_success)
 	{
-		t_timeout_monitor = [[PostUrlTimeoutMonitor alloc] initWithTimeInterval: MCsockettimeout withConnection:t_connection
+		t_timeout_monitor = [[com_runrev_livecode_MCPostUrlTimeoutMonitor alloc] initWithTimeInterval: MCsockettimeout withConnection:t_connection
 																   withDelegate: t_delegate];
 		t_success = t_timeout_monitor != nil;
 	}
@@ -483,23 +473,25 @@ static void do_post_url(void *p_ctxt)
 	ctxt -> success = t_success;
 }
 
-bool MCSystemPostUrl(const char *p_url, const void *p_data, uint32_t p_length, MCSystemUrlCallback p_callback, void *p_context)
+bool MCSystemPostUrl(MCStringRef p_url, MCDataRef p_data, uint32_t p_length, MCSystemUrlCallback p_callback, void *p_context)
 {
 	post_url_t ctxt;
-	ctxt . url = p_url;
-	ctxt . data = p_data;
+	ctxt . url = MCValueRetain(p_url);
+
+    ctxt . data = p_data;
 	ctxt . length = p_length;
 	ctxt . callback = p_callback;
 	ctxt . context = p_context;
 	
 	MCIPhoneRunOnMainFiber(do_post_url, &ctxt);
 	
+    MCValueRelease(ctxt . url);
 	return ctxt . success;
 }
 
 struct launch_url_t
 {
-	const char *url;
+	MCStringRef url;
 	bool success;
 };
 
@@ -513,8 +505,11 @@ static void do_launch_url(void *p_ctxt)
 	NSURL *t_url;
 	if (t_success)
 	{
-		t_url = [NSURL URLWithString: [NSString stringWithCString: ctxt -> url encoding: NSMacOSRomanStringEncoding]];
+		CFStringRef cfurl = nil;
+		/* UNCHECKED */ MCStringConvertToCFStringRef(ctxt->url, cfurl);
+		t_url = [NSURL URLWithString: (NSString *)cfurl];
 		t_success = (t_url != nil);
+		CFRelease(cfurl);
 	}
 	
 	if (t_success)
@@ -526,7 +521,7 @@ static void do_launch_url(void *p_ctxt)
 	ctxt -> success = t_success;
 }
 
-bool MCSystemLaunchUrl(const char *p_url)
+bool MCSystemLaunchUrl(MCStringRef p_url)
 {
 	launch_url_t ctxt;
 	ctxt . url = p_url;
@@ -587,18 +582,21 @@ void PutFTPUrlClientCallback(CFWriteStreamRef p_stream, CFStreamEventType p_even
 	
 	if (!t_success)
 	{
+        // AL-2014-07-15: [[ Bug 12478 ]] Pass a StringRef to url callbacks for error.
 		CFErrorRef t_err = nil;
 		t_err = CFWriteStreamCopyError(p_stream);
 		const char *t_err_str = nil;
 		if (t_err == nil) // synthetic timeout error from timer
-			t_err_str = "timed out";
+            t_context->callback(t_context->context, kMCSystemUrlStatusError, MCSTR("timed out"));
 		else
 		{
 			CFStringRef t_description = CFErrorCopyDescription(t_err);
-			t_err_str = [(NSString*)t_description cStringUsingEncoding: NSMacOSRomanStringEncoding];
-			CFRelease(t_description);
+            MCAutoStringRef t_error;
+            MCStringCreateWithCFStringRef(t_description, &t_error);
+            t_context->callback(t_context->context, kMCSystemUrlStatusError, *t_error);
+            CFRelease(t_description);
 		}
-		t_context->callback(t_context->context, kMCSystemUrlStatusError, t_err_str);
+
 		if (t_err)
 			CFRelease(t_err);
 		t_close_stream = true;
@@ -612,7 +610,7 @@ void PutFTPUrlClientCallback(CFWriteStreamRef p_stream, CFStreamEventType p_even
 	}
 }
 
-@interface PutFTPUrlTimeoutMonitor : NSObject
+@interface com_runrev_livecode_MCPutFTPUrlTimeoutMonitor : NSObject
 {
 	CFWriteStreamRef m_stream;
 	NSTimer *m_timer;
@@ -620,8 +618,8 @@ void PutFTPUrlClientCallback(CFWriteStreamRef p_stream, CFStreamEventType p_even
 }
 @end
 
-@implementation PutFTPUrlTimeoutMonitor
-- (PutFTPUrlTimeoutMonitor*) initWithTimeInterval:(NSTimeInterval)interval withStream:(CFWriteStreamRef)stream withContext:(FTPClientCallbackData*)context;
+@implementation com_runrev_livecode_MCPutFTPUrlTimeoutMonitor
+- (com_runrev_livecode_MCPutFTPUrlTimeoutMonitor*) initWithTimeInterval:(NSTimeInterval)interval withStream:(CFWriteStreamRef)stream withContext:(FTPClientCallbackData*)context;
 {
 	self = [super init];
 	if (self)
@@ -651,7 +649,7 @@ bool MCSystemPutFTPUrl(NSURL *p_url, const void *p_data, uint32_t p_length, MCSy
 	
 	CFWriteStreamRef t_ftp_stream = nil;
 	FTPClientCallbackData *t_context = nil;
-	PutFTPUrlTimeoutMonitor *t_monitor = nil;
+	com_runrev_livecode_MCPutFTPUrlTimeoutMonitor *t_monitor = nil;
 	
 	if (t_success)
 	{
@@ -669,7 +667,7 @@ bool MCSystemPutFTPUrl(NSURL *p_url, const void *p_data, uint32_t p_length, MCSy
 		t_context->callback = p_callback;
 		t_context->context = p_context;
 		
-		t_success = nil != (t_monitor = [[PutFTPUrlTimeoutMonitor alloc] initWithTimeInterval:MCsockettimeout withStream:t_ftp_stream withContext:t_context]);
+		t_success = nil != (t_monitor = [[com_runrev_livecode_MCPutFTPUrlTimeoutMonitor alloc] initWithTimeInterval:MCsockettimeout withStream:t_ftp_stream withContext:t_context]);
 	}
 	if (t_success)
 	{
@@ -710,8 +708,8 @@ bool MCSystemPutFTPUrl(NSURL *p_url, const void *p_data, uint32_t p_length, MCSy
 
 struct put_url_t
 {
-	const char *url;
-	const void *data;
+	MCStringRef url;
+	MCDataRef data;
 	uint32_t length;
 	MCSystemUrlCallback callback;
 	void *context;
@@ -725,7 +723,7 @@ static void do_put_url(void *p_ctxt)
 	
 	bool t_success = true;
 	NSURL *t_url = nil;
-	t_url = [NSURL URLWithString: [NSString stringWithCString: ctxt -> url encoding: NSMacOSRomanStringEncoding]];
+	t_url = [NSURL URLWithString: MCStringConvertToAutoreleasedNSString(ctxt -> url )];
 	t_success = t_url != nil;
 	
 	if (t_success)
@@ -733,7 +731,7 @@ static void do_put_url(void *p_ctxt)
 		NSString *t_scheme;
 		t_scheme = [t_url scheme];
 		if ([[t_url scheme] isEqualToString: @"ftp"])
-			t_success = MCSystemPutFTPUrl(t_url, ctxt -> data, ctxt -> length, ctxt -> callback, ctxt -> context);
+			t_success = MCSystemPutFTPUrl(t_url, MCDataGetBytePtr(ctxt -> data), MCDataGetLength(ctxt -> data), ctxt -> callback, ctxt -> context);
 		else
 			t_success = false;
 	}
@@ -741,16 +739,17 @@ static void do_put_url(void *p_ctxt)
 	ctxt -> success = t_success;
 }
 
-bool MCSystemPutUrl(const char *p_url, const void *p_data, uint32_t p_length, MCSystemUrlCallback p_callback, void *p_context)
+bool MCSystemPutUrl(MCStringRef p_url, MCDataRef p_data, uint32_t p_length, MCSystemUrlCallback p_callback, void *p_context)
 {
 	put_url_t ctxt;
-	ctxt . url = p_url;
+	ctxt . url = MCValueRetain(p_url);
 	ctxt . data = p_data;
 	ctxt . length = p_length;
 	ctxt . callback = p_callback;
 	ctxt . context = p_context;
 	
 	MCIPhoneRunOnMainFiber(do_put_url, &ctxt);
+    MCValueRelease(ctxt . url);
 	
 	return ctxt . success;
 }

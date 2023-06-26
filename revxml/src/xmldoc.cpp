@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -62,11 +62,10 @@ int util_strncmp(const char *one, const char *two, int n)
   return 1;
 }
 
-char *util_strchr(char *sptr, char target, int l)
+const char *util_strchr(const char *sptr, char target, int l)
 {
   if (!l) l = strlen(sptr);
   const char *eptr = sptr + l;
-  const char *startptr = sptr;
   while (sptr < eptr) {
     if (*sptr == target) 
       return sptr;
@@ -76,7 +75,7 @@ char *util_strchr(char *sptr, char target, int l)
 }
 
 //utility function used to concat two strings..and reallocate string if neccessary
-void util_concatstring(char *s, int slen, char *&d, int &dlen, int &dalloc)
+void util_concatstring(const char *s, int slen, char *&d, int &dlen, int &dalloc)
 {
 	int newbufsize = dalloc;
 	while (dlen + slen + 1 > newbufsize)
@@ -127,7 +126,11 @@ xmlSAXHandler CXMLDocument::SAXHandlerTable = {
     getParameterEntity,
     elementCDataCallback,//cdataBlock,
     externalSubset,
-	1
+	1,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
 };
 
 void CXMLDocument::startDocumentCallback(void *ctx)
@@ -152,6 +155,7 @@ void CXMLDocument::startElementCallback(void *ctx,
     if (allowcallbacks)
 		CB_startElement((const char *)fullname,(const char **)atts);
 	if (buildtree)
+    {
         //HS-2010-10-11: [[ Bug 7586 ]] Reinstate libxml2 to create name spaces. Implement new liveCode commands to suppress name space creation.
         if (XML_ProcessNameSpaces)
         {
@@ -161,6 +165,7 @@ void CXMLDocument::startElementCallback(void *ctx,
         {
             xmlSAX2StartElementNoNS(ctx,fullname,atts);
         }
+    }
 }
 
 void CXMLDocument::endElementCallback(void *ctx,
@@ -408,7 +413,7 @@ Bool CXMLDocument::GetElementByPath(CXMLElement *telement, char *tpath)
 		return False;
 
 	if (*sptr == '/') sptr++;
-	char *nameend;
+	const char *nameend;
 	char *nextname = strchr(sptr, '/');
 	if (!nextname) 
 	{
@@ -418,15 +423,17 @@ Bool CXMLDocument::GetElementByPath(CXMLElement *telement, char *tpath)
 		isroot = True;
 		
 	}
-	char *numpointer = util_strchr(sptr,'[',nextname-sptr);
+	const char *numpointer = util_strchr(sptr,'[',nextname-sptr);
 	if (numpointer)
 			nameend = numpointer;
 	else
 			nameend = nextname;
 	if (!util_strnicmp(telement->GetName(),sptr,nameend-sptr))
+    {
 		if (isroot)
 			return True;
 		else
 			return telement->GoChildByPath(nextname+1);
+    }
 	return False;
 }

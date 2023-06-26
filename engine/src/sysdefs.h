@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -17,14 +17,14 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef __MC_SYSDEFS__
 #define __MC_SYSDEFS__
 
+
+#include "globdefs.h"
+
+
 //////////////////////////////////////////////////////////////////////
 //
 //  MODE AND FEATURE DEFINITIONS
 //
-
-#ifndef LEGACY_EXEC
-#define LEGACY_EXEC
-#endif
 
 #ifdef MODE_DEVELOPMENT
 #define FEATURE_PROPERTY_LISTENER
@@ -32,57 +32,62 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #if defined(_WINDOWS_DESKTOP)
 
-#define __WINDOWS_1252__
-#define __CRLF__
 #define PLATFORM_STRING "Win32"
 
 #define MCSSL
 #define FEATURE_TASKBAR_ICON
+#define FEATURE_PLATFORM_PLAYER
 #define FEATURE_RELAUNCH_SUPPORT
-#define FEATURE_QUICKTIME
+#define FEATURE_NOTIFY 1
 
 #elif defined(_MAC_DESKTOP)
 
-#define __MACROMAN__
-#define __CR__
 #define PLATFORM_STRING "MacOS"
 
 #define MCSSL
 #define FEATURE_TASKBAR_ICON
+#define FEATURE_PLATFORM_APPLICATION
+#define FEATURE_PLATFORM_PLAYER
+#define FEATURE_PLATFORM_WINDOW
+#define FEATURE_PLATFORM_RECORDER
+#define FEATURE_PLATFORM_AUDIO
+#define FEATURE_NOTIFY 1
+
+// QuickTime is not supported in 64-bit OSX applications as it has been
+// deprecated by Apple.
+#ifndef __LP64__
 #define FEATURE_QUICKTIME
+#define FEATURE_QUICKTIME_EFFECTS
+#endif
 
 #elif defined(_LINUX_DESKTOP)
 
-#define __ISO_8859_1__
-#define __LF__
 #define PLATFORM_STRING "Linux"
 
 #define MCSSL
 #define FEATURE_MPLAYER
+#define FEATURE_NOTIFY 1
 
 #elif defined(_WINDOWS_SERVER)
 
-#define __WINDOWS_1252__
-#define __CRLF__
 #define PLATFORM_STRING "Win32"
 
 #define MCSSL
+#define FEATURE_NOTIFY 1
 
 #elif defined(_MAC_SERVER)
 
-#define __MACROMAN__
-#define __CR__
 #define PLATFORM_STRING "MacOS"
 
 #define MCSSL
+#define FEATURE_NOTIFY 1
 
 #elif defined(_LINUX_SERVER) || defined(_DARWIN_SERVER)
 
-#define __ISO_8859_1__
-#define __LF__
 #define PLATFORM_STRING "Linux"
 
 #define MCSSL
+#define FEATURE_NOTIFY 1
 
 #elif defined(_IOS_MOBILE)
 
@@ -91,6 +96,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define __LF__
 #define PLATFORM_STRING "iphone"
 
+#define FEATURE_PLATFORM_URL 1
+#define FEATURE_NOTIFY 1
+
 #elif defined(_ANDROID_MOBILE)
 
 #define MCSSL
@@ -98,12 +106,71 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define __LF__
 #define PLATFORM_STRING "android"
 
+#define FEATURE_PLATFORM_URL 1
+#define FEATURE_NOTIFY 1
+
+#elif defined(__EMSCRIPTEN__)
+
+#define PLATFORM_STRING "HTML5"
+
+#define FEATURE_PLATFORM_URL 1
+
 #endif
 
 //////////////////////////////////////////////////////////////////////
 //
-//  CHARSET DEFINITION
+//  FOUNDATION TYPES
 //
+
+#include <foundation.h>
+#include <foundation-auto.h>
+#include <foundation-unicode.h>
+#include <foundation-bidi.h>
+
+#ifdef __OBJC__
+#include <foundation-objc.h>
+#endif
+
+//////////////////////////////////////////////////////////////////////
+//
+//  FOUNDATION SYSTEM LIBRARY
+//
+
+#include <foundation-system.h>
+
+//////////////////////////////////////////////////////////////////////
+//
+//  COMPILER AND CODE GENERATION DEFINES
+//
+
+#if defined(_MSC_VER)
+#define _HAS_VSCPRINTF
+#define _HAS_QSORT_S
+#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER) || defined(__EMSCRIPTEN__)
+#define _HAS_VSNPRINTF
+#undef _HAS_QSORT_R
+#elif defined(_MAC_DESKTOP) || defined(_MAC_SERVER) || defined(_DARWIN_SERVER) || defined(_IOS_MOBILE)
+#define _HAS_VSNPRINTF
+#define _HAS_QSORT_R
+#elif defined(_ANDROID_MOBILE)
+#define _HAS_VSNPRINTF
+#undef _HAS_QSORT_R
+#else
+#error Unknown compiler being used.
+#endif
+
+// The engine is implemented assuming that 'bool' is at most one byte in size
+static_assert(sizeof(bool) <= 1, "Bool size is not at most 1 byte");
+
+//////////////////////////////////////////////////////////////////////
+//
+//  LEGACY INCLUDES AND DEFINES
+//
+
+class MCString;
+#include "typedefs.h"
+#include "foundation-legacy.h"
+#include "rawarray.h"
 
 // The 'CHARSET' define is used to determine the direction of char
 // translation when reading in stacks. If the stack's charset byte
@@ -115,76 +182,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #else
 #define CHARSET 0
 #endif
-
-//////////////////////////////////////////////////////////////////////
-//
-//  COMPILER AND CODE GENERATION DEFINES
-//
-
-#if defined(_MSC_VER)
-#define __VISUALC__
-
-#define _HAS_VSCPRINTF
-#define _HAS_QSORT_S
-
-#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
-#define __GCC__
-#define __LINUX_GCC__
-
-#define _HAS_VSNPRINTF
-#undef _HAS_QSORT_R
-
-#elif defined(_MAC_DESKTOP) || defined(_MAC_SERVER) || defined(_DARWIN_SERVER) || defined(_IOS_MOBILE)
-#define __GCC__
-#define __APPLE_GCC__
-
-#define _HAS_VSNPRINTF
-#define _HAS_QSORT_R
-
-#elif defined(_ANDROID_MOBILE)
-#define __GCC__
-#define __ANDROID_GCC__
-
-#define _HAS_VSNPRINTF
-#undef _HAS_QSORT_R
-
-#else
-#error Unknown compiler being used.
-#endif
-
-//////////////////////////////////////////////////////////////////////
-//
-//  ARCHITECTURE DEFINES
-//
-
-#ifdef __ppc__
-#undef __LITTLE_ENDIAN__
-#undef __BIG_ENDIAN__
-#define __BIG_ENDIAN__ 1
-#else
-#undef __LITTLE_ENDIAN__
-#undef __BIG_ENDIAN__
-#define __LITTLE_ENDIAN__ 1
-#endif
-
-//////////////////////////////////////////////////////////////////////
-//
-//  COMMON INCLUDES
-//
-
-// The 'typedefs.h' header contains all the old and new-style types
-// that are used everywhere.
-#include "typedefs.h"
-
-//////////////////////////////////////////////////////////////////////
-//
-//  FOUNDATION TYPES
-//
-
-class MCString;
-
-#include "name.h"
-#include "rawarray.h"
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -201,8 +198,43 @@ typedef struct __MCSysWindowHandle *MCSysWindowHandle;
 typedef struct __MCSysFontHandle *MCSysFontHandle;
 typedef struct __MCSysContextHandle *MCSysContextHandle;
 
+typedef class MCPlatformWindow *MCPlatformWindowRef;
+typedef class MCPlatformSurface *MCPlatformSurfaceRef;
+typedef class MCPlatformCursor *MCPlatformCursorRef;
+typedef class MCPlatformPasteboard *MCPlatformPasteboardRef;
+typedef class MCPlatformMenu *MCPlatformMenuRef;
+typedef class MCPlatformPlayer *MCPlatformPlayerRef;
+
 typedef void *MCColorTransformRef;
+
+#if defined(_MAC_DESKTOP) || defined(_MAC_SERVER)
+typedef MCPlatformCursorRef MCCursorRef;
+#else
 typedef struct MCCursor *MCCursorRef;
+#endif
+
+//////////////////////////////////////////////////////////////////////
+//
+//  SYSTEM OS VERSION FUNCTIONS
+//
+
+inline uint32_t MCOSVersionMake(uint8_t p_major, uint8_t p_minor, uint8_t p_bugfix)
+{
+	return (p_major << 16) | (p_minor << 8) | p_bugfix;
+}
+
+inline uint8_t MCOSVersionGetMajor(uint32_t p_version)
+{
+	return (p_version >> 16) & 0xFF;
+}
+inline uint8_t MCOSVersionGetMinor(uint32_t p_version)
+{
+	return (p_version >> 8) & 0xFF;
+}
+inline uint8_t MCOSVersionGetBugfix(uint32_t p_version)
+{
+	return p_version & 0xFF;
+}
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -258,14 +290,9 @@ inline uint1 MCS_toupper(uint1 p_char) {return _toupper_l(p_char, NULL);}
 class CDropTarget;
 
 #define fixmaskrop(a) ((a == GXand || a == GXor)?(a == GXand?GXor:GXand):(a == GXandInverted?GXorInverted:GXandInverted))//DEBUG
-#define fixmaskcolor(a) (a.pixel == 0 ? MConecolor:MCzerocolor)//DEBUG
+#define fixmaskcolor(a) (MCColorGetPixel(a) == 0 ? MConecolor:MCzerocolor)//DEBUG
 
 typedef uintptr_t MCSocketHandle;
-
-inline void *operator new(size_t, void *p)
-{
-	return p;
-}
 
 typedef struct __MCWinSysHandle *MCWinSysHandle;
 typedef struct __MCWinSysIconHandle *MCWinSysIconHandle;
@@ -278,10 +305,15 @@ typedef struct __MCWinSysEnhMetafileHandle *MCWinSysEnhMetafileHandle;
 
 #define _DEBUG_MEMORY
 
-inline void *operator new(size_t size, const char *fnm, int line) {return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);}
-inline void *operator new[](size_t size, const char *fnm, int line) {return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);}
+inline void *operator new(size_t size, std::nothrow_t, const char *fnm, int line) throw () {return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);}
+inline void *operator new[](size_t size, std::nothrow_t, const char *fnm, int line) throw () {return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);}
 
-#define new new( __FILE__, __LINE__ )
+inline void *operator new(size_t, void *p, const char *, long)
+{
+	return p;
+}
+
+#define new(...) new(__VA_ARGS__, __FILE__, __LINE__ )
 #define delete delete
 
 #define malloc(len) _malloc_dbg(len, _NORMAL_BLOCK, __FILE__,__LINE__)
@@ -293,6 +325,9 @@ extern void _dbg_MCU_realloc(char **data, uint4 osize, uint4 nsize, uint4 csize,
 
 #endif
 
+// VS before 2013 doesn't provide this function
+inline float roundf(float f) { return f >= 0.0f ? floorf(f + 0.5f) : ceilf(f - 0.5f); }
+
 // MW-2010-10-14: This constant is the amount of 'extra' stack space ensured to be present
 //   after a recursionlimit check has failed.
 #define MC_UNCHECKED_STACKSIZE 65536U
@@ -301,9 +336,12 @@ struct MCFontStruct
 {
 	MCSysFontHandle fid;
 	uint16_t size;
-	int ascent;
-	int descent;
 	Boolean printer;
+    
+    coord_t m_ascent;
+    coord_t m_descent;
+    coord_t m_leading;
+    coord_t m_xheight;
 };
 
 #define SECONDS_MIN 0.0
@@ -311,7 +349,7 @@ struct MCFontStruct
 
 #elif defined(_MAC_DESKTOP)
 
-#include <stdarg.h>
+/*#include <stdarg.h>
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
@@ -319,7 +357,7 @@ struct MCFontStruct
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
-#include <assert.h>
+#include <assert.h>*/
 
 typedef int MCSocketHandle;
 
@@ -342,11 +380,6 @@ struct MCMacProcessSerialNumber
 	uint32_t lowLongOfPSN;
 };
 
-inline void *operator new(size_t, void *p)
-{
-	return p;
-}
-
 extern uint1 *MClowercasingtable;
 inline uint1 MCS_tolower(uint1 p_char)
 {
@@ -364,8 +397,13 @@ struct MCFontStruct
 	MCSysFontHandle fid;
 	uint2 size;
 	uint2 style;
-	int ascent;
-	int descent;
+    
+    coord_t m_ascent;
+    coord_t m_descent;
+    coord_t m_em;
+    coord_t m_xheight;
+    coord_t m_capheight;
+    coord_t m_leading;
 };
 
 #define fixmaskrop(a) (a)
@@ -374,7 +412,7 @@ struct MCFontStruct
 #define SECONDS_MIN -32535244799.0
 #define SECONDS_MAX 32535244799.0
 
-#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
+#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER) || defined(__EMSCRIPTEN__)
 
 #include <stdarg.h>
 #include <errno.h>
@@ -385,18 +423,13 @@ struct MCFontStruct
 #include <math.h>
 #include <signal.h>
 #include <assert.h>
+#ifndef _CTYPE_H
 #define _CTYPE_H
-
-#define _CTYPE_H
+#endif
 
 #define SIGBOGUS 100
 
 typedef int MCSocketHandle;
-
-inline void *operator new(size_t, void *p)
-{
-	return p;
-}
 
 extern uint1 MClowercasingtable[];
 inline uint1 MCS_tolower(uint1 p_char)
@@ -411,7 +444,7 @@ inline uint1 MCS_toupper(uint1 p_char)
 }
 
 extern uint2 MCctypetable[];
-#define _ctype(x, y) ((MCctypetable[(x)] & (1 << (y))) != 0)
+#define _ctype(x, y) ((MCctypetable[(uindex_t) (x)] & (1 << (y))) != 0)
 #define isalpha(x) (_ctype(x, 0))
 #define isupper(x) (_ctype(x, 1))
 #define islower(x) (_ctype(x, 2))
@@ -426,9 +459,13 @@ extern uint2 MCctypetable[];
 
 struct MCFontStruct
 {
-	uint16_t size;
-	uint2 ascent;
-	uint2 descent;
+    MCSysFontHandle fid;
+    uint16_t size;
+    
+    coord_t m_ascent;
+    coord_t m_descent;
+    coord_t m_leading;
+    coord_t m_xheight;
 };
 
 #define fixmaskrop(a) (a)
@@ -449,12 +486,13 @@ struct MCFontStruct
 #include <math.h>
 #include <assert.h>
 
-typedef int MCSocketHandle;
-
-inline void *operator new(size_t, void *p)
+struct MCMacProcessSerialNumber
 {
-	return p;
-}
+	uint32_t highLongOfPSN;
+	uint32_t lowLongOfPSN;
+};
+
+typedef int MCSocketHandle;
 
 extern uint1 *MClowercasingtable;
 inline uint1 MCS_tolower(uint1 p_char)
@@ -474,8 +512,11 @@ struct MCFontStruct
 	MCSysFontHandle fid;
 	uint2 size;
 	uint2 style;
-	int ascent;
-	int descent;
+    
+    coord_t m_ascent;
+    coord_t m_descent;
+    coord_t m_leading;
+    coord_t m_xheight;
 };
 
 #define fixmaskrop(a) (a)
@@ -499,11 +540,6 @@ struct MCFontStruct
 
 typedef int MCSocketHandle;
 
-inline void *operator new(size_t, void *p)
-{
-	return p;
-}
-
 extern uint1 *MClowercasingtable;
 inline uint1 MCS_tolower(uint1 p_char)
 {
@@ -519,9 +555,12 @@ inline uint1 MCS_toupper(uint1 p_char)
 struct MCFontStruct
 {
 	uint16_t size;
-	int ascent;
-	int descent;
 	MCSysFontHandle fid;
+    
+    coord_t m_ascent;
+    coord_t m_descent;
+    coord_t m_leading;
+    coord_t m_xheight;
 };
 
 #define fixmaskrop(a) (a)
@@ -530,6 +569,12 @@ struct MCFontStruct
 #define SECONDS_MIN 0.0
 #define SECONDS_MAX 32535244799.0
 
+#endif
+
+// SN-2015-04-17: [[ Bug 15187 ]] Needed to know whether we are compiling for
+//  iOS Device or iOS Simulator
+#if defined TARGET_SUBPLATFORM_IPHONE
+#include <TargetConditionals.h>
 #endif
 
 //////////////////////////////////////////////////////////////////////
@@ -578,10 +623,7 @@ struct MCFontStruct
 
 struct MCColor
 {
-	uint4 pixel;
 	uint2 red, green, blue;
-	uint1 flags;
-	uint1 pad;
 };
 
 //////////////////////////////////////////////////////////////////////
@@ -589,7 +631,7 @@ struct MCColor
 //  GRAPHICS STRUCTURES AND DEFINITIONS
 //
 
-struct MCSegment
+struct MCLineSegment
 {
 	int2 x1, y1, x2, y2;
 };
@@ -604,6 +646,8 @@ struct MCRectangle
 	int2 x, y;
 	uint2 width, height;
 };
+
+const MCRectangle kMCEmptyRectangle = {0, 0, 0, 0};
 
 struct MCPoint32
 {
@@ -659,38 +703,77 @@ struct MCBitmap
 	MCSysBitmapHandle bm;
 };
 #else
-struct MCBitmap
-{
-    int width, height;          /* size of image */
-    int xoffset;                /* number of pixels offset in X direction */
-    int format;                 /* XYBitmap, XYPixmap, ZPixmap */
-    char *data;                 /* pointer to image data */
-    int byte_order;             /* data byte order, LSBFirst, MSBFirst */
-    int bitmap_unit;            /* quant. of scanline 8, 16, 32 */
-    int bitmap_bit_order;       /* LSBFirst, MSBFirst */
-    int bitmap_pad;             /* 8, 16, 32 either XY or ZPixmap */
-    int depth;                  /* depth of image */
-    int bytes_per_line;         /* accelarator to next line */
-    int bits_per_pixel;         /* bits per pixel (ZPixmap) */
-    unsigned long red_mask;     /* bits in z arrangment */
-    unsigned long green_mask;
-    unsigned long blue_mask;
-    void *obdata;            /* hook for the object routines to hang on */
-    struct
-	{
-		void *create_image;
-		void *destroy_image;
-		void *get_pixel;
-		void *put_pixel;
-		void *sub_image;
-		void *add_pixel;
-	} f;
-};
+// FG-2014-05-15: [[ GDK ]] We no longer use an XImage for bitmaps
+typedef struct _GdkPixbuf MCBitmap;
+//struct MCBitmap
+//{
+//    int width, height;          /* size of image */
+//    int xoffset;                /* number of pixels offset in X direction */
+//    int format;                 /* XYBitmap, XYPixmap, ZPixmap */
+//    char *data;                 /* pointer to image data */
+//    int byte_order;             /* data byte order, LSBFirst, MSBFirst */
+//    int bitmap_unit;            /* quant. of scanline 8, 16, 32 */
+//    int bitmap_bit_order;       /* LSBFirst, MSBFirst */
+//    int bitmap_pad;             /* 8, 16, 32 either XY or ZPixmap */
+//    int depth;                  /* depth of image */
+//    int bytes_per_line;         /* accelarator to next line */
+//    int bits_per_pixel;         /* bits per pixel (ZPixmap) */
+//    unsigned long red_mask;     /* bits in z arrangment */
+//    unsigned long green_mask;
+//    unsigned long blue_mask;
+//    void *obdata;            /* hook for the object routines to hang on */
+//    struct
+//	{
+//		void *create_image;
+//		void *destroy_image;
+//		void *get_pixel;
+//		void *put_pixel;
+//		void *sub_image;
+//		void *add_pixel;
+//	} f;
+//};
 #endif
 
 ////////////////////////////////////////
 
-#if !defined(_LINUX_DESKTOP) && !defined(_LINUX_SERVER)
+#if defined(_MAC_DESKTOP) || defined(_MAC_SERVER)
+
+typedef MCPlatformWindowRef Window;
+typedef MCSysWindowHandle Drawable;
+
+#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
+
+// MDW-2013-04-15: [[ x64 ]] added 64-bit-safe typedefs
+/*#ifndef __LP64__
+#   if !defined(Window)
+        typedef unsigned long Window;
+#   endif
+#   if !defined(Pixmap)
+        typedef unsigned long Pixmap;
+#   endif
+#   if !defined(Drawable)
+        typedef unsigned long Drawable;
+#   endif
+#else
+#   if !defined(Window)
+        typedef unsigned long int Window;
+#   endif
+#   if !defined(Pixmap)
+        typedef unsigned long int Pixmap;
+#   endif
+#   if !defined(Drawable)
+        typedef unsigned long int Drawable;
+#   endif
+#endif*/
+
+#include <gdk/gdk.h>
+
+typedef GdkWindow*      Window;
+typedef GdkPixmap*      Pixmap;
+typedef GdkDrawable*    Drawable;
+
+#else
+
 enum
 {
     DC_WINDOW,
@@ -717,30 +800,7 @@ struct _ExtendedDrawable: public _Drawable
 typedef  _Drawable *        Window;
 typedef  _Drawable *        Pixmap;
 typedef  _Drawable *        Drawable;
-#else
 
-// MDW-2013-04-15: [[ x64 ]] added 64-bit-safe typedefs
-#ifndef __LP64__
-	#if !defined(Window)
-		typedef unsigned long Window;
-	#endif
-	#if !defined(Pixmap)
-		typedef unsigned long Pixmap;
-	#endif
-	#if !defined(Drawable)
-		typedef unsigned long Drawable;
-	#endif
-#else
-	#if !defined(Window)
-		typedef unsigned long int Window;
-	#endif
-	#if !defined(Pixmap)
-		typedef unsigned long int Pixmap;
-	#endif
-	#if !defined(Drawable)
-		typedef unsigned long int Drawable;
-	#endif
-#endif
 
 #endif
 
@@ -754,7 +814,12 @@ typedef  _Drawable *        Drawable;
 #define Button3              3
 
 typedef unsigned long       KeySym;
+
+#if defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
+typedef GdkAtom             Atom;
+#else
 typedef unsigned long       Atom;
+#endif
 
 ////////////////////////////////////////
 
@@ -861,6 +926,7 @@ typedef unsigned long       Atom;
 #define XK_BackSpace		0xFF08	/* back space, back char */
 #define XK_space                0x020
 #define XK_Tab			0xFF09
+#define XK_ISO_Left_Tab 0xFE20
 #define XK_Linefeed		0xFF0A	/* Linefeed, LF */
 #define XK_Clear		0xFF0B
 #define XK_Return		0xFF0D	/* Return, enter */
@@ -1093,57 +1159,11 @@ typedef unsigned long       Atom;
 #define XK_WheelLeft	0xFF1E
 #define XK_WheelRight	0xFF1F
 
-//////////////////////////////////////////////////////////////////////
-//
-//  UTILITY CLASSES
-//
-
-template<typename T> class MCAutoPointer
-{
-public:
-	MCAutoPointer(void)
-	{
-		m_ptr = nil;
-	}
-
-	~MCAutoPointer(void)
-	{
-		delete m_ptr;
-	}
-
-	T* operator = (T* value)
-	{
-		delete m_ptr;
-		m_ptr = value;
-		return value;
-	}
-
-	T*& operator & (void)
-	{
-		MCAssert(m_ptr == nil);
-		return m_ptr;
-	}
-
-	T* operator -> (void)
-	{
-		MCAssert(m_ptr != nil);
-		return m_ptr;
-	}
-
-	T *operator * (void) const
-	{
-		return m_ptr;
-	}
-
-	void Take(T*&r_ptr)
-	{
-		r_ptr = m_ptr;
-		m_ptr = nil;
-	}
-
-private:
-	T *m_ptr;
-};
+#define XK_Class_mask		0xFF000000		/* Key classes */
+#define XK_Class_compat		0x00000000		/* Ordinary (X11) keycodes */
+#define XK_Class_codepoint	0x01000000		/* The low 21 bits contain a Unicode codepoint */
+#define XK_Class_vendor		0x10000000		/* OS vendor specific */
+#define XK_Codepoint_mask	0x001FFFFF		/* Mask for extracting codepoint from XK_Class_codepoint */
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -1160,7 +1180,6 @@ typedef class MCContext MCDC;
 struct MCPattern;
 typedef MCPattern *MCPatternRef;
 
-class MCSharedString;
 struct MCPickleContext;
 
 class MCUIDC;
@@ -1204,9 +1223,10 @@ struct MCWidgetInfo;
 class MCExecPoint;
 class MCParameter;
 class MCStack;
+class MCExecContext;
 
-typedef uint4 MCDragAction;
-typedef uint4 MCDragActionSet;
+typedef uint32_t MCDragAction;
+typedef uint32_t MCDragActionSet;
 
 typedef struct _Streamnode Streamnode;
 typedef struct _Linkatts Linkatts;
@@ -1234,9 +1254,8 @@ class MCParentScript;
 class MCParentScriptUse;
 class MCVariable;
 class MCExpression;
+class MCContainer;
 struct MCPickleContext;
-class MCVariableValue;
-class MCVariableArray;
 
 class MCExternal;
 class MCExternalHandlerList;
@@ -1267,6 +1286,170 @@ class MCError;
 class MCStyledText;
 
 typedef struct MCFont *MCFontRef;
+
+typedef struct MCSyntaxFactory *MCSyntaxFactoryRef;
+
+//////////////////////////////////////////////////////////////////////
+
+// Chunks, containers and ordinals (and dest for Go command)
+enum Chunk_term {
+    CT_UNDEFINED,
+    CT_START,
+    CT_BACKWARD,
+    CT_FORWARD,
+    CT_FINISH,
+    CT_HOME,
+	// MW-2009-03-03: The chunk type of the invisible 'script' object that
+	//   holds the SERVER mode state.
+	CT_SERVER_SCRIPT,
+    CT_HELP,
+    CT_DIRECT,
+    CT_RECENT,
+    CT_THIS,
+    CT_FIRST,
+    CT_SECOND,
+    CT_THIRD,
+    CT_FOURTH,
+    CT_FIFTH,
+    CT_SIXTH,
+    CT_SEVENTH,
+    CT_EIGHTH,
+    CT_NINTH,
+    CT_TENTH,
+    CT_LAST,
+    CT_NEXT,
+    CT_PREV,
+    CT_MIDDLE,
+    CT_ANY,
+    CT_ORDINAL,
+    CT_ID,
+    CT_EXPRESSION,
+    CT_RANGE,
+    CT_URL,
+    CT_URL_HEADER,
+    CT_ALIAS,
+	CT_DOCUMENT,
+    CT_TOP_LEVEL,
+    CT_MODELESS,
+    CT_PALETTE,
+    CT_MODAL,
+    CT_PULLDOWN,
+    CT_POPUP,
+    CT_OPTION,
+
+	// The name table used for MCU_matchname *must* be updated if any
+	// chunk terms are added between CT_STACK and CT_LAST_CONTROL here
+    CT_STACK,
+    CT_TOOLTIP,
+    CT_AUDIO_CLIP,
+    CT_VIDEO_CLIP,
+    CT_BACKGROUND,
+    CT_CARD,
+    CT_MARKED,
+    CT_GROUP,
+	CT_FIRST_CONTROL = CT_GROUP,
+	CT_LAYER,
+    CT_BUTTON,
+    CT_MENU,
+    CT_SCROLLBAR,
+    CT_PLAYER,
+    CT_IMAGE,
+    CT_GRAPHIC,
+    CT_EPS,
+    CT_MAGNIFY,
+    CT_COLOR_PALETTE,
+    CT_WIDGET,
+    CT_FIELD,
+	CT_LAST_CONTROL = CT_FIELD,
+	
+    CT_FIRST_TEXT_CHUNK = CT_FIELD,
+    CT_LINE,
+    CT_PARAGRAPH,
+    CT_SENTENCE,
+    CT_ITEM,
+    CT_WORD,
+    CT_TRUEWORD,
+    CT_TOKEN,
+    CT_CHARACTER,
+    // AL-2013-01-08 [[ CharChunks ]] Add 'codepoint, codeunit and byte' to chunk types
+    CT_CODEPOINT,
+    CT_CODEUNIT,
+    CT_BYTE,
+    // SN-2014-04-15 [[ ByteChunk ]] CT_ELEMENT should be put after the char chunks, as the value won't be evaluated as a string
+	CT_ELEMENT,
+    CT_TYPES,
+	CT_KEY
+};
+
+struct MCObjectPtr
+{
+    /* TODO[C++11] MCObject *object = nullptr; */
+    /* TODO[C++11] uint32_t part_id = 0; */
+	MCObject *object;
+	uint32_t part_id;
+
+    /* TODO[C++11] constexpr MCObjectPtr() = default; */
+    MCObjectPtr() : object(nullptr), part_id(0) {}
+    /* TODO[C++11] constexpr */
+    MCObjectPtr(MCObject *p_object, uint32_t p_part_id)
+        : object(p_object), part_id(p_part_id)
+    {}
+
+    MCObjectPtr& operator = (const MCObjectPtr& p_obj_ptr)
+    {
+        object = p_obj_ptr . object;
+        part_id = p_obj_ptr . part_id;
+        return *this;
+    }
+};
+
+// NOTE: the indices in this structure are UTF-16 code unit indices if the value is a stringref,
+//  and byte indices if it is a dataref.
+struct MCMarkedText
+{
+    MCValueRef text;
+    uint32_t start, finish;
+    // SN-2014-09-03: [[ Bug 13314 ]] MCMarkedText::changed updated to store the number of chars appended
+    uindex_t changed;
+};
+
+struct MCObjectChunkPtr
+{
+	MCObject *object;
+	uint32_t part_id;
+	Chunk_term chunk;
+    MCMarkedText mark;
+};
+
+struct MCVariableChunkPtr
+{
+	MCVarref *variable;
+	Chunk_term chunk;
+    MCMarkedText mark;
+};
+
+struct MCUrlChunkPtr
+{
+	MCStringRef url;
+	Chunk_term chunk;
+    MCMarkedText mark;
+};
+
+struct MCObjectIndexPtr
+{
+    MCObject *object;
+    uint32_t part_id;
+    MCNameRef index;
+};
+
+struct MCObjectChunkIndexPtr
+{
+	MCObject *object;
+	uint32_t part_id;
+	Chunk_term chunk;
+	MCMarkedText mark;
+    MCNameRef index;
+};
 
 //////////////////////////////////////////////////////////////////////
 

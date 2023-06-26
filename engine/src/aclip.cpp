@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "util.h"
 #include "date.h"
 #include "sellst.h"
@@ -35,11 +35,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "osspec.h"
 
 #include "globals.h"
+#include "exec.h"
 
-#if defined _WINDOWS_DESKTOP
-#include "w32prefix.h"
-static HWAVEOUT hwaveout;  //handle to audio device opened
-static WAVEHDR wh;         //wave header structure
+#if defined FEATURE_PLATFORM_AUDIO
+#include "platform.h"
+static MCPlatformSoundRef s_current_sound = nil;
+#elif defined _WINDOWS_DESKTOP
+// SN-2014-06-26 [[ PlatformPlayer ]]
+// These 2 definitions must be accessible from exec-interface-aclip
+HWAVEOUT hwaveout;  //handle to audio device opened
+WAVEHDR wh;         //wave header structure
 #elif defined _MAC_DESKTOP
 #include "osxprefix.h"
 static SndChannelPtr soundChannel; //used for playing a sound on MAC
@@ -54,7 +59,7 @@ uint4 MCAudioClip::curindex;
 Boolean MCAudioClip::looping;
 real8 MCAudioClip::endtime;
 
-static int2 ulaw_table[256] = {
+static const int2 ulaw_table[256] = {
                                   -32124, -31100, -30076, -29052, -28028, -27004, -25980, -24956,
                                   -23932, -22908, -21884, -20860, -19836, -18812, -17788, -16764,
                                   -15996, -15484, -14972, -14460, -13948, -13436, -12924, -12412,
@@ -88,6 +93,24 @@ static int2 ulaw_table[256] = {
                                   120,    112,    104,     96,     88,     80,     72,     64,
                                   56,     48,     40,     32,     24,     16,      8,      0 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+MCPropertyInfo MCAudioClip::kProperties[] =
+{
+	DEFINE_RO_OBJ_PROPERTY(P_SIZE, UInt16, MCAudioClip, Size)
+	DEFINE_RW_OBJ_ENUM_PROPERTY(P_PLAY_DESTINATION, InterfacePlayDestination, MCAudioClip, PlayDestination)
+	DEFINE_RW_OBJ_PROPERTY(P_PLAY_LOUDNESS, Int16, MCAudioClip, PlayLoudness)
+};
+
+MCObjectPropertyTable MCAudioClip::kPropertyTable =
+{
+	&MCObject::kPropertyTable,
+	sizeof(kProperties) / sizeof(kProperties[0]),
+	&kProperties[0],
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 MCAudioClip::MCAudioClip()
 {
 	size = 0;
@@ -99,7 +122,7 @@ MCAudioClip::MCAudioClip()
 	disposable = False;
 	loudness = 100;
 #ifdef TARGET_PLATFORM_LINUX
-	x11audio = new X11Audio ;
+	x11audio = new (nothrow) X11Audio ;
 #endif
 }
 
@@ -109,7 +132,7 @@ MCAudioClip::MCAudioClip(const MCAudioClip &aref) : MCObject(aref)
 	samples = osamples = NULL;
 	if (size != 0)
 	{
-		samples = new int1[size];
+		samples = new (nothrow) int1[size];
 		memcpy(samples, aref.samples, size);
 	}
 	format = aref.format;
@@ -119,7 +142,7 @@ MCAudioClip::MCAudioClip(const MCAudioClip &aref) : MCObject(aref)
 	disposable = False;
 	loudness = aref.loudness;
 #ifdef TARGET_PLATFORM_LINUX
-	x11audio = new X11Audio ;
+	x11audio = new (nothrow) X11Audio ;
 #endif
 }
 
@@ -128,9 +151,9 @@ MCAudioClip::~MCAudioClip()
 	if (MCacptr == this)
 	{
 		stop(True);
-		MCacptr = NULL;
+		MCacptr = nil;
 	}
-	delete samples;
+	delete[] samples; /* Allocated with new[] */
 	delete osamples;
 #ifdef TARGET_PLATFORM_LINUX
 	if ( x11audio != NULL )
@@ -148,20 +171,34 @@ const char *MCAudioClip::gettypestring()
 	return MCaudiostring;
 }
 
+bool MCAudioClip::visit_self(MCObjectVisitor* p_visitor)
+{
+    return p_visitor -> OnAudioClip(this);
+}
+
 void MCAudioClip::timer(MCNameRef mptr, MCParameter *params)
 {
-	if (play())
-		MCscreen->addtimer(this, MCM_internal, looping ? LOOP_RATE: PLAY_RATE);
+    // PM-2014-11-11: [[ Bug 13950 ]] Make sure looping audioClip can be stopped
+#ifndef FEATURE_PLATFORM_AUDIO
+    if (play())
+    {
+        MCscreen->addtimer(this, MCM_internal, looping ? LOOP_RATE: PLAY_RATE);
+#else
+    if (MCPlatformSoundIsPlaying(s_current_sound))
+    {
+        // Do nothing
+#endif
+    }
 	else
 	{
-		MCacptr = NULL;
+		MCacptr = nil;
 		if (mstack != NULL)
 		{
 			if (mstack->getopened())
 			{
 				MCCard *card = mstack->getcurcard();
 				if (card)
-					card->message_with_args(MCM_play_stopped, getname());
+					card->message_with_valueref_args(MCM_play_stopped, getname());
 			}
 			mstack = NULL;
 		}
@@ -170,168 +207,16 @@ void MCAudioClip::timer(MCNameRef mptr, MCParameter *params)
 	}
 }
 
-Exec_stat MCAudioClip::getprop(uint4 parid, Properties which, MCExecPoint &ep, Boolean effective)
+Boolean MCAudioClip::del(bool p_check_flag)
 {
-	switch (which)
-	{
-#ifdef /* MCAudioClip::getprop */ LEGACY_EXEC
-	case P_SIZE:
-		ep.setint(size);
-		break;
-	case P_PLAY_DESTINATION:
-	case P_PLAY_LOUDNESS:
-		if (this == MCtemplateaudio)
-		{
-			extern bool MCSystemGetPlayLoudness(uint2& r_loudness);
-#ifdef _MOBILE
-			if (MCSystemGetPlayLoudness(loudness))
-#else
-			if (false)
-#endif
-				;
-			else if (!supported)
-				loudness = 0;
-			else
-			{
-#if defined _WINDOWS
-				if (hwaveout == NULL)
-				{
-					WAVEFORMATEX pwfx;
-					pwfx.wFormatTag = WAVE_FORMAT_PCM;
-					pwfx.nChannels = 1;
-					pwfx.nSamplesPerSec = 22050;
-					pwfx.nAvgBytesPerSec = 22050;
-					pwfx.nBlockAlign = 1;
-					pwfx.wBitsPerSample = 8;
-					pwfx.cbSize = 0;
-					if (waveOutOpen(&hwaveout, WAVE_MAPPER, &pwfx, 0, 0, CALLBACK_NULL
-					                | WAVE_ALLOWSYNC) == MMSYSERR_NOERROR)
-					{
-						DWORD v;
-						waveOutGetVolume(hwaveout, &v);
-						loudness = MCU_min((uint2)((v & 0xFFFF) * 100 / 0xFFFF) + 1, 100);
-						waveOutClose(hwaveout);
-						hwaveout = NULL;
-					}
-				}
-#elif defined _MACOSX
-				long volume;
-				GetDefaultOutputVolume(&volume);
-				loudness = (HiWord(volume) + LoWord(volume)) * 50 / 255;
-#elif defined TARGET_PLATFORM_LINUX
-				if ( x11audio != NULL)
-					loudness = x11audio -> getloudness();
-#endif
-			}
-		}
-		if (which == P_PLAY_DESTINATION)
-		{
-			if (flags & F_EXTERNAL)
-				ep.setstaticcstring("external");
-			else
-				ep.setstaticcstring("internal");
-		}
-		else
-			ep.setint(loudness);
-		break;
-#endif /* MCAudioClip::getprop */ 
-	default:
-		return MCObject::getprop(parid, which, ep, effective);
-	}
-	return ES_NORMAL;
-}
-
-Exec_stat MCAudioClip::setprop(uint4 parid, Properties p, MCExecPoint &ep, Boolean effective)
-{
-	int2 i1;
-	MCString data = ep.getsvalue();
-
-	switch (p)
-	{
-#ifdef /* MCAudioClip::setprop */ LEGACY_EXEC
-	case P_PLAY_DESTINATION:
-	case P_PLAY_LOUDNESS:
-		if (p == P_PLAY_DESTINATION)
-		{
-			if (data == "external")
-				flags |= F_EXTERNAL;
-			else
-				flags &= ~F_EXTERNAL;
-		}
-		else
-		{
-			if (!MCU_stoi2(data, i1))
-			{
-				MCeerror->add
-				(EE_ACLIP_LOUDNESSNAN, 0, 0, data);
-				return ES_ERROR;
-			}
-			loudness = MCU_max(MCU_min(i1, 100), 0);
-			if (loudness == 100)
-				flags &= ~F_LOUDNESS;
-			else
-				flags |= F_LOUDNESS;
-		}
-		if (this == MCtemplateaudio)
-		{
-			extern bool MCSystemSetPlayLoudness(uint2 loudness);
-#ifdef _MOBILE
-			if (MCSystemSetPlayLoudness(loudness))
-				return ES_NORMAL;
-#endif
-			if (MCplayers != NULL)
-			{
-				MCPlayer *tptr = MCplayers;
-				while (tptr != NULL)
-				{
-					tptr->setvolume(loudness);
-					tptr = tptr->getnextplayer();
-				}
-			}
-#if defined _WINDOWS
-			WORD v = loudness * MAXUINT2 / 100;
-			if (hwaveout != NULL)
-				waveOutSetVolume(hwaveout, v | (v << 16));
-			else
-			{
-				WAVEFORMATEX pwfx;
-				pwfx.wFormatTag = WAVE_FORMAT_PCM;
-				pwfx.nChannels = 1;
-				pwfx.nSamplesPerSec = 22050;
-				pwfx.nAvgBytesPerSec = 22050;
-				pwfx.nBlockAlign = 1;
-				pwfx.wBitsPerSample = 8;
-				pwfx.cbSize = 0;
-				if (waveOutOpen(&hwaveout, WAVE_MAPPER, &pwfx, 0, 0,
-								CALLBACK_NULL | WAVE_ALLOWSYNC) == MMSYSERR_NOERROR)
-				{
-					waveOutSetVolume(hwaveout, v | (v << 16));
-					waveOutClose(hwaveout);
-					hwaveout = NULL;
-				}
-			}
-
-#elif defined _MACOSX
-			long volume = loudness * 255 / 100;
-			SetDefaultOutputVolume(volume | volume << 16);
-#elif defined TARGET_PLATFORM_LINUX
-			if ( x11audio != NULL)
-				x11audio -> setloudness ( loudness ) ;
-#endif
-
-		}
-		return ES_NORMAL;
-#endif /* MCAudioClip::setprop */
-	default:
-		break;
-	}
-	return MCObject::setprop(parid, p, ep, effective);
-}
-
-Boolean MCAudioClip::del()
-{
-	getstack()->removeaclip(this);
-	return True;
+    if (!isdeletable(p_check_flag))
+        return False;
+    
+    getstack()->removeaclip(this);
+    
+    // MCObject now does things on del(), so we must make sure we finish by
+    // calling its implementation.
+	return MCObject::del(p_check_flag);
 }
 
 void MCAudioClip::paste(void)
@@ -341,7 +226,9 @@ void MCAudioClip::paste(void)
 
 void MCAudioClip::init()
 {
-#if defined _WINDOWS
+#if defined FEATURE_PLATFORM_AUDIO
+    supported = True;
+#elif defined _WINDOWS
 	supported = True;
 #elif defined _MACOSX
 	supported = True;
@@ -350,14 +237,14 @@ void MCAudioClip::init()
 #endif
 	if (supported)
 	{
-		MCExecPoint ep;
-		getprop(0, P_PLAY_LOUDNESS, ep, False);
+        // AL-2014-08-12: [[ Bug 13161 ]] Set the initial loudness of templateAudioClip to the system loudness
+        loudness = MCS_getplayloudness();
 	}
 }
 
 void MCAudioClip::convert_mulawtolin16()
 {
-	int2 *newsamples = new int2[size];
+	int2 *newsamples = new (nothrow) int2[size];
 	uint1 *sptr = (uint1 *)samples;
 	int2 *dptr = newsamples;
 	uint4 count = size;
@@ -377,7 +264,7 @@ void MCAudioClip::convert_mulawtolin16()
 
 void MCAudioClip::convert_mulawtoulin8()
 {
-	int1 *newsamples = new int1[size];
+	int1 *newsamples = new (nothrow) int1[size];
 	uint1 *sptr = (uint1 *)samples;
 	int1 *dptr = newsamples;
 	uint4 count = size;
@@ -404,7 +291,7 @@ void MCAudioClip::convert_slin8toslin16()
 	uint4 count = size;
 	size <<= 1;
 	swidth = 2;
-	int1 *newsamples = new int1[size];
+	int1 *newsamples = new (nothrow) int1[size];
 	int1 *sptr = samples;
 	int2 *dptr = (int2 *)newsamples;
 	while(count--)
@@ -471,13 +358,13 @@ void MCAudioClip::setlooping(Boolean loop)
 	looping = loop;
 }
 
-Boolean MCAudioClip::import(const char *fname, IO_handle stream)
+Boolean MCAudioClip::import(MCStringRef fname, IO_handle stream)
 {
 	size = (uint4)MCS_fsize(stream);
 	if (size == 0)
 		return False;
-	samples = new int1[size];
-	if (IO_read(samples, sizeof(int1), size, stream) != IO_NORMAL)
+	samples = new (nothrow) int1[size];
+	if (IO_read(samples, size, stream) != IO_NORMAL)
 		return False;
 	if (strnequal((char*)samples, ".snd", 4))
 	{
@@ -586,16 +473,93 @@ Boolean MCAudioClip::import(const char *fname, IO_handle stream)
 				rate = 11000;
 			}
 	}
-	const char *tname = strrchr(fname, PATH_SEPARATOR);
-	if (tname != NULL)
-		tname += 1;
-	else
-		tname = fname;
-	setname_cstring(tname);
-	return True;
+    uindex_t t_sep;
+    MCStringRef t_fname;
+    if (MCStringLastIndexOfChar(fname, PATH_SEPARATOR, UINDEX_MAX, kMCCompareExact, t_sep))
+        /* UNCHECKED */ MCStringCopySubstring(fname, MCRangeMakeMinMax(t_sep + 1, MCStringGetLength(fname)), t_fname);
+    else
+        t_fname = MCValueRetain(fname);
+    
+    MCNewAutoNameRef t_name;
+    if (!MCNameCreateAndRelease(t_fname, &t_name))
+        return False;
+    setname(*t_name);
+    return True;
 }
 
-#if defined _WINDOWS
+#if defined FEATURE_PLATFORM_AUDIO
+
+struct au_file_header_t
+{
+    uint32_t magic;
+    uint32_t offset;
+    uint32_t size;
+    uint32_t encoding;
+    uint32_t sample_rate;
+    uint32_t channels;
+};
+
+void MCAudioClip::convert_tocontainer(void*& r_data, size_t& r_data_size)
+{
+    au_file_header_t t_header;
+    t_header . magic = 0x2e736e64;
+    t_header . offset = sizeof(au_file_header_t);
+    t_header . size = size;
+    if (format == AF_MULAW)
+        t_header . encoding = 1;
+    else if (format == AF_SLINEAR)
+        t_header . encoding = (swidth == 1 ? 2 : (swidth == 2 ? 3 : 4));
+    else if (format == AF_ULINEAR)
+    {
+        convert_ulintoslin();
+        t_header . encoding = (swidth == 1 ? 2 : (swidth == 2 ? 3 : 4));
+    }
+    t_header . sample_rate = rate;
+    t_header . channels = nchannels;
+    
+    swap_uint4(&t_header . magic);
+    swap_uint4(&t_header . offset);
+    swap_uint4(&t_header . size);
+    swap_uint4(&t_header . encoding);
+    swap_uint4(&t_header . sample_rate);
+    swap_uint4(&t_header . channels);
+    
+    r_data = malloc(sizeof(au_file_header_t) + size);
+    r_data_size = sizeof(au_file_header_t) + size;
+    
+    memcpy(r_data, &t_header, sizeof(au_file_header_t));
+    memcpy(((au_file_header_t *)r_data) + 1, samples, size);
+}
+
+Boolean MCAudioClip::open_audio(void)
+{
+    if (s_current_sound != nil)
+        return True;
+    
+    void *t_data;
+    size_t t_data_size;
+    convert_tocontainer(t_data, t_data_size);
+    
+    MCPlatformSoundCreateWithData(t_data, t_data_size, s_current_sound);
+    
+    free(t_data);
+    
+    if (s_current_sound == nil)
+        return False;
+    
+    double t_volume;
+    t_volume = loudness / 100.0;
+    MCPlatformSoundSetProperty(s_current_sound, kMCPlatformSoundPropertyVolume, kMCPlatformPropertyTypeDouble, &t_volume);
+    
+    bool t_looping;
+    t_looping = looping == True;
+    MCPlatformSoundSetProperty(s_current_sound, kMCPlatformSoundPropertyLooping, kMCPlatformPropertyTypeBool, &t_looping);
+    
+    MCPlatformSoundPlay(s_current_sound);
+    
+    return True;
+}
+#elif defined _WINDOWS
 Boolean MCAudioClip::open_audio()
 {
 	if (hwaveout == NULL)
@@ -639,7 +603,7 @@ Boolean MCAudioClip::open_audio()
 	}
 	return True;
 }
-#elif defined _MACOSX
+#elif defined _MAC_DESKTOP
 Boolean MCAudioClip::open_audio() //plays a sound immediately
 {
 	if (sound != NULL)  //if sound is already open and constructed
@@ -693,7 +657,7 @@ Boolean MCAudioClip::open_audio() //plays a sound immediately
 	else
 		return True;
 }
-#elif defined _LINUX
+#elif defined TARGET_PLATFORM_LINUX
 // TS-2007-11-20 : Stopping LINUX from playing any sound - for 2.9.0-DP-2
 // TS-2007-12-04 : Adding in support for ESD
 Boolean MCAudioClip::open_audio()
@@ -712,7 +676,7 @@ Boolean MCAudioClip::open_audio()
 		return x11audio -> init(NULL, nchannels, swidth);
 	return false ;
 }
-#elif defined _SERVER || defined(_MOBILE)
+#elif defined _SERVER || defined(_MOBILE) || defined(__EMSCRIPTEN__)
 Boolean MCAudioClip::open_audio()
 {
 	return False;
@@ -727,8 +691,8 @@ Boolean MCAudioClip::play()
 	if (!open_audio())
 	{
 		real8 delay =  MCS_time() + (real8)size / (real8)(rate*nchannels*swidth);
-		MCParameter *newparam = new MCParameter;
-		newparam->setnameref_argument(getname());
+		MCParameter *newparam = new (nothrow) MCParameter;
+		newparam->setvalueref_argument(getname());
 		MCscreen->addmessage(MCdefaultstackptr->getcurcard(), MCM_play_stopped, delay, newparam);
 		return False;
 	}
@@ -736,14 +700,25 @@ Boolean MCAudioClip::play()
 		if (mstack == NULL)
 			mstack = MCdefaultstackptr;
 #endif
-#ifdef _WINDOWS
+    
+#if defined FEATURE_PLATFORM_AUDIO
+    // MW-2014-07-25: [[ Bug 12946 ]] If the sound is no longer playing the 'stop'
+    //   (i.e. send a playStopped message).
+    if (!MCPlatformSoundIsPlaying(s_current_sound))
+    {
+        stop(False);
+        return False;
+    }
+    
+    return True;
+#elif defined _WINDOWS
 	if (wh.dwFlags & WHDR_DONE)
 	{
 		stop(False);//check to see if it is done, call stop();
 		return False;
 	}
 	return True;
-#elif defined _MACOSX
+#elif defined _MAC_DESKTOP
 	SCStatus cs;       //channel status record
 	OSErr err = noErr;
 	// the sizeof(SCStatus) gives 27 bytes, but the actual record size is 24
@@ -775,7 +750,7 @@ Boolean MCAudioClip::play()
 			return False;
 		}
 	return True;
-#elif defined(_LINUX)
+#elif defined(TARGET_PLATFORM_LINUX)
 	if (looping || curindex < size)
 	{
 		while (True)
@@ -823,7 +798,7 @@ Boolean MCAudioClip::play()
 	}
 
 	return True;
-#elif defined(_SERVER) || defined(_MOBILE)
+#elif defined(_SERVER) || defined(_MOBILE) || defined(__EMSCRIPTEN__)
 	return True;
 #else
 #error "MCAudioClip::play() not supported for this platform"
@@ -834,7 +809,16 @@ Boolean MCAudioClip::play()
 void MCAudioClip::stop(Boolean abort)
 {
 	MCscreen->cancelmessageobject(this, NULL);
-#if defined _WINDOWS
+   
+#if defined FEATURE_PLATFORM_AUDIO
+    if (s_current_sound != nil)
+    {
+        // MW-2014-07-25: [[ Bug 12946 ]] Make sure we actually stop the sound.
+        MCPlatformSoundStop(s_current_sound);
+        MCPlatformSoundRelease(s_current_sound);
+        s_current_sound = nil;
+    }
+#elif defined _WINDOWS
 	if (hwaveout != NULL)
 	{
 		waveOutReset(hwaveout);
@@ -842,7 +826,7 @@ void MCAudioClip::stop(Boolean abort)
 		waveOutClose(hwaveout);
 		hwaveout = NULL;
 	}
-#elif defined _MACOSX  //minshe
+#elif defined _MAC_DESKTOP  //minshe
 	//MAC stuff here.... Send a quiet command to stop a sound that is currenty playing
 	if (sound != NULL)
 	{
@@ -860,28 +844,36 @@ void MCAudioClip::stop(Boolean abort)
 #endif
 }
 
+bool MCAudioClip::isPlaying()
+{
+#if defined FEATURE_PLATFORM_AUDIO
+    return MCPlatformSoundIsPlaying(s_current_sound);
+#endif
+    return true;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  SAVING AND LOADING
 //
 
-IO_stat MCAudioClip::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+IO_stat MCAudioClip::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
-	return defaultextendedsave(p_stream, p_part);
+	return defaultextendedsave(p_stream, p_part, p_version);
 }
 
-IO_stat MCAudioClip::extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length)
+IO_stat MCAudioClip::extendedload(MCObjectInputStream& p_stream, uint32_t p_version, uint4 p_length)
 {
 	return defaultextendedload(p_stream, p_version, p_length);
 }
 
-IO_stat MCAudioClip::save(IO_handle stream, uint4 p_part, bool p_force_ext)
+IO_stat MCAudioClip::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version)
 {
 	IO_stat stat;
 
 	if ((stat = IO_write_uint1(OT_AUDIO_CLIP, stream)) != IO_NORMAL)
 		return stat;
-	if ((stat = MCObject::save(stream, p_part, false)) != IO_NORMAL)
+	if ((stat = MCObject::save(stream, p_part, false, p_version)) != IO_NORMAL)
 		return stat;
 	if (osamples != NULL)
 	{
@@ -909,33 +901,122 @@ IO_stat MCAudioClip::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	if (flags & F_LOUDNESS)
 		if ((stat = IO_write_uint2(loudness, stream)) != IO_NORMAL)
 			return stat;
-	return savepropsets(stream);
+	return savepropsets(stream, p_version);
 }
 
-IO_stat MCAudioClip::load(IO_handle stream, const char *version)
+IO_stat MCAudioClip::load(IO_handle stream, uint32_t version)
 {
 	IO_stat stat;
 
 	if ((stat = MCObject::load(stream, version)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint4(&size, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if (size != 0)
 	{
-		samples = new int1[size];
-		if ((stat = IO_read(samples, sizeof(int1), size, stream)) != IO_NORMAL)
-			return stat;
+		samples = new (nothrow) int1[size];
+		if ((stat = IO_read(samples, size, stream)) != IO_NORMAL)
+			return checkloadstat(stat);
 	}
 	if ((stat = IO_read_uint2(&format, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint2(&nchannels, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint2(&swidth, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint2(&rate, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if (flags & F_LOUDNESS)
 		if ((stat = IO_read_uint2(&loudness, stream)) != IO_NORMAL)
-			return stat;
-	return loadpropsets(stream);
+            return checkloadstat(stat);
+	return loadpropsets(stream, version);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+uint2 MCS_getplayloudness()
+{
+    uint2 t_loudness = 0;
+#if defined FEATURE_PLATFORM_AUDIO
+    double t_volume;
+    MCPlatformGetSystemProperty(kMCPlatformSystemPropertyVolume, kMCPlatformPropertyTypeDouble, &t_volume);
+    // AL-2014-09-10: [[ Bug 13393 ]] Add 0.5 so that loudness is rounded to nearest integer
+    t_loudness = 100.0 * t_volume + 0.5;
+#elif defined _WINDOWS
+    if (hwaveout == NULL)
+    {
+        WAVEFORMATEX pwfx;
+        pwfx.wFormatTag = WAVE_FORMAT_PCM;
+        pwfx.nChannels = 1;
+        pwfx.nSamplesPerSec = 22050;
+        pwfx.nAvgBytesPerSec = 22050;
+        pwfx.nBlockAlign = 1;
+        pwfx.wBitsPerSample = 8;
+        pwfx.cbSize = 0;
+        if (waveOutOpen(&hwaveout, WAVE_MAPPER, &pwfx, 0, 0, CALLBACK_NULL
+                        | WAVE_ALLOWSYNC) == MMSYSERR_NOERROR)
+        {
+            DWORD v;
+            waveOutGetVolume(hwaveout, &v);
+            t_loudness = MCU_min((uint2)((v & 0xFFFF) * 100 / 0xFFFF) + 1, 100);
+            waveOutClose(hwaveout);
+            hwaveout = NULL;
+        }
+    }
+#elif defined _MAC_DESKTOP
+    long volume;
+    GetDefaultOutputVolume(&volume);
+    t_loudness = (HiWord(volume) + LoWord(volume)) * 50 / 255;
+#elif defined TARGET_PLATFORM_LINUX
+    X11Audio *t_x11audio = nil;
+    t_x11audio = new (nothrow) X11Audio ;
+    if ( t_x11audio != nil)
+    {
+        t_loudness = t_x11audio -> getloudness() ;
+        delete t_x11audio;
+    }
+#endif
+    return t_loudness;
+}
+
+void MCS_setplayloudness(uint2 p_loudness)
+{
+#if defined FEATURE_PLATFORM_AUDIO
+    double t_volume;
+    t_volume = p_loudness / 100.0;
+    MCPlatformSetSystemProperty(kMCPlatformSystemPropertyVolume, kMCPlatformPropertyTypeDouble, &t_volume);
+#elif defined _WINDOWS
+    WORD v = p_loudness * MAXUINT2 / 100;
+    if (hwaveout != NULL)
+        waveOutSetVolume(hwaveout, v | (v << 16));
+    else
+    {
+        WAVEFORMATEX pwfx;
+        pwfx.wFormatTag = WAVE_FORMAT_PCM;
+        pwfx.nChannels = 1;
+        pwfx.nSamplesPerSec = 22050;
+        pwfx.nAvgBytesPerSec = 22050;
+        pwfx.nBlockAlign = 1;
+        pwfx.wBitsPerSample = 8;
+        pwfx.cbSize = 0;
+        if (waveOutOpen(&hwaveout, WAVE_MAPPER, &pwfx, 0, 0,
+                        CALLBACK_NULL | WAVE_ALLOWSYNC) == MMSYSERR_NOERROR)
+        {
+            waveOutSetVolume(hwaveout, v | (v << 16));
+            waveOutClose(hwaveout);
+            hwaveout = NULL;
+        }
+    }
+#elif defined _MAC_DESKTOP
+    long volume = p_loudness * 255 / 100;
+    SetDefaultOutputVolume(volume | volume << 16);
+#elif defined TARGET_PLATFORM_LINUX
+    X11Audio *t_x11audio = nil;
+    t_x11audio = new (nothrow) X11Audio ;
+    if (t_x11audio != nil)
+    {
+        t_x11audio -> setloudness(p_loudness);
+        delete t_x11audio;
+    }
+#endif
 }

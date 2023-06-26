@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -45,6 +45,11 @@ Chunk_term MCMagnify::gettype() const
 	return CT_MAGNIFY;
 }
 
+bool MCMagnify::visit_self(MCObjectVisitor* p_visitor)
+{
+    return p_visitor -> OnControl(this);
+}
+
 void MCMagnify::open()
 {
 	MCObject::open();
@@ -55,9 +60,9 @@ void MCMagnify::open()
 void MCMagnify::close()
 {
 	MCObject::close();
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		MCmagimage->endmag(False);
-	MCmagnifier = NULL;
+	MCmagnifier = nil;
 }
 
 Boolean MCMagnify::kfocusnext(Boolean top)
@@ -72,7 +77,7 @@ Boolean MCMagnify::kfocusprev(Boolean bottom)
 
 Boolean MCMagnify::mfocus(int2 x, int2 y)
 {
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 	{
 		if (!inside)
 		{
@@ -91,39 +96,39 @@ void MCMagnify::munfocus()
 
 Boolean MCMagnify::mdown(uint2 which)
 {
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		return MCmagimage->magmdown(which);
 	return False;
 }
 
-Boolean MCMagnify::mup(uint2 which)
+Boolean MCMagnify::mup(uint2 which, bool p_release)
 {
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		return MCmagimage->magmup(which);
 	return False;
 }
 
 Boolean MCMagnify::doubledown(uint2 which)
 {
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		return MCmagimage->magdoubledown(which);
 	return False;
 }
 
 Boolean MCMagnify::doubleup(uint2 which)
 {
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		return MCmagimage->magdoubleup(which);
 	return False;
 }
 
-IO_stat MCMagnify::save(IO_handle stream, uint4 p_part, bool p_force_ext)
+IO_stat MCMagnify::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version)
 {
 	IO_stat stat;
 
 	if ((stat = IO_write_uint1(OT_MAGNIFY, stream)) != IO_NORMAL)
 		return stat;
-	if ((stat = MCObject::save(stream, p_part, p_force_ext)) != IO_NORMAL)
+	if ((stat = MCObject::save(stream, p_part, p_force_ext, p_version)) != IO_NORMAL)
 		return stat;
 
 	return IO_NORMAL;
@@ -131,7 +136,7 @@ IO_stat MCMagnify::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 
 MCControl *MCMagnify::clone(Boolean attach, Object_pos p, bool invisible)
 {
-	MCMagnify *newmagnify = new MCMagnify(*this);
+	MCMagnify *newmagnify = new (nothrow) MCMagnify(*this);
 	if (attach)
 		newmagnify->attach(p, invisible);
 	return newmagnify;
@@ -140,21 +145,21 @@ MCControl *MCMagnify::clone(Boolean attach, Object_pos p, bool invisible)
 // MW-2011-09-06: [[ Redraw ]] Added 'sprite' option - if true, ink and opacity are not set.
 void MCMagnify::draw(MCDC *dc, const MCRectangle &dirty, bool p_isolated, bool p_sprite)
 {
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		MCmagimage->magredrawrect(dc, dirty);
 }
 
-IO_stat MCMagnify::load(IO_handle stream, const char *version)
+IO_stat MCMagnify::load(IO_handle stream, uint32_t version)
 {
 	return MCObject::load(stream, version);
 }
 
-IO_stat MCMagnify::extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length)
+IO_stat MCMagnify::extendedload(MCObjectInputStream& p_stream, uint32_t p_version, uint4 p_length)
 {
 	return defaultextendedload(p_stream, p_version, p_length);
 }
 
-IO_stat MCMagnify::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+IO_stat MCMagnify::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
-	return defaultextendedsave(p_stream, p_part);
+	return defaultextendedsave(p_stream, p_part, p_version);
 }

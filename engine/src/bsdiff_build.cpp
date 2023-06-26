@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "core.h"
+#include "foundation.h"
 #include "bsdiff.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +56,6 @@ bool MCBsDiffBuild(MCBsDiffInputStream *p_old_stream, MCBsDiffInputStream *p_new
 
 #define MIN(x,y) (((x)<(y)) ? (x) : (y))
 
-typedef int32_t off_t;
 typedef uint8_t u_char;
 
 static void split(off_t *I,off_t *V,off_t start,off_t len,off_t h)
@@ -229,6 +228,8 @@ static bool bsdiffmain(MCBsDiffInputStream *p_old_file, MCBsDiffInputStream *p_n
 	// if(argc!=4) errx(1,"usage: %s oldfile newfile patchfile\n",argv[0]);
 	bool t_success;
 	t_success = true;
+    
+    V = NULL;
 
 	/* Allocate oldsize+1 bytes instead of oldsize bytes to ensure
 		that we never try to malloc(0) and get a NULL pointer */
@@ -240,9 +241,9 @@ static bool bsdiffmain(MCBsDiffInputStream *p_old_file, MCBsDiffInputStream *p_n
 		(close(fd)==-1)) err(1,"%s",argv[1]);*/
 	if (t_success)
 	{
-		uint32_t s;
-		t_success = p_old_file -> Measure(s);
-		oldsize = (signed)s;
+		uint32_t t_size;
+		t_success = p_old_file -> Measure(t_size);
+		oldsize = (signed)t_size;
 	}
 	if (t_success)
 		t_success = MCMemoryNewArray(oldsize + 1, old);
@@ -256,11 +257,11 @@ static bool bsdiffmain(MCBsDiffInputStream *p_old_file, MCBsDiffInputStream *p_n
 	if (t_success)
 		t_success = MCMemoryNewArray(oldsize + 1, V);
 
-
-	qsufsort(I,V,old,oldsize);
+    if (t_success)
+        qsufsort(I,V,old,oldsize);
 
 	/*free(V);*/
-	MCMemoryDeleteArray(V);
+    MCMemoryDeleteArray(V);
 
 	/* Allocate newsize+1 bytes instead of newsize bytes to ensure
 		that we never try to malloc(0) and get a NULL pointer */
@@ -272,9 +273,9 @@ static bool bsdiffmain(MCBsDiffInputStream *p_old_file, MCBsDiffInputStream *p_n
 		(close(fd)==-1)) err(1,"%s",argv[2]);*/
 	if (t_success)
 	{
-		uint32_t s;
-		t_success = p_new_file -> Measure(s);
-		newsize = (signed)s;
+		uint32_t t_size;
+		t_success = p_new_file -> Measure(t_size);
+		newsize = (signed)t_size;
 	}
 	if (t_success)
 		t_success = MCMemoryNewArray(newsize + 1, newp);
@@ -327,7 +328,7 @@ static bool bsdiffmain(MCBsDiffInputStream *p_old_file, MCBsDiffInputStream *p_n
 		errx(1, "BZ2_bzWriteOpen, bz2err = %d", bz2err);*/
 	scan=0;len=0;
 	lastscan=0;lastpos=0;lastoffset=0;
-	while(scan<newsize && t_success) {
+	while(t_success && scan<newsize) {
 		oldscore=0;
 
 		for(scsc=scan+=len;scan<newsize;scan++) {

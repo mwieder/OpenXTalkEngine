@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -86,7 +86,7 @@ class InputControl extends NativeControl
                 m_module.getEngine().wakeEngineThread();
             }
         });
-        
+		
 		m_text_view.setGravity(Gravity.LEFT | Gravity.TOP);
 		
         return m_text_view;
@@ -96,10 +96,20 @@ class InputControl extends NativeControl
     {
         m_text_view.setEnabled(p_enabled);
     }
+	
+	public void setEditable(boolean p_editable)
+    {
+		m_text_view.setFocusable(p_editable);
+    }
     
     public boolean getEnabled()
     {
         return m_text_view.isEnabled();
+    }
+	
+	public boolean getEditable()
+    {
+        return m_text_view.isFocusable();
     }
     
     public void setText(String p_text)
@@ -237,6 +247,7 @@ class InputControl extends NativeControl
         {
             m_transformation_method = m_text_view.getTransformationMethod();
             m_text_view.setTransformationMethod(PasswordTransformationMethod.getInstance());
+            m_text_view.setInputType(InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         }
         else if (!p_password && m_transformation_method != null)
         {
@@ -304,6 +315,14 @@ class InputControl extends NativeControl
     public void focusControl()
     {
         m_text_view.requestFocus();
+        
+        InputMethodManager imm;
+        imm = (InputMethodManager) m_text_view.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        
+        if (imm != null)
+            imm.restartInput(m_text_view);
+        
+        imm.showSoftInput(m_text_view, InputMethodManager.SHOW_IMPLICIT);
     }
     
     public native void doBeginEditing();

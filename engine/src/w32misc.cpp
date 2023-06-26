@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -27,7 +27,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "text.h"
 
 #include "w32dc.h"
-#include "w32context.h"
 #include "w32theme.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,42 +109,42 @@ int32_t MCCustomPrinterComputeFontSize(double p_size, void *p_font)
 //  REFACTORED FROM TEXT.CPP
 //
 
-bool MCSTextConvertToUnicode(MCTextEncoding p_input_encoding, const void *p_input, uint4 p_input_length, void *p_output, uint4 p_output_length, uint4& r_used)
-{
-	if (p_input_length == 0)
-	{
-		r_used = 0;
-		return true;
-	}
-
-	UINT t_codepage;
-	if (p_input_encoding >= kMCTextEncodingWindowsNative)
-		t_codepage = p_input_encoding - kMCTextEncodingWindowsNative;
-	else if (p_input_encoding >= kMCTextEncodingMacNative)
-		t_codepage = 10000 + p_input_encoding - kMCTextEncodingMacNative;
-	else
-	{
-		r_used = 0;
-		return true;
-	}
-
-	// MW-2009-08-27: It is possible for t_codepage == 65001 which means UTF-8. In this case we can't
-	//   use the precomposed flag...
-
-	int t_required_size;
-	t_required_size = MultiByteToWideChar(t_codepage, t_codepage == 65001 ? 0 : MB_PRECOMPOSED, (LPCSTR)p_input, p_input_length, NULL, 0);
-	if (t_required_size > (int)p_output_length / 2)
-	{
-		r_used = t_required_size * 2;
-		return false;
-	}
-
-	int t_used;
-	t_used = MultiByteToWideChar(t_codepage, t_codepage == 65001 ? 0 : MB_PRECOMPOSED, (LPCSTR)p_input, p_input_length, (LPWSTR)p_output, p_output_length);
-	r_used = t_used * 2;
-
-	return true;
-}
+//bool MCSTextConvertToUnicode(MCTextEncoding p_input_encoding, const void *p_input, uint4 p_input_length, void *p_output, uint4 p_output_length, uint4& r_used)
+//{
+//	if (p_input_length == 0)
+//	{
+//		r_used = 0;
+//		return true;
+//	}
+//
+//	UINT t_codepage;
+//	if (p_input_encoding >= kMCTextEncodingWindowsNative)
+//		t_codepage = p_input_encoding - kMCTextEncodingWindowsNative;
+//	else if (p_input_encoding >= kMCTextEncodingMacNative)
+//		t_codepage = 10000 + p_input_encoding - kMCTextEncodingMacNative;
+//	else
+//	{
+//		r_used = 0;
+//		return true;
+//	}
+//
+//	// MW-2009-08-27: It is possible for t_codepage == 65001 which means UTF-8. In this case we can't
+//	//   use the precomposed flag...
+//
+//	int t_required_size;
+//	t_required_size = MultiByteToWideChar(t_codepage, t_codepage == 65001 ? 0 : MB_PRECOMPOSED, (LPCSTR)p_input, p_input_length, NULL, 0);
+//	if (t_required_size > (int)p_output_length / 2)
+//	{
+//		r_used = t_required_size * 2;
+//		return false;
+//	}
+//
+//	int t_used;
+//	t_used = MultiByteToWideChar(t_codepage, t_codepage == 65001 ? 0 : MB_PRECOMPOSED, (LPCSTR)p_input, p_input_length, (LPWSTR)p_output, p_output_length);
+//	r_used = t_used * 2;
+//
+//	return true;
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -182,23 +181,6 @@ bool create_temporary_mono_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP&
 bool create_temporary_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP& r_bitmap, void*& r_bits)
 {
 	HBITMAP t_bitmap;
-#if 0
-	char t_info_data[sizeof(BITMAPINFOHEADER) + 3 * sizeof(RGBQUAD)];
-	BITMAPINFO *t_info = (BITMAPINFO *)t_info_data;
-//	HBITMAP t_bitmap;
-	memset(t_info, 0, sizeof(BITMAPINFOHEADER));
-	t_info -> bmiHeader . biSize = sizeof(BITMAPINFOHEADER);
-	t_info -> bmiHeader . biCompression = BI_BITFIELDS;
-	*(DWORD *)&t_info -> bmiColors[0] = 0x00FF0000;
-	*(DWORD *)&t_info -> bmiColors[1] = 0x0000FF00;
-	*(DWORD *)&t_info -> bmiColors[2] = 0x000000FF;
-	t_info -> bmiHeader . biWidth = p_width;
-	t_info -> bmiHeader . biHeight = -(int4)p_height;
-	t_info -> bmiHeader . biPlanes = 1;
-	t_info -> bmiHeader . biBitCount = 32;
-	t_info -> bmiHeader . biSizeImage = 0; //p_height * ((p_width + 31) & ~31) / 8;
-	t_bitmap = CreateDIBSection(p_dc, t_info, DIB_RGB_COLORS, (void **)&r_bits, NULL, 0);
-#else
 	BITMAPV4HEADER t_bitmap_info;
 	memset(&t_bitmap_info, 0, sizeof(BITMAPV4HEADER));
 	t_bitmap_info . bV4Size = sizeof(BITMAPV4HEADER);
@@ -214,7 +196,6 @@ bool create_temporary_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP& r_bi
 	t_bitmap_info . bV4GreenMask = 0xFF << 8;
 	t_bitmap_info . bV4BlueMask = 0xFF;
 	t_bitmap = CreateDIBSection(p_dc, (const BITMAPINFO *)&t_bitmap_info, DIB_RGB_COLORS, (void **)&r_bits, NULL, 0);
-#endif
 	if (t_bitmap == NULL)
 		return false;
 
@@ -323,15 +304,37 @@ void gdi_do_arc(HDC p_dc, HDC p_mask_dc, bool p_fill, int4 p_left, int4 p_top, i
 	}
 }
 
+static bool s_theme_dc_initialized = false;
+static HDC s_theme_dc = NULL;
+
+static void MCThemeDCIntialize()
+{
+	if (s_theme_dc_initialized)
+		return;
+
+	s_theme_dc_initialized = true;
+	s_theme_dc = CreateCompatibleDC(NULL);
+}
+
+static void MCThemeDCFinalize()
+{
+	if (!s_theme_dc_initialized)
+		return;
+
+	DeleteDC(s_theme_dc);
+	s_theme_dc_initialized = false;
+}
+
 typedef void (*MCGDIDrawFunc)(HDC p_hdc, void *p_context);
 
 bool MCGDIDrawAlpha(uint32_t p_width, uint32_t p_height, MCGDIDrawFunc p_draw, void *p_context, MCImageBitmap *&r_bitmap)
 {
 	bool t_success = true;
 
+	MCThemeDCIntialize();
+
 	HDC t_dc;
-	//t_dc = CreateCompatibleDC(NULL);
-	t_dc = ((MCScreenDC*)MCscreen)->getdsthdc();
+	t_dc = s_theme_dc;
 	t_success = t_dc != nil;
 
 	bool t_alpha = false;
@@ -502,6 +505,20 @@ bool MCImageBitmapSplitHBITMAPWithMask(HDC p_dc, MCImageBitmap *p_bitmap, HBITMA
 		DeleteObject(t_mask);
 
 	return false;
+}
+
+bool MCGImageSplitHBITMAPWithMask(HDC p_dc, MCGImageRef p_image, HBITMAP &r_bitmap, HBITMAP &r_mask)
+{
+	MCGRaster t_raster;
+	if (!MCGImageGetRaster(p_image, t_raster))
+		return false;
+
+	MCImageBitmap t_bitmap;
+	t_bitmap = MCImageBitmapFromMCGRaster(t_raster);
+
+	MCImageBitmapCheckTransparency(&t_bitmap);
+
+	return MCImageBitmapSplitHBITMAPWithMask(p_dc, &t_bitmap, r_bitmap, r_mask);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

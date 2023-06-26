@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
  
  This file is part of LiveCode.
  
@@ -17,13 +17,6 @@
 #ifndef __GRAPHICS_UTIL_H_
 #define __GRAPHICS_UTIL_H_
 
-#if defined(_WINDOWS) || defined(_WINDOWS_SERVER)
-inline double roundf(float x)
-{
-	return floorf(x + 0.5f);
-}
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 inline MCRectangle MCRectangleMake(int16_t x, int16_t y, uint16_t width, uint16_t height)
@@ -35,6 +28,11 @@ inline MCRectangle MCRectangleMake(int16_t x, int16_t y, uint16_t width, uint16_
 	t_rect.height = height;
 	
 	return t_rect;
+}
+
+inline MCRectangle MCRectangleOffset(const MCRectangle &p_rect, int16_t p_dx, int16_t p_dy)
+{
+	return MCRectangleMake(p_rect.x + p_dx, p_rect.y + p_dy, p_rect.width, p_rect.height);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,7 +67,7 @@ inline MCRectangle32 MCRectangle32Intersect(const MCRectangle32 &a, const MCRect
 	t_right = MCMin(a.x + a.width, b.x + b.width);
 	t_bottom = MCMin(a.y + a.height, b.y + b.height);
 	
-	uint32_t t_width, t_height;
+	int32_t t_width, t_height;
 	t_width = MCMax(0, t_right - t_left);
 	t_height = MCMax(0, t_bottom - t_top);
 	
@@ -86,7 +84,10 @@ inline MCRectangle32 MCRectangle32FromMCRectangle(const MCRectangle &p_rect)
 
 inline MCRectangle MCRectangle32ToMCRectangle(const MCRectangle32 &p_rect)
 {
-	return MCRectangleMake(p_rect.x, p_rect.y, p_rect.width, p_rect.height);
+	return MCRectangleMake(int16_t(MCClamp(p_rect.x, INT16_MIN, INT16_MAX)),
+                           int16_t(MCClamp(p_rect.y, INT16_MIN, INT16_MAX)),
+                           uint16_t(MCClamp(p_rect.width, 0, UINT16_MAX)),
+                           uint16_t(MCClamp(p_rect.height, 0, UINT16_MAX)));
 }
 
 inline MCGRectangle MCRectangleToMCGRectangle(const MCRectangle &p_rect)
@@ -96,87 +97,119 @@ inline MCGRectangle MCRectangleToMCGRectangle(const MCRectangle &p_rect)
 
 inline MCGRectangle MCRectangle32ToMCGRectangle(const MCRectangle32 &p_rect)
 {
-	return MCGRectangleMake(p_rect.x, p_rect.y, p_rect.width, p_rect.height);
+	/* Possible loss of precision */
+	return MCGRectangleMake(MCGFloat(p_rect.x),
+	                        MCGFloat(p_rect.y),
+	                        MCGFloat(p_rect.width),
+	                        MCGFloat(p_rect.height));
+}
+
+inline MCRectangle32 MCRectangle32FromMCGIntegerRectangle(const MCGIntegerRectangle &p_rect)
+{
+	return MCRectangle32Make(p_rect.origin.x, p_rect.origin.y,
+	                         int32_t(MCMin(p_rect.size.width, uint32_t(INT32_MAX))),
+	                         int32_t(MCMin(p_rect.size.height, uint32_t(INT32_MAX))));
+}
+
+inline MCGIntegerRectangle MCRectangle32ToMCGIntegerRectangle(const MCRectangle32 &p_rect)
+{
+	return MCGIntegerRectangleMake(p_rect.x, p_rect.y,
+                                   uint32_t(MCMax(p_rect.width, 0)),
+                                   uint32_t(MCMax(p_rect.height, 0)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline MCRectangle32 MCGRectangleGetInt32Bounds(MCGRectangle p_rect)
-{	
-	int32_t t_left, t_right, t_top, t_bottom;
-	t_left = floor(p_rect.origin.x);
-	t_top = floor(p_rect.origin.y);
-	t_right = ceil(p_rect.origin.x + p_rect.size.width);
-	t_bottom = ceil(p_rect.origin.y + p_rect.size.height);
+inline MCGIntegerRectangle MCRectangleToMCGIntegerRectangle(const MCRectangle &p_rect)
+{
+	return MCGIntegerRectangleMake(p_rect.x, p_rect.y, p_rect.width, p_rect.height);
+}
 
-	int32_t t_width, t_height;
-	t_width = t_right - t_left;
-	t_height = t_bottom - t_top;
-	
-	// [[ Bug 11349 ]] Out of bounds content displayed since getting integer
-	//   bounds of an empty rect is not empty.
-	if (p_rect . size . width == 0.0f || p_rect . size . height == 0.0f)
-	{
-		t_width = 0;
-		t_height = 0;
-	}
-	
-	MCRectangle32 t_rect;
-	t_rect = MCRectangle32Make(t_left, t_top, t_width, t_height);
-	
-	return t_rect;
+inline MCRectangle MCRectangleFromMCGIntegerRectangle(const MCGIntegerRectangle &p_rect)
+{
+	return MCRectangleMake(int16_t(MCClamp(p_rect.origin.x,     INT16_MIN, INT16_MAX)),
+                           int16_t(MCClamp(p_rect.origin.y,     INT16_MIN, INT16_MAX)),
+	                       uint16_t(MCClamp(p_rect.size.width,  0U, uint32_t(UINT16_MAX))),
+	                       uint16_t(MCClamp(p_rect.size.height, 0U, uint32_t(UINT16_MAX))));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline MCRectangle32 MCGRectangleGetInt32Bounds(const MCGRectangle &p_rect)
+{
+	return MCRectangle32FromMCGIntegerRectangle(MCGRectangleGetBounds(p_rect));
 }
 
 inline MCRectangle MCGRectangleGetIntegerBounds(MCGRectangle p_rect)
 {
-	return MCRectangle32ToMCRectangle(MCGRectangleGetInt32Bounds(p_rect));
+	return MCRectangleFromMCGIntegerRectangle(MCGRectangleGetBounds(p_rect));
+}
+
+/* There are a number of "correct" ways to convert a rectangle on the
+ * real plane to a rectangle on the integer plane, and this template
+ * function enables them to be performed correctly.
+ *
+ * The UpperAdjust() function is used to move upper left coordinates
+ * onto the integer grid, and the LowerAdjust() function is used to
+ * move lower right coordinates onto the integer grid.
+ *
+ * If AdjustPerimeter is true, then LowerAdjust is applied to the
+ * right and bottom coordinates; otherwise, LowerAdjust is applied to
+ * the width and height.
+ *
+ * Finally, the resulting rectangle is clamped to the extents of the
+ * target integer plane.
+ */
+template<MCGFloat (UpperAdjust)(MCGFloat),
+         MCGFloat (LowerAdjust)(MCGFloat),
+         bool AdjustPerimeter>
+inline MCRectangle
+MCGRectangleGetIntegerRect(const MCGRectangle &p_rect)
+{
+	MCGFloat t_left, t_top, t_width, t_height;
+	t_left = UpperAdjust(p_rect.origin.x);
+	t_top = UpperAdjust(p_rect.origin.y);
+
+	if (AdjustPerimeter)
+	{
+		t_width = LowerAdjust(p_rect.origin.x + p_rect.size.width) - t_left;
+		t_height = LowerAdjust(p_rect.origin.y + p_rect.size.height) - t_top;
+	}
+	else
+	{
+		t_width = LowerAdjust(p_rect.size.width);
+		t_height = LowerAdjust(p_rect.size.height);
+	}
+
+	return MCRectangleMake( int16_t(MCClamp(t_left,   INT16_MIN,  INT16_MAX)),
+	                        int16_t(MCClamp(t_top,    INT16_MIN,  INT16_MAX)),
+	                       uint16_t(MCClamp(t_width,  0,         UINT16_MAX)),
+	                       uint16_t(MCClamp(t_height, 0,         UINT16_MAX)));
 }
 
 inline MCRectangle MCGRectangleGetIntegerInterior(MCGRectangle p_rect)
 {
-	int32_t t_left, t_right, t_top, t_bottom;
-	t_left = ceil(p_rect.origin.x);
-	t_top = ceil(p_rect.origin.y);
-	t_right = floor(p_rect.origin.x + p_rect.size.width);
-	t_bottom = floor(p_rect.origin.y + p_rect.size.height);
-	
-	MCRectangle t_rect;
-	t_rect = MCRectangleMake(t_left, t_top, t_right - t_left, t_bottom - t_top);
-	
-	return t_rect;
+	return MCGRectangleGetIntegerRect<ceilf, floorf, true>(p_rect);
+}
+
+inline MCRectangle MCGRectangleGetIntegerExterior(const MCGRectangle& p_rect)
+{
+	return MCGRectangleGetIntegerRect<floorf, ceilf, true>(p_rect);
 }
 
 inline MCRectangle MCGRectangleGetIntegerRect(const MCGRectangle &p_rect)
 {
-	int32_t t_left, t_right, t_top, t_bottom;
-	t_left = roundf(p_rect.origin.x);
-	t_top = roundf(p_rect.origin.y);
-	t_right = roundf(p_rect.origin.x + p_rect.size.width);
-	t_bottom = roundf(p_rect.origin.y + p_rect.size.height);
-	
-	return MCRectangleMake(t_left, t_top, t_right - t_left, t_bottom - t_top);
+	return MCGRectangleGetIntegerRect<roundf, roundf, true>(p_rect);
 }
 
 inline MCRectangle MCGRectangleGetIntegerFloorRect(const MCGRectangle &p_rect)
 {
-	int32_t t_left, t_top, t_width, t_height;
-	t_left = floorf(p_rect.origin.x);
-	t_top = floorf(p_rect.origin.y);
-	t_width = floorf(p_rect.size.width);
-	t_height = floorf(p_rect.size.height);
-	
-	return MCRectangleMake(t_left, t_top, t_width, t_height);
+	return MCGRectangleGetIntegerRect<floorf, floorf, false>(p_rect);
 }
 
 inline MCRectangle MCGRectangleGetIntegerCeilingRect(const MCGRectangle &p_rect)
 {
-	int32_t t_left, t_top, t_width, t_height;
-	t_left = ceilf(p_rect.origin.x);
-	t_top = ceilf(p_rect.origin.y);
-	t_width = ceilf(p_rect.size.width);
-	t_height = ceilf(p_rect.size.height);
-	
-	return MCRectangleMake(t_left, t_top, t_width, t_height);
+	return MCGRectangleGetIntegerRect<ceilf, ceilf, false>(p_rect);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,9 +223,15 @@ static inline MCPoint MCPointMake(int16_t x, int16_t y)
 	return t_point;
 }
 
+static inline bool MCPointIsEqual(const MCPoint &a, const MCPoint &b)
+{
+	return a.x == b.x && a.y == b.y;
+}
+
 static inline MCPoint MCGPointToMCPoint(const MCGPoint &p_point)
 {
-	return MCPointMake(p_point.x, p_point.y);
+	return MCPointMake(int16_t(MCClamp(p_point.x, INT16_MIN, INT16_MAX)),
+	                   int16_t(MCClamp(p_point.y, INT16_MIN, INT16_MAX)));
 }
 
 inline MCGPoint MCPointToMCGPoint(MCPoint p_point, MCGFloat p_adjustment = 0.0f)
@@ -201,6 +240,11 @@ inline MCGPoint MCPointToMCGPoint(MCPoint p_point, MCGFloat p_adjustment = 0.0f)
 	t_point . x = (MCGFloat) p_point . x + p_adjustment;
 	t_point . y = (MCGFloat) p_point . y + p_adjustment;
 	return t_point;
+}
+
+static inline MCPoint MCPointOffset(const MCPoint &p_point, int16_t p_x, int16_t p_y)
+{
+	return MCPointMake(MCClamp(p_point.x + p_x, INT16_MIN, INT16_MAX), MCClamp(p_point.y + p_y, INT16_MIN, INT16_MAX));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,19 +318,19 @@ inline MCPoint MCPointTransform(const MCPoint &p_point, const MCGAffineTransform
 
 inline MCGFloat MCGAffineTransformGetEffectiveScale(const MCGAffineTransform &p_transform)
 {
-	return MCMax(MCAbs(p_transform.a), MCAbs(p_transform.d));
+	return MCMax(MCAbs(p_transform.a) + MCAbs(p_transform.c), MCAbs(p_transform.d) + MCAbs(p_transform.b));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 inline MCGPoint MCGRectangleGetCenter(const MCGRectangle &p_rect)
 {
-	return MCGPointMake(p_rect.origin.x + p_rect.size.width / 2.0, p_rect.origin.y + p_rect.size.height / 2.0);
+	return MCGPointMake(p_rect.origin.x + p_rect.size.width / 2.0f, p_rect.origin.y + p_rect.size.height / 2.0f);
 }
 
 inline MCGRectangle MCGRectangleCenterOnPoint(const MCGRectangle &p_rect, const MCGPoint &p_point)
 {
-	return MCGRectangleMake(p_point.x - p_rect.size.width / 2.0, p_point.y - p_rect.size.height / 2.0, p_rect.size.width, p_rect.size.height);
+	return MCGRectangleMake(p_point.x - p_rect.size.width / 2.0f, p_point.y - p_rect.size.height / 2.0f, p_rect.size.width, p_rect.size.height);
 }
 
 inline MCGRectangle MCGRectangleCenterOnRect(const MCGRectangle &p_rect_a, const MCGRectangle &p_rect_b)
@@ -295,36 +339,24 @@ inline MCGRectangle MCGRectangleCenterOnRect(const MCGRectangle &p_rect_a, const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// MM-2014-06-02: [[ CoreText ]] We now no longer need the style attribute of the MCGFont Struct.
+//   Was only used by the ATSUI routines.
 
-#if defined(TARGET_SUBPLATFORM_ANDROID)
+#if defined(TARGET_SUBPLATFORM_ANDROID) || defined(__EMSCRIPTEN__)
 
-#include "mblandroidtypeface.h"
+#include "skiatypeface.h"
 
 static inline MCGFont MCFontStructToMCGFont(MCFontStruct *p_font)
 {
-	MCAndroidFont *t_android_font;
-	t_android_font = (MCAndroidFont*)p_font-> fid;
+	MCSkiaFont *t_skia_font;
+	t_skia_font = (MCSkiaFont*)p_font -> fid;
 	
 	MCGFont t_font;
-	t_font . size = t_android_font -> size;
-	t_font . ascent = p_font -> ascent;
-	t_font . descent = p_font -> descent;
-	t_font . fid = t_android_font -> typeface;
-	t_font . style = 0;
-	t_font . ideal = false;
-	return t_font;
-}
-
-#elif defined(_MAC_DESKTOP) || defined(_MAC_SERVER)
-
-static inline MCGFont MCFontStructToMCGFont(MCFontStruct *p_font)
-{
-	MCGFont t_font;
-	t_font . size = p_font -> size;
-	t_font . ascent = p_font -> ascent;
-	t_font . descent = p_font -> descent;
-	t_font . style = p_font -> style;
-	t_font . fid = p_font -> fid;
+	t_font . size = t_skia_font -> size;
+	t_font . m_ascent = p_font -> m_ascent;
+	t_font . m_descent = p_font -> m_descent;
+	t_font . m_leading = p_font -> m_leading;
+	t_font . fid = t_skia_font -> typeface;
 	t_font . ideal = false;
 	return t_font;
 }
@@ -343,10 +375,10 @@ static inline MCGFont MCFontStructToMCGFont(MCFontStruct *p_font)
 	}
 	
 	t_font . size = p_font -> size;
-	t_font . ascent = p_font -> ascent;
-	t_font . descent = p_font -> descent;
+	t_font . m_ascent = p_font -> m_ascent;
+	t_font . m_descent = p_font -> m_descent;
+    t_font . m_leading = p_font -> m_leading;
 	t_font . fid = static_cast<MCNewFontStruct *>(p_font) -> description;
-	t_font . style = 0;
 	t_font . ideal = false;
 	return t_font;
 }
@@ -356,29 +388,45 @@ static inline MCGFont MCFontStructToMCGFont(MCFontStruct *p_font)
 static inline MCGFont MCFontStructToMCGFont(MCFontStruct *p_font)
 {
 	MCGFont t_font;
+	if (p_font == nil)
+	{
+		MCMemoryClear(&t_font, sizeof(t_font));
+		return t_font;
+	}
+
 	t_font . size = p_font -> size;
-	t_font . ascent = p_font -> ascent;
-	t_font . descent = p_font -> descent;
+	t_font . m_ascent = p_font -> m_ascent;
+	t_font . m_descent = p_font -> m_descent;
+    t_font . m_leading = p_font -> m_leading;
 	t_font . fid = p_font -> fid;
-	t_font . style = 0;
 	t_font . ideal = p_font -> printer == True;
 	return t_font;
 }
 
-#else
+#elif defined(_MAC_DESKTOP) || defined(_MAC_SERVER) || defined(TARGET_SUBPLATFORM_IPHONE)
 
 static inline MCGFont MCFontStructToMCGFont(MCFontStruct *p_font)
 {
 	MCGFont t_font;
 	t_font . size = p_font -> size;
-	t_font . ascent = p_font -> ascent;
-	t_font . descent = p_font -> descent;
+	t_font . m_ascent = p_font -> m_ascent;
+	t_font . m_descent = p_font -> m_descent;
+    t_font . m_leading = p_font -> m_leading;
 	t_font . fid = p_font -> fid;
-	t_font . style = 0;
 	t_font . ideal = false;
 	return t_font;
 }
 
+#else
+
+#error "Platform doesn't support fonts"
+
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+// IM-2014-10-22: [[ Bug 13746 ]] Raster modifying utility functions
+void MCGRasterClearRect(MCGRaster &x_raster, const MCGIntegerRectangle &p_rect);
+void MCGRasterApplyAlpha(MCGRaster &x_raster, const MCGRaster &p_alpha, const MCGIntegerPoint &p_offset);
 
 #endif // __GRAPHICS_UTIL_H_

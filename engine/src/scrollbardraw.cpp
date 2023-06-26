@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "objdefs.h"
 #include "parsedef.h"
 
-#include "execpt.h"
+
 #include "util.h"
 #include "font.h"
 #include "sellst.h"
@@ -80,7 +80,17 @@ void MCScrollbar::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bo
 		// MW-2012-09-17: [[ Bug 9212 ]] If we are a progress bar then make sure
 		//   we animate.
 		if (getflag(F_PROGRESS))
-			MCscreen -> addtimer(this, MCM_internal3, 1000 / 30);
+        {
+            // MM-2014-07-31: [[ ThreadedRendering ]] Make sure only a single thread posts the timer message (i.e. the first that gets here)
+            if (!m_animate_posted)
+            {
+                if (!m_animate_posted)
+                {
+                    m_animate_posted = true;
+                    MCscreen -> addtimer(this, MCM_internal3, 1000 / 30);
+                }
+            }
+        }
 #endif
 		if (flags & F_SHOW_VALUE)
 		{
@@ -128,7 +138,7 @@ void MCScrollbar::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bo
 			if (!issbdisabled() && flags & F_OPAQUE
 			        && (MClook == LF_MOTIF || flags & F_PROGRESS
 			            || getstyleint(flags) == F_VERTICAL
-			            || IsMacEmulatedLF() && !(flags & F_SB_STYLE)))
+			            || (IsMacEmulatedLF() && !(flags & F_SB_STYLE))))
 			{ //filled
 				setforeground(dc, DI_SHADOW, False);
 				dc->fillrect(trect);
@@ -365,13 +375,10 @@ void MCScrollbar::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bo
 	if (!p_isolated)
 	{
 		dc -> end();
-
-		if (getstate(CS_SELECTED))
-			drawselected(dc);
 	}
 }
 
-/*the color enum is defined in control.h as:
+/*the color enum is defined in mccontrol.h as:
   5 colors: MAC_THUMB_TOP,MAC_THUMB_BACK,MAC_THUMB_BOTTOM,
   MAC_THUMB_GRIP,MAC_THUMB_HILITE, from light blue to darkest blue */
 #define MAC_THUMBCOLORS 5
@@ -798,17 +805,16 @@ void MCScrollbar::drawvalue(MCDC *dc, MCRectangle &thumb)
 	fdescent = MCFontGetDescent(m_font);
 	if (rect.height - thumb.height > fascent)
 	{
-		char *data = NULL;
-		uint4 length = 0;
-		length = MCU_r8tos(data, length, thumbpos, nffw, nftrailing, nfforce);
-		// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-		uint2 tw = MCFontMeasureText(m_font, data, length, false, getstack() -> getdevicetransform());
+		MCAutoStringRef t_data;
+		/* UNCHECKED */ MCU_r8tos(thumbpos, nffw, nftrailing, nfforce, &t_data);
+        // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+        uint2 tw = MCFontMeasureText(m_font, *t_data, getstack() -> getdevicetransform());
 		if (getstyleint(flags) == F_VERTICAL)
 		{
 			uint2 sx = thumb.x + thumb.width + ((rect.width - thumb.width - tw) >> 1);
 			uint2 sy = thumb.y + ((thumb.height + fascent) >> 1);
 			setforeground(dc, DI_FORE, False);
-            dc -> drawtext(sx, sy, data, length, m_font, false, false);
+            dc -> drawtext(sx, sy, *t_data, m_font, false, kMCDrawTextNoBreak);
 		}
 		else
 		{
@@ -823,9 +829,8 @@ void MCScrollbar::drawvalue(MCDC *dc, MCRectangle &thumb)
 			else
 				sy = rect.y + rect.height - fdescent;
 			setforeground(dc, DI_FORE, False);
-            dc -> drawtext(sx, sy, data, length, m_font, false, false);
+            dc -> drawtext(sx, sy, *t_data, m_font, false, kMCDrawTextNoBreak);
 		}
-		delete data;
 	}
 }
 
@@ -874,7 +879,7 @@ void MCScrollbar::drawmacthumb(MCDC *dc, MCRectangle &thumb)
 	uint2 shift = state & CS_SCROLL ? 1 : 0;
 
 	MCPoint p[3];
-	MCSegment grid[5];
+	MCLineSegment grid[5];
 	uint2 gridpoints;
 	if (getstyleint(flags) == F_VERTICAL)
 	{

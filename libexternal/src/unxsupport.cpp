@@ -1,3 +1,19 @@
+/* Copyright (C) 2003-2015 LiveCode Ltd.
+
+This file is part of LiveCode.
+
+LiveCode is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License v3 as published by the Free
+Software Foundation.
+
+LiveCode is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received a copy of the GNU General Public License
+along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
+
 #include <cstring>
 #include <cctype>
 #include <cstdlib>
@@ -6,8 +22,11 @@
 #include <pwd.h>
 #endif
 #include <sys/stat.h>
+#include <new>
 
 #include <revolution/support.h>
+
+using std::nothrow;
 
 #define PATH_MAX 4096
 #define stricmp strcasecmp
@@ -35,14 +54,15 @@ char *string_to_utf8(const char *p_string)
 		unsigned int v;
 		v = ((unsigned char *)p_string)[i];
 
-		if (v < 128)
+        if (v < 128)
 			t_utf8_string[j++] = v;
 		else
 		{
-			t_utf8_string[j++] = 0xC0 | (v >> 5);
-			t_utf8_string[j++] = 0x80 | (v & 63);
+            // SN-2015-03-11: [[ Bug 14413 ]] Do the expected shift
+            t_utf8_string[j++] = (0xC0 | (v >> 6));
+            t_utf8_string[j++] = (0x80 | (v & 63));
 		}
-	}
+    }
 
 	t_utf8_string[j] = '\0';
 
@@ -71,7 +91,7 @@ char *strclone(const char *one)
 	char *two = NULL;
 	if (one != NULL)
 	{
-		two = new char[strlen(one) + 1];
+		two = new (nothrow) char[strlen(one) + 1];
 		strcpy(two, one);
 	}
 	return two;
@@ -79,7 +99,7 @@ char *strclone(const char *one)
 
 char *get_current_directory()
 {
-	char *dptr = new char[PATH_MAX + 2];
+	char *dptr = new (nothrow) char[PATH_MAX + 2];
 	getcwd(dptr, PATH_MAX);
 	return dptr;
 }
@@ -110,7 +130,7 @@ char *os_path_resolve(const char *p_native_path)
 			pw = getpwnam(tpath + 1);
 		if (pw == NULL)
 			return NULL;
-		tildepath = new char[strlen(pw->pw_dir) + strlen(tptr) + 2];
+		tildepath = new (nothrow) char[strlen(pw->pw_dir) + strlen(tptr) + 2];
 		strcpy(tildepath, pw->pw_dir);
 		if (*tptr)
 		{
@@ -127,7 +147,7 @@ char *os_path_resolve(const char *p_native_path)
 	if (lstat(tildepath, &buf) != 0 || !S_ISLNK(buf.st_mode))
 		return tildepath;
 	int4 size;
-	char *newname = new char[PATH_MAX + 2];
+	char *newname = new (nothrow) char[PATH_MAX + 2];
 	if ((size = readlink(tildepath, newname, PATH_MAX)) < 0)
 	{
 		delete tildepath;
@@ -138,7 +158,7 @@ char *os_path_resolve(const char *p_native_path)
 	newname[size] = '\0';
 	if (newname[0] != '/')
 	{
-		char *fullpath = new char[strlen(p_native_path) + strlen(newname) + 2];
+		char *fullpath = new (nothrow) char[strlen(p_native_path) + strlen(newname) + 2];
 		strcpy(fullpath, p_native_path);
 		char *sptr = strrchr(fullpath, '/');
 		if (sptr == NULL)

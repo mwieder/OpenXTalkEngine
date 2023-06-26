@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -57,8 +57,10 @@ public:
 	Boolean close(Boolean force);
 
 	bool hasfeature(MCPlatformFeature feature);
-	const char *getdisplayname(void);
-	void getvendorstring(MCExecPoint &ep);
+	MCNameRef getdisplayname(void);
+	MCNameRef getvendorname(void);
+	uint2 getwidth();
+	uint2 getheight();
 	uint2 getwidthmm();
 	uint2 getheightmm();
 	uint2 getmaxpoints();
@@ -75,17 +77,19 @@ public:
 	virtual bool platform_getdisplays(bool p_effective, MCDisplay *&r_displays, uint32_t &r_count);
 	virtual bool platform_displayinfocacheable(void);
 	virtual bool platform_getwindowgeometry(Window w, MCRectangle &drect);
-	virtual void platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m);
+	virtual void platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable);
 	virtual void platform_querymouse(int16_t &r_x, int16_t &r_y);
 	virtual void platform_setmouse(int16_t p_x, int16_t p_y);
 	
+	virtual void *GetNativeWindowHandle(Window p_window);
+	
 	// IM-2014-01-28: [[ HiDPI ]] Convenience methods to convert logical to screen coords and back
 	
-	static MCGFloat logicaltoscreenscale(void);
-	static MCPoint logicaltoscreenpoint(const MCPoint &p_point);
-	static MCPoint screentologicalpoint(const MCPoint &p_point);
-	static MCRectangle logicaltoscreenrect(const MCRectangle &p_rect);
-	static MCRectangle screentologicalrect(const MCRectangle &p_rect);
+    static MCGFloat logicaltoscreenscale(void);
+    MCPoint logicaltoscreenpoint(const MCPoint &p_point);
+    MCPoint screentologicalpoint(const MCPoint &p_point);
+    MCRectangle logicaltoscreenrect(const MCRectangle &p_rect);
+    MCRectangle screentologicalrect(const MCRectangle &p_rect);
 	
 	uint16_t device_getwidth();
 	uint16_t device_getheight();
@@ -108,7 +112,7 @@ public:
 	void raisewindow(Window window);
 	void iconifywindow(Window window);
 	void uniconifywindow(Window window);
-	void setname(Window window, const char *newname);
+	void setname(Window window, MCStringRef newname);
 	void sync(Window w);
 	void setinputfocus(Window window);
 
@@ -120,16 +124,16 @@ public:
 	MCCursorRef createcursor(MCImageBitmap *p_image, int2 p_hotspot_x, int2 p_hotspot_y);
 	void freecursor(MCCursorRef c);
 
-	uint4 dtouint4(Drawable d);
-	Boolean uint4towindow(uint4, Window &w);
+	uintptr_t dtouint(Drawable d);
+	Boolean uinttowindow(uintptr_t, Window &w);
 
 	void beep();
-	bool setbeepsound(const char *sound);
-	const char *getbeepsound(void);
-	void getbeep(uint4 property, MCExecPoint &ep);
+	bool setbeepsound(MCStringRef p_beep_sound);
+	bool getbeepsound(MCStringRef& r_beep_sound);
+	void getbeep(uint4 property, int4& r_value);
 	void setbeep(uint4 property, int4 beep);
 
-	MCImageBitmap *snapshot(MCRectangle &r, uint4 window, const char *displayname, MCPoint *size);
+	MCImageBitmap *snapshot(MCRectangle &r, uint4 window, MCStringRef displayname, MCPoint *size);
 
 	void enablebackdrop(bool p_hard = false);
 	void disablebackdrop(bool p_hard = false);
@@ -159,10 +163,10 @@ public:
 	void flushevents(uint2 e);
 	void updatemenubar(Boolean force);
 	Boolean istripleclick();
-	void getkeysdown(MCExecPoint &ep);
+	bool getkeysdown(MCListRef& r_list);
 	
-	uint1 fontnametocharset(const char *oldfontname);
-	char *charsettofontname(uint1 charset, const char *oldfontname);
+	uint1 fontnametocharset(MCStringRef p_fontname);
+//	char *charsettofontname(uint1 charset, const char *oldfontname);
 	
 	void clearIME(Window w);
 	void openIME();
@@ -174,8 +178,6 @@ public:
 	//
 
 	MCPrinter *createprinter(void);
-	void listprinters(MCExecPoint& ep);
-
 	//
 
 	bool ownsselection(void);
@@ -188,16 +190,12 @@ public:
 
 	//
 
-	MCDragAction dodragdrop(MCPasteboard *p_pasteboard, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint *p_image_offset);
-
-	//
-
-	MCScriptEnvironment *createscriptenvironment(const char *p_language);
+	MCScriptEnvironment *createscriptenvironment(MCStringRef p_language);
 
 	//
 	
-	int32_t popupanswerdialog(const char **p_buttons, uint32_t p_button_count, uint32_t p_type, const char *p_title, const char *p_message);
-	char *popupaskdialog(uint32_t p_type, const char *p_title, const char *p_prompt, const char *p_initial, bool p_hint);
+    int32_t popupanswerdialog(MCStringRef *p_buttons, uint32_t p_button_count, uint32_t p_type, MCStringRef p_title, MCStringRef p_message, bool p_blocking);
+	bool popupaskdialog(uint32_t p_type, MCStringRef p_title, MCStringRef p_prompt, MCStringRef p_initial, bool p_hint, MCStringRef& r_result);
 	
 	////////// COMMON IMPLEMENTATION METHODS
 	
@@ -246,6 +244,9 @@ public:
 	// MW-2012-11-14: [[ Bug 10514 ]] Returns the current window on display.
 	Window get_current_window(void);
 	
+    void refresh_current_window(void);
+	
+	void getsystemappearance(MCSystemAppearance &r_appearance);
 private:
 	// The top-left of the mobile 'window' in screen co-ordinates.
 	int32_t m_window_left;

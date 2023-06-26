@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -182,10 +182,10 @@ Bool DBCursor_POSTGRESQL::prev()
 Output: False on error*/
 Bool DBCursor_POSTGRESQL::getFieldsInformation()
 {
-	fields = new DBField *[fieldCount];
+	fields = new (nothrow) DBField *[fieldCount];
 	for (unsigned int i=0; i< fieldCount; i++) 
 	{
-		DBField *tfield = new DBField();
+		DBField *tfield = new (nothrow) DBField();
 		fields[i] = tfield;
 		char* tmpStr;
 		tmpStr = PQfname(POSTGRESQL_res, i);

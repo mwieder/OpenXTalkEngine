@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -131,14 +131,14 @@ struct Hcatts
 class MCHcsnd : public MCDLlist
 {
 public:
-	char *name;
+	MCNameRef m_name;
 	int1 *data;
 	uint4 size;
 	uint2 rate;
 	uint2 id;
 	MCHcsnd();
 	~MCHcsnd();
-	Boolean import(uint4 inid, char *inname, char *sptr);
+	Boolean import(uint4 inid, MCNameRef inname, char *sptr);
 	MCAudioClip *build();
 	MCHcsnd *next()
 	{
@@ -189,8 +189,8 @@ public:
 class MCHcfield : public MCDLlist
 {
 public:
-	char *name;
-	char *script;
+    char *name;
+    char *script;
 	MCRectangle rect;
 	uint2 id;
 	uint2 atts;
@@ -225,8 +225,8 @@ public:
 class MCHcbutton : public MCDLlist
 {
 public:
-	char *name;
-	char *script;
+    char *name;
+    char *script;
 	MCRectangle rect;
 	uint2 titlewidth;
 	uint2 icon;
@@ -269,14 +269,14 @@ public:
 	// IM-2014-04-08: [[ Bug 12101 ]] Buffers to hold 1-bit bitmaps - dimensions stored in rect (data), mrect (mask)
 	uint8_t *mask;
 	uint8_t *data;
-	char *name;
+    MCNameRef m_name;
 	uint2 xhot;
 	uint2 yhot;
 	MCHcbmap();
 	~MCHcbmap();
 	void setvisible(Boolean newvis);
-	void icon(uint4 inid, char *inname, char *sptr);
-	void cursor(uint4 inid, char *inname, char *sptr);
+	void icon(uint4 inid, MCNameRef inname, char *sptr);
+	void cursor(uint4 inid, MCNameRef inname, char *sptr);
 	IO_stat parse(char *sptr);
 	MCControl *build();
 	MCHcbmap *next()
@@ -404,4 +404,5 @@ public:
 #endif
 };
 
-extern IO_stat hc_import(char *name, IO_handle stream, MCStack *&sptr);
+extern IO_stat hc_import(MCStringRef p_name, IO_handle p_stream, MCStack *&p_sptr);
+

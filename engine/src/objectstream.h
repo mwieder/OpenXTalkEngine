@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 class MCObjectInputStream
 {
 public:
-	MCObjectInputStream(IO_handle p_stream, uint32_t p_remaining);
+	MCObjectInputStream(IO_handle p_stream, uint32_t p_remaining, bool p_new_format);
 	virtual ~MCObjectInputStream(void);
 
 	IO_stat ReadTag(uint32_t& r_flags, uint32_t& r_length, uint32_t& r_header_length);
@@ -36,8 +36,9 @@ public:
 	IO_stat ReadS32(int32_t& r_value);
 	IO_stat ReadFloat32(float& r_value);
 	IO_stat ReadFloat64(double& r_value);
-	IO_stat ReadCString(char*& r_value);
-	IO_stat ReadNameRef(MCNameRef& r_value);
+	IO_stat ReadNameRefNew(MCNameRef& r_value, bool p_supports_unicode);
+	IO_stat ReadStringRefNew(MCStringRef& r_value, bool p_supports_unicode);
+    IO_stat ReadTranslatedStringRef(MCStringRef& r_value);
 	IO_stat ReadColor(MCColor &r_color);
 
 	IO_stat Read(void *p_buffer, uint32_t p_amount);
@@ -67,6 +68,10 @@ protected:
 
 	// The amount of data remaining in the input file for this stream
 	uint32_t m_remaining;
+    
+    // SN-2014-03-27 [[ Bug 11993 ]] We need to know whether we are reading from a 7.0 file
+    // in order to add the missing nil byte in the end before decrypting.  
+    bool m_new_format;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -85,28 +90,41 @@ public:
 	IO_stat WriteU16(uint16_t p_value);
 	IO_stat WriteU32(uint32_t p_value);
 	IO_stat WriteU64(uint64_t p_value);
-	IO_stat WriteCString(const char *p_value);
-	IO_stat WriteNameRef(MCNameRef p_value);
+	IO_stat WriteStringRefNew(MCStringRef p_value, bool p_supports_unicode);
+	IO_stat WriteNameRefNew(MCNameRef p_value, bool p_supports_unicode);
 	IO_stat WriteColor(const MCColor &p_value);
 
 	IO_stat WriteS8(int8_t p_value)
 	{
-		return WriteU8((unsigned)p_value);
+		return WriteU8(p_value);
 	}
 
 	IO_stat WriteS16(int16_t p_value)
 	{
-		return WriteU16((unsigned)p_value);
+		return WriteU16(p_value);
 	}
+
+    IO_stat WritePoint(MCPoint p_point)
+    {
+        IO_stat t_stat = IO_NORMAL;
+        if (t_stat == IO_NORMAL)
+            t_stat = WriteS16(p_point.x);
+        if (t_stat == IO_NORMAL)
+            t_stat = WriteS16(p_point.y);
+        return t_stat;
+    }
 
 	IO_stat WriteS32(int32_t p_value)
 	{
-		return WriteU32((unsigned)p_value);
+		return WriteU32(p_value);
 	}
 
 	IO_stat Write(const void *p_buffer, uint32_t p_amount);
 
 	virtual IO_stat Flush(bool p_end);
+    
+    // SN-2014-10-27: [[ Bug 13554 ]] The string length is different according to the support of Unicode
+    uint32_t MeasureStringRefNew(MCStringRef p_string, bool p_supports_unicode);
 
 protected:
 	IO_handle m_stream;

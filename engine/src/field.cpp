@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,21 +16,20 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "sellst.h"
 #include "stack.h"
 #include "card.h"
 #include "cdata.h"
 #include "scrolbar.h"
 #include "field.h"
-#include "block.h"
+#include "MCBlock.h"
 #include "paragraf.h"
 #include "mcerror.h"
 #include "util.h"
@@ -43,12 +42,19 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "globals.h"
 #include "context.h"
 #include "redraw.h"
+#include "objectstream.h"
+
+#include "exec.h"
+#include "exec-interface.h"
+
+#include "stackfileformat.h"
 
 int2 MCField::clickx;
 int2 MCField::clicky;
 int2 MCField::goalx;
 
-MCRectangle MCField::cursorrect;
+MCRectangle MCField::cursorrectp;
+MCRectangle MCField::cursorrects;
 Boolean MCField::cursoron = False;
 MCField *MCField::cursorfield = NULL;
 
@@ -61,14 +67,172 @@ int2 MCField::narrowmargin = 8;
 MCRectangle MCField::linkrect;
 MCBlock *MCField::linkstart;
 MCBlock *MCField::linkend;
-int4 MCField::linksi;
-int4 MCField::linkei;
-int4 MCField::composeoffset = 0;
-uint2 MCField::composelength = 0;
-uint1 MCField::composeconvertingsi = 0;
-uint1 MCField::composeconvertingei = 0;
+findex_t MCField::linksi;
+findex_t MCField::linkei;
+findex_t MCField::composeoffset = 0;
+findex_t MCField::composelength = 0;
+findex_t MCField::composeconvertingsi = 0;
+findex_t MCField::composeconvertingei = 0;
 Boolean MCField::composing = False;
-uint2 MCField::composecursorindex = 0;
+findex_t MCField::composecursorindex = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+MCPropertyInfo MCField::kProperties[] =
+{
+	DEFINE_RW_OBJ_PROPERTY(P_AUTO_TAB, Bool, MCField, AutoTab)
+	DEFINE_RW_OBJ_PROPERTY(P_DONT_SEARCH, Bool, MCField, DontSearch)
+	DEFINE_RW_OBJ_PROPERTY(P_DONT_WRAP, Bool, MCField, DontWrap)
+	DEFINE_RW_OBJ_PROPERTY(P_FIXED_HEIGHT, Bool, MCField, FixedHeight)
+	DEFINE_RW_OBJ_PROPERTY(P_LOCK_TEXT, Bool, MCField, LockText)
+	DEFINE_RW_OBJ_PROPERTY(P_SHARED_TEXT, Bool, MCField, SharedText)
+	DEFINE_RW_OBJ_PROPERTY(P_SHOW_LINES, Bool, MCField, ShowLines)
+	DEFINE_RW_OBJ_PROPERTY(P_HGRID, Bool, MCField, HGrid)
+	DEFINE_RW_OBJ_PROPERTY(P_VGRID, Bool, MCField, VGrid)
+	DEFINE_RW_OBJ_ENUM_PROPERTY(P_STYLE, InterfaceFieldStyle, MCField, Style)
+	DEFINE_RW_OBJ_PROPERTY(P_AUTO_HILITE, Bool, MCField, AutoHilite)
+	DEFINE_RW_OBJ_PROPERTY(P_AUTO_ARM, Bool, MCField, AutoArm)
+	DEFINE_RW_OBJ_PROPERTY(P_FIRST_INDENT, Int16, MCField, FirstIndent)
+	DEFINE_RW_OBJ_PROPERTY(P_WIDE_MARGINS, Bool, MCField, WideMargins)
+	DEFINE_RW_OBJ_PROPERTY(P_HSCROLL, Int32, MCField, HScroll)
+	DEFINE_RW_OBJ_PROPERTY(P_VSCROLL, Int32, MCField, VScroll)
+	DEFINE_RW_OBJ_PROPERTY(P_HSCROLLBAR, Bool, MCField, HScrollbar)
+	DEFINE_RW_OBJ_PROPERTY(P_VSCROLLBAR, Bool, MCField, VScrollbar)
+	DEFINE_RW_OBJ_PROPERTY(P_SCROLLBAR_WIDTH, UInt16, MCField, ScrollbarWidth)
+	DEFINE_RO_OBJ_PROPERTY(P_FORMATTED_WIDTH, Int16, MCField, FormattedWidth)
+	DEFINE_RO_OBJ_PROPERTY(P_FORMATTED_HEIGHT, Int16, MCField, FormattedHeight)
+	DEFINE_RW_OBJ_PROPERTY(P_LIST_BEHAVIOR, Bool, MCField, ListBehavior)
+	DEFINE_RW_OBJ_PROPERTY(P_MULTIPLE_HILITES, Bool, MCField, MultipleHilites)
+	DEFINE_RW_OBJ_PROPERTY(P_NONCONTIGUOUS_HILITES, Bool, MCField, NoncontiguousHilites)
+    DEFINE_RW_OBJ_ENUM_PROPERTY(P_CURSORMOVEMENT, InterfaceFieldCursorMovement, MCField, CursorMovement)
+    DEFINE_RW_OBJ_ENUM_PROPERTY(P_TEXTDIRECTION, InterfaceTextDirection, MCField, TextDirection)
+	DEFINE_RW_OBJ_PART_PROPERTY(P_TEXT, String, MCField, Text)
+	DEFINE_RW_OBJ_PART_PROPERTY(P_UNICODE_TEXT, BinaryString, MCField, UnicodeText)
+	DEFINE_RW_OBJ_PART_NON_EFFECTIVE_PROPERTY(P_HTML_TEXT, Any, MCField, HtmlText)
+	DEFINE_RO_OBJ_PART_EFFECTIVE_PROPERTY(P_HTML_TEXT, Any, MCField, HtmlText)
+	DEFINE_RW_OBJ_PART_PROPERTY(P_RTF_TEXT, String, MCField, RtfText)
+	DEFINE_RW_OBJ_PART_NON_EFFECTIVE_PROPERTY(P_STYLED_TEXT, Array, MCField, StyledText)
+	DEFINE_RO_OBJ_PART_EFFECTIVE_PROPERTY(P_STYLED_TEXT, Array, MCField, StyledText)
+	DEFINE_RO_OBJ_PART_NON_EFFECTIVE_PROPERTY(P_FORMATTED_STYLED_TEXT, Array, MCField, FormattedStyledText)
+	DEFINE_RO_OBJ_PART_EFFECTIVE_PROPERTY(P_FORMATTED_STYLED_TEXT, Array, MCField, FormattedStyledText)
+	DEFINE_RO_OBJ_PART_PROPERTY(P_PLAIN_TEXT, String, MCField, PlainText)
+	DEFINE_RO_OBJ_PART_PROPERTY(P_UNICODE_PLAIN_TEXT, BinaryString, MCField, UnicodePlainText)
+	DEFINE_RW_OBJ_PART_PROPERTY(P_FORMATTED_TEXT, String, MCField, FormattedText)
+	DEFINE_RW_OBJ_PART_PROPERTY(P_UNICODE_FORMATTED_TEXT, BinaryString, MCField, UnicodeFormattedText)
+	DEFINE_RW_OBJ_PROPERTY(P_LABEL, String, MCField, Label)
+	DEFINE_RW_OBJ_PROPERTY(P_TOGGLE_HILITE, Bool, MCField, ToggleHilite)
+	DEFINE_RW_OBJ_PROPERTY(P_3D_HILITE, Bool, MCField, ThreeDHilite)
+	DEFINE_RO_OBJ_PART_ENUM_PROPERTY(P_ENCODING, InterfaceEncoding, MCField, Encoding)
+	DEFINE_RW_OBJ_LIST_PROPERTY(P_HILITED_LINES, ItemsOfLooseUInt, MCField, HilitedLines)
+    DEFINE_RW_OBJ_PART_CUSTOM_PROPERTY(P_FLAGGED_RANGES, InterfaceFieldRanges, MCField, FlaggedRanges)
+    DEFINE_RW_OBJ_LIST_PROPERTY(P_TAB_STOPS, ItemsOfLooseUInt, MCField, TabStops)
+    DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_TAB_ALIGN, InterfaceFieldTabAlignments, MCField, TabAlignments)
+    DEFINE_RW_OBJ_LIST_PROPERTY(P_TAB_WIDTHS, ItemsOfLooseUInt, MCField, TabWidths)
+    DEFINE_RO_OBJ_LIST_PROPERTY(P_PAGE_HEIGHTS, LinesOfLooseUInt, MCField, PageHeights)
+    DEFINE_RO_OBJ_CUSTOM_PROPERTY(P_PAGE_RANGES, InterfaceFieldRanges, MCField, PageRanges)
+    
+    DEFINE_RW_OBJ_ENUM_PROPERTY(P_KEYBOARD_TYPE, InterfaceKeyboardType, MCField, KeyboardType)
+    DEFINE_RW_OBJ_ENUM_PROPERTY(P_RETURN_KEY_TYPE, InterfaceReturnKeyType, MCField, ReturnKeyType)
+
+    DEFINE_RW_OBJ_NON_EFFECTIVE_OPTIONAL_ENUM_PROPERTY(P_TEXT_ALIGN, InterfaceTextAlign, MCField, TextAlign)
+	DEFINE_RO_OBJ_EFFECTIVE_ENUM_PROPERTY(P_TEXT_ALIGN, InterfaceTextAlign, MCField, TextAlign)
+    
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_TEXT, String, MCField, Text)
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_UNICODE_TEXT, BinaryString, MCField, UnicodeText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_PLAIN_TEXT, String, MCField, PlainText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_UNICODE_PLAIN_TEXT, BinaryString, MCField, UnicodePlainText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_FORMATTED_TEXT, String, MCField, FormattedText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_UNICODE_FORMATTED_TEXT, BinaryString, MCField, UnicodeFormattedText)
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_RTF_TEXT, String, MCField, RtfText)
+	DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_PROPERTY(P_HTML_TEXT, Any, MCField, HtmlText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_PROPERTY(P_HTML_TEXT, Any, MCField, EffectiveHtmlText)
+	DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_PROPERTY(P_STYLED_TEXT, Array, MCField, StyledText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_PROPERTY(P_STYLED_TEXT, Array, MCField, EffectiveStyledText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_NON_EFFECTIVE_PROPERTY(P_FORMATTED_STYLED_TEXT, Array, MCField, FormattedStyledText)
+	DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_PROPERTY(P_FORMATTED_STYLED_TEXT, Array, MCField, EffectiveFormattedStyledText)
+
+    // AL-2014-05-27: [[ Bug 12511 ]] charIndex is a char chunk property
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_CHAR_INDEX, UInt32, MCField, CharIndex)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_LINE_INDEX, UInt32, MCField, LineIndex)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_FORMATTED_TOP, Int32, MCField, FormattedTop)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_FORMATTED_LEFT, Int32, MCField, FormattedLeft)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_FORMATTED_WIDTH, Int32, MCField, FormattedWidth)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_FORMATTED_HEIGHT, Int32, MCField, FormattedHeight)
+	DEFINE_RO_OBJ_CHAR_CHUNK_PROPERTY(P_FORMATTED_RECT, Rectangle32, MCField, FormattedRect)
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_LINK_TEXT, String, MCField, LinkText)
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_IMAGE_SOURCE, String, MCField, ImageSource)
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_METADATA, String, MCField, Metadata)
+	DEFINE_RW_OBJ_LINE_CHUNK_PROPERTY(P_METADATA, String, MCField, Metadata)
+	// PM-2015-07-06: [[ Bug 15577 ]] "visited" property should be RW
+	DEFINE_RW_OBJ_CHAR_CHUNK_PROPERTY(P_VISITED, Bool, MCField, Visited)
+	DEFINE_RO_OBJ_CHAR_CHUNK_ENUM_PROPERTY(P_ENCODING, InterfaceEncoding, MCField, Encoding)
+	DEFINE_RW_OBJ_CHAR_CHUNK_MIXED_PROPERTY(P_FLAGGED, Bool, MCField, Flagged)
+	DEFINE_RW_OBJ_CHAR_CHUNK_CUSTOM_PROPERTY(P_FLAGGED_RANGES, InterfaceFieldRanges, MCField, FlaggedRanges)
+	DEFINE_RW_OBJ_LINE_CHUNK_MIXED_ENUM_PROPERTY(P_LIST_STYLE, InterfaceListStyle, MCField, ListStyle)
+	DEFINE_RW_OBJ_LINE_CHUNK_MIXED_PROPERTY(P_LIST_DEPTH, OptionalUInt16, MCField, ListDepth)
+	DEFINE_RW_OBJ_LINE_CHUNK_MIXED_PROPERTY(P_LIST_INDENT, OptionalInt16, MCField, ListIndent)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_LIST_INDEX, OptionalUInt16, MCField, ListIndex)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_LIST_INDEX, UInt16, MCField, ListIndex)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_FIRST_INDENT, OptionalInt16, MCField, FirstIndent)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_FIRST_INDENT, Int16, MCField, FirstIndent)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_LEFT_INDENT, OptionalInt16, MCField, LeftIndent)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_LEFT_INDENT, Int16, MCField, LeftIndent)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_RIGHT_INDENT, OptionalInt16, MCField, RightIndent)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_RIGHT_INDENT, Int16, MCField, RightIndent)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_OPTIONAL_ENUM_PROPERTY(P_TEXT_ALIGN, InterfaceTextAlign, MCField, TextAlign)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_ENUM_PROPERTY(P_TEXT_ALIGN, InterfaceTextAlign, MCField, TextAlign)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_SPACE_ABOVE, OptionalUInt16, MCField, SpaceAbove)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_SPACE_ABOVE, UInt16, MCField, SpaceAbove)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_SPACE_BELOW, OptionalUInt16, MCField, SpaceBelow)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_SPACE_BELOW, UInt16, MCField, SpaceBelow)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_LIST_PROPERTY(P_TAB_STOPS, ItemsOfLooseUInt, MCField, TabStops)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_LIST_PROPERTY(P_TAB_STOPS, ItemsOfLooseUInt, MCField, TabStops)
+    DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_TAB_ALIGN, InterfaceFieldTabAlignments, MCField, TabAlignments)
+    DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_TAB_ALIGN, InterfaceFieldTabAlignments, MCField, TabAlignments)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_BORDER_WIDTH, OptionalUInt8, MCField, BorderWidth)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_BORDER_WIDTH, UInt8, MCField, BorderWidth)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_BACK_COLOR, InterfaceNamedColor, MCField, BackColor)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_BACK_COLOR, InterfaceNamedColor, MCField, BackColor)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_BORDER_COLOR, InterfaceNamedColor, MCField, BorderColor)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_BORDER_COLOR, InterfaceNamedColor, MCField, BorderColor)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_HGRID, OptionalBool, MCField, HGrid)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_HGRID, Bool, MCField, HGrid)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_VGRID, OptionalBool, MCField, VGrid)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_VGRID, Bool, MCField, VGrid)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_DONT_WRAP, OptionalBool, MCField, DontWrap)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_DONT_WRAP, Bool, MCField, DontWrap)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_PADDING, OptionalUInt8, MCField, Padding)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_PADDING, UInt8, MCField, Padding)
+	DEFINE_RW_OBJ_LINE_CHUNK_NON_EFFECTIVE_MIXED_LIST_PROPERTY(P_TAB_WIDTHS, ItemsOfLooseUInt, MCField, TabWidths)
+	DEFINE_RO_OBJ_LINE_CHUNK_EFFECTIVE_MIXED_LIST_PROPERTY(P_TAB_WIDTHS, ItemsOfLooseUInt, MCField, TabWidths)
+	DEFINE_RW_OBJ_LINE_CHUNK_MIXED_PROPERTY(P_INVISIBLE, Bool, MCField, Invisible)
+    DEFINE_RW_OBJ_LINE_CHUNK_MIXED_PROPERTY(P_VISIBLE, Bool, MCField, Visible)
+    
+	DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_FORE_COLOR, InterfaceNamedColor, MCField, ForeColor)
+    DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_FORE_COLOR, InterfaceNamedColor, MCField, ForeColor)
+    DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_BACK_COLOR, InterfaceNamedColor, MCField, BackColor)
+    DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_BACK_COLOR, InterfaceNamedColor, MCField, BackColor)
+    DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_TEXT_FONT, OptionalString, MCField, TextFont)
+    DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_TEXT_FONT, OptionalString, MCField, TextFont)
+    DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_TEXT_SIZE, OptionalUInt16, MCField, TextSize)
+    DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_TEXT_SIZE, UInt16, MCField, TextSize)
+	DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_TEXT_STYLE, InterfaceTextStyle, MCField, TextStyle)
+	DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_CUSTOM_PROPERTY(P_TEXT_STYLE, InterfaceTextStyle, MCField, TextStyle)
+	DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_PROPERTY(P_TEXT_SHIFT, OptionalInt16, MCField, TextShift)
+	DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_PROPERTY(P_TEXT_SHIFT, Int16, MCField, TextShift)
+    
+    DEFINE_RW_OBJ_CHAR_CHUNK_NON_EFFECTIVE_MIXED_ARRAY_PROPERTY(P_TEXT_STYLE, OptionalBool, MCField, TextStyleElement)
+	DEFINE_RO_OBJ_CHAR_CHUNK_EFFECTIVE_MIXED_ARRAY_PROPERTY(P_TEXT_STYLE, Bool, MCField, TextStyleElement)
+};
+
+MCObjectPropertyTable MCField::kPropertyTable =
+{
+	&MCControl::kPropertyTable,
+	sizeof(kProperties) / sizeof(kProperties[0]),
+	&kProperties[0],
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 MCField::MCField()
 {
@@ -88,7 +252,17 @@ MCField::MCField()
 	scrollbarwidth = MCscrollbarwidth;
 	tabs = NULL;
 	ntabs = 0;
-	label = NULL;
+    alignments = NULL;
+    nalignments = 0;
+    cursor_movement = kMCFieldCursorMovementDefault;
+    text_direction = kMCTextDirectionAuto;
+	label = MCValueRetain(kMCEmptyString);
+    
+    // MM-2014-08-11: [[ Bug 13149 ]] Used to flag if a recompute is required during the next draw.
+    m_recompute = false;
+    
+    keyboard_type = kMCInterfaceKeyboardTypeNone;
+    return_key_type = kMCInterfaceReturnKeyTypeNone;
 }
 
 MCField::MCField(const MCField &fref) : MCControl(fref)
@@ -103,9 +277,14 @@ MCField::MCField(const MCField &fref) : MCControl(fref)
 	cury = focusedy = firsty = topmargin;
 	firstparagraph = lastparagraph = NULL;
 	foundlength = 0;
+    cursor_movement = fref.cursor_movement;
+    text_direction= fref.text_direction;
+    keyboard_type = fref.keyboard_type;
+    return_key_type = fref.return_key_type;
+    
 	if (fref.vscrollbar != NULL)
 	{
-		vscrollbar = new MCScrollbar(*fref.vscrollbar);
+		vscrollbar = new (nothrow) MCScrollbar(*fref.vscrollbar);
 		vscrollbar->setparent(this);
 		vscrollbar->allowmessages(False);
 		vscrollbar->setflag(flags & F_3D, F_3D);
@@ -117,7 +296,7 @@ MCField::MCField(const MCField &fref) : MCControl(fref)
 		vscrollbar = NULL;
 	if (fref.hscrollbar != NULL)
 	{
-		hscrollbar = new MCScrollbar(*fref.hscrollbar);
+		hscrollbar = new (nothrow) MCScrollbar(*fref.hscrollbar);
 		hscrollbar->setparent(this);
 		hscrollbar->allowmessages(False);
 		hscrollbar->setflag(flags & F_3D, F_3D);
@@ -131,26 +310,41 @@ MCField::MCField(const MCField &fref) : MCControl(fref)
 	ntabs = fref.ntabs;
 	if (ntabs)
 	{
-		tabs = new uint2[ntabs];
+		tabs = new (nothrow) uint2[ntabs];
 		uint2 i;
 		for (i = 0 ; i < ntabs ; i++)
 			tabs[i] = fref.tabs[i];
 	}
 	else
 		tabs = NULL;
+    nalignments = fref.nalignments;
+    if (nalignments)
+    {
+        /* UNCHECKED */ alignments = new (nothrow) intenum_t[nalignments];
+        uint2 i;
+        for (i = 0; i < nalignments; i++)
+            alignments[i] = fref.alignments[i];
+    }
+    else
+        alignments = NULL;
+	
 	if (fref.fdata != NULL)
 	{
 		MCCdata *fptr = fref.fdata;
 		do
 		{
-			MCCdata *newfdata = new MCCdata(*fptr);
+			MCCdata *newfdata = new (nothrow) MCCdata(*fptr, this);
 			newfdata->appendto(fdata);
 			fptr = fptr->next();
 		}
 		while (fptr != fref.fdata);
 	}
-	label = strclone(fref.label);
+	MCValueRetain(fref.label);
+	label = fref.label;
 	state &= ~CS_KFOCUSED;
+    
+    // MM-2014-08-11: [[ Bug 13149 ]] Used to flag if a recompute is required during the next draw.
+    m_recompute = false;
 }
 
 MCField::~MCField()
@@ -189,9 +383,11 @@ MCField::~MCField()
 	else
 		delete vscrollbar;
 
-	delete tabs;
+	delete[] tabs; /* Allocated with new[] */
+    
+    MCMemoryDeallocate(alignments);
 
-	delete label;
+	MCValueRelease(label);
 }
 
 Chunk_term MCField::gettype() const
@@ -204,13 +400,15 @@ const char *MCField::gettypestring()
 	return MCfieldstring;
 }
 
-bool MCField::visit(MCVisitStyle p_style, uint32_t p_part, MCObjectVisitor *p_visitor)
+bool MCField::visit_self(MCObjectVisitor *p_visitor)
+{
+	return p_visitor -> OnField(this);
+}
+
+bool MCField::visit_children(MCObjectVisitorOptions p_options, uint32_t p_part, MCObjectVisitor *p_visitor)
 {
 	bool t_continue;
 	t_continue = true;
-
-	if (p_style == VISIT_STYLE_DEPTH_LAST)
-		t_continue = p_visitor -> OnField(this);
 
 	if (t_continue && fdata != NULL)
 	{
@@ -242,7 +440,7 @@ bool MCField::visit(MCVisitStyle p_style, uint32_t p_part, MCObjectVisitor *p_vi
 				MCParagraph *tpgptr = pgptr;
 				do
 				{
-					t_continue = tpgptr -> visit(p_style, p_part, p_visitor);
+					t_continue = tpgptr -> visit(p_options, p_part, p_visitor);
 					tpgptr = tpgptr->next();
 				}
 				while(t_continue && tpgptr != pgptr);
@@ -252,9 +450,6 @@ bool MCField::visit(MCVisitStyle p_style, uint32_t p_part, MCObjectVisitor *p_vi
 		}
 		while(t_fdata != fdata);
 	}
-
-	if (t_continue && p_style == VISIT_STYLE_DEPTH_FIRST)
-		t_continue = p_visitor -> OnField(this);
 
 	return t_continue;
 }
@@ -290,7 +485,7 @@ void MCField::open()
 		{
 			foundoffset = 0;
 			foundlength = 0;
-			MCfoundfield = NULL;
+			MCfoundfield = nil;
 		}
 	}
 	else
@@ -351,14 +546,14 @@ void MCField::close()
 		if ((state & CS_IBEAM) != 0)
 			getstack() -> clearibeam();
 		if (MCclickfield == this)
-			MCclickfield = NULL;
+			MCclickfield = nil;
 		if (MCactivefield == this)
-			MCactivefield = NULL;
+			MCactivefield = nil;
 		if (MCfoundfield == this)
 		{
 			foundoffset = 0;
 			foundlength = 0;
-			MCfoundfield = NULL;
+			MCfoundfield = nil;
 		}
 		if (paragraphs != NULL)
 		{
@@ -389,12 +584,17 @@ void MCField::kfocus()
 		uint2 t_old_trans;
 		t_old_trans = gettransient();
 		state |= CS_KFOCUSED;
-
+        
+        if (MCactivefield && MCactivefield != this)
+            MCactivefield->unselect(True, True);
+        MCactivefield = this;
+        clearfound();
+        
 		if (flags & F_LIST_BEHAVIOR)
 		{
 			if (!(flags & F_TOGGLE_HILITE))
-				if (!focusedparagraph->isselection()
-				        && focusedparagraph->gettextsize()
+				if ((!focusedparagraph->isselection()
+				     && !focusedparagraph->IsEmpty())
 				        || focusedparagraph->next() != focusedparagraph)
 				{
 					focusedparagraph->sethilite(True);
@@ -408,14 +608,10 @@ void MCField::kfocus()
 		}
 		else
 		{
-			if (MCactivefield != NULL && MCactivefield != this)
-				MCactivefield->unselect(True, True);
-			MCactivefield = this;
-			clearfound();
 			// MW-2011-08-18: [[ Layers ]] Invalidate the whole object, noting
 			//   possible change in transient.
 			layer_transientchangedandredrawall(t_old_trans);
-			replacecursor(False, False);
+			
 			MCscreen->addtimer(this, MCM_internal, MCblinkrate);
 			if (!(state & CS_MFOCUSED) && flags & F_AUTO_TAB)
 				seltext(0, getpgsize(paragraphs), True);
@@ -423,6 +619,9 @@ void MCField::kfocus()
 				message(MCM_open_field);
 			else
 				message(MCM_focus_in);
+                
+            // PM-2015-03-05: [[ Bug 14664 ]] Avoid flickering and draw cursor in the correct position after focussing the field
+            replacecursor(False, False);
 		}
 		if (!(flags & F_LOCK_TEXT))
 			MCModeActivateIme(getstack(), true);
@@ -476,20 +675,24 @@ void MCField::kunfocus()
 			if (!(state & CS_KFOCUSED) && MCactivefield == this
 			        && !focusedparagraph->isselection()
 			        && firstparagraph == lastparagraph)
-				MCactivefield = NULL;
+				MCactivefield = nil;
 		}
 	}
+    
+    // MM-2014-08-11: [[ Bug 13149 ]] Flag that a recompute is potentially required at the next draw.
+    if (state & CS_SELECTED)
+        m_recompute = false;
 }
 
-Boolean MCField::kdown(const char *string, KeySym key)
+Boolean MCField::kdown(MCStringRef p_string, KeySym key)
 {
 	if (state & CS_NO_FILE)
 		return False;
 	if (key == XK_Return || key == XK_KP_Enter || key == XK_Tab)
 	{
-		char kstring[U4L];
-		sprintf(kstring, "%d", (int)key);
-		if (message_with_args(MCM_raw_key_down, kstring) == ES_NORMAL)
+		MCAutoStringRef t_string;
+		/* UNCHECKED */ MCStringFormat(&t_string, "%d", key);
+		if (message_with_valueref_args(MCM_raw_key_down, *t_string) == ES_NORMAL)
 			return True;
 	}
 	Exec_stat stat;
@@ -512,9 +715,10 @@ Boolean MCField::kdown(const char *string, KeySym key)
 	case XK_Left:
 	case XK_Right:
 		if (!MCtextarrows)
-			return MCObject::kdown(string, key);
+			return MCObject::kdown(p_string, key);
+		// Fall through...
 	default:
-		if (MCObject::kdown(string, key))
+		if (MCObject::kdown(p_string, key))
 			return True;
 		break;
 	}
@@ -556,7 +760,7 @@ Boolean MCField::kdown(const char *string, KeySym key)
 		function = trans_lookup(MCemacskeys ? emacs_keys : std_keys, key, mods);
 	if (function == FT_UNDEFINED && MCmodifierstate & (MS_CONTROL | MS_MOD1))
 		return False;
-	if (function != FT_UNDEFINED || strlen(string))
+	if (function != FT_UNDEFINED || !MCStringIsEmpty(p_string))
 		stopcomposition(False, True);
 #endif
 
@@ -569,17 +773,21 @@ Boolean MCField::kdown(const char *string, KeySym key)
 	case FT_UNDEFINED:
 		if (!getflag(F_LOCK_TEXT))
 		{
-			if (MCnullmcstring == string)
+			if (MCStringIsEmpty(p_string))
 				return False;
+            
+            // MW-2014-04-25: [[ Bug 5545 ]] This method will do the appropriate behavior
+            //   based on platform.
+            MCscreen -> hidecursoruntilmousemoves();
 
-			getstack()->hidecursor();
-
-			// MW-2012-02-13: [[ Block Unicode ]] Use the new 'finsert' method in
-			//   native mode.
-			finsertnew(function, string, key, false);
+			finsertnew(function, p_string, key);
 		}
 		break;
+	case FT_SELECTALL:
+		seltext(0, getpgsize(nil), True);
+		break;
 	case FT_DELBCHAR:
+    case FT_DELBSUBCHAR:
 	case FT_DELBWORD:
 	case FT_DELFCHAR:
 	case FT_DELFWORD:
@@ -588,53 +796,53 @@ Boolean MCField::kdown(const char *string, KeySym key)
 	case FT_DELBOP: // Not implemented yet
 	case FT_DELEOP:
 		if (!getflag(F_LOCK_TEXT))
-			fdel(function, string, key);
+			fdel(function, p_string, key);
 		break;
 	case FT_HELP:
-		fhelp(function, string, key);
+		fhelp(function, p_string, key);
 		break;
 	case FT_UNDO:
 		if (!getflag(F_LOCK_TEXT))
-		fundo(function, string, key);
+		fundo(function, p_string, key);
 		break;
 	case FT_CUT:
 		if (!getflag(F_LOCK_TEXT))
-			fcut(function, string, key);
+			fcut(function, p_string, key);
 		break;
 	case FT_CUTLINE:
 		if (!getflag(F_LOCK_TEXT))
-			fcutline(function, string, key);
+			fcutline(function, p_string, key);
 		break;
 	case FT_COPY:
 		if (!getflag(F_LOCK_TEXT))
-			fcopy(function, string, key);
+			fcopy(function, p_string, key);
 		break;
 	case FT_PASTE:
 		if (!getflag(F_LOCK_TEXT))
-			fpaste(function, string, key);
+			fpaste(function, p_string, key);
 		break;
 	case FT_TAB:
-		ftab(function, string, key);
+		ftab(function, p_string, key);
 		break;
 	case FT_FOCUSFIRST:
 	case FT_FOCUSLAST:
 	case FT_FOCUSNEXT:
 	case FT_FOCUSPREV:
-		ffocus(function, string, key);
+		ffocus(function, p_string, key);
 		break;
 	case FT_PARAGRAPHAFTER:
 		if (!getflag(F_LOCK_TEXT))
 		{
-			freturn(function, string, key);
-			fmove(FT_LEFTCHAR, string, key);
+			freturn(function, p_string, key);
+			fmove(FT_LEFTCHAR, p_string, key);
 		}
 		break;
 	case FT_PARAGRAPH:
 		if (!getflag(F_LOCK_TEXT))
-			freturn(function, string, key);
+			freturn(function, p_string, key);
 		break;
 	case FT_CENTER:
-		fcenter(function, string, key);
+		fcenter(function, p_string, key);
 		break;
 	case FT_SCROLLUP:
 	case FT_SCROLLDOWN:
@@ -644,10 +852,10 @@ Boolean MCField::kdown(const char *string, KeySym key)
 	case FT_SCROLLPAGEDOWN:
 	case FT_SCROLLTOP:
 	case FT_SCROLLBOTTOM:
-		fscroll(function, string, key);
+		fscroll(function, p_string, key);
 		break;
 	default:
-		fmove(function, string, key);
+		fmove(function, p_string, key);
 		break;
 	}
 	return True;
@@ -656,8 +864,8 @@ Boolean MCField::kdown(const char *string, KeySym key)
 Boolean MCField::mfocus(int2 x, int2 y)
 {
 	Tool tool = getstack()->gettool(this);
-	if (!(flags & F_VISIBLE || MCshowinvisibles)
-	        || flags & F_DISABLED && tool == T_BROWSE || state & CS_NO_FILE)
+	if (!(flags & F_VISIBLE || showinvisible())
+	    || (flags & F_DISABLED && tool == T_BROWSE) || state & CS_NO_FILE)
 		return False;
 	if (sbfocus(x, y, hscrollbar, vscrollbar))
 	{
@@ -770,33 +978,45 @@ void MCField::munfocus()
 
 void MCField::mdrag(void)
 {
-	// MW-2008-02-27: [[ Bug 5968 ]] dragStart sent if click started in scrollbar
+	// Don't act as a field drag if the cursor is within a scrollbar
 	if (getstate(CS_HSCROLL) || getstate(CS_VSCROLL))
 		return;
 
-	// MW-2008-03-31: [[ Bug 6294 ]] dragStart should only be sent to an unlocked
-	//   field if there's a selection already.
+	// We can do an automatic (engine-based) drag from a field if the following
+    // conditions are true:
+    //  - the drag start message was not handled (or failed, or passed)
+    //  - the field contains draggable text
+    //
 	bool t_auto_start;
 	if (getflag(F_LOCK_TEXT) || getstate(CS_SOURCE_TEXT))
 		t_auto_start = message(MCM_drag_start) != ES_NORMAL;
 	else
 		t_auto_start = false;
 
+    // This field is the object being dragged
 	MCdragtargetptr = this;
 
+    // If we're not using engine-based dragging, there isn't anything more to
+    // do for the moment.
 	if (!t_auto_start)
 		return;
 
+    // If there is nothing to drag, there are no contents to put on the drag
+    // board.
 	if (!getstate(CS_SOURCE_TEXT))
 		return;
 
-	MCSharedString *t_data;
-	t_data = pickleselection();
-	if (t_data != NULL)
+    // Serialise the current selection and place it on the drag board.
+	MCAutoDataRef t_data;
+	pickleselection(&t_data);
+	if (*t_data != nil)
 	{
 		MCallowabledragactions = DRAG_ACTION_MOVE | DRAG_ACTION_COPY;
-		MCdragdata -> Store(TRANSFER_TYPE_STYLED_TEXT, t_data);
-		t_data -> Release();
+		if (!MCdragboard->AddLiveCodeStyledText(*t_data))
+        {
+            // If we failed to put the data on the drag board, prohibit the drag
+            MCallowabledragactions = 0;
+        }
 	}
 }
 
@@ -846,7 +1066,7 @@ Boolean MCField::mdown(uint2 which)
 					layer_redrawrect(linkrect);
 					if (!getflag(F_LIST_BEHAVIOR))
 					{
-						message_with_args(MCM_mouse_down, "1");
+						message_with_valueref_args(MCM_mouse_down, MCSTR("1"));
 						return True;
 					}
 					
@@ -854,7 +1074,7 @@ Boolean MCField::mdown(uint2 which)
 				}
 			}
 			if (flags & F_TRAVERSAL_ON ||
-				(flags & F_LOCK_TEXT || MCmodifierstate & MS_CONTROL) && flags & F_LIST_BEHAVIOR)
+			    ((flags & F_LOCK_TEXT || MCmodifierstate & MS_CONTROL) && flags & F_LIST_BEHAVIOR))
 			{
 				if (flags & F_TRAVERSAL_ON && !(state & CS_KFOCUSED)
 				        && !(flags & F_NO_AUTO_HILITE))
@@ -872,23 +1092,23 @@ Boolean MCField::mdown(uint2 which)
 					if (!(state & CS_MOUSEDOWN))
 						return True;
 				}
-				if ((paragraphs != paragraphs->next() || paragraphs->gettextsize())
+				if ((paragraphs != paragraphs->next() || !paragraphs->IsEmpty())
 				        && !(flags & F_LIST_BEHAVIOR
 				             && (my - rect.y > (int4)(textheight + topmargin - texty))))
 				{
 					// MW-2012-01-25: [[ FieldMetrics ]] Co-ordinates are now card-based.
 					startselection(mx, my, False);
 					if (flags & F_LOCK_TEXT || flags & F_LIST_BEHAVIOR)
-						message_with_args(MCM_mouse_down, "1");
+						message_with_valueref_args(MCM_mouse_down, MCSTR("1"));
 					if (t_is_link_in_list)
 						endselection();
 				}
 				else
 					if (flags & F_LOCK_TEXT || MCmodifierstate & MS_CONTROL)
-						message_with_args(MCM_mouse_down, "1");
+						message_with_valueref_args(MCM_mouse_down, MCSTR("1"));
 			}
 			else
-				message_with_args(MCM_mouse_down, "1");
+				message_with_valueref_args(MCM_mouse_down, MCSTR("1"));
 		}
 		break;
 		case T_FIELD:
@@ -897,7 +1117,7 @@ Boolean MCField::mdown(uint2 which)
 				unselect(True, True);
 			else
 				if (flags & F_LIST_BEHAVIOR)
-					sethilitedlines(MCnullmcstring);
+					sethilitedlines(NULL, 0);
 			start(True);
 			break;
 		case T_HELP:
@@ -912,25 +1132,25 @@ Boolean MCField::mdown(uint2 which)
 			MCclickfield = this;
 			clickx = mx;
 			clicky = my;
-			message_with_args(MCM_mouse_down, "2");
+			message_with_valueref_args(MCM_mouse_down, MCSTR("2"));
 		}
 		break;
 	case Button3:
 		MCclickfield = this;
 		clickx = mx;
 		clicky = my;
-		message_with_args(MCM_mouse_down, "3");
+		message_with_valueref_args(MCM_mouse_down, MCSTR("3"));
 		break;
 	}
 	return True;
 }
 
-Boolean MCField::mup(uint2 which)
+Boolean MCField::mup(uint2 which, bool p_release)
 {
 	if (!(state & (CS_MFOCUSED | CS_DRAG_TEXT)))
 		return False;
 	if (state & CS_MENU_ATTACHED)
-		return MCObject::mup(which);
+		return MCObject::mup(which, p_release);
 	state &= ~(CS_MFOCUSED | CS_MOUSEDOWN);
 	if (state & CS_GRAB)
 	{
@@ -944,8 +1164,8 @@ Boolean MCField::mup(uint2 which)
 		if (flags & F_F_AUTO_ARM && flags & F_LOCK_TEXT
 		        && flags & F_LIST_BEHAVIOR)
 		{
-			int4 index = ytooffset(texty);
-			int4 ei = index;
+			findex_t index = ytooffset(texty);
+			findex_t ei = index;
 			focusedparagraph = indextoparagraph(paragraphs, index, ei)->next();
 			focusedy = paragraphtoy(focusedparagraph);
 		}
@@ -979,15 +1199,18 @@ Boolean MCField::mup(uint2 which)
 			}
 			if (!(state & CS_DRAG_TEXT))
 				if ((flags & F_LOCK_TEXT || MCmodifierstate & MS_CONTROL))
-					if (MCU_point_in_rect(rect, mx, my))
-						if (flags & F_LIST_BEHAVIOR
-						        && (my - rect.y > (int4)(textheight + topmargin - texty)
-						            || paragraphs == paragraphs->next()
-						            && !paragraphs->gettextsize()))
-							message_with_args(MCM_mouse_release, "1");
+                {
+					if (!p_release && MCU_point_in_rect(rect, mx, my))
+                    {
+                        if (flags & F_LIST_BEHAVIOR
+                                && (my - rect.y > (int4)(textheight + topmargin - texty)
+                                    || (paragraphs == paragraphs->next()
+                                        && paragraphs->IsEmpty())))
+                            message_with_valueref_args(MCM_mouse_release, MCSTR("1"));
 						else
 						{
 							if (linkstart != NULL)
+                            {
 								if (linkstart->gethilite())
 								{
 									MCBlock *bptr = linkstart;
@@ -1000,25 +1223,32 @@ Boolean MCField::mup(uint2 which)
 									while (bptr != linkend->next());
 									// MW-2011-08-18: [[ Layers ]] Invalidate the links part of the field.
 									layer_redrawrect(linkrect);
-									MCExecPoint ep;
+                            
+                                    MCAutoStringRef t_string;
 									if (linkstart->getlinktext() == NULL)
-										returntext(ep, linksi, linkei);
+                                    {
+										returntext(linksi, linkei, &t_string);
+                                    }
 									else
-										ep.setsvalue(linkstart->getlinktext());
+										t_string = MCValueRetain(linkstart->getlinktext());
 									linkstart = linkend = NULL;
-									if (message_with_args(MCM_link_clicked, ep.getsvalue()) == ES_NORMAL)
+									if (message_with_valueref_args(MCM_link_clicked, *t_string) == ES_NORMAL)
 										return True;
 								}
 								else
 									linkstart = linkend = NULL;
-							message_with_args(MCM_mouse_up, "1");
+                            }
+							
+                            message_with_valueref_args(MCM_mouse_up, MCSTR("1"));
 						}
+                    }
 					else
-						message_with_args(MCM_mouse_release, "1");
+						message_with_valueref_args(MCM_mouse_release, MCSTR("1"));
+                }
 			break;
 		case T_FIELD:
 		case T_POINTER:
-			end();
+			end(true, p_release);
 			break;
 		case T_HELP:
 			help();
@@ -1030,29 +1260,48 @@ Boolean MCField::mup(uint2 which)
 	case Button2:
 		if (flags & F_LOCK_TEXT || getstack()->gettool(this) != T_BROWSE)
 		{
-			if (MCU_point_in_rect(rect, mx, my))
-				message_with_args(MCM_mouse_up, "2");
+			if (!p_release && MCU_point_in_rect(rect, mx, my))
+				message_with_valueref_args(MCM_mouse_up, MCSTR("2"));
 			else
-				message_with_args(MCM_mouse_release, "2");
+				message_with_valueref_args(MCM_mouse_release, MCSTR("2"));
 		}
-		else if (MCscreen -> hasfeature(PLATFORM_FEATURE_TRANSIENT_SELECTION) && MCselectiondata -> HasText())
+		else if (MCscreen -> hasfeature(PLATFORM_FEATURE_TRANSIENT_SELECTION))
 		{
-			MCSharedString *t_text;
-			t_text = MCselectiondata -> Fetch(TRANSFER_TYPE_TEXT);
-			if (t_text != NULL)
-			{
-				extend = extendwords = False;
-				// MW-2012-01-25: [[ FieldMetrics ]] Co-ordinates are now card-based.
-				setfocus(mx, my);
-				typetext(t_text -> Get());
-			}
+            // Lock the selection
+            MCselection->Lock();
+            
+            // Pasting styled text with middle-click isn't currently supported.
+            // On the only platform where we support selection pasting (Linux),
+            // a large number of apps use HTML to supply styled text but our
+            // HTML parsing code doesn't really understand HTML so trying to
+            // paste styled text here just causes a mess.
+            //
+            // Strangely, this doesn't seem to affect normal pasting as the
+            // affected apps also supply RTF there, which we can parse fairly
+            // well.
+            if (MCselection->HasText())
+            {
+                MCAutoStringRef t_text;
+                if (MCselection->CopyAsText(&t_text))
+                {
+                    // Set the focus position based on the current mouse
+                    // position and enter the text as if it came from the
+                    // keyboard.
+                    extend = extendwords = False;
+                    setfocus(mx, my);
+                    typetext(*t_text);
+                }
+            }
+            
+            // Unlock the selection
+            MCselection->Unlock();
 		}
 		break;
 	case Button3:
-		if (MCU_point_in_rect(rect, mx, my))
-			message_with_args(MCM_mouse_up, "3");
+		if (!p_release && MCU_point_in_rect(rect, mx, my))
+			message_with_valueref_args(MCM_mouse_up, MCSTR("3"));
 		else
-			message_with_args(MCM_mouse_release, "3");
+			message_with_valueref_args(MCM_mouse_release, MCSTR("3"));
 		break;
 	}
 	return True;
@@ -1108,14 +1357,14 @@ Boolean MCField::doubleup(uint2 which)
 		if (sbdoubleup(which, hscrollbar, vscrollbar))
 			return True;
 		if (flags & F_LIST_BEHAVIOR && (flags & F_TOGGLE_HILITE))
-			mup(which);
+			mup(which, false);
 	}
 	return MCControl::doubleup(which);
 }
 
 void MCField::timer(MCNameRef mptr, MCParameter *params)
 {
-	if (MCNameIsEqualTo(mptr, MCM_internal, kMCCompareCaseless))
+	if (MCNameIsEqualToCaseless(mptr, MCM_internal))
 	{
 		if (opened && (state & CS_KFOCUSED)
 		        && !(state & CS_DRAG_TEXT))
@@ -1127,9 +1376,10 @@ void MCField::timer(MCNameRef mptr, MCParameter *params)
 			MCscreen->addtimer(this, MCM_internal, MCblinkrate);
 		}
 	}
-	else if (MCNameIsEqualTo(mptr, MCM_internal2, kMCCompareCaseless))
+	else if (MCNameIsEqualToCaseless(mptr, MCM_internal2))
 		{
 			if (opened)
+			{
 				if (state & CS_SELECTING)
 				{
 					// MW-2012-01-25: [[ FieldMetrics ]] Co-ordinates are now card-based.
@@ -1138,12 +1388,15 @@ void MCField::timer(MCNameRef mptr, MCParameter *params)
 					MCscreen->addtimer(this, MCM_internal2, MCsyncrate);
 				}
 				else
+				{
 					if (state & CS_DRAG_TEXT)
 					{
 						if (!MCU_point_in_rect(getfrect(), mx, my))
 							dragtext();
 						MCscreen->addtimer(this, MCM_internal2, MCsyncrate);
 					}
+				}
+			}
 		}
 		else
 			MCControl::timer(mptr, params);
@@ -1164,7 +1417,7 @@ uint2 MCField::gettransient() const
 	return 0;
 }
 
-void MCField::setrect(const MCRectangle &nrect)
+void MCField::applyrect(const MCRectangle &nrect)
 {
 	// The contents only need to be laid out if the size changes. In particular,
     // it is the width that is important; the height does not affect layout.
@@ -1181,276 +1434,26 @@ void MCField::setrect(const MCRectangle &nrect)
     
     if (t_resized)
         do_recompute(true);
-}
-
-Exec_stat MCField::getprop(uint4 parid, Properties which, MCExecPoint& ep, Boolean effective)
-{
-	switch (which)
-	{
-#ifdef /* MCField::getprop */ LEGACY_EXEC
-	case P_AUTO_TAB:
-		ep.setboolean(getflag(F_AUTO_TAB));
-		break;
-	case P_DONT_SEARCH:
-		ep.setboolean(getflag(F_F_DONT_SEARCH));
-		break;
-	case P_DONT_WRAP:
-		ep.setboolean(getflag(F_DONT_WRAP));
-		break;
-	case P_FIXED_HEIGHT:
-		ep.setboolean(getflag(F_FIXED_HEIGHT));
-		break;
-	case P_LOCK_TEXT:
-		ep.setboolean(getflag(F_LOCK_TEXT));
-		break;
-	case P_SHARED_TEXT:
-		ep.setboolean(getflag(F_SHARED_TEXT));
-		break;
-	case P_SHOW_LINES:
-		ep.setboolean(getflag(F_SHOW_LINES));
-		break;
-	case P_HGRID:
-		ep.setboolean(getflag(F_HGRID));
-		break;
-	case P_VGRID:
-		ep.setboolean(getflag(F_VGRID));
-		break;
-	case P_STYLE:
-		{
-			const char *t_style_string;
-			if (flags & F_VSCROLLBAR)
-				t_style_string = MCscrollingstring;
-			else if (!(flags & F_OPAQUE))
-				t_style_string = MCtransparentstring;
-			else if (flags & F_SHADOW)
-				t_style_string = MCshadowstring;
-			else if (!(flags & F_SHOW_BORDER))
-				t_style_string = MCopaquestring;
-			else
-				t_style_string = MCrectanglestring;
-			ep . setstaticcstring(t_style_string);
-		}
-		break;
-	case P_AUTO_HILITE:
-		ep.setboolean((flags & F_NO_AUTO_HILITE) == 0);
-		break;
-	case P_AUTO_ARM:
-		ep.setboolean(getflag(F_F_AUTO_ARM));
-		break;
-	case P_FIRST_INDENT:
-		ep.setint(indent);
-		break;
-	case P_WIDE_MARGINS:
-		ep . setboolean(leftmargin >= widemargin);
-		break;
-	case P_HSCROLL:
-		ep.setint(textx);
-		break;
-	case P_VSCROLL:
-		ep.setint(texty);
-		break;
-	case P_HSCROLLBAR:
-		ep.setboolean(getflag(F_HSCROLLBAR));
-		break;
-	case P_VSCROLLBAR:
-		ep.setboolean(getflag(F_VSCROLLBAR));
-		break;
-	case P_SCROLLBAR_WIDTH:
-		ep.setint(scrollbarwidth);
-		break;
-	case P_FORMATTED_HEIGHT:
-		if (opened)
-			ep.setint(textheight + rect.height - getfheight()
-			          + topmargin + bottommargin - TEXT_Y_OFFSET);
-		else
-			ep.setint(0);
-		break;
-	case P_FORMATTED_WIDTH:
-		if (opened)
-			ep.setint(textwidth + rect.width - getfwidth()
-			          + leftmargin + rightmargin
-			          + (flags & F_VSCROLLBAR ? (flags & F_DONT_WRAP ? 0 : -vscrollbar->getrect().width) : 0));
-		else
-			ep.setint(0);
-		break;
-	case P_LIST_BEHAVIOR:
-		ep.setboolean(getflag(F_LIST_BEHAVIOR));
-		break;
-	case P_MULTIPLE_HILITES:
-		ep.setboolean(getflag(F_MULTIPLE_HILITES));
-		break;
-	case P_NONCONTIGUOUS_HILITES:
-		ep.setboolean(getflag(F_NONCONTIGUOUS_HILITES));
-		break;
-	case P_HILITED_LINES:
-		hilitedlines(ep);
-		break;
-	case P_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new text export method.
-		exportastext(parid, ep, 0, INT32_MAX, false);
-		break;
-	case P_UNICODE_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new text export method.
-		exportastext(parid, ep, 0, INT32_MAX, true);
-		break;
-	case P_HTML_TEXT:
-		// MW-2012-03-05: [[ FieldExport ]] Use the new html text export method.
-		exportashtmltext(parid, ep, 0, INT32_MAX, effective == True);
-		break;
-	case P_RTF_TEXT:
-		// MW-2012-02-27: [[ FieldExport ]] Use the new rtf text export method.
-		exportasrtftext(parid, ep, 0, INT32_MAX);
-		break;
-	case P_STYLED_TEXT:
-	case P_FORMATTED_STYLED_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new styled text export method.
-		exportasstyledtext(parid, ep, 0, INT32_MAX, which == P_FORMATTED_STYLED_TEXT, effective == True);
-		break;
-	case P_PLAIN_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new plain text export method.
-		exportasplaintext(parid, ep, 0, INT32_MAX, false);
-		break;
-	case P_UNICODE_PLAIN_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new plain text export method.
-		exportasplaintext(parid, ep, 0, INT32_MAX, true);
-		break;
-	case P_FORMATTED_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new formatted text export method.
-		exportasformattedtext(parid, ep, 0, INT32_MAX, false);
-		break;
-	case P_UNICODE_FORMATTED_TEXT:
-		// MW-2012-02-21: [[ FieldExport ]] Use the new formatted text export method.
-		exportasformattedtext(parid, ep, 0, INT32_MAX, true);
-		break;
-	case P_LABEL:
-		if (label == NULL)
-			selectedtext(ep);
-		else
-			ep.setsvalue(label);
-		break;
-	// MW-2012-02-11: [[ TabWidths ]] Handle both tabStops and tabWidths by deferring
-	//   to the format method.
-	case P_TAB_STOPS:
-	case P_TAB_WIDTHS:
-		formattabstops(which, ep, tabs, ntabs);
-		break;
-	case P_TOGGLE_HILITE:
-		ep.setboolean(getflag(F_TOGGLE_HILITE));
-		break;
-	case P_3D_HILITE:
-		ep.setboolean(getflag(F_3D_HILITE));
-		break;
-	case P_PAGE_HEIGHTS:
-		ep.clear();
-		if (opened)
-		{
-			MCParagraph *pgptr = paragraphs;
-			uint2 height = getfheight();
-			uint2 theight = height;
-			MCLine *lastline = NULL;
-			uint2 j = 0;
-			while (True)
-			{
-				MCLine *oldlast = lastline;
-				if (!pgptr->pageheight(fixedheight, theight, lastline))
-				{
-					if (theight == height)
-					{
-						ep.concatuint(pgptr->getheight(fixedheight), EC_RETURN, j++ == 0);
-						lastline = NULL;
-					}
-					else
-					{
-						ep.concatuint(height - theight, EC_RETURN, j++ == 0);
-						theight = height;
-						if (oldlast == NULL || lastline != NULL)
-							continue;
-					}
-				}
-				pgptr = pgptr->next();
-				if (pgptr == paragraphs)
-					break;
-			}
-			if (theight != height)
-				ep.concatuint(height - theight, EC_RETURN, j++ == 0);
-		}
-		break;
-    // JS-2013-05-15: [[ PageRanges ]] Return the pageRanges of the whole field.
-    case P_PAGE_RANGES:
-        ep.clear();
-        if (opened)
-        {
-            MCParagraph *pgptr = paragraphs;
-            uint2 height = getfheight();
-            uint2 theight = height;
-            // MW-2014-04-11: [[ Bug 12182 ]] Make sure we use uint4 for field indicies.
-            uint4 tstart = 1;
-            uint4 tend = 0;
-            MCLine *lastline = NULL;
-            uint2 j = 0;
-            while (True)
-            {
-                MCLine *oldlast = lastline;
-                if (!pgptr->pagerange(fixedheight, theight, tend, lastline))
-                {
-                    if (theight == height)
-                    {
-                        ep.concatuint(tstart, EC_RETURN, j++ == 0);
-                        ep.concatuint(tend, EC_COMMA, false);
-                        tstart = tend + 1;
-                        lastline = NULL;
-                    }
-                    else
-                    {
-                        ep.concatuint(tstart, EC_RETURN, j++ == 0);
-                        ep.concatuint(tend, EC_COMMA, false);
-                        tstart = tend + 1;
-                        theight = height;
-                        if (oldlast == NULL || lastline != NULL)
-                            continue;
-                    }
-                }
-                else
-                    tend += 1;
-
-                pgptr = pgptr->next();
-                if (pgptr == paragraphs)
-                    break;
-            }
-            if (theight != height) {
-                ep.concatuint(tstart, EC_RETURN, j++ == 0);
-                ep.concatuint(tend, EC_COMMA, false);
-            }
-        }
-        break;
-    // MW-2012-02-08: [[ FlaggedRanges ]] Return the flaggedRanges of the whole field.
-	// MW-2013-08-27: [[ Bug 11129 ]] Use INT32_MAX as upper limit.
-	case P_FLAGGED_RANGES:
-		return gettextatts(parid, P_FLAGGED_RANGES, ep, nil, False, 0, INT32_MAX, false);
-	// MW-2012-02-22: [[ IntrinsicUnicode ]] Fetch the encoding property of the field, this is
-	//   actually the encoding of the content.
-	// MW-2013-08-27: [[ Bug 11129 ]] Use INT32_MAX as upper limit.
-	case P_ENCODING:
-		return gettextatts(parid, P_ENCODING, ep, nil, False, 0, INT32_MAX, false);
-#endif /* MCField::getprop */ 
-	default:
-		return MCControl::getprop(parid, which, ep, effective);
-	}
-	return ES_NORMAL;
+    
+    // MM-2014-08-11: [[ Bug 13149 ]] Flag that a recompute is potentially required at the next draw.
+    if (state & CS_SIZE)
+        m_recompute = true;
 }
 
 // MW-2012-01-25: [[ ParaStyles ]] Parse the given string as a list of tab-stops.
 // MW-2012-02-11: [[ TabWidths ]] The 'which' parameter determines what style of tabStops to
 //   parse - widths or stops.
-bool MCField::parsetabstops(Properties which, const MCString& data, uint16_t*& r_tabs, uint16_t& r_tab_count)
+bool MCField::parsetabstops(Properties which, MCStringRef data, uint16_t*& r_tabs, uint16_t& r_tab_count)
 {
 	uint2 *newtabs;
 	uint2 newntabs;
 	newtabs = nil;
 	newntabs = 0;
 
-	uint4 l = data.getlength();
-	const char *sptr = data.getstring();
+	uint4 l = MCStringGetLength(data);
+    MCAutoPointer<char> t_data;
+    /* UNCHECKED */ MCStringConvertToCString(data, &t_data);
+	const char *sptr = *t_data;
 	while (l)
 	{
 		int32_t i1;
@@ -1482,13 +1485,16 @@ bool MCField::parsetabstops(Properties which, const MCString& data, uint16_t*& r
 
 // MW-2012-02-11: [[ TabWidths ]] This method formats the tabStops in either stops or
 //   widths style depending on the value of which.
-void MCField::formattabstops(Properties which, MCExecPoint& ep, uint16_t *tabs, uint16_t tab_count)
+void MCField::formattabstops(Properties which, uint16_t *tabs, uint16_t tab_count, MCStringRef &r_result)
 {
-	ep.clear();
+	if (r_result != nil)
+        MCValueRelease(r_result);
+    MCAutoListRef t_list;
+    /* UNCHECKED */ MCListCreateMutable(',', &t_list);
 	if (which == P_TAB_STOPS)
 	{
 		for(uint32_t i = 0 ; i < tab_count ; i++)
-			ep.concatuint(tabs[i], EC_COMMA, i == 0);
+            MCListAppendInteger(*t_list, tabs[i]);
 	}
 	else
 	{
@@ -1496,504 +1502,100 @@ void MCField::formattabstops(Properties which, MCExecPoint& ep, uint16_t *tabs, 
 		t_previous_tab = 0;
 		for(uint32_t i = 0; i < tab_count; i++)
 		{
-			ep.concatuint(tabs[i] - t_previous_tab, EC_COMMA, i == 0);
+            MCListAppendInteger(*t_list, tabs[i]- t_previous_tab);
 			t_previous_tab = tabs[i];
 		}
 	}
+    /* UNCHECKED */ MCListCopyAsString(*t_list, r_result);
 }
 
-Exec_stat MCField::setprop(uint4 parid, Properties p, MCExecPoint &ep, Boolean effective)
+bool MCField::parsetabalignments(MCStringRef p_data, intenum_t *&r_alignments, uindex_t &r_alignment_count)
 {
-	Boolean dirty = False;
-	Boolean reset = False;
-	int4 savex = textx;
-	int4 savey = texty;
-	Boolean dummy;
-	uint4 tflags = flags;
-	MCString data = ep.getsvalue();
-	int2 i1;
-	MCExecPoint *oldep;
-	switch (p)
-	{
-#ifdef /* MCField::setprop */ LEGACY_EXEC
-	case P_AUTO_TAB:
-		if (!MCU_matchflags(data, flags, F_AUTO_TAB, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_DONT_SEARCH:
-		if (!MCU_matchflags(data, flags, F_F_DONT_SEARCH, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_AUTO_HILITE:
-		if (!MCU_matchflags(data, flags, F_NO_AUTO_HILITE, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		flags ^= F_NO_AUTO_HILITE;
-		break;
-	case P_AUTO_ARM:
-		if (!MCU_matchflags(data, flags, F_F_AUTO_ARM, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_DONT_WRAP:
-		if (!MCU_matchflags(data, flags, F_DONT_WRAP, dirty))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		reset = True;
-		if (flags & (F_LIST_BEHAVIOR | F_VGRID))
-			flags |= F_DONT_WRAP;
-		break;
-	case P_FIXED_HEIGHT:
-		if (!MCU_matchflags(data, flags, F_FIXED_HEIGHT, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
+    MCAutoProperListRef t_list;
+    if (!MCStringSplitByDelimiter(p_data, MCSTR(","), kMCStringOptionCompareExact, &t_list))
+		return false;
 
-		// MW-2012-12-25: [[ Bug ]] Changing the fixedHeight requires a recalculation.
-		reset = True;
-		break;
-	case P_LOCK_TEXT:
-	case P_TRAVERSAL_ON:
-		if (!MCU_matchflags(data, tflags, p == P_LOCK_TEXT ? F_LOCK_TEXT : F_TRAVERSAL_ON, dirty))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		if (flags & F_LIST_BEHAVIOR)
-		{
-			flags |= F_LOCK_TEXT;
-			dirty = True;
-		}
-		if (dirty)
-		{
-			bool t_was_locked;
-			t_was_locked = (flags & F_LOCK_TEXT) != 0;
-			flags = tflags;
-			if (state & CS_IBEAM)
-			{
-				state &= ~CS_IBEAM;
-				getstack()->clearibeam();
-			}
-			if (state & CS_KFOCUSED && !(flags & F_TRAVERSAL_ON))
-			{
-				unselect(True, True);
-				getcard()->kfocusset(NULL);
-			}
-			
-			// MW-2011-09-28: [[ Bug 9610 ]] If the lockText has changed then make sure
-			//   keyboard state is in sync.
-			if (t_was_locked != (getflag(F_LOCK_TEXT) == True) && getstate(CS_KFOCUSED))
-				MCModeActivateIme(getstack(), !getflag(F_LOCK_TEXT));
-			
-			if (vscrollbar != NULL)
-				vscrollbar->setflag(False, F_TRAVERSAL_ON);
-			if (hscrollbar != NULL)
-				hscrollbar->setflag(False, F_TRAVERSAL_ON);
-		}
-		break;
-	case P_SHARED_TEXT:
-		if (!MCU_matchflags(data, flags, F_SHARED_TEXT, dirty))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		if (dirty && opened)
-		{
-			MCCdata *fptr;
-			if (flags & F_SHARED_TEXT)
-				fptr = getcarddata(fdata, 0, True);
-			else
-				fptr = getcarddata(fdata, getcard()->getid(), True);
-			MCParagraph *pgptr = fptr->getparagraphs();
-			fdata->setparagraphs(pgptr);
-			fdata = fptr;
-			fdata->setparagraphs(paragraphs);
-			reset = True;
-		}
-		break;
-	case P_SHOW_LINES:
-		if (!MCU_matchflags(data, flags, F_SHOW_LINES, dirty))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_HGRID:
-		if (!MCU_matchflags(data, flags, F_HGRID, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
+    uindex_t t_count;
+	t_count = MCProperListGetLength(*t_list);
+    
+    MCAutoArray<intenum_t> t_alignments;
+	if (!t_alignments.Extend(t_count))
+		return false;
+    
+    for (uindex_t i = 0; i < t_count; i++)
+    {
+        MCValueRef t_item;
+		t_item = MCProperListFetchElementAtIndex(*t_list, i);
 
-		// MW-2012-12-25: [[ Bug ]] Changing the hGrid requires a recalculation.
-		reset = True;
-		break;
-	case P_VGRID:
-		if (!MCU_matchflags(data, flags, F_VGRID, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		if (flags & F_VGRID)
-			flags |= F_DONT_WRAP;
+        if (MCStringIsEqualToCString((MCStringRef)t_item, "left", kMCStringOptionCompareCaseless))
+        {
+            t_alignments[i] = kMCParagraphTextAlignLeft;
+        }
+        else if (MCStringIsEqualToCString((MCStringRef)t_item, "right", kMCStringOptionCompareCaseless))
+        {
+            t_alignments[i] = kMCParagraphTextAlignRight;
+        }
+        else if (MCStringIsEqualToCString((MCStringRef)t_item, "center", kMCStringOptionCompareCaseless))
+        {
+            t_alignments[i] = kMCParagraphTextAlignCenter;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    
+    t_alignments . Take(r_alignments, r_alignment_count);
+	return true;
+}
 
-		// MW-2012-12-25: [[ Bug ]] Changing the vGrid requires a recalculation.
-		reset = True;
-		break;
-	case P_STYLE:
-		flags &= ~(F_DISPLAY_STYLE);
-		if (data == MCscrollingstring)
-		{
-			if (!(flags & F_VSCROLLBAR))
-				setsbprop(P_VSCROLLBAR, MCtruemcstring, textx, texty,
-				          scrollbarwidth, hscrollbar, vscrollbar, dirty);
-			flags |= F_SHOW_BORDER | F_OPAQUE;
-		}
-		else
-		{
-			if (flags & F_HSCROLLBAR)
-			{
-				delete hscrollbar;
-				hscrollbar = NULL;
-				flags &= ~F_HSCROLLBAR;
-			}
-			if (flags & F_VSCROLLBAR)
-			{
-				delete vscrollbar;
-				vscrollbar = NULL;
-				flags &= ~F_VSCROLLBAR;
-			}
-			if (data == MCtransparentstring)
-				flags |= F_3D;
-			else
-				if (data == MCshadowstring)
-					flags |= F_SHOW_BORDER | F_OPAQUE | F_SHADOW;
-				else
-					if (data == MCopaquestring)
-						flags |= F_OPAQUE;
-					else
-						flags |= F_SHOW_BORDER | F_OPAQUE;
-		}
-		dirty = flags != tflags;
-		reset = True;
-
-		// MW-2011-09-21: [[ Layers ]] Make sure we recompute the layer attrs since
-		//   various props have changed!
-		if (dirty)
-			m_layer_attr_changed = true;
-
-		break;
-	case P_HSCROLLBARID:
-		{
-			MCScrollbar *t_control;
-			t_control = (MCScrollbar *)getcard() -> getchild(CT_ID, data, CT_SCROLLBAR, CT_UNDEFINED);
-			if (t_control == NULL)
-			{
-				MCeerror->add(EE_OBJECT_NAN, 0, 0, data);
-				return ES_ERROR;
-			}
-
-			if (hscrollbar != NULL && getstate(CS_FOREIGN_HSCROLLBAR))
-			{
-				hscrollbar -> link(NULL);
-				hscrollbar = NULL;
-			}
-
-			if (hscrollbar == NULL)
-			{
-				hscrollbar = t_control;
-				hscrollbar -> link(this);
-				setstate(True, CS_FOREIGN_HSCROLLBAR);
-			}
-		}
-		break;
-	case P_VSCROLLBARID:
-		{
-			MCScrollbar *t_control;
-			t_control = (MCScrollbar *)getcard() -> getchild(CT_ID, data, CT_SCROLLBAR, CT_UNDEFINED);
-			if (t_control == NULL)
-			{
-				MCeerror->add(EE_OBJECT_NAN, 0, 0, data);
-				return ES_ERROR;
-			}
-
-			if (vscrollbar != NULL && getstate(CS_FOREIGN_VSCROLLBAR))
-			{
-				vscrollbar -> link(NULL);
-				vscrollbar = NULL;
-			}
-
-			if (vscrollbar == NULL)
-			{
-				vscrollbar = t_control;
-				vscrollbar -> link(this);
-				setstate(True, CS_FOREIGN_VSCROLLBAR);
-			}
-		}
-		break;
-	case P_HSCROLL:
-	case P_VSCROLL:
-	case P_HSCROLLBAR:
-	case P_VSCROLLBAR:
-	case P_SCROLLBAR_WIDTH:
-		if (setsbprop(p, data, textx, texty, scrollbarwidth,
-		              hscrollbar, vscrollbar, dirty) == ES_ERROR)
-			return ES_ERROR;
-		// MW-2014-01-06: [[ Bug 11576 ]] Make sure we force a relayout if the layout width
-		//   has changed due to the vscrollbar visibility / width changing.
-		if (dirty && (p == P_VSCROLLBAR || p == P_SCROLLBAR_WIDTH))
-			reset = True;
-		break;
-	case P_MARGINS:
-	case P_LEFT_MARGIN:
-	case P_RIGHT_MARGIN:
-	case P_TOP_MARGIN:
-	case P_BOTTOM_MARGIN:
-	case P_WIDTH:
-	case P_HEIGHT:
-	case P_RECTANGLE:
-		if (MCControl::setprop(parid, p, ep, effective) != ES_NORMAL)
-			return ES_ERROR;
-		dirty = reset = True;
-		break;
-	case P_FIRST_INDENT:
-		if (!MCU_stoi2(data, i1))
-		{
-			MCeerror->add
-			(EE_OBJECT_MARGINNAN, 0, 0, data);
-			return ES_ERROR;
-		}
-		indent = i1;
-		dirty = True;
-		break;
-	case P_WIDE_MARGINS:
-		Boolean wide;
-		if (!MCU_stob(data, wide))
-			return ES_ERROR;
-		if (wide)
-		{
-			if (leftmargin != widemargin)
-			{
-				leftmargin = rightmargin = topmargin = bottommargin = widemargin;
-				dirty = True;
-			}
-		}
-		else
-			if (leftmargin != narrowmargin)
-			{
-				leftmargin = rightmargin = topmargin = bottommargin = narrowmargin;
-				dirty = True;
-			}
-		break;
-	case P_LIST_BEHAVIOR:
-		if (!MCU_matchflags(data, flags, F_LIST_BEHAVIOR, dirty))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		if (opened)
-			clearhilites();
-		if (dirty)
-			if (flags & F_LIST_BEHAVIOR)
-				flags |= F_DONT_WRAP | F_LOCK_TEXT;
-			else
-				if (state & CS_KFOCUSED)
-					MCscreen->addtimer(this, MCM_internal, MCblinkrate);
-		reset = True;
-		break;
-	case P_MULTIPLE_HILITES:
-		if (!MCU_matchflags(data, flags, F_MULTIPLE_HILITES, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_NONCONTIGUOUS_HILITES:
-		if (!MCU_matchflags(data, flags, F_NONCONTIGUOUS_HILITES, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_HILITED_LINES:
-		if (!opened)
-			return ES_NORMAL;
-		if (flags & F_LIST_BEHAVIOR)
-			if (sethilitedlines(data) != ES_NORMAL)
-				return ES_ERROR;
-		// MW-2011-08-18: [[ Layers ]] Just redraw the content (we don't need a recompute).
-		layer_redrawall();
-		break;
-	case P_TEXT:
-		settext(parid, data, False);
-		dirty = False;
-		break;
-	case P_HTML_TEXT:
-		oldep = MCEPptr;
-		MCEPptr = &ep;
-		sethtml(parid, data);
-		dirty = False;
-		MCEPptr = oldep;
-		break;
-	case P_UNICODE_TEXT:
-		oldep = MCEPptr;
-		MCEPptr = &ep;
-		setpartialtext(parid, data, true);
-		dirty = False;
-		MCEPptr = oldep;
-		break;
-	// MW-2011-12-08: [[ StyledText ]] Add support for setting the styledText of the
-	//   object.
-	case P_STYLED_TEXT:
-		oldep = MCEPptr;
-		MCEPptr = &ep;
-		setstyledtext(parid, ep);
-		dirty = False;
-		MCEPptr = oldep;
-		break;
-	case P_RTF_TEXT:
-		oldep = MCEPptr;
-		MCEPptr = &ep;
-		setrtf(parid, data);
-		dirty = False;
-		MCEPptr = oldep;
-		break;
-	case P_LABEL:
-		delete label;
-		label = data.clone();
-		dirty = False;
-		break;
-	case P_FORMATTED_TEXT:
-		settext(parid, data, True);
-		dirty = True;
-		reset = True;
-		break;
-	// MW-2012-02-11: [[ TabWidths ]] Handle the new tabWidths property (parsetabstops
-	//   can now do either stops or widths).
-	case P_TAB_WIDTHS:
-	case P_TAB_STOPS:
-		{
-			// MW-2012-01-25: [[ ParaStyles ]] Use the refactored tabStop parsing method.
-			uint2 *newtabs = NULL;
-			uint2 newntabs = 0;
-			if (!parsetabstops(p, data, newtabs, newntabs))
-				return ES_ERROR;
-
-			delete tabs;
-			if (newtabs != NULL)
-			{
-				tabs = newtabs;
-				ntabs = newntabs;
-				flags |= F_TABS;
-			}
-			else
-			{
-				tabs = NULL;
-				ntabs = 0;
-				flags &= ~F_TABS;
-			}
-			dirty = True;
-			reset = True;
-		}
-		break;
-	case P_TOGGLE_HILITE:
-		if (!MCU_matchflags(data, flags, F_TOGGLE_HILITE, dummy))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_3D_HILITE:
-		if (!MCU_matchflags(data, flags, F_3D_HILITE, dirty))
-		{
-			MCeerror->add
-			(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_SHADOW:
-	case P_SHOW_BORDER:
-	case P_TEXT_FONT:
-	case P_TEXT_HEIGHT:
-	case P_TEXT_SIZE:
-	case P_TEXT_STYLE:
-	case P_3D:
-	case P_OPAQUE:
-	case P_DISABLED:
-	case P_ENABLED:
-	case P_BORDER_WIDTH:
-		if (MCControl::setprop(parid, p, ep, effective) != ES_NORMAL)
-			return ES_ERROR;
-
-		if (p == P_3D || p == P_OPAQUE || p == P_ENABLED || p == P_DISABLED)
-		{
-			if (vscrollbar != NULL)
-			{
-				vscrollbar->setflag(flags & F_3D, F_3D);
-				vscrollbar->setflag(flags & F_OPAQUE, F_OPAQUE);
-				vscrollbar->setflag(flags & F_DISABLED, F_DISABLED);
-			}
-			if (hscrollbar != NULL)
-			{
-				hscrollbar->setflag(flags & F_3D, F_3D);
-				hscrollbar->setflag(flags & F_OPAQUE, F_OPAQUE);
-				hscrollbar->setflag(flags & F_DISABLED, F_DISABLED);
-			}
-		}
-		reset = dirty = True;
-		setsbrects();
-		break;
-	// MW-2012-02-08: [[ FlaggedField ]] Set the flaggedRanges of the whole field.
-	// MW-2013-08-27: [[ Bug 11129 ]] Use INT32_MAX as upper limit.
-	case P_FLAGGED_RANGES:
-		return settextatts(parid, P_FLAGGED_RANGES, ep, nil, 0, INT32_MAX, false);
-#endif /* MCField::setprop */
-	default:
-		return MCControl::setprop(parid, p, ep, effective);
-	}
-	if (dirty && opened)
-	{
-		do_recompute(reset);
-		if (reset)
-			resetparagraphs();
-		hscroll(savex - textx, False);
-		vscroll(savey - texty, False);
-		resetscrollbars(True);
-
-		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
-		layer_redrawall();
-	}
-	return ES_NORMAL;
+bool MCField::formattabalignments(const intenum_t *p_alignments, uindex_t p_alignment_count, MCStringRef &r_result)
+{
+    if (p_alignment_count == 0)
+    {
+        r_result = MCValueRetain(kMCEmptyString);
+        return true;
+    }
+    
+    MCAutoListRef t_list;
+    if (!MCListCreateMutable(',', &t_list))
+		return false;
+    
+    for (uindex_t i = 0; i < p_alignment_count; i++)
+    {
+        switch (p_alignments[i])
+        {
+            case kMCParagraphTextAlignLeft:
+                if (!MCListAppendCString(*t_list, "left"))
+					return false;
+                break;
+                
+            case kMCParagraphTextAlignRight:
+                if (!MCListAppendCString(*t_list, "right"))
+					return false;
+                break;
+                
+            case kMCParagraphTextAlignCenter:
+                if (!MCListAppendCString(*t_list, "center"))
+					return false;
+                break;
+                
+            case kMCParagraphTextAlignJustify:
+                if (!MCListAppendCString(*t_list, "justify"))
+					return false;
+                break;
+                
+            default:
+				MCUnreachableReturn(false);
+        }
+    }
+    
+    return MCListCopyAsString(*t_list, r_result);
 }
 
 void MCField::undo(Ustruct *us)
 {
-	int4 si, ei;
+	findex_t si, ei;
 	MCParagraph *pgptr = NULL;
 
 	// MW-2005-02-20: Fix Bug 2537 by assuming if the field is closed then
@@ -2020,7 +1622,7 @@ void MCField::undo(Ustruct *us)
 
 		seltext(ei - us->ud.text.newchars, ei, False);
 		pgptr = cloneselection();
-		settextindex(0, ei - us->ud.text.newchars, ei, MCnullmcstring, True);
+        settextindex(0, ei - us->ud.text.newchars, ei, kMCEmptyString, True);
 		ei -= us->ud.text.newchars;
 		us->ud.text.newchars = 0;
 		if (us->ud.text.data != NULL)
@@ -2028,7 +1630,7 @@ void MCField::undo(Ustruct *us)
 			MCParagraph *tpgptr = us->ud.text.data;
 			do
 			{
-				us->ud.text.newchars += tpgptr->gettextsizecr();
+				us->ud.text.newchars += tpgptr->gettextlengthcr();
 				tpgptr = tpgptr->next();
 			}
 			while (tpgptr != us->ud.text.data);
@@ -2059,7 +1661,7 @@ void MCField::undo(Ustruct *us)
 		ei = si + us -> ud . text . newchars;
 		seltext(si, ei, False);
 		pgptr = cloneselection();
-		settextindex(0, si, ei, MCnullmcstring, True);
+		settextindex(0, si, ei, kMCEmptyString, True);
 
 		us->ud.text.newchars = 0;
 		if (us -> ud . text . data != NULL)
@@ -2067,7 +1669,7 @@ void MCField::undo(Ustruct *us)
 			MCParagraph *tpgptr = us->ud.text.data;
 			do
 			{
-				us->ud.text.newchars += tpgptr->gettextsizecr();
+				us->ud.text.newchars += tpgptr->gettextlengthcr();
 				tpgptr = tpgptr->next();
 			}
 			while (tpgptr != us->ud.text.data);
@@ -2102,13 +1704,13 @@ void MCField::undo(Ustruct *us)
 		ei = si;
 		if (us->type == UT_DELETE_TEXT)
 		{
-			MCParagraph *pgptr = indextoparagraph(paragraphs, si, ei);
+			pgptr = indextoparagraph(paragraphs, si, ei);
 			pgptr->setselectionindex(si, si, False, False);
 			focusedparagraph = pgptr;
 			if (us->ud.text.data != NULL)
 			{
 				insertparagraph(us->ud.text.data);
-				selectedmark(False, si, ei, False, False);
+				selectedmark(False, si, ei, False);
 				seltext(us->ud.text.index, si, True);
 				us->type = UT_REPLACE_TEXT;
 			}
@@ -2116,7 +1718,7 @@ void MCField::undo(Ustruct *us)
 				if (us->ud.text.newline)
 				{
 					pgptr->split();
-					pgptr->setselectionindex(MAXUINT2, MAXUINT2, False, False);
+					pgptr->setselectionindex(PARAGRAPH_MAX_LEN, PARAGRAPH_MAX_LEN, False, False);
 					pgptr = pgptr->next();
 					pgptr->setselectionindex(0, 0, False, False);
 					flags &= ~F_VISIBLE;
@@ -2130,14 +1732,14 @@ void MCField::undo(Ustruct *us)
 		}
 		else
 		{
-			MCParagraph *pgptr = us->ud.text.data;
+			pgptr = us->ud.text.data;
 			do
 			{
-				ei += pgptr->gettextsizecr();
+				ei += pgptr->gettextlengthcr();
 				pgptr = pgptr->next();
 			}
 			while (pgptr != us->ud.text.data);
-			settextindex(0, si, ei - 1, MCnullmcstring, True);
+			settextindex(0, si, ei - 1, kMCEmptyString, True);
 			us->type = UT_DELETE_TEXT;
 		}
 		updateparagraph(True, True);
@@ -2158,7 +1760,7 @@ MCControl *MCField::clone(Boolean attach, Object_pos p, bool invisible)
 {
 	if (opened && fdata != NULL)
 		fdata->setparagraphs(paragraphs);
-	MCField *newfield = new MCField(*this);
+	MCField *newfield = new (nothrow) MCField(*this);
 	if (attach)
 		newfield->attach(p, invisible);
 	return newfield;
@@ -2224,7 +1826,7 @@ MCCdata *MCField::getdata(uint4 cardid, Boolean clone)
 		}
 		while (fptr != fdata);
 	}
-	MCCdata *newptr = new MCCdata(cardid);
+	MCCdata *newptr = new (nothrow) MCCdata(cardid);
 	return newptr;
 }
 
@@ -2319,7 +1921,7 @@ void MCField::resetfontindex(MCStack *oldstack)
 		fdata = tptr;
 		while (fptr != NULL)
 		{
-			MCCdata *tptr = fptr->remove(fptr);
+			tptr = fptr->remove(fptr);
 			delete tptr;
 		}
 	}
@@ -2394,7 +1996,7 @@ Exec_stat MCField::vscroll(int4 offset, Boolean doredraw)
 			drect.y -= DEFAULT_BORDER;
 			drect.height += flags & F_HSCROLLBAR ? DEFAULT_BORDER : DEFAULT_BORDER * 2;
 			if (state & CS_KFOCUSED && !(extraflags & EF_NO_FOCUS_BORDER)
-			        && (IsMacEmulatedLF() || IsMacLFAM() && !MCaqua))
+			    && (IsMacEmulatedLF() || (IsMacLFAM() && !MCaqua)))
 				drect = MCU_reduce_rect(drect, 1);
 		}
 	//to-do change for drawing xp text fields
@@ -2628,7 +2230,7 @@ void MCField::do_recompute(bool p_force_layout)
 	while (pgptr != paragraphs);
 	resetscrollbars(False);
 	if (MCclickfield == this)
-		MCclickfield = NULL;
+		MCclickfield = nil;
 
 	// MW-2006-03-21: Bug 3344/3377 - Fix the focus border lingering
 	if (cursorfield == this)
@@ -2639,7 +2241,7 @@ void MCField::textchanged(void)
 {
 	if (getstate(CS_IN_TEXTCHANGED))
 		return;
-	
+
 	signallisteners(P_TEXT);
 
 	setstate(True, CS_IN_TEXTCHANGED);
@@ -2649,11 +2251,11 @@ void MCField::textchanged(void)
 
 // MW-2012-02-14: [[ FontRefs ]] Update the field's fontref and all its blocks
 //   based on having the given parent fontref.
-bool MCField::recomputefonts(MCFontRef p_parent_font)
+bool MCField::recomputefonts(MCFontRef p_parent_font, bool p_force)
 {
 	// First update our font ref (if opened etc.), doing nothing further if it
 	// hasn't changed.
-	if (!MCObject::recomputefonts(p_parent_font))
+	if (!MCObject::recomputefonts(p_parent_font, p_force))
 		return false;
 
 	// Now loop through all paragraphs, keeping track if anything changed so
@@ -2677,183 +2279,170 @@ bool MCField::recomputefonts(MCFontRef p_parent_font)
 	return t_changed;
 }
 
+
 // MW-2012-02-23: [[ FieldChars ]] Count the number of characters between si and
 //   ei in the paragraphs corresponding to part_id.
-int32_t MCField::countchars(uint32_t p_part_id, int32_t si, int32_t ei)
+findex_t MCField::countchars(uint32_t p_part_id, findex_t si, findex_t ei)
 {
-	// Get the correct paragraphs.
-	MCParagraph *t_paragraphs;
-	t_paragraphs = resolveparagraphs(p_part_id);
-	
-	// Get the paragraph containing si.
-	MCParagraph *t_paragraph;
-	t_paragraph = indextoparagraph(t_paragraphs, si, ei);
-	
-	// Accumulate the number of characters.
-	int32_t t_count;
-	t_count = 0;
-	do
-	{
-		// Get the blocks from the paragraphs.
-		MCBlock *t_blocks;
-		t_blocks = t_paragraph -> getblocks();
-		if (t_blocks == nil)
-		{
-			t_paragraph -> inittext();
-			t_blocks = t_paragraph -> getblocks();
-		}
-		
-		// Find the block containing si.
-		MCBlock *t_block;
-		for(t_block = t_blocks; t_block -> getindex() + t_block -> getsize() < si; t_block = t_block -> next())
-			;
-		
-		// Loop through all the blocks until we reach ei.
-		for(;;)
-		{
-			// Compute the start and end index in the block.
-			int32_t t_block_si, t_block_ei;
-			t_block_si = MCMax(t_block -> getindex(), si);
-			t_block_ei = MCMin(t_block -> getindex() + t_block -> getsize(), ei);
-			
-			// If the block has unicode, then adjust for two bytes per char.
-			if (t_block -> hasunicode())
-				t_count += (t_block_ei - t_block_si) / 2;
-			else
-				t_count += t_block_ei - t_block_si;
-			
-			// Advance to the next block.
-			t_block = t_block -> next();
-			
-			// If it starts beyond (or at) ei, we are done. If it is
-			// the first block (i.e. we've looped back round, we are
-			// also done).
-			if (t_block -> getindex() >= ei || t_block == t_blocks)
-				break;
-		}
-		
-		// Adjust indices for the next paragraph.
-		si = 0;
-		ei -= t_paragraph -> gettextsizecr();
-		
-		// If the ei is still non-negative then adjust for a newline.
-		if (ei >= 0)
-			t_count += 1;
+	// Get the first paragraph for this instance of the field
+    MCParagraph *t_pg, *t_first_pg;
+    bool t_stop;
+    t_first_pg = t_pg = resolveparagraphs(p_part_id);
+    t_stop = false;
 
-		// Move to the next paragraph.
-		t_paragraph = t_paragraph -> next();
-	}
-	while(ei > 0);
-	
-	// Return the count of chars.
-	return t_count;
-}
+    
+    // Loop through the paragraphs until we've gone si code units in
+    while (t_pg->gettextlength() < si && !t_stop)
+    {
+        // Move on to the next paragraph
+        si -= t_pg->gettextlengthcr();
+        ei -= t_pg->gettextlengthcr();
+        t_pg = t_pg->next();
+        t_stop = t_pg == t_first_pg;
+    }
 
-// This method resolves the field index of p_offset characters past si. Here
-// si should be the starting index in p_paragraph. It returns the offset from
-// si that the wanted char is at.
-static int32_t resolvechar(MCParagraph*& p_paragraph, int32_t& si, int32_t& ei, int32_t p_offset)
-{
-	int32_t t_offset;
-	t_offset = 0;
-	do
-	{
-		// Make sure we have blocks to process.
-		MCBlock *t_blocks;
-		t_blocks = p_paragraph -> getblocks();
-		if (t_blocks == nil)
-		{
-			p_paragraph -> inittext();
-			t_blocks = p_paragraph -> getblocks();
-		}
-		
-		// Skip ahead until we get to the block containing si.
-		MCBlock *t_block;
-		for(t_block = t_blocks; t_block -> getindex() + t_block -> getsize() < si; t_block = t_block -> next())
-			;
-		
-		// Loop until we either reach the end of the blocks, offset chars, or
-		// ei.
-		for(;;)
-		{
-			int32_t t_block_si, t_block_ei;
-			t_block_si = MCMax(t_block -> getindex(), si);
-			t_block_ei = MCMin(t_block -> getindex() + t_block -> getsize(), ei);
-			
-			int32_t t_char_count, t_byte_count;
-			if (t_block -> hasunicode())
-			{
-				t_char_count = MCMin(p_offset, (t_block_ei - t_block_si) / 2);
-				t_byte_count = t_char_count * 2;
-			}
-			else
-			{
-				t_char_count = MCMin(p_offset, t_block_ei - t_block_si);
-				t_byte_count = t_char_count;
-			}
-			
-			t_offset += t_byte_count;
-			p_offset -= t_char_count;
-			
-			t_block = t_block -> next();
-			
-			if (p_offset == 0 || t_block -> getindex() >= ei || t_block == t_blocks)
-			{
-				si = t_block_si + t_byte_count;
-				break;
-			}
-		}
-		
-		if (p_offset > 0)
-			t_offset += 1, p_offset -= 1;
-		else
-			break;
-		
-		si = 0;
-		ei -= p_paragraph -> gettextsizecr();
-		
-		p_paragraph = p_paragraph -> next();
-	}
-	while(ei > 0);
-	
-	return t_offset;
+    // Loop until we reach the end index, counting chars as we go
+    findex_t t_count;
+    t_count = 0;
+    while (t_pg->gettextlength() < ei && !t_stop)
+    {
+        // Count the number of chars in this paragraph. The only paragraph
+        // with a non-zero si valus is the first paragraph.
+        MCRange t_cu_range, t_char_range;
+        t_cu_range = MCRangeMakeMinMax(si, t_pg->gettextlength());
+        // SN-2014-09-11: [[ Bug 13361 ]] We need to remove the codeunits we skipped in the paragraph before counting.
+        ei -= si;
+        si = 0;
+        /* UNCHECKED */ MCStringUnmapIndices(t_pg->GetInternalStringRef(), kMCCharChunkTypeGrapheme, t_cu_range, t_char_range);
+        ++t_cu_range.length; // implicit paragraph break
+        // SN-2014-05-20 [[ Bug 12432 ]] Add the paragraph break to the number of chars
+        ++t_char_range.length; // implicit paragraph break
+
+        t_count += t_char_range.length;
+        
+        // Move on to the next paragraph
+        ei -= t_cu_range.length;
+        t_pg = t_pg->next();
+        t_stop = t_pg == t_first_pg;
+    }
+    
+    // Count the number of chars in the final paragraph
+    if (!t_stop)
+    {
+        MCRange t_char_range, t_cu_range;
+        t_cu_range = MCRangeMakeMinMax(si, ei);
+        /* UNCHECKED */ MCStringUnmapIndices(t_pg->GetInternalStringRef(), kMCCharChunkTypeGrapheme, t_cu_range, t_char_range);
+        t_count += t_char_range.length;
+    }
+    
+    // Return the number of chars that we encountered
+    return t_count;
 }
 
 // MW-2012-02-23: [[ FieldChars ]] Adjust field indices (si, ei) to cover the start chars
 //   in, ending count chars later.
-void MCField::resolvechars(uint32_t p_part_id, int32_t& x_si, int32_t& x_ei, int32_t p_start, int32_t p_count)
+// SN-2014-04-04: [[ CombiningChars ]] x_si and x_ei are codepoint indices, p_start and p_count are char indices
+// We need to take this in consideration in the whole process
+void MCField::resolvechars(uint32_t p_part_id, findex_t& x_si, findex_t& x_ei, findex_t p_start, findex_t p_count)
 {
-	// Fetch the correct paragraphs.
-	MCParagraph *t_paragraphs;
-	t_paragraphs = resolveparagraphs(p_part_id);
-	
-	int32_t si, ei;
-	si = x_si;
-	ei = x_ei;
-	
-	// Compute the paragraph containing si.
-	MCParagraph *t_paragraph;
-	t_paragraph = indextoparagraph(t_paragraphs, si, ei);
-	
-	// Advance the original si by p_start characters.
-	x_si += resolvechar(t_paragraph, si, ei, p_start);
-	
-	// The end index is si adjusted by p_count characters.
-	x_ei = x_si + resolvechar(t_paragraph, si, ei, p_count);
+    // Get the first paragraph for this instance of the field
+    MCParagraph *t_pg, *t_top_para;
+    t_top_para = t_pg = resolveparagraphs(p_part_id);
+    
+    // Loop through the paragraphs until we've gone x_si code units in
+    findex_t t_index = 0;
+    while ((t_index + t_pg->gettextlengthcr()) < x_si)
+    {
+        t_index += t_pg->gettextlengthcr();
+        t_pg = t_pg->next();
+    }
+    
+    // We now need to calculate how many chars into the paragraph we are
+    MCRange t_char_range, t_cu_range;
+    t_cu_range = MCRangeMake(0, x_si - t_index);
+    /* UNCHECKED */ MCStringMapIndices(t_pg->GetInternalStringRef(), kMCCharChunkTypeGrapheme, t_cu_range, t_char_range);
+
+    // Because we measure chars from the beginning of the paragraph,
+    // increase the number of chars we want to skip to account for this.
+    p_start += t_char_range.length;
+    
+    // Loop until we get to the starting paragraph (or reach the end of the field)
+    findex_t t_pg_char_length = t_pg -> gettextlengthcr(true);
+    while (t_pg_char_length <= p_start)
+    {
+        // Move to the next paragraph
+        p_start -= t_pg_char_length;
+        x_si += t_pg -> gettextlengthcr();
+        t_pg = t_pg->next();
+
+        // Count the number of chars in the next paragraph
+        t_pg_char_length = t_pg -> gettextlengthcr(true);
+        
+        // If we've reached end of the last paragraph, end the loop
+        if (t_pg == t_top_para)
+        {
+            if (p_start > t_pg_char_length)
+            {
+                // The start index is at or beyond the end of the field. Clamp it
+                p_start = t_pg_char_length;
+                break;
+            }
+        }
+    }
+    
+    // We know the char offset into the paragraph and need to convert
+    // this back into a code unit offset.
+    t_char_range = MCRangeMake(0, p_start);
+    /* UNCHECKED */ MCStringMapIndices(t_pg->GetInternalStringRef(), kMCCharChunkTypeGrapheme, t_char_range, t_cu_range);
+    x_si  += t_cu_range . length;
+    x_ei = x_si - t_cu_range.length;
+    
+
+    // Now we need to do it again but measuring ahead p_count chars. Again,
+    // start at the beginning of the current paragraph.
+    p_count += p_start;
+
+
+    // Loop until we get to the final paragraph
+    // Note that t_pg_length already contains the measurement for the current pg
+    while (t_pg_char_length <= p_count)
+    {
+        // Move to the next paragraph
+        p_count -= t_pg_char_length;
+        x_ei += t_pg -> gettextlengthcr();
+        t_pg = t_pg->next();
+        
+        // Have we reached the first paragraph of the field again?
+        if (t_pg == t_top_para)
+        {
+            // End index was too large. Clamp it and stop looping.
+            p_count = 0;
+            break;
+        }
+        
+        // Count the number of chars in the next paragraph
+        t_pg_char_length = t_pg -> gettextlengthcr(true);
+    }
+    
+    // We know the char offset into the paragraph and need to convert this
+    // back into a code unit offset.
+    t_char_range = MCRangeMake(0, p_count);
+    /* UNCHECKED */ MCStringMapIndices(t_pg->GetInternalStringRef(), kMCCharChunkTypeGrapheme, t_char_range, t_cu_range);
+    x_ei += t_cu_range.length;
 }
 
 // MW-2012-02-23: [[ FieldChars ]] Convert field indices (si, ei) back to char indices.
-void MCField::unresolvechars(uint32_t p_part_id, int32_t& x_si, int32_t& x_ei)
+void MCField::unresolvechars(uint32_t p_part_id, findex_t& x_si, findex_t& x_ei)
 {
-	int32_t si, ei;
-	si = x_si;
-	ei = x_ei;
-	x_si = countchars(p_part_id, 0, si);
-	if (si != ei)
-		x_ei = x_si + countchars(p_part_id, si, ei);
-	else
-		x_ei = x_si;
-
+	// Count the number of chars from the beginning of the field to the
+    // starting index, giving us x_si
+    uindex_t t_si = countchars(p_part_id, 0, x_si);
+    
+    // Count the number of chars from x_si to x_ei
+    uindex_t t_count = countchars(p_part_id, x_si, x_ei);
+    
+    x_si = t_si;
+    x_ei = t_count + t_si;
 }
 
 //-----------------------------------------------------------------------------
@@ -2888,19 +2477,30 @@ void MCField::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool p
 	if ((state & CS_SIZE || state & CS_MOVE) && flags & F_SCROLLBAR)
 		setsbrects();
 
-	if (state & CS_SIZE)
-	{
-		resetparagraphs();
-		do_recompute(true);
-	}
-	else if (state & CS_SELECTED && (texty != 0 || textx != 0))
-	{
-		resetparagraphs();
-		do_recompute(false);
-	}
+    // MM-2014-08-11: [[ Bug 13149 ]] Make sure only the first thread calls do_recompute.
+    if (m_recompute)
+    {
+        // MM-2014-08-05: [[ Bug 13012 ]] Put locks around recompute to prevent threading issues.
+        if (m_recompute)
+        {
+            if (state & CS_SIZE)
+            {
+                resetparagraphs();
+                do_recompute(true);
+            }
+            else if (state & CS_SELECTED && (texty != 0 || textx != 0))
+            {
+                resetparagraphs();
+                do_recompute(false);
+            }
+            m_recompute = false;
+        }
+    }
 
 	MCRectangle frect = getfrect();
-	dc->setclip(dirty);
+	
+	dc->save();
+	dc->cliprect(dirty);
 	
 	MCRectangle trect = frect;
 	if (flags & F_SHOW_BORDER && borderwidth)
@@ -2929,11 +2529,12 @@ void MCField::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool p
 		else
 			drawborder(dc, trect, borderwidth);
 	}
-	dc->clearclip();
+	
+	dc->restore();
 
 	// MW-2009-06-14: If the field is opaque, then render the contents with that
 	//   marked.
-	bool t_was_opaque;
+	bool t_was_opaque = false;
 	if (getflag(F_OPAQUE))
 		t_was_opaque = dc -> changeopaque(true);
 	drawrect(dc, dirty);
@@ -2941,11 +2542,9 @@ void MCField::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool p
 		dc -> changeopaque(t_was_opaque);
 
 	frect = getfrect();
-	dc->setclip(dirty);
 	if (flags & F_SHADOW)
 	{
-		MCRectangle trect = rect;
-		drawshadow(dc, trect, shadowoffset);
+		drawshadow(dc, rect, shadowoffset);
 	}
 
 	if (state & CS_KFOCUSED && borderwidth != 0
@@ -2956,9 +2555,6 @@ void MCField::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool p
 	if (!p_isolated)
 	{
 		dc -> end();
-
-		if (getstate(CS_SELECTED))
-			drawselected(dc);
 	}
 }
 
@@ -2970,17 +2566,163 @@ void MCField::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool p
 //  SAVING AND LOADING
 //
 
-IO_stat MCField::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+#define FIELD_EXTRA_TEXTDIRECTION   (1 << 0)
+// SN-2015-04-30: [[ Bug 15175 ]] TabAlignment flag added
+#define FIELD_EXTRA_TABALIGN        (1 << 1)
+#define FIELD_EXTRA_KEYBOARDTYPE    (1 << 2)
+#define FIELD_EXTRA_RETURNKEYTYPE    (1 << 3)
+
+IO_stat MCField::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
-	return defaultextendedsave(p_stream, p_part);
+	uint32_t t_size, t_flags;
+	t_size = 0;
+	t_flags = 0;
+    
+    // MW-2014-06-20: [[ Bug 13315 ]] Save the textDirection of the field
+    if (text_direction != kMCTextDirectionAuto)
+    {
+        t_flags |= FIELD_EXTRA_TEXTDIRECTION;
+        t_size += sizeof(uint8_t);
+    }
+    
+    // SN-2015-04-30: [[ Bug 15175 ]] Save the tabalign property of the field
+    if (nalignments != 0)
+    {
+        t_flags |= FIELD_EXTRA_TABALIGN;
+        // Save number of tab alignments, and then each of them.
+        t_size += sizeof(uint16_t);
+        t_size += sizeof(int8_t) * nalignments;
+    }
+    
+    if (keyboard_type != kMCInterfaceKeyboardTypeNone)
+    {
+        t_flags |= FIELD_EXTRA_KEYBOARDTYPE;
+        t_size += sizeof(int8_t);
+    }
+    
+    if (return_key_type != kMCInterfaceReturnKeyTypeNone)
+    {
+        t_flags |= FIELD_EXTRA_RETURNKEYTYPE;
+        t_size += sizeof(int8_t);
+    }
+
+	IO_stat t_stat;
+	t_stat = p_stream . WriteTag(t_flags, t_size);
+
+    if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_TEXTDIRECTION))
+        t_stat = p_stream . WriteU8(text_direction);
+
+    if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_TABALIGN))
+    {
+        t_stat = p_stream . WriteU16(nalignments);
+
+        for (uint2 i = 0; i < nalignments && t_stat == IO_NORMAL; ++i)
+            t_stat = p_stream . WriteS8((int8_t)alignments[i]);
+    }
+    
+    if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_KEYBOARDTYPE))
+    {
+        t_stat = p_stream . WriteS8((int8_t)keyboard_type);
+    }
+    
+    if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_RETURNKEYTYPE))
+    {
+        t_stat = p_stream . WriteS8((int8_t)return_key_type);
+    }
+    
+    if (t_stat == IO_NORMAL)
+		t_stat = MCObject::extendedsave(p_stream, p_part, p_version);
+    
+	return t_stat;
 }
 
-IO_stat MCField::extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length)
+IO_stat MCField::extendedload(MCObjectInputStream& p_stream, uint32_t p_version, uint4 p_length)
 {
-	return defaultextendedload(p_stream, p_version, p_length);
+    IO_stat t_stat;
+	t_stat = IO_NORMAL;
+    
+    if (p_length > 0)
+    {
+		uint4 t_flags, t_length, t_header_length;
+		t_stat = checkloadstat(p_stream . ReadTag(t_flags, t_length, t_header_length));
+        
+		if (t_stat == IO_NORMAL)
+			t_stat = checkloadstat(p_stream . Mark());
+        
+        // MW-2014-06-20: [[ 13315 ]] Load the textDirection of the field.
+        if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_TEXTDIRECTION) != 0)
+        {
+            uint8_t t_value;
+            t_stat = checkloadstat(p_stream . ReadU8(t_value));
+            if (t_stat == IO_NORMAL)
+                text_direction = (MCTextDirection)t_value;
+        }
+
+        // SN-2015-04-30: [[ Bug 15175 ]] Read the tablAlign property, if saved
+        if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_TABALIGN) != 0)
+        {
+            uint16_t t_nalign;
+            intenum_t *t_alignments;
+            t_alignments = NULL;
+
+            t_stat = checkloadstat(p_stream . ReadU16(t_nalign));
+
+            if (t_stat == IO_NORMAL && t_nalign != 0)
+            {
+                if (!MCMemoryAllocate(sizeof(intenum_t) * t_nalign, t_alignments))
+                    t_stat = checkloadstat(IO_ERROR);
+
+                for (uint2 i = 0; i < t_nalign && t_stat == IO_NORMAL; ++i)
+                {
+                    int8_t t_align;
+                    if ((t_stat = checkloadstat(p_stream . ReadS8(t_align))) == IO_NORMAL)
+                        t_alignments[i] = t_align;
+                }
+
+                if (t_stat == IO_NORMAL)
+                {
+                    nalignments = t_nalign;
+                    alignments = t_alignments;
+                }
+                else
+                    MCMemoryDelete(t_alignments);
+            }
+        }
+        
+        if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_KEYBOARDTYPE) != 0)
+        {
+            int8_t t_value;
+            t_stat = checkloadstat(p_stream . ReadS8(t_value));
+            if (t_stat == IO_NORMAL)
+            {
+                keyboard_type = static_cast<MCInterfaceKeyboardType>(t_value);
+            }
+        }
+        
+        if (t_stat == IO_NORMAL && (t_flags & FIELD_EXTRA_RETURNKEYTYPE) != 0)
+        {
+            int8_t t_value;
+            t_stat = checkloadstat(p_stream . ReadS8(t_value));
+            if (t_stat == IO_NORMAL)
+            {
+                return_key_type =  static_cast<MCInterfaceReturnKeyType>(t_value);
+            }
+        }
+        
+        if (t_stat == IO_NORMAL)
+            t_stat = checkloadstat(p_stream . Skip(t_length));
+        
+        if (t_stat == IO_NORMAL)
+            p_length -= t_length + t_header_length;
+    }
+    
+	if (t_stat == IO_NORMAL)
+		t_stat = MCObject::extendedload(p_stream, p_version, p_length);
+    
+	return t_stat;
 }
 
-IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
+IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version)
 {
 	IO_stat stat;
 	int4 savex = textx;
@@ -2989,7 +2731,15 @@ IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	if ((stat = IO_write_uint1(OT_FIELD, stream)) != IO_NORMAL)
 		return stat;
 
-	if ((stat = MCObject::save(stream, p_part, p_force_ext)) != IO_NORMAL)
+    // AL-2014-09-12: [[ Bug 13315 ]] Force an extension if field has explicit textDirection.
+    // SN-2015-04-30: [[ Bug 15175 ]] Force an extension if field has tabalign.
+    bool t_has_extension;
+    t_has_extension = text_direction != kMCTextDirectionAuto ||
+                      nalignments != 0 ||
+                      keyboard_type != kMCInterfaceKeyboardTypeNone ||
+                      return_key_type != kMCInterfaceReturnKeyTypeNone;
+    
+    if ((stat = MCObject::save(stream, p_part, t_has_extension || p_force_ext, p_version)) != IO_NORMAL)
 		return stat;
 
 	if ((stat = IO_write_int2(leftmargin, stream)) != IO_NORMAL)
@@ -3011,7 +2761,7 @@ IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 			if ((stat = IO_write_uint2(tabs[i], stream)) != IO_NORMAL)
 				return stat;
 	}
-	if ((stat = savepropsets(stream)) != IO_NORMAL)
+	if ((stat = savepropsets(stream, p_version)) != IO_NORMAL)
 		return stat;
 	if (fdata != NULL)
 	{
@@ -3027,7 +2777,7 @@ IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 			MCCdata *tptr;
 			tptr = getcarddata(fdata, 0, False);
 			if (tptr != NULL)
-				if ((stat = tptr -> save(stream, OT_FDATA, 0)) != IO_NORMAL)
+				if ((stat = tptr -> save(stream, OT_FDATA, 0, this, p_version)) != IO_NORMAL)
 					return stat;
 		}
 		else
@@ -3035,7 +2785,7 @@ IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 			MCCdata *tptr = fdata;
 			do
 			{
-				if ((stat = tptr->save(stream, OT_FDATA, p_part)) != IO_NORMAL)
+				if ((stat = tptr->save(stream, OT_FDATA, p_part, this, p_version)) != IO_NORMAL)
 					return stat;
 				tptr = tptr->next();
 			}
@@ -3043,10 +2793,10 @@ IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		}
 	}
 	if (vscrollbar != NULL)
-		if ((stat = vscrollbar->save(stream, p_part, p_force_ext)) != IO_NORMAL)
+		if ((stat = vscrollbar->save(stream, p_part, p_force_ext, p_version)) != IO_NORMAL)
 			return stat;
 	if (hscrollbar != NULL)
-		if ((stat = hscrollbar->save(stream, p_part, p_force_ext)) != IO_NORMAL)
+		if ((stat = hscrollbar->save(stream, p_part, p_force_ext, p_version)) != IO_NORMAL)
 			return stat;
 	if (opened)
 	{
@@ -3066,33 +2816,33 @@ IO_stat MCField::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	return IO_NORMAL;
 }
 
-IO_stat MCField::load(IO_handle stream, const char *version)
+IO_stat MCField::load(IO_handle stream, uint32_t version)
 {
 	IO_stat stat;
 
 	if ((stat = MCObject::load(stream, version)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_int2(&leftmargin, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_int2(&rightmargin, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_int2(&topmargin, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_int2(&bottommargin, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_int2(&indent, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if (flags & F_TABS)
 	{
 		if ((stat = IO_read_uint2(&ntabs, stream)) != IO_NORMAL)
-			return stat;
-		tabs = new uint2[ntabs];
+			return checkloadstat(stat);
+		tabs = new (nothrow) uint2[ntabs];
 		uint2 i;
 		for (i = 0 ; i < ntabs ; i++)
 			if ((stat = IO_read_uint2(&tabs[i], stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 	}
-	if (strncmp(version, "2.0", 3) <= 0)
+	if (version <= kMCStackFileFormatVersion_2_0)
 	{
 		rect = MCU_reduce_rect(rect, MCfocuswidth);
 		if (flags & F_LIST_BEHAVIOR)
@@ -3100,20 +2850,20 @@ IO_stat MCField::load(IO_handle stream, const char *version)
 	}
 	if (flags & F_VGRID)
 		flags |= F_DONT_WRAP;
-	if ((stat = loadpropsets(stream)) != IO_NORMAL)
-		return stat;
+	if ((stat = loadpropsets(stream, version)) != IO_NORMAL)
+		return checkloadstat(stat);
 	while (True)
 	{
 		uint1 type;
 		if ((stat = IO_read_uint1(&type, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if (type == OT_FDATA)
 		{
-			MCCdata *newfdata = new MCCdata;
+			MCCdata *newfdata = new (nothrow) MCCdata;
 			if ((stat = newfdata->load(stream, this, version)) != IO_NORMAL)
 			{
 				delete newfdata;
-				return stat;
+				return checkloadstat(stat);
 			}
 			newfdata->appendto(fdata);
 		}
@@ -3122,10 +2872,10 @@ IO_stat MCField::load(IO_handle stream, const char *version)
 			{
 				if (flags & F_VSCROLLBAR && vscrollbar == NULL)
 				{
-					vscrollbar = new MCScrollbar;
+					vscrollbar = new (nothrow) MCScrollbar;
 					vscrollbar->setparent(this);
 					if ((stat = vscrollbar->load(stream, version)) != IO_NORMAL)
-						return stat;
+						return checkloadstat(stat);
 					vscrollbar->setflag(getflag(F_DISABLED), F_DISABLED);
 					vscrollbar->allowmessages(False);
 					vscrollbar->setembedded();
@@ -3134,10 +2884,10 @@ IO_stat MCField::load(IO_handle stream, const char *version)
 				else
 					if (flags & F_HSCROLLBAR && hscrollbar == NULL)
 					{
-						hscrollbar = new MCScrollbar;
+						hscrollbar = new (nothrow) MCScrollbar;
 						hscrollbar->setparent(this);
 						if ((stat = hscrollbar->load(stream, version)) != IO_NORMAL)
-							return stat;
+							return checkloadstat(stat);
 						hscrollbar->setflag(getflag(F_DISABLED), F_DISABLED);
 						hscrollbar->allowmessages(False);
 						hscrollbar->setembedded();
@@ -3183,18 +2933,91 @@ bool MCField::imagechanged(MCImage *p_image, bool p_deleting)
 	bool t_used = false;
 	MCParagraph *t_para = paragraphs;
 
-	do
+	if (t_para != NULL)
 	{
-		t_used = t_para->imagechanged(p_image, p_deleting) || t_used;
-		t_para = t_para->next();
-	}
-	while (t_para != paragraphs);
-
-	if (t_used)
-	{
-		do_recompute(true);
-		layer_redrawall();
+		do
+		{
+			t_used = t_para->imagechanged(p_image, p_deleting) || t_used;
+			t_para = t_para->next();
+		}
+		while (t_para != paragraphs);
+		
+		if (t_used)
+		{
+			do_recompute(true);
+			layer_redrawall();
+		}
 	}
 
 	return t_used;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+bool MCField::IsCursorMovementVisual()
+{
+    if (cursor_movement == kMCFieldCursorMovementLogical)
+        return false;
+    else if (cursor_movement == kMCFieldCursorMovementVisual)
+        return true;
+    else
+    {
+#ifdef _WIN32
+        return false;
+#else
+        return true;
+#endif
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MCPlatformControlType MCField::getcontroltype()
+{
+    MCPlatformControlType t_type;
+    t_type = MCObject::getcontroltype();
+    
+    if (t_type != kMCPlatformControlTypeGeneric)
+        return t_type;
+    else
+        t_type = kMCPlatformControlTypeInputField;
+    
+    if (flags & F_LIST_BEHAVIOR)
+        t_type = kMCPlatformControlTypeList;
+    else if ((flags & F_LOCK_TEXT) && !(flags & F_OPAQUE))
+        t_type = kMCPlatformControlTypeLabel;
+    
+    return t_type;
+}
+
+MCPlatformControlPart MCField::getcontrolsubpart()
+{
+    return kMCPlatformControlPartNone;
+}
+
+MCPlatformControlState MCField::getcontrolstate()
+{
+    int t_state;
+    t_state = MCControl::getcontrolstate();
+    
+    return MCPlatformControlState(t_state);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MCField::layer_redrawrect(const MCRectangle& m_dirty_rect)
+{
+    // If the parent of this field is a button, this is the entry field for
+    // a combo-box. In that case, the text is vertically centred(-ish)
+    // within the field so the y offsets we calculate here are wrong.
+    // Calculating the correct position is fairly complicated so the simpler
+    // solution is to just invalidate the whole field in that case.
+    //
+    // This doesn't make much of a difference performance-wise; the number
+    // of pixels to be rasterised is higher but only by 3 or 4 rows in most
+    // cases.
+    if (getparent()->gettype() != CT_BUTTON)
+        MCControl::layer_redrawrect(m_dirty_rect);
+    else
+        MCControl::layer_redrawrect(rect);
 }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -26,13 +26,37 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "image.h"
 #include "stack.h"
 #include "sellst.h"
-#include "execpt.h"
+
 
 #include "globals.h"
 #include "osspec.h"
 #include "context.h"
 
-#include "core.h"
+#include "filepath.h"
+
+#include "module-resources.h"
+
+//////////////////////////////////////////////////////////////////////
+
+// MW-2014-07-17: [[ ImageMetadata ]] Convert array to the metadata struct.
+bool MCImageParseMetadata(MCExecContext& ctxt, MCArrayRef p_array, MCImageMetadata& r_metadata)
+{
+    MCValueRef t_value;
+    real64_t t_density;
+    
+    if (MCArrayFetchValue(p_array, false, MCNAME("density"), t_value)
+            && ctxt . ConvertToReal(t_value, t_density))
+    {
+        r_metadata . has_density = true;
+        r_metadata . density = t_density;
+    }
+    else
+        r_metadata . has_density = false;
+    
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////
 
 bool MCImageCompress(MCImageBitmap *p_bitmap, bool p_dither, MCImageCompressedBitmap *&r_compressed)
 {
@@ -49,7 +73,7 @@ bool MCImageCompress(MCImageBitmap *p_bitmap, bool p_dither, MCImageCompressedBi
 	else
 	{
 		uint32_t t_compression;
-		char *t_buffer = nil;
+		void *t_buffer = nil;
 		uindex_t t_size = 0;
 
 		IO_handle t_stream = nil;
@@ -64,16 +88,17 @@ bool MCImageCompress(MCImageBitmap *p_bitmap, bool p_dither, MCImageCompressedBi
 			 else if (MCpaintcompression == EX_JPEG)
 			 {
 				 t_compression = F_JPEG;
-				 t_success = MCImageEncodeJPEG(p_bitmap, t_stream, t_size);
+				 t_success = MCImageEncodeJPEG(p_bitmap, nil, t_stream, t_size);
 			 }
 			 else
 			 {
 				 t_compression = F_PNG;
-				 t_success = MCImageEncodePNG(p_bitmap, t_stream, t_size);
+				 t_success = MCImageEncodePNG(p_bitmap, nil, t_stream, t_size);
 			 }
 		}
+
 		if (t_stream != nil)
-			MCS_fakeclosewrite(t_stream, t_buffer, t_size);
+			t_success = MCS_closetakingbuffer_uint32(t_stream, t_buffer, t_size) == IO_NORMAL;
 
 		if (t_success)
 			t_success = MCImageCreateCompressedBitmap(t_compression, r_compressed);
@@ -103,61 +128,6 @@ void MCImage::recompress()
 	flags &= ~F_NEED_FIXING;
 }
 
-bool MCImageDecompress(MCImageCompressedBitmap *p_compressed, MCImageFrame *&r_frames, uindex_t &r_frame_count)
-{
-	bool t_success = true;
-
-	IO_handle t_stream = nil;
-	MCImageFrame *t_frames = nil;
-	uindex_t t_frame_count = 1;
-
-	// create single frame for non-animated formats
-	if (t_success && p_compressed->compression != F_GIF)
-		t_success = MCMemoryNewArray(1, t_frames);
-
-	// create stream for non-rle compressed images
-	if (t_success && p_compressed->compression != F_RLE)
-		t_success = nil != (t_stream = MCS_fakeopen(MCString((char*)p_compressed->data, p_compressed->size)));
-
-	if (t_success)
-	{
-		switch (p_compressed->compression)
-		{
-		case F_GIF:
-			t_success = MCImageDecodeGIF(t_stream, t_frames, t_frame_count);
-			break;
-
-		case F_PNG:
-			t_frames[0].density = 1.0;
-			t_success = MCImageDecodePNG(t_stream, t_frames[0].image);
-			break;
-
-		case F_JPEG:
-			t_frames[0].density = 1.0;
-			t_success = MCImageDecodeJPEG(t_stream, t_frames[0].image);
-			break;
-
-		case F_RLE:
-			t_frames[0].density = 1.0;
-			t_success = MCImageDecompressRLE(p_compressed, t_frames[0].image);
-			break;
-		}
-	}
-
-	if (t_stream != nil)
-		MCS_close(t_stream);
-
-	if (t_success)
-	{
-		r_frames = t_frames;
-		r_frame_count = t_frame_count;
-	}
-	else
-		MCImageFreeFrames(t_frames, t_frame_count);
-
-	return t_success;
-}
-
 bool MCImage::decompressbrush(MCGImageRef &r_brush)
 {
 	/* TODO - may be able to improve this now by rasterizing the metafile */
@@ -171,27 +141,20 @@ bool MCImage::decompressbrush(MCGImageRef &r_brush)
 
 	bool t_success = true;
 
-	MCImageFrame *t_frame = nil;
+	MCGImageFrame t_frame;
 
 	// IM-2013-10-30: [[ FullscreenMode ]] REVISIT: We try here to acquire the brush
 	// bitmap at 1.0 scale, but currently ignore the set density value of the returned frame.
 	// We may have to add support for hi-res brushes OR scale the resulting bitmap appropriately.
-	t_success = m_rep->LockImageFrame(0, true, 1.0, t_frame);
+	t_success = m_rep->LockImageFrame(0, 1.0, t_frame);
 
 	if (t_success)
-	{
-		MCGRaster t_raster;
-		t_raster.width = t_frame->image->width;
-		t_raster.height = t_frame->image->height;
-		t_raster.stride = t_frame->image->stride;
-		t_raster.format = MCImageBitmapHasTransparency(t_frame->image) ? kMCGRasterFormat_ARGB : kMCGRasterFormat_xRGB;
-		t_raster.pixels = t_frame->image->data;
+    {
+		r_brush = MCGImageRetain(t_frame.image);
 
-		t_success = MCGImageCreateWithRaster(t_raster, r_brush);
-	}
-
-	m_rep->UnlockImageFrame(0, t_frame);
-
+        m_rep->UnlockImageFrame(0, t_frame);
+    }
+    
 	return t_success;
 }
 
@@ -202,27 +165,24 @@ void MCImagePrepareRepForDisplayAtDensity(MCImageRep *p_rep, MCGFloat p_density)
 		/* OVERHAUL - REVISIT: for the moment, prepared images are premultiplied
 		 * as we expect them to be rendered, but if not then this is actually
 		 * causing more work to be done than needed */
-		MCImageFrame *t_frame = nil;
-		p_rep->LockImageFrame(0, true, p_density, t_frame);
-		p_rep->UnlockImageFrame(0, t_frame);
+		MCGImageFrame t_frame;
+		if (p_rep->LockImageFrame(0, p_density, t_frame))
+            p_rep->UnlockImageFrame(0, t_frame);
 	}
 }
 
 void MCImage::prepareimage()
 {
-	MCStack *t_stack;
-	t_stack = getstack();
-	
 	MCImagePrepareRepForDisplayAtDensity(m_rep, getdevicescale());
 }
 
 void MCImage::openimage()
 {
-	if (!m_image_opened && m_rep != nil)
+	uindex_t t_width, t_height;
+	if (!m_image_opened && m_rep != nil && m_rep->GetGeometry(t_width, t_height))
 	{
 		// MW-2013-06-21: [[ Valgrind ]] Initialize width/height to defaults in
 		//   case GetGeometry fails.
-		uindex_t t_width, t_height;
 		t_width = rect . width;
 		t_height = rect . height;
 		
@@ -252,7 +212,7 @@ void MCImage::openimage()
 		// MW-2011-09-12: [[ Redraw ]] If the rect has changed then notify the layer.
 		//   (note we have to check 'parent' as at the moment MCImage is used for
 		//    the rb* icons which are unowned!).
-		if (parent != nil && !MCU_equal_rect(t_old_rect, rect))
+		if (parent && !MCU_equal_rect(t_old_rect, rect))
 			layer_rectchanged(t_old_rect, false);
 
 		if (m_rep->GetFrameCount() > 1)
@@ -284,17 +244,17 @@ bool MCU_israwimageformat(Export_format p_format)
 		p_format == EX_RAW_RGBA || p_format == EX_RAW_BGRA || p_format == EX_RAW_INDEXED;
 }
 
-bool MCImageEncode(MCImageBitmap *p_bitmap, Export_format p_format, bool p_dither, IO_handle p_stream, uindex_t &r_bytes_written)
+bool MCImageEncode(MCImageBitmap *p_bitmap, Export_format p_format, bool p_dither, MCImageMetadata *p_metadata, IO_handle p_stream, uindex_t &r_bytes_written)
 {
 	bool t_success = true;
 	switch (p_format)
 	{
 	case EX_JPEG:
-		t_success = MCImageEncodeJPEG(p_bitmap, p_stream, r_bytes_written);
+		t_success = MCImageEncodeJPEG(p_bitmap, p_metadata, p_stream, r_bytes_written);
 		break;
 
 	case EX_PNG:
-		t_success = MCImageEncodePNG(p_bitmap, p_stream, r_bytes_written);
+		t_success = MCImageEncodePNG(p_bitmap, p_metadata, p_stream, r_bytes_written);
 		break;
 
 	case EX_GIF:
@@ -323,13 +283,13 @@ bool MCImageEncode(MCImageBitmap *p_bitmap, Export_format p_format, bool p_dithe
 	return t_success;
 }
 
-bool MCImageEncode(MCImageIndexedBitmap *p_indexed, Export_format p_format, IO_handle p_stream, uindex_t &r_bytes_written)
+bool MCImageEncode(MCImageIndexedBitmap *p_indexed, Export_format p_format, MCImageMetadata *p_metadata, IO_handle p_stream, uindex_t &r_bytes_written)
 {
 	bool t_success = true;
 	switch (p_format)
 	{
 	case EX_PNG:
-		t_success = MCImageEncodePNG(p_indexed, p_stream, r_bytes_written);
+		t_success = MCImageEncodePNG(p_indexed, p_metadata, p_stream, r_bytes_written);
 		break;
 
 	case EX_GIF:
@@ -345,7 +305,7 @@ bool MCImageEncode(MCImageIndexedBitmap *p_indexed, Export_format p_format, IO_h
 			MCImageBitmap *t_bitmap = nil;
 			t_success = MCImageConvertIndexedToBitmap(p_indexed, t_bitmap);
 			if (t_success)
-				t_success = MCImageEncode(t_bitmap, p_format, false, p_stream, r_bytes_written);
+				t_success = MCImageEncode(t_bitmap, p_format, false, p_metadata, p_stream, r_bytes_written);
 			MCImageFreeBitmap(t_bitmap);
 		}
 	}
@@ -353,7 +313,7 @@ bool MCImageEncode(MCImageIndexedBitmap *p_indexed, Export_format p_format, IO_h
 	return t_success;
 }
 
-bool MCImageExport(MCImageBitmap *p_bitmap, Export_format p_format, MCImagePaletteSettings *p_palette_settings, bool p_dither, IO_handle p_stream, IO_handle p_mstream)
+bool MCImageExport(MCImageBitmap *p_bitmap, Export_format p_format, MCImagePaletteSettings *p_palette_settings, bool p_dither, MCImageMetadata *p_metadata, IO_handle p_stream, IO_handle p_mstream)
 {
 	bool t_success = true;
 
@@ -364,12 +324,12 @@ bool MCImageExport(MCImageBitmap *p_bitmap, Export_format p_format, MCImagePalet
 	{
 		if (p_palette_settings != nil && p_palette_settings->type != kMCImagePaletteTypeEmpty)
 		{
-			t_success = MCImageQuantizeColors(p_bitmap, p_palette_settings, p_dither, p_format == F_GIF || p_format == F_PNG, t_indexed);
+			t_success = MCImageQuantizeColors(p_bitmap, p_palette_settings, p_dither, p_format == EX_GIF || p_format == EX_PNG, t_indexed);
 			if (t_success)
-				t_success = MCImageEncode(t_indexed, p_format, p_stream, t_size);
+				t_success = MCImageEncode(t_indexed, p_format, p_metadata, p_stream, t_size);
 		}
 		else
-			t_success = MCImageEncode(p_bitmap, p_format, p_dither, p_stream, t_size);
+			t_success = MCImageEncode(p_bitmap, p_format, p_dither, p_metadata, p_stream, t_size);
 	}
 
 	if (t_success && p_mstream != nil)
@@ -386,7 +346,7 @@ void MCImage::reopen(bool p_newfile, bool p_lock_size)
 		return;
 	uint4 oldstate = state & (CS_NO_MESSAGES | CS_SELECTED
 	                          | CS_MFOCUSED | CS_KFOCUSED);
-	MCControl *oldfocused = focused;
+	MCControlHandle oldfocused = focused;
 
 	state &= ~CS_SELECTED;
 	uint2 opencount = opened;
@@ -419,86 +379,91 @@ void MCImage::reopen(bool p_newfile, bool p_lock_size)
 
 	state |= oldstate;
 
-	if (oldfocused == this)
+	if (oldfocused.IsBoundTo(this))
 		focused = this;
 
 	// MW-2011-08-17: [[ Layers ]] Notify of the change in rect and invalidate.
 	// MW-2012-04-02: [[ Bug 10144 ]] Crash when pasting into an image - methods called on
 	//   image with no parent, so check parent != nil.
-	if (parent != nil && !resizeparent())
+	if (parent && !resizeparent())
 		layer_rectchanged(orect, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCPathIsAbsolute(const char *p_path)
-{
-	if (p_path == nil || p_path[0] == '\0')
-		return false;
-	
-	return p_path[0] == '/' || p_path[0] == ':';
-}
-
-bool MCPathIsRemoteURL(const char *p_path)
-{
-	return MCCStringBeginsWith(p_path, "http://") ||
-	MCCStringBeginsWith(p_path, "https://") ||
-	MCCStringBeginsWith(p_path, "ftp://");
-}
-
-bool MCImageGetFileRepForStackContext(const char *p_filename, MCStack *p_stack, MCImageRep *&r_rep)
+bool MCImageGetRepForReferenceWithStackContext(MCStringRef p_reference, MCStack *p_stack, MCImageRep *&r_rep)
 {
 	bool t_success = true;
 	
 	MCImageRep *t_rep;
 	t_rep = nil;
 	
+    MCAutoStringRef t_prefixless;
 	// skip over any file: / binfile: url prefix
-	if (MCCStringBeginsWith(p_filename, "file:"))
-		p_filename += 5;
-	else if (MCCStringBeginsWith(p_filename, "binfile:"))
-		p_filename += 8;
+	if (MCStringBeginsWith(p_reference, MCSTR("file:"), kMCStringOptionCompareCaseless))
+    {
+		MCStringCopySubstring(p_reference, MCRangeMake(5, UINDEX_MAX), &t_prefixless);
+        p_reference = *t_prefixless;
+    }
+	else if (MCStringBeginsWith(p_reference, MCSTR("binfile:"), kMCStringOptionCompareCaseless))
+    {
+		MCStringCopySubstring(p_reference, MCRangeMake(8, UINDEX_MAX), &t_prefixless);
+        p_reference = *t_prefixless;
+    }
+
+	if (MCPathIsRemoteURL(p_reference))
+		t_success = MCImageRepGetReferenced(p_reference, t_rep);
+	else
+		t_success = MCImageGetRepForFileWithStackContext(p_reference, p_stack, t_rep);
 	
-	if (MCPathIsRemoteURL(p_filename))
-		t_success = MCImageRepGetReferenced(p_filename, t_rep);
+	if (t_success)
+		r_rep = t_rep;
+	
+	return t_success;
+}
+
+bool MCImageGetRepForFileWithStackContext(MCStringRef p_filename, MCStack *p_stack, MCImageRep *&r_rep)
+{
+	bool t_success;
+	t_success = true;
+	
+	MCImageRep *t_rep;
+	t_rep = nil;
+	
+	// with local filenames, first check if absolute path
+	if (MCPathIsAbsolute(p_filename))
+		t_success = MCImageRepGetDensityMapped(p_filename, t_rep);
 	else
 	{
-		// with local filenames, first check if absolute path
-		if (MCPathIsAbsolute(p_filename))
-			t_success = MCImageRepGetDensityMapped(p_filename, t_rep);
-		else
+		// else try to resolve from stack file location
+		MCAutoStringRef t_path;
+		t_success = p_stack->resolve_relative_path(p_filename, &t_path);
+		if (t_success && MCS_exists(*t_path, True))
+			t_success = MCImageRepGetDensityMapped(*t_path, t_rep);
+		
+		// else try to resolve from current folder
+		if (t_success && t_rep == nil)
 		{
-			// else try to resolve from stack file location
-			char *t_path;
-			t_path = nil;
-			
-			t_success = p_stack->resolve_relative_path(p_filename, t_path);
+			MCAutoStringRef t_resolved;
+			t_success = MCS_resolvepath(p_filename, &t_resolved);
 			if (t_success)
-				t_success = MCImageRepGetDensityMapped(t_path, t_rep);
-			
-			MCCStringFree(t_path);
-			t_path = nil;
-			
-			// else try to resolve from current folder
-			if (t_success && t_rep == nil)
-			{
-				t_success = nil != (t_path = MCS_resolvepath(p_filename));
-				if (t_success)
-					t_success = MCImageRepGetDensityMapped(t_path, t_rep);
-				
-				MCCStringFree(t_path);
-				t_path = nil;
-			}
+				t_success = MCImageRepGetDensityMapped(*t_resolved, t_rep);
 		}
-        // AL-2014-01-17: [[ Bug 11684 ]] If image file isn't found, return false
-        if (t_success)
-            t_success = t_rep != nil;
 	}
 	
 	if (t_success)
 		r_rep = t_rep;
 	
 	return t_success;
+}
+
+bool MCImageGetRepForResource(MCStringRef p_resource_file, MCImageRep *&r_rep)
+{
+	MCAutoStringRef t_path;
+	if (!MCResourceResolvePath(p_resource_file, &t_path))
+		return false;
+	
+	return MCImageRepGetDensityMapped(*t_path, r_rep);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

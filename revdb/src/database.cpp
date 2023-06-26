@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -49,7 +49,7 @@ void DBList::clear()
 	dblist.clear();
 }
 
-Bool DBList::erase(const int fid)
+Bool DBList::erase(const unsigned int fid)
 {
 	DBObjectList::iterator theIterator;
 	for (theIterator = dblist.begin(); theIterator != dblist.end(); theIterator++){
@@ -77,7 +77,7 @@ DBObject *DBList::findIndex(const int tindex)
 	return NULL;
 }
 
-DBObject *DBList::find(const int fid)
+DBObject *DBList::find(const unsigned int fid)
 {
 	DBObjectList::iterator theIterator;
 	for (theIterator = dblist.begin(); theIterator != dblist.end(); theIterator++){

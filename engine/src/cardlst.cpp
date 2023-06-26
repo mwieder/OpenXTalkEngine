@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,12 +21,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "objdefs.h"
 
-#include "execpt.h"
+
 #include "dispatch.h"
 #include "stack.h"
 #include "card.h"
 #include "cardlst.h"
 #include "util.h"
+#include "exec.h"
 
 #include "globals.h"
 
@@ -34,6 +35,7 @@ MCCardnode::~MCCardnode()
 { }
 
 MCCardlist::MCCardlist()
+    : first(nullptr)
 {
 	cards = NULL;
 	interval = 0;
@@ -51,7 +53,10 @@ MCCardlist::~MCCardlist()
 
 void MCCardlist::trim()
 {
-	while (interval > MIN_FILL)
+    // Check for and remove any dead cards from the list
+    deletecard(nil);
+    
+    while (interval > MIN_FILL)
 	{
 		cards = cards->prev();
 		MCCardnode *cptr = cards->remove
@@ -63,45 +68,60 @@ void MCCardlist::trim()
 	}
 }
 
-void MCCardlist::getprop(Properties prop, MCStack *stack, MCExecPoint &ep)
+bool MCCardlist::GetRecent(MCExecContext& ctxt, MCStack *stack, Properties which, MCStringRef& r_props)
 {
+	// Get list of recent card short names or long ids
 	trim();
 	MCCardnode *tmp = cards;
-	ep.clear();
-	bool first = true;
-	if (tmp != NULL)
+
+	MCAutoListRef t_prop_list;
+
+	bool t_success;
+	t_success = true; 
+
+	if (t_success)
+		t_success = MCListCreateMutable('\n', &t_prop_list);
+	
+	if (t_success && tmp != NULL)
 	{
-		MCExecPoint ep2;
 		do
 		{
 			if (stack == NULL || tmp->card->getstack() == stack)
 			{
-				tmp->card->getprop(0, prop, ep2, False);
-				ep.concatmcstring(ep2.getsvalue(), EC_RETURN, first);
-				first = false;
+				MCAutoStringRef t_property;
+				if (which == P_SHORT_NAME)
+					tmp -> card -> GetShortName(ctxt, &t_property);
+				else
+					tmp -> card -> GetLongId(ctxt, 0, &t_property);
+					
+				t_success = !ctxt . HasError();
+				if (t_success)
+					t_success = MCListAppend(*t_prop_list, *t_property);
 			}
 			tmp = tmp->next();
 		}
-		while (tmp != cards);
+		while (tmp != cards && t_success);
 	}
-}
 
-void MCCardlist::getnames(MCStack *stack, MCExecPoint &ep)
-{
-	getprop(P_SHORT_NAME, stack, ep);
-}
+	if (t_success)
+		t_success = MCListCopyAsString(*t_prop_list, r_props);
 
-void MCCardlist::getlongids(MCStack *stack, MCExecPoint &ep)
-{
-	getprop(P_LONG_ID, stack, ep);
+	return t_success;
 }
 
 void MCCardlist::addcard(MCCard *card)
 {
-	if (cards != NULL && cards->card == card || MClockrecent)
+    // Prune all dead cards from the recent list
+    trim();
+    
+    // If the recent list is not to be updated or this card is already at the
+    // head of the list, do nothing.
+    if ((cards != NULL && cards->card == card) || MClockrecent)
 		return;
-	MCCardnode *nptr = new MCCardnode;
+
+	MCCardnode *nptr = new (nothrow) MCCardnode;
 	nptr->card = card;
+	
 	if (cards == NULL)
 		first = nptr;
 	nptr->insertto(cards);
@@ -117,7 +137,7 @@ void MCCardlist::deletecard(MCCard *card)
 		do
 		{
 			restart = False;
-			if (tmp->card == card)
+			if (!tmp->card.IsValid() || tmp->card == card)
 			{
 				if (tmp == first)
 					first = tmp->next();
@@ -155,7 +175,7 @@ void MCCardlist::deletestack(MCStack *stack)
 		do
 		{
 			restart = False;
-			if (tmp->card->getstack() == stack)
+			if (!tmp->card.IsValid() || tmp->card->getstack() == stack)
 			{
 				if (tmp == first)
 					first = tmp->next();
@@ -237,7 +257,7 @@ void MCCardlist::pushcard(MCCard *card)
 {
 	if (card == NULL)
 		return;
-	MCCardnode *nptr = new MCCardnode;
+	MCCardnode *nptr = new (nothrow) MCCardnode;
 	nptr->card = card;
 	nptr->insertto(cards);
 }

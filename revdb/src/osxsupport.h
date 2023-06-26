@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -26,30 +26,8 @@ OSErr MCS_path2FSSpec(const char *fname, FSSpec *fspec);
 
 #define VXCMD_STRING "VXCMD_macho"
 
-struct DATABASEREC
-{
-	char dbname[255];
-	idcounterrefptr idcounterptr;
-	new_connectionrefptr  newconnectionptr;
-	release_connectionrefptr releaseconnectionptr;
-#ifndef _MAC_SERVER
-	CFBundleRef driverref;
-#else
-	void *driverref;
-#endif
-};
-
-void UnloadDBBundle(CFBundleRef p_bundle);
-bool FolderExists(const char *p_path);
-char *GetBundleFolder(CFBundleRef p_bundle);
-const char *GetExternalFolder(void);
-const char *GetApplicationFolder(void);
-DATABASEREC *DoLoadDatabaseDriver(const char *p_path);
-void FreeDatabaseDriver( DATABASEREC *tdatabaserec);
 void MCU_path2std(char *p_path);
 void MCU_path2native(char *p_path);
-
-
 void MCU_fix_path(char *cstr);
 
 extern "C" 
@@ -79,8 +57,8 @@ extern int lstat(const char *path, struct stat *sb);
 
 inline char *pStrcpy(unsigned char *dest, const unsigned char *src)
 {
-  BlockMove(src, dest, (long)*src + 1);
-  return (char*)dest;
+    memmove(dest, src, ((size_t)*src) + 1);
+    return (char*)dest;
 }
 
 char *MCS_getcurdir();

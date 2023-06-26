@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "filedefs.h"
 
-#include "execpt.h"
+
 #include "handler.h"
 #include "scriptpt.h"
 #include "variable.h"
@@ -31,10 +31,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #if defined(_LINUX) || defined(_MACOSX)
 #include <sys/stat.h>
-#endif
-
-#if defined(_MACOSX)
-#include "core.h"
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,8 +194,10 @@ typedef struct
 #define EM_860		 7		/* Intel 80860 */
 #define EM_MIPS		 8		/* MIPS R3000 big-endian */
 #define EM_S370		 9		/* IBM System/370 */
-#define EM_MIPS_RS3_LE	10		/* MIPS R3000 little-endian */
-#define EM_ARM		40
+#define EM_MIPS_RS3_LE	10	/* MIPS R3000 little-endian */
+#define EM_ARM		40      /* ARM */
+#define EM_X86_64   62      /* AMD x86-64 */
+#define EM_AARCH64  183     /* ARM AArch64 */
 
 /* Legal values for e_version (version).  */
 
@@ -456,6 +454,17 @@ static void swap_ElfX_Phdr(Elf64_Phdr& x)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static bool MCDeployIsValidAndroidArch(uint16_t p_machine)
+{
+    if (p_machine == EM_ARM ||
+        p_machine == EM_AARCH64 ||
+        p_machine == EM_386 ||
+        p_machine == EM_X86_64)
+        return true;
+    
+    return false;
+}
+
 template<typename T>
 static bool MCDeployToLinuxReadHeader(MCDeployFileRef p_file, bool p_is_android, typename T::Ehdr& r_header)
 {
@@ -491,7 +500,7 @@ static bool MCDeployToLinuxReadHeader(MCDeployFileRef p_file, bool p_is_android,
 	else
 	{
 		if (r_header . e_type != ET_DYN ||
-			r_header . e_machine != EM_ARM ||
+			!MCDeployIsValidAndroidArch(r_header.e_machine) ||
 			r_header . e_version != EV_CURRENT)
 			return MCDeployThrow(kMCDeployErrorLinuxBadImage);
 	}
@@ -508,7 +517,7 @@ static bool MCDeployToLinuxReadSectionHeaders(MCDeployFileRef p_file, typename T
 		return MCDeployThrow(kMCDeployErrorLinuxBadSectionSize);
 
 	// Allocate the array of the entries
-	r_table = new typename T::Shdr[p_header . e_shnum];
+	r_table = new (nothrow) typename T::Shdr[p_header . e_shnum];
 	if (r_table == NULL)
 		return MCDeployThrow(kMCDeployErrorNoMemory);
 
@@ -533,7 +542,7 @@ static bool MCDeployToLinuxReadProgramHeaders(MCDeployFileRef p_file, typename T
 		return MCDeployThrow(kMCDeployErrorLinuxBadSegmentSize);
 
 	// Allocate the array of the entries
-	r_table = new typename T::Phdr[p_header . e_phnum];
+	r_table = new (nothrow) typename T::Phdr[p_header . e_phnum];
 	if (r_table == NULL)
 		return MCDeployThrow(kMCDeployErrorNoMemory);
 
@@ -552,8 +561,7 @@ static bool MCDeployToLinuxReadProgramHeaders(MCDeployFileRef p_file, typename T
 template<typename T>
 static bool MCDeployToLinuxReadString(MCDeployFileRef p_file, typename T::Shdr& p_string_header, uint32_t p_index, char*& r_string)
 {
-	bool t_success;
-	t_success = true;
+	bool t_success = true;
 
 	// First check that the index is valid
 	if (p_index >= p_string_header . sh_size)
@@ -562,11 +570,9 @@ static bool MCDeployToLinuxReadString(MCDeployFileRef p_file, typename T::Shdr& 
 	// As the string table does not contain any string lengths and they are
 	// just NUL terminated, we must gradually load portions until a NUL is
 	// reached.
-	char *t_buffer;
-	uint32_t t_length;
-	t_buffer = NULL;
-	t_length = 0;
-
+	char *t_buffer = nullptr;
+	uint32_t t_length = 0;
+    
 	while(t_success)
 	{
 		// Compute how much data to read - this is either the fixed chunk
@@ -625,7 +631,7 @@ static bool MCDeployToLinuxReadString(MCDeployFileRef p_file, typename T::Shdr& 
 	if (t_success)
 		r_string = t_buffer;
 	else
-		delete t_buffer;
+		free(t_buffer);
 
 	return t_success;
 }
@@ -663,9 +669,9 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 	// First thing we do is open the files.
 	MCDeployFileRef t_engine, t_output;
 	t_engine = t_output = NULL;
-	if (t_success && !MCDeployFileOpen(p_params . engine, "rb", t_engine))
+	if (t_success && !MCDeployFileOpen(p_params . engine, kMCOpenFileModeRead, t_engine))
 		t_success = MCDeployThrow(kMCDeployErrorNoEngine);
-	if (t_success && !MCDeployFileOpen(p_params . output, "wb+", t_output))
+	if (t_success && !MCDeployFileOpen(p_params . output, kMCOpenFileModeCreate, t_output))
 		t_success = MCDeployThrow(kMCDeployErrorNoOutput);
 
 	// Now read in the main ELF header
@@ -690,45 +696,47 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 	typename T::Shdr *t_project_section, *t_payload_section;
 	t_project_section = NULL;
 	t_payload_section = NULL;
-	for(uint32_t i = 0; i < t_header . e_shnum && t_project_section == NULL && t_success; i++)
+	for(uint32_t i = 0; t_success && i < t_header . e_shnum && t_project_section == NULL; i++)
 	{
-		char *t_section_name;
-		t_success = MCDeployToLinuxReadString<T>(t_engine, t_section_headers[t_header . e_shstrndx], t_section_headers[i] . sh_name, t_section_name);
+        MCAutoPointer<char> t_section_name;
+		t_success = MCDeployToLinuxReadString<T>(t_engine, t_section_headers[t_header . e_shstrndx], t_section_headers[i] . sh_name, &t_section_name);
 
 		// Notice that we compare 9 bytes, this is to ensure we match .project
 		// only and not .project<otherchar> (i.e. we match the NUL char).
-		if (t_success && memcmp(t_section_name, ".project", 9) == 0)
+		if (t_success && memcmp(*t_section_name, ".project", 9) == 0)
 			t_project_section = &t_section_headers[i];
-		if (t_success && memcmp(t_section_name, ".payload", 9) == 0)
+		if (t_success && memcmp(*t_section_name, ".payload", 9) == 0)
 			t_payload_section = &t_section_headers[i];
-		
-		delete t_section_name;
 	}
 
 	if (t_success && t_project_section == NULL)
 		t_success = MCDeployThrow(kMCDeployErrorLinuxNoProjectSection);
 
-	if (t_success && p_params . payload != NULL && t_payload_section == NULL)
+	if (t_success && (!MCStringIsEmpty(p_params . payload)) && t_payload_section == NULL)
 		t_success = MCDeployThrow(kMCDeployErrorLinuxNoPayloadSection);
 
-	// Next check that there are no sections after the project section.
-	// (This check implies there are no segments after the project section
-	// since the section table is ordered by vaddr and segments can only
-	// contain stuff in sections).
+	// Next check that there are no loadable sections after the project section.
+	// (This check implies there are no loadable segments after the project
+	// section since the section table is ordered by vaddr within segments and
+    // we check segment ordering later).
 	if (t_success)
-		for(typename T::Shdr *t_section = t_project_section + 1; t_section < t_section_headers + t_header . e_shnum; t_section += 1)
+    {
+		for (typename T::Shdr* t_section = t_project_section + 1; t_section < t_section_headers + t_header . e_shnum; t_section += 1)
+        {
 			 if (t_section -> sh_addr > t_project_section -> sh_addr)
 			 {
 				 t_success = MCDeployThrow(kMCDeployErrorLinuxBadSectionOrder);
 				 break;
 			 }
+         }
+    }
 
 	// Now we must search for the segment containing the payload/project sections.
 	// At present, we required that these sections sit in their own segment and
 	// that segment must be the last.
 	typename T::Phdr *t_project_segment;
 	t_project_segment = NULL;
-	for(uint32_t i = 0; i < t_header . e_phnum && t_success; i++)
+	for(uint32_t i = 0; t_success && i < t_header . e_phnum; i++)
 		if (t_project_section -> sh_addr >= t_program_headers[i] . p_vaddr &&
 			t_project_section -> sh_addr + t_project_section -> sh_size <= t_program_headers[i] . p_vaddr + t_program_headers[i] . p_memsz)
 		{
@@ -798,7 +806,7 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 	uint32_t t_end_offset, t_end_size;
 	if (t_success)
 	{
-		// Compute the shift that will have occured to any post-project sections
+		// Compute the shift that will have occurred to any post-project sections
 		int32_t t_project_delta, t_payload_delta;
 		t_project_delta = t_project_size - t_project_section -> sh_size;
 		if (t_payload_section != NULL)
@@ -806,15 +814,17 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 		else
 			t_payload_delta = 0;
 
-		// If the project section is not the last one, then work out the
-		// subsequent section data size/offset.
-		if (t_project_section - t_section_headers + 1 < t_header . e_shnum)
-		{
-			t_end_offset = (t_project_section + 1) -> sh_offset;
-			t_end_size = (t_section_headers[t_header . e_shnum - 1] . sh_offset + t_section_headers[t_header . e_shnum - 1] . sh_size) - t_end_offset;
-		}
-		else
-			t_end_offset = t_end_size = 0;
+        // The sections of the file are not strictly ordered so the 
+        // remainder of the file requires examining the whole section table.
+        t_end_offset = t_project_section->sh_offset + t_project_section->sh_size;
+            
+        t_end_size = 0;
+        for (size_t i = 0; i < t_header.e_shnum; i++)
+        {
+            uint32_t t_section_end = t_section_headers[i].sh_offset + t_section_headers[i].sh_size;
+            if (t_section_end > t_end_offset + t_end_size)
+                t_end_size = t_section_end - t_end_offset;
+        }
 
 		//
 
@@ -825,16 +835,45 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 		t_project_section -> sh_addr += t_payload_delta;
 		t_project_section -> sh_size = t_project_size;
 
-		t_project_segment -> p_filesz = t_payload_size + t_project_size;
-		t_project_segment -> p_memsz = t_payload_size + t_project_size;
+		t_project_segment -> p_filesz += t_payload_delta + t_project_delta;
+		t_project_segment -> p_memsz += t_payload_delta + t_project_delta;
 
-		for(typename T::Shdr *t_section = t_project_section + 1; t_section < t_section_headers + t_header . e_shnum; t_section += 1)
+        // Update the sections that follow the project/payload
+		for (typename T::Shdr* t_section = t_project_section + 1; t_section < t_section_headers + t_header . e_shnum; t_section += 1)
+        {
 			if (t_section -> sh_offset >= t_end_offset)
 				t_section -> sh_offset += t_project_delta + t_payload_delta;
+        }
 
-		t_header . e_shoff += t_project_delta + t_payload_delta;
+        // Adjust the section header table offset if it comes after the adjusted
+        // sections.
+        if (t_header.e_shoff >= t_end_offset)
+            t_header.e_shoff += t_project_delta + t_payload_delta;
+              
+        // Adjust the segment header table offset if it coems after the adjusted
+        // sections.
+        if (t_header.e_phoff >= t_end_offset)
+            t_header.e_phoff += t_project_delta + t_payload_delta;
 
-		//
+		// Update the segments that follow the project/payload
+        // Note that segments aren't necessarily in increasing order of file
+        // offset.
+        for (typename T::Phdr* t_segment = t_program_headers; t_segment < t_program_headers + t_header.e_phnum; t_segment += 1)
+        {
+            // Skip segments that precede the segment we adjusted
+            if (t_segment == t_project_segment || t_segment->p_offset < t_end_offset)
+                continue;
+            
+            // If any of these segments is a LOAD segment, we've broken the file!
+            if (t_segment->p_type == PT_LOAD)
+            {
+                t_success = MCDeployThrow(kMCDeployErrorLinuxBadSectionOrder);
+                break;
+            }
+            
+            // Adjust the file offset for the segment contents
+            t_segment->p_offset += t_payload_delta + t_project_delta;
+        }
 
 		t_section_table_size = t_header . e_shnum * sizeof(typename T::Shdr);
 		t_section_table_offset = t_header . e_shoff;
@@ -874,23 +913,17 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 	MCDeployFileClose(t_output);
 
 	// OK-2010-02-22: [[Bug 8624]] - Standalones not being made executable if they contain accented chars in path.
-	char *t_path;
-	t_path = nil;
-#if defined(_MACOSX)
-	if (t_success)
-		t_success = MCCStringFromNative(p_params . output, t_path);
-#else
-	t_path = p_params . output;
-#endif
+	MCStringRef t_path;
+	t_path = p_params.output;
 	
 	// If on Mac OS X or Linux, make the file executable
 #if defined(_MACOSX) || defined(_LINUX)
 	if (t_success)
-		chmod(t_path, 0755);
-#endif
-	
-#if defined(_MACOSX)
-	MCCStringFree(t_path);
+    {
+        MCAutoStringRefAsUTF8String t_utf8_path;
+        /* UNCHECKED */ t_utf8_path . Lock(t_path);
+        chmod(*t_utf8_path, 0755);
+        }
 #endif
 	
 	return t_success ? ES_NORMAL : ES_ERROR;
@@ -898,36 +931,41 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
+{
+    bool t_success;
+    t_success = true;
+    
+    // MW-2013-05-03: [[ Linux64 ]] Snoop the engine type from the ident field.
+    
+    MCDeployFileRef t_engine;
+    t_engine = NULL;
+    if (t_success && !MCDeployFileOpen(p_params . engine, kMCOpenFileModeRead, t_engine))
+        t_success = MCDeployThrow(kMCDeployErrorNoEngine);
+    
+    char t_ident[EI_NIDENT];
+    if (t_success && !MCDeployFileRead(t_engine, t_ident, EI_NIDENT))
+        t_success = MCDeployThrow(kMCDeployErrorLinuxNoHeader);
+    
+    if (t_success)
+    {
+        if (t_ident[EI_CLASS] == ELFCLASS32)
+            return MCDeployToELF<MCLinuxELF32Traits>(p_params, p_is_android);
+        else if (t_ident[EI_CLASS] == ELFCLASS64)
+            return MCDeployToELF<MCLinuxELF64Traits>(p_params, p_is_android);
+        
+        t_success = MCDeployThrow(kMCDeployErrorLinuxBadHeaderType);
+    }
+    
+    return t_success ? ES_NORMAL : ES_ERROR;
+}
+
 // This method attempts to build a Linux standalone using the given deployment
 // parameters.
 //
 Exec_stat MCDeployToLinux(const MCDeployParameters& p_params)
 {
-	bool t_success;
-	t_success = true;
-
-	// MW-2013-05-03: [[ Linux64 ]] Snoop the engine type from the ident field.
-	
-	MCDeployFileRef t_engine;
-	t_engine = NULL;
-	if (t_success && !MCDeployFileOpen(p_params . engine, "rb", t_engine))
-		t_success = MCDeployThrow(kMCDeployErrorNoEngine);
-		
-	char t_ident[EI_NIDENT];
-	if (t_success && !MCDeployFileRead(t_engine, t_ident, EI_NIDENT))
-		t_success = MCDeployThrow(kMCDeployErrorLinuxNoHeader);
-		
-	if (t_success)
-	{
-		if (t_ident[EI_CLASS] == ELFCLASS32)
-			return MCDeployToELF<MCLinuxELF32Traits>(p_params, false);
-		else if (t_ident[EI_CLASS] == ELFCLASS64)
-			return MCDeployToELF<MCLinuxELF64Traits>(p_params, false);
-	
-		t_success = MCDeployThrow(kMCDeployErrorLinuxBadHeaderType);
-	}
-	
-	return t_success ? ES_NORMAL : ES_ERROR;
+    return MCDeployToELF(p_params, false);
 }
 
 // This method attempts to build an Android standalone using the given deployment
@@ -935,7 +973,7 @@ Exec_stat MCDeployToLinux(const MCDeployParameters& p_params)
 //
 Exec_stat MCDeployToAndroid(const MCDeployParameters& p_params)
 {
-	return MCDeployToELF<MCLinuxELF32Traits>(p_params, true);
+	return MCDeployToELF(p_params, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

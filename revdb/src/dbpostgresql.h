@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -26,6 +26,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include <libpq-fe.h>
 #include "dbdrivercommon.h"
+#include "large_buffer.h"
 
 #define DB_POSTGRESQL_STRING "POSTGRESQL";
 
@@ -122,6 +123,7 @@ protected:
 class DBConnection_POSTGRESQL: public CDBConnection
 {
 public:
+    DBConnection_POSTGRESQL(): m_internal_buffer(nullptr) {}
 	~DBConnection_POSTGRESQL() {disconnect();}
 	Bool connect(char **args, int numargs);
 	void disconnect();
@@ -139,5 +141,7 @@ public:
 protected:
 	PGconn *dbconn;
 	PGresult *ExecuteQuery(char *p_query, DBString *p_arguments, int p_argument_count);
+private:
+    large_buffer_t *m_internal_buffer;
 };
 #endif

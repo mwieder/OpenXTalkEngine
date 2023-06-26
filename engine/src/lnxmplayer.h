@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,6 +18,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef MPLAYER_H
 #define MPLAYER_H
 
+enum MCPlayerPropertyType
+{
+	kMCPlayerPropertyTypeBool,
+	kMCPlayerPropertyTypeUInt,
+	kMCPlayerPropertyTypeDouble,
+};
+
 class MPlayer
 {
 	public:
@@ -26,7 +33,7 @@ class MPlayer
 	
 		// Initilize the mplayer process and load in the specified media file.
 		// This also creates a new child window of the given stack
-		bool init ( char * p_filename, MCStack *p_stack, MCRectangle p_rect );
+        bool init (const char *p_filename, MCStack *p_stack, MCRectangle p_rect );
 		bool shutdown ( void ) ;
 	
 		// Basic commands for manipulating the media
@@ -63,26 +70,24 @@ class MPlayer
 		char * m_filename ;
 		uint4 m_osd_level ;
 		MCStack *m_stack ;
-		Window m_window; 
+		GdkWindow *m_window;
 		MCRectangle m_player_rect ;
 		int m_pfd_write[2];
 		int m_pfd_read[2];
 	    pid_t m_cpid;
 	
-		uint4 m_duration ;
-		uint4 m_timescale ;
-		uint4 m_loudness ;
+		uint32_t m_duration ;
+		uint32_t m_timescale ;
+		uint32_t m_loudness ;
 
 	
-		bool launch_player(void) ;
-		void write_command ( char * p_cmd) ;
-		char * read_command( char * p_ans ) ;
-		char * get_property ( char * p_prop ) ;
-		void set_property ( char * p_prop, char * p_value ) ;
-
-
+		bool launch_player(void);
+		void write_command(MCStringRef p_cmd);
+		bool read_command(MCStringRef p_ans, MCStringRef& r_ret);
+		bool get_property(const char *p_prop, MCPlayerPropertyType p_type, void *r_value);
+		void set_property(const char *p_prop, MCPlayerPropertyType p_type, void *p_value);
+		
 } ;
-
 
 
 #endif

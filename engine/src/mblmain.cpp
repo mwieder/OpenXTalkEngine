@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
@@ -38,29 +37,32 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "redraw.h"
 #include "system.h"
 #include "font.h"
+#include "debug.h"
+#include "eventqueue.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static uint2 nvars;
 
-static void create_var(char *v)
+static void create_var(MCStringRef p_var)
 {
-	char vname[U2L + 1];
-	sprintf(vname, "$%d", nvars);
-	nvars++;
+	MCAutoStringRef t_vname;
+	/* UNCHECKED */ MCStringFormat(&t_vname, "$%d", nvars++);
 	
 	MCVariable *tvar;
-	/* UNCHECKED */ MCVariable::ensureglobal_cstring(vname, tvar);
-	tvar->copysvalue(v);
-
-	MCU_realloc((char **)&MCstacknames, MCnstacks, MCnstacks + 1, sizeof(char *));
-	MCstacknames[MCnstacks++] = v;
+	MCNewAutoNameRef t_name;
+	/* UNCHECKED */ MCNameCreate(*t_vname, &t_name);
+	/* UNCHECKED */ MCVariable::ensureglobal(*t_name, tvar);
+	tvar->setvalueref(p_var);
+	
+	MCU_realloc((char **)&MCstacknames, MCnstacks, MCnstacks + 1, sizeof(MCStringRef));
+	MCstacknames[MCnstacks++] = MCValueRetain(p_var);
 }
 
 static void create_var(uint4 p_v)
 {
 	MCVariable *tvar;
-	/* UNCHECKED */ MCVariable::ensureglobal_cstring("$#", tvar);
+	/* UNCHECKED */ MCVariable::ensureglobal(MCNAME("$#"), tvar);
 	tvar->setnvalue(p_v);
 }
 
@@ -72,19 +74,40 @@ static Boolean byte_swapped()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool X_open(int argc, char *argv[], char *envp[]);
-int X_close();
-void X_clear_globals();
-
-extern void MCU_initialize_names();
-
 MCTheme *MCThemeCreateNative(void)
 {
 	return nil;
 }
 
-bool X_init(int argc, char *argv[], char *envp[])
+static bool
+X_initialize_mccmd(const X_init_options& p_options)
 {
+    return MCsystem->PathFromNative(p_options.argv[0],
+                                    MCcmd);
+}
+
+/* Compute the app code path - on mobile this is the folder containing
+ * the executable. */
+static bool
+X_initialize_mcappcodepath(const X_init_options& p_options)
+{
+    MCSAutoLibraryRef t_self;
+    MCAutoStringRef t_lib_path;
+    return MCSLibraryCreateWithAddress(reinterpret_cast<void *>(X_initialize_mcappcodepath),
+                                       &t_self) &&
+            MCSLibraryCopyPath(*t_self,
+                               &t_lib_path) &&
+            MCU_path_split(*t_lib_path,
+                           &MCappcodepath,
+                           nullptr);
+}
+
+bool X_init(const X_init_options& p_options)
+{
+    int argc = p_options.argc;
+    MCStringRef *argv = p_options.argv;
+    MCStringRef *envp = p_options.envp;
+
 	X_clear_globals();
 	
 	////	
@@ -96,32 +119,42 @@ bool X_init(int argc, char *argv[], char *envp[])
 	
 	MCS_init();
 	
+    X_initialize_mccmd(p_options);
+    
+    X_initialize_mcappcodepath(p_options);
+    
 	////
-	
-	MCNameInitialize();
-	MCU_initialize_names();
+
+	X_initialize_names();
 	
 	// MW-2012-02-23: [[ FontRefs ]] Initialize the font module.
 	MCFontInitialize();
 	// MW-2012-02-23: [[ FontRefs ]] Initialize the logical font table module.
 	MCLogicalFontTableInitialize();
-	
+
+	// Initialize the event queue
+	MCEventQueueInitialize();
+
     // MM-2014-02-10: [[ LipOpenSSL 1.0.1e ]] Attempt load revsecurity library on Java side.
 #if defined(TARGET_SUBPLATFORM_ANDROID)
-	extern bool revandroid_loadExternalLibrary(const char *p_external, char*& r_filename);
-    char *t_filename;
-    revandroid_loadExternalLibrary("revsecurity", t_filename);
-    delete t_filename;
+	extern bool revandroid_loadExternalLibrary(MCStringRef p_external, MCStringRef& r_filename);
+    MCAutoStringRef t_filename;
+    revandroid_loadExternalLibrary(MCSTR("revsecurity"), &t_filename);
 #endif
     
 	////
 	
-	MCcmd = MCsystem -> PathFromNative(argv[0]);
-	
+    // Create the basic locale and the system locale
+    if (!MCLocaleCreateWithName(MCSTR("en_US"), kMCBasicLocale))
+        return false;
+    kMCSystemLocale = MCS_getsystemlocale();
+    if (kMCSystemLocale == nil)
+        return false;
+    
 	// Create the $<n> variables.
 	for(uint32_t i = 2; i < argc; ++i)
 		if (argv[i] != nil)
-		create_var(argv[i]);
+			create_var(argv[i]);
 	create_var(nvars);
 
 	////
@@ -141,16 +174,16 @@ bool X_main_loop_iteration(void)
 	// MW-2011-08-26: [[ Redraw ]] Make sure we flush any updates.
 	MCRedrawUpdateScreen();
 	MCabortscript = False;
-	if (!MCtodestroy->isempty() || MCtodelete != NULL)
+	if (MCtracedobject)
 	{
-		MCtooltip->settip(NULL);
-		while (MCtodelete != NULL)
-		{
-			MCObject *optr = MCtodelete->remove(MCtodelete);
-			delete optr;
-		}
-		MCtodestroy->destroy();
+		MCtracedobject->message(MCM_trace_done);
+		MCtracedobject = nil;
 	}
+	if (!MCtodestroy -> isempty())
+    {
+        MCtooltip -> cleartip();
+        MCtodestroy -> destroy();
+    }
 	MCU_cleaninserted();
 	MCscreen->siguser();
 	MCdefaultstackptr = MCstaticdefaultstackptr;

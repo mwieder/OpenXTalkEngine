@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -30,12 +30,25 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define ST_MNB ST_ID
 #endif
 
+
+// Some of these tables need to be accessed from other compilation units and C++
+// mandates that variables declared as "const" have internal linkage unless also
+// declared as "extern".
+extern const LT command_table[];
+extern const Cvalue *constant_table;
+extern const LT factor_table[];
+extern const LT * const table_pointers[];
+extern const uint2 table_sizes[];
+extern const uint8_t type_table[];
+extern const uint8_t unicode_type_table[];
+
+
 // MW-2011-06-22: [[ SERVER ]] We mark '?' as ST_TAG so we can parse server
 //   style scripts. If the SP's tagged property is false, it reverts to ST_ID.
 //   Also, cr is marked as ST_EOL rather than ST_SPC. This will make little
 //   difference to object scripts but means we can be newline agnostic in server
 //   scripts.
-uint8_t type_table[256] =
+const uint8_t type_table[256] =
 {
     ST_EOF,  ST_ID,   ST_ID,   ST_ID,   //     ^@      ^A      ^B      ^C
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //     ^D      ^E      ^F      ^G
@@ -67,8 +80,8 @@ uint8_t type_table[256] =
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //      l       m       n       o
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //      p       q       r       s
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //      t       u       v       w
-    ST_ID,   ST_ID,   ST_ID,   ST_LB,   //      x       y       z       {
-    ST_OP,   ST_RB,   ST_OP,   ST_ID,   //      |       }       ~       DEL
+    ST_ID,   ST_ID,   ST_ID,   ST_LC,   //      x       y       z       {
+    ST_OP,   ST_RC,   ST_OP,   ST_ID,   //      |       }       ~       DEL
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //      0x80    0x81    0x82    0x83
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //      0x84    0x85    0x86    0x87
     ST_ID,   ST_ID,   ST_ID,   ST_ID,   //      0x88    0x89    0x8A    0x8B
@@ -103,70 +116,147 @@ uint8_t type_table[256] =
     ST_ID,   ST_ID,   ST_ID,   ST_ID    //      0xFC    0xFD    0xFE    0xFF
 };
 
-Cvalue constant_table[] =
+const uint8_t unicode_type_table[256] =
 {
-    {"arrow", "29", 29.0},
-    {"backslash", "\\", BAD_NUMERIC},
-    {"busy", "6", 6.0},
-    {"clock", "14", 14.0},
-    {"colon", ":", 58.0},
-    {"comma", ",", 44.0},
-    {"cr", "\n", BAD_NUMERIC},
-    {"crlf", "\r\n", BAD_NUMERIC},
-    {"cross", "7", 7.0},
-    {"done", "done", BAD_NUMERIC},
-    {"down", "down", BAD_NUMERIC},
-    {"eight", "8", 8.0},
-    {"empty", "", BAD_NUMERIC},
-    {"end", "\004", BAD_NUMERIC},
-    {"endoffile", "\004", BAD_NUMERIC},
-    {"eof", "\004", BAD_NUMERIC},
-    {"false", "false", BAD_NUMERIC},
-    {"five", "5", 5.0},
-    {"formfeed", "\014", BAD_NUMERIC},
-    {"four", "4", 4.0},
-    {"hand", "28", 28.0},
-    {"help", "15", 15.0},
-    {"ibeam", "9", 9.0},
-    {"left", "left", BAD_NUMERIC},
-    {"lf", "\n", BAD_NUMERIC},
-    {"linefeed", "\n", BAD_NUMERIC},
-    {"nine", "9", 9.0},
-    {"none", "0", 0.0},
-    {"null", "", BAD_NUMERIC},
-    {"one", "1", 1.0},
-    {"pi", "3.14159265358979323846", 3.14159265358979323846},
-    {"plus", "13", 13.0},
-    {"quote", "\"", BAD_NUMERIC},
-    {"return", "\n", BAD_NUMERIC},
-    {"right", "right", BAD_NUMERIC},
-    {"scrollbarfactor", "65535", 65535.0},
-    {"seven", "7", 7.0},
-    {"six", "6", 6.0},
-    {"slash", "/", 47.0},
-    {"space", " ", BAD_NUMERIC},
-    {"tab", "\t", BAD_NUMERIC},
-    {"ten", "10", 10.0},
-    {"three", "3", 3.0},
-    {"true", "true", BAD_NUMERIC},
-    {"two", "2", 2.0},
-    {"up", "up", BAD_NUMERIC},
-    {"watch", "14", 14.0},
-    {"zero", "0", 0.0}
+    ST_EOF,         ST_ID,          ST_ID,          ST_ID,          //     ^@      ^A      ^B      ^C
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //     ^D      ^E      ^F      ^G
+    ST_ID,          ST_SPC,         ST_EOL,         ST_ID,          //     ^H      ^I      ^J      ^K
+    ST_ID,          ST_EOL,         ST_ID,          ST_ID,          //     ^L      ^M      ^N      ^O
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //     ^P      ^Q      ^R      ^S
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //     ^T      ^U      ^V      ^W
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //     ^X      ^Y      ^Z      ^[
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //     ^\      ^]      ^^      ^_
+    ST_SPC,         ST_OP,          ST_LIT,         ST_COM,         //              !       "       #
+    ST_ID,          ST_OP,          ST_OP,          ST_ID,          //      $       %       &       '
+    ST_LP,          ST_RP,          ST_OP,          ST_OP,          //      (       )       *       +
+    ST_SEP,         ST_MIN,         ST_NUM,         ST_OP,          //      ,       -       .       /
+    ST_NUM,         ST_NUM,         ST_NUM,         ST_NUM,         //      0       1       2       3
+    ST_NUM,         ST_NUM,         ST_NUM,         ST_NUM,         //      4       5       6       7
+    ST_NUM,         ST_NUM,         ST_OP,          ST_SEMI,        //      8       9       :       ;
+    ST_OP,          ST_OP,          ST_OP,          ST_TAG,         //      <       =       >       ?
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      @       A       B       C
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      D       E       F       G
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      H       I       J       K
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      L       M       N       O
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      P       Q       R       S
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      T       U       V       W
+    ST_ID,          ST_ID,          ST_ID,          ST_LB,          //      X       Y       Z       [
+    ST_ESC,         ST_RB,          ST_OP,          ST_ID,          //      \       ]       ^       _
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      `       a       b       c
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      d       e       f       g
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      h       i       j       k
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      l       m       n       o
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      p       q       r       s
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      t       u       v       w
+    ST_ID,          ST_ID,          ST_ID,          ST_LC,          //      x       y       z       {
+    ST_OP,          ST_RC,          ST_OP,          ST_ID,          //      |       }       ~       DEL
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x80    0x81    0x82    0x83
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x84    0x85    0x86    0x87
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x88    0x89    0x8A    0x8B
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x8C    0x8D    0x8E    0x8F
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x90    0x91    0x92    0x93
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x94    0x95    0x96    0x97
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x98    0x99    0x9A    0x9B
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,	//      0x9C    0x9D    0x9E    0x9F
+    ST_SPC,         ST_ID,          ST_ID,          ST_ID,          //      0xA0    0xA1    0xA2    0xA3
+    ST_UNDEFINED,   ST_ID,          ST_UNDEFINED,   ST_ID,          //      0xA4    0xA5    0xA6    0xA7
+    ST_ESC,         ST_ID,          ST_ID,          ST_ID,          //      0xA8    0xA9    0xAA    0xAB
+    ST_ESC,         ST_UNDEFINED,   ST_ID,          ST_ID,          //      0xAC    0xAD    0xAE    0xAF
+    ST_ID,          ST_ID,          ST_UNDEFINED,   ST_UNDEFINED,	//      0xB0    0xB1    0xB2    0xB3
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xB4    0xB5    0xB6    0xB7
+    ST_ID,          ST_UNDEFINED,   ST_ID,          ST_ID,          //      0xB8    0xB9    0xBA    0xBB
+    ST_UNDEFINED,   ST_UNDEFINED,   ST_UNDEFINED,   ST_ID,          //      0xBC    0xBD    0xBE    0xBF
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xC0    0xC1    0xC2    0xC3
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xC4    0xC5    0xC6    0xC7
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xC8    0xC9    0xCA    0xCB
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xCC    0xCD    0xCE    0xCF
+    ST_UNDEFINED,   ST_ID,          ST_ID,          ST_ID,          //      0xD0    0xD1    0xD2    0xD3
+    ST_ID,          ST_ID,          ST_ID,          ST_UNDEFINED,	//      0xD4    0xD5    0xD6    0xD7
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xD8    0xD9    0xDA    0xDB
+    ST_ID,          ST_UNDEFINED,   ST_UNDEFINED,   ST_ID,          //      0xDC    0xDD    0xDE    0xDF
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xE0    0xE1    0xE2    0xE3
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xE4    0xE5    0xE6    0xE7
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xE8    0xE9    0xEA    0xEB
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xEC    0xED    0xEE    0xEF
+    ST_UNDEFINED,   ST_ID,          ST_ID,          ST_ID,          //      0xF0    0xF1    0xF2    0xF3
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xF4    0xF5    0xF6    0xF7
+    ST_ID,          ST_ID,          ST_ID,          ST_ID,          //      0xF8    0xF9    0xFA    0xFB
+    ST_ID,          ST_UNDEFINED,   ST_UNDEFINED,   ST_ID,          //      0xFC    0xFD    0xFE    0xFF
 };
-extern const uint4 constant_table_size = ELEMENTS(constant_table);
 
-static LT accept_table[] =
+/* The constant_table must be constexpr to force the compiler to generate
+ * it at compile time (the rule is that constexpr expressions may be evaluated
+ * at compile-time or runtime *unless* they are used as a subexpression of a
+ * constexpr in which case they must be evaluated at compile-time - MSVC
+ * needs constexpr here to force compile-time eval; other compilers are happy
+ * with just const - go figure!). */
+static constexpr const Cvalue constant_table_values[] =
+{
+    /* Initializer lists are used as (in C++11) they map to constructors. */
+    {"arrow", 29},
+    {"backslash", "\\"},
+    {"busy", 6},
+    {"clock", 14},
+    {"colon", ":"},
+    {"comma", ","},
+    {"cr", "\n"},
+    {"crlf", "\r\n"},
+    {"cross", 7},
+    {"done", "done"},
+    {"down", "down"},
+    {"eight", 8},
+    {"empty", kCValueTypeEmpty},
+    {"end", "\004"},
+    {"endoffile", "\004"},
+    {"eof", "\004"},
+    {"false", kCValueTypeFalse},
+    {"five", 5},
+    {"formfeed", "\014"},
+    {"four", 4},
+    {"hand", 28},
+    {"help", 15},
+    {"ibeam", 9},
+    {"infinity", kCValueTypeInfinity},
+    {"left", "left"},
+    {"lf", "\n"},
+    {"linefeed", "\n"},
+    {"nine", 9},
+    {"none", 0},
+    {"null", kCValueTypeNull},
+    {"one", 1},
+    {"pi", 3.14159265358979323846},
+    {"plus", 13},
+    {"quote", "\""},
+    {"return", "\n"},
+    {"right", "right"},
+    {"scrollbarfactor", 65535},
+    {"seven", 7},
+    {"six", 6},
+    {"slash", "/"},
+    {"space", " "},
+    {"tab", "\t"},
+    {"ten", 10},
+    {"three", 3},
+    {"true", kCValueTypeTrue},
+    {"two", 2},
+    {"up", "up"},
+    {"watch", 14},
+    {"zero", 0},
+};
+const Cvalue *constant_table = constant_table_values;
+extern const uint4 constant_table_size = ELEMENTS(constant_table_values);
+
+const static LT accept_table[] =
     {
-        {"connections", TT_UNDEFINED, AC_UNDEFINED},
+        {"connections", TT_UNDEFINED, AC_CONNECTIONS},
         {"datagram", TT_UNDEFINED, AC_DATAGRAM},
         {"datagrams", TT_UNDEFINED, AC_DATAGRAM},
-        {"on", TT_UNDEFINED, AC_UNDEFINED},
-        {"port", TT_UNDEFINED, AC_UNDEFINED},
+        {"on", TT_UNDEFINED, AC_ON},
+        {"port", TT_UNDEFINED, AC_PORT},
         {"secure", TT_UNDEFINED, AC_SECURE}
     };
 
-static LT ae_table[] =
+const static LT ae_table[] =
     {
         {"ae", TT_UNDEFINED, AE_AE},
         {"appleevent", TT_UNDEFINED, AE_AE},
@@ -177,7 +267,7 @@ static LT ae_table[] =
         {"sender", TT_UNDEFINED, AE_SENDER}
     };
 
-static LT ask_table[] =
+const static LT ask_table[] =
     {
         {"application", TT_UNDEFINED, AT_PROGRAM},
         {"clear", TT_UNDEFINED, AT_CLEAR},
@@ -206,11 +296,9 @@ static LT ask_table[] =
         {"warning", TT_UNDEFINED, AT_WARNING}
     };
 
-LT command_table[] =
+const LT command_table[] =
     {
-#if defined(MODE_DEVELOPMENT) || defined(MODE_INSTALLER)
 		{"_internal", TT_STATEMENT, S_INTERNAL},
-#endif
         {"accept", TT_STATEMENT, S_ACCEPT},
         {"add", TT_STATEMENT, S_ADD},
         {"answer", TT_STATEMENT, S_ANSWER},
@@ -243,6 +331,7 @@ LT command_table[] =
         {"define", TT_STATEMENT, S_DEFINE},
         {"dehilite", TT_STATEMENT, S_UNHILITE},
         {"delete", TT_STATEMENT, S_DELETE},
+        {"difference", TT_STATEMENT, S_DIFFERENCE},
 		// MW-2008-11-05: [[ Dispatch Command ]] 'dispatch' is a statement keyword
         {"disable", TT_STATEMENT, S_DISABLE},
 		{"dispatch", TT_STATEMENT, S_DISPATCH},
@@ -283,6 +372,7 @@ LT command_table[] =
         {"load", TT_STATEMENT, S_LOAD},
         {"local", TT_STATEMENT, S_LOCAL},
         {"lock", TT_STATEMENT, S_LOCK},
+        {"log", TT_STATEMENT, S_LOG},
         {"mark", TT_STATEMENT, S_MARK},
         {"modal", TT_STATEMENT, S_MODAL},
         {"modeless", TT_STATEMENT, S_MODELESS},
@@ -344,6 +434,7 @@ LT command_table[] =
         {"stop", TT_STATEMENT, S_STOP},
         {"subtract", TT_STATEMENT, S_SUBTRACT},
         {"switch", TT_STATEMENT, S_SWITCH},
+        {"symmetric", TT_STATEMENT, S_SYMMETRIC},
         {"then", TT_THEN, S_UNDEFINED},
         {"throw", TT_STATEMENT, S_THROW},
         {"toplevel", TT_STATEMENT, S_TOP_LEVEL},
@@ -363,7 +454,7 @@ LT command_table[] =
     };
 extern const uint4 command_table_size = ELEMENTS(command_table);
 
-static LT convert_table[] =
+const static LT convert_table[] =
     {
         {"abbr", TT_CHUNK, CF_ABBREVIATED},
         {"abbrev", TT_CHUNK, CF_ABBREVIATED},
@@ -381,7 +472,7 @@ static LT convert_table[] =
         {"time", TT_CHUNK, CF_TIME}
     };
 
-static LT encryption_table[] =
+const static LT encryption_table[] =
     {
         {"bit", TT_UNDEFINED, ENCRT_BIT},
         {"cert", TT_UNDEFINED, RSA_CERT},
@@ -398,7 +489,7 @@ static LT encryption_table[] =
         {"using", TT_UNDEFINED, ENCRT_USING},
     };
 
-static LT exit_table[] =
+const static LT exit_table[] =
     {
         {"hypercard", TT_UNDEFINED, ET_ALL},
         {"metacard", TT_UNDEFINED, ET_ALL},
@@ -409,7 +500,7 @@ static LT exit_table[] =
         {"top", TT_UNDEFINED, ET_ALL}
     };
 
-static LT export_table[] =
+const static LT export_table[] =
     {
 		{"abgr", TT_UNDEFINED, EX_RAW_ABGR},
         {"ac", TT_UNDEFINED, EX_AUDIO_CLIP},
@@ -443,7 +534,7 @@ static LT export_table[] =
         {"xwd", TT_UNDEFINED, EX_XWD}
     };
 
-LT factor_table[] =
+const LT factor_table[] =
     {
         {"&", TT_BINOP, O_CONCAT},
         {"&&", TT_BINOP, O_CONCAT_SPACE},
@@ -522,6 +613,7 @@ LT factor_table[] =
         {"atan2", TT_FUNCTION, F_ATAN2},
         {"audioclip", TT_CHUNK, CT_AUDIO_CLIP},
         {"audioclips", TT_CLASS, CT_AUDIO_CLIP},
+        {"audiopan", TT_PROPERTY, P_AUDIO_PAN},
         {"autoarm", TT_PROPERTY, P_AUTO_ARM},
         {"autohilight", TT_PROPERTY, P_AUTO_HILITE},
         {"autohilite", TT_PROPERTY, P_AUTO_HILITE},
@@ -564,6 +656,8 @@ LT factor_table[] =
         {"bg", TT_CHUNK, CT_BACKGROUND},
         {"bgbehavior", TT_PROPERTY, P_BACKGROUND_BEHAVIOR},
         {"bgs", TT_CLASS, CT_BACKGROUND},
+        // AL-2014-10-17: [[ BiDi ]] Returns the result of applying the bi-directional algorithm to text
+        {"bididirection", TT_FUNCTION, F_BIDI_DIRECTION},
         {"binarydecode", TT_FUNCTION, F_BINARY_DECODE},
         {"binaryencode", TT_FUNCTION, F_BINARY_ENCODE},
         {"bitand", TT_BINOP, O_AND_BITS},
@@ -601,8 +695,9 @@ LT factor_table[] =
         {"button", TT_CHUNK, CT_BUTTON},
         {"buttons", TT_CLASS, CT_BUTTON},
         {"by", TT_PREP, PT_BY},
-		{"byte", TT_CHUNK, CT_CHARACTER},
-		{"bytes", TT_CLASS, CT_CHARACTER},
+		{"byte", TT_CHUNK, CT_BYTE},
+        {"byteoffset", TT_FUNCTION, F_BYTE_OFFSET},
+		{"bytes", TT_CLASS, CT_BYTE},
 		{"bytetonum", TT_FUNCTION, F_BYTE_TO_NUM},
         {"cachedurl", TT_FUNCTION, F_CACHED_URLS},
         {"cachedurls", TT_FUNCTION, F_CACHED_URLS},
@@ -620,7 +715,12 @@ LT factor_table[] =
         {"casesensitive", TT_PROPERTY, P_CASE_SENSITIVE},
         {"cd", TT_CHUNK, CT_CARD},
         {"cds", TT_CLASS, CT_CARD},
+		// MDW-2014-08-23 : [[ feature_floor ]]
+        {"ceil", TT_FUNCTION, F_CEIL},
+        {"ceiling", TT_FUNCTION, F_CEIL},
         {"centered", TT_PROPERTY, P_CENTERED},
+        {"centerrect", TT_PROPERTY, P_CENTER_RECTANGLE},
+        {"centerrectangle", TT_PROPERTY, P_CENTER_RECTANGLE},
         {"centurycutoff", TT_PROPERTY, P_CENTURY_CUTOFF},
         {"char", TT_CHUNK, CT_CHARACTER},
         {"character", TT_CHUNK, CT_CHARACTER},
@@ -645,8 +745,20 @@ LT factor_table[] =
         {"clickv", TT_FUNCTION, F_CLICK_V},
         {"clipboard", TT_FUNCTION, F_CLIPBOARD},
         {"clipboarddata", TT_PROPERTY, P_CLIPBOARD_DATA},
+        // MERG-2013-08-12: [[ ClipsToRect ]] If true group clips to the set rect rather than the rect of children
+        {"clipstorect", TT_PROPERTY, P_CLIPS_TO_RECT},
         {"closebox", TT_PROPERTY, P_CLOSE_BOX},
+        {"cmdargs", TT_FUNCTION, F_COMMAND_ARGUMENTS},
         {"cmdkey", TT_FUNCTION, F_COMMAND_KEY},
+        {"cmdname", TT_FUNCTION, F_COMMAND_NAME},
+        {"codepoint", TT_CHUNK, CT_CODEPOINT},
+        {"codepointoffset", TT_FUNCTION, F_CODEPOINT_OFFSET},
+        {"codepointproperty", TT_FUNCTION, F_CODEPOINT_PROPERTY},
+		{"codepoints", TT_CLASS, CT_CODEPOINT},
+        {"codepointtonum", TT_FUNCTION, F_UNICODE_CHAR_TO_NUM},
+        {"codeunit", TT_CHUNK, CT_CODEUNIT},
+        {"codeunitoffset", TT_FUNCTION, F_CODEUNIT_OFFSET},
+        {"codeunits", TT_CLASS, CT_CODEUNIT},
         {"collapsebox", TT_PROPERTY, P_COLLAPSE_BOX},
 		// MERG-2013-08-17: [[ ColorDialogColors ]] Custom color management for the windows color dialog
 		{"colordialogcolors", TT_PROPERTY, P_COLOR_DIALOG_COLORS},
@@ -658,10 +770,14 @@ LT factor_table[] =
         {"colorworld", TT_PROPERTY, P_COLOR_WORLD},
         {"columndel", TT_PROPERTY, P_COLUMN_DELIMITER},
         {"columndelimiter", TT_PROPERTY, P_COLUMN_DELIMITER},
+        // SN-2015-07-18: [[ CommandFunctions ]] Added keywords for
+        //  commandName and commandArguments
+        {"commandarguments", TT_FUNCTION, F_COMMAND_ARGUMENTS},
         {"commandchar", TT_PROPERTY, P_COMMAND_CHAR},
         {"commandkey", TT_FUNCTION, F_COMMAND_KEY},
+        {"commandname", TT_FUNCTION, F_COMMAND_NAME},
         {"commandnames", TT_FUNCTION, F_COMMAND_NAMES},
-		// MW-2011-09-10: [[ TileCache ]] The maximum number of bytes to use for the tile cache
+        // MW-2011-09-10: [[ TileCache ]] The maximum number of bytes to use for the tile cache
 		{"compositorcachelimit", TT_PROPERTY, P_COMPOSITOR_CACHE_LIMIT},
 		// MW-2011-09-10: [[ TileCache ]] Read-only statistics about recent composites
 		{"compositorstatistics", TT_PROPERTY, P_COMPOSITOR_STATISTICS},
@@ -695,6 +811,7 @@ LT factor_table[] =
         {"currenttime", TT_PROPERTY, P_CURRENT_TIME},
         {"currentwindow", TT_FUNCTION, F_TOP_STACK},
         {"cursor", TT_PROPERTY, P_CURSOR},
+        {"cursorMovement", TT_PROPERTY, P_CURSORMOVEMENT},
         {"customkeys", TT_PROPERTY, P_CUSTOM_KEYS},
         {"customproperties", TT_PROPERTY, P_CUSTOM_PROPERTIES},
         {"custompropertyset", TT_PROPERTY, P_CUSTOM_PROPERTY_SET},
@@ -730,7 +847,9 @@ LT factor_table[] =
         {"div", TT_BINOP, O_DIV},
         {"dnsservers", TT_FUNCTION, F_DNS_SERVERS},
 		{"document", TT_CHUNK, CT_DOCUMENT},
-		// MW-2011-11-24: [[ Nice Folders ]] The adjective for 'the documents folder'.
+        // MERG-2015-10-11: [[ DocumentFilename ]] Property tag for documentFilename
+        {"documentfilename", TT_PROPERTY, P_DOCUMENT_FILENAME},
+        // MW-2011-11-24: [[ Nice Folders ]] The adjective for 'the documents folder'.
 		{"documents", TT_PROPERTY, P_DOCUMENTS_FOLDER},
         {"dontdither", TT_PROPERTY, P_DONT_DITHER},
         {"dontrefresh", TT_PROPERTY, P_DONT_REFRESH},
@@ -760,6 +879,8 @@ LT factor_table[] =
         {"editbackground", TT_PROPERTY, P_EDIT_BACKGROUND},
         {"editbg", TT_PROPERTY, P_EDIT_BACKGROUND},
         {"editbkgnd", TT_PROPERTY, P_EDIT_BACKGROUND},
+        // MW-2014-08-12: [[ EditionType ]] New read-only property describing the engine's edition.
+        {"editiontype", TT_PROPERTY, P_EDITION_TYPE},
         {"editmenus", TT_PROPERTY, P_EDIT_MENUS},
 		{"editmode", TT_PROPERTY, P_EDIT_MODE},
         {"editscripts", TT_PROPERTY, P_EDIT_SCRIPTS},
@@ -788,6 +909,12 @@ LT factor_table[] =
         {"epss", TT_CLASS, CT_EPS},
         {"eraser", TT_PROPERTY, P_ERASER},
 		{"errormode", TT_PROPERTY, P_ERROR_MODE},
+        {"eventaltkey", TT_FUNCTION, F_EVENT_OPTION_KEY},
+        {"eventcapslockkey", TT_FUNCTION, F_EVENT_CAPSLOCK_KEY},
+        {"eventcommandkey", TT_FUNCTION, F_EVENT_COMMAND_KEY},
+        {"eventcontrolkey", TT_FUNCTION, F_EVENT_CONTROL_KEY},
+        {"eventoptionkey", TT_FUNCTION, F_EVENT_OPTION_KEY},
+        {"eventshiftkey", TT_FUNCTION, F_EVENT_SHIFT_KEY},
         {"executioncontexts", TT_PROPERTY, P_EXECUTION_CONTEXTS},
         {"existence", TT_FUNCTION, F_EXISTS},
         {"exists", TT_FUNCTION, F_EXISTS},
@@ -829,6 +956,8 @@ LT factor_table[] =
 		{"flaggedranges", TT_PROPERTY, P_FLAGGED_RANGES},
         {"fld", TT_CHUNK, CT_FIELD},
         {"flds", TT_CLASS, CT_FIELD},
+		// MDW-2014-08-23 : [[ feature_floor ]]
+        {"floor", TT_FUNCTION, F_FLOOR},
         {"flushevents", TT_FUNCTION, F_FLUSH_EVENTS},
         {"focuscolor", TT_PROPERTY, P_FOCUS_COLOR},
         {"focusedobject", TT_FUNCTION, F_FOCUSED_OBJECT},
@@ -858,6 +987,7 @@ LT factor_table[] =
         {"formattedtext", TT_PROPERTY, P_FORMATTED_TEXT},
         {"formattedtop", TT_PROPERTY, P_FORMATTED_TOP},
         {"formattedwidth", TT_PROPERTY, P_FORMATTED_WIDTH},
+        {"formsensitive", TT_PROPERTY, P_FORM_SENSITIVE},
         {"foundchunk", TT_FUNCTION, F_FOUND_CHUNK},
         {"foundfield", TT_FUNCTION, F_FOUND_FIELD},
         {"foundline", TT_FUNCTION, F_FOUND_LINE},
@@ -872,6 +1002,8 @@ LT factor_table[] =
         {"from", TT_FROM, PT_FROM},
         {"frontscripts", TT_FUNCTION, F_FRONT_SCRIPTS},
         {"ftpproxy", TT_PROPERTY, P_FTP_PROXY},
+        {"fullclipboarddata", TT_PROPERTY, P_FULL_CLIPBOARD_DATA},
+        {"fulldragdata", TT_PROPERTY, P_FULL_DRAGBOARD_DATA},
 		{"fullscreen", TT_PROPERTY, P_FULLSCREEN},
 		// IM-2013-09-23: [[ FullscreenMode ]] New property for 'fullscreenmode'
 		{"fullscreenmode", TT_PROPERTY, P_FULLSCREENMODE},
@@ -947,11 +1079,15 @@ LT factor_table[] =
         {"httpproxy", TT_PROPERTY, P_HTTP_PROXY},
 		{"httpproxyforurl", TT_FUNCTION, F_HTTP_PROXY_FOR_URL},
         {"icon", TT_PROPERTY, P_ICON},
+        // MW-2014-06-19: [[ IconGravity ]] Button 'iconGravity' property.
+        {"icongravity", TT_PROPERTY, P_ICON_GRAVITY},
         {"iconic", TT_PROPERTY, P_ICONIC},
 		{"iconmenu", TT_PROPERTY, P_ICON_MENU},
         {"id", TT_PROPERTY, P_ID},
         {"idlerate", TT_PROPERTY, P_IDLE_RATE},
         {"idleticks", TT_PROPERTY, P_IDLE_TICKS},
+        // MERG-2014-06-02: [[ IgnoreMouseEvents ]] ignoreMouseEvents stack property
+        {"ignoremouseevents", TT_PROPERTY, P_IGNORE_MOUSE_EVENTS},
         {"image", TT_CHUNK, CT_IMAGE},
 		{"imagecachelimit", TT_PROPERTY, P_IMAGE_CACHE_LIMIT},
 		{"imagecacheusage", TT_PROPERTY, P_IMAGE_CACHE_USAGE},
@@ -981,16 +1117,20 @@ LT factor_table[] =
         {"items", TT_CLASS, CT_ITEM},
 		{"joinstyle", TT_PROPERTY, P_JOIN_STYLE},
         {"jpegquality", TT_PROPERTY, P_JPEG_QUALITY},
+        {"keyboardtype", TT_PROPERTY, P_KEYBOARD_TYPE},
         {"keys", TT_FUNCTION, F_KEYS},
         {"keysdown", TT_FUNCTION, F_KEYS_DOWN},
+        {"kind", TT_PROPERTY, P_KIND},
         {"label", TT_PROPERTY, P_LABEL},
         {"labelwidth", TT_PROPERTY, P_LABEL_WIDTH},
         {"last", TT_CHUNK, CT_LAST},
         {"layer", TT_PROPERTY, P_LAYER},
+        {"layercliprect", TT_PROPERTY, P_LAYER_CLIP_RECT},
 		// MW-2011-08-25: [[ TileCache ]] The layerMode property token.
 		{"layermode", TT_PROPERTY, P_LAYER_MODE},
         {"layers", TT_CLASS, CT_LAYER},
         {"left", TT_PROPERTY, P_LEFT},
+		{"leftbalance", TT_PROPERTY, P_LEFT_BALANCE},
 		// MW-2011-01-25: [[ ParaStyles ]] The leftIndent paragraph property.
 		{"leftindent", TT_PROPERTY, P_LEFT_INDENT},
         {"leftmargin", TT_PROPERTY, P_LEFT_MARGIN},
@@ -1023,6 +1163,8 @@ LT factor_table[] =
         {"liveresizing", TT_PROPERTY, P_LIVE_RESIZING},
         {"ln", TT_FUNCTION, F_LN},
         {"ln1", TT_FUNCTION, F_LN1},
+        {"loadedextensions", TT_PROPERTY, P_LOADED_EXTENSIONS},
+        {"loadedtime", TT_PROPERTY, P_MOVIE_LOADED_TIME},
         {"loc", TT_PROPERTY, P_LOCATION},
         {"localloc", TT_FUNCTION, F_LOCAL_LOC},
         {"localnames", TT_FUNCTION, F_LOCALS},
@@ -1043,6 +1185,7 @@ LT factor_table[] =
         {"lockupdates", TT_PROPERTY, P_LOCK_UPDATES},
         {"log10", TT_FUNCTION, F_LOG10},
         {"log2", TT_FUNCTION, F_LOG2},
+        {"logmessage", TT_PROPERTY, P_LOG_MESSAGE},
         {"long", TT_PROPERTY, P_LONG},
         {"longfilepath", TT_FUNCTION, F_LONG_FILE_PATH},
         {"longwindowtitles", TT_PROPERTY, P_LONG_WINDOW_TITLES},
@@ -1102,7 +1245,8 @@ LT factor_table[] =
         {"menuobject", TT_FUNCTION, F_MENU_OBJECT},
         {"menus", TT_FUNCTION, F_MENUS},
         {"merge", TT_FUNCTION, F_MERGE},
-        {"messagemessages", TT_PROPERTY, P_MESSAGE_MESSAGES},
+        {"messagedigest", TT_FUNCTION, F_MESSAGE_DIGEST},
+		{"messagemessages", TT_PROPERTY, P_MESSAGE_MESSAGES},
 		{"metadata", TT_PROPERTY, P_METADATA},
         {"metal", TT_PROPERTY, P_METAL},
         {"mid", TT_CHUNK, CT_MIDDLE},
@@ -1114,7 +1258,9 @@ LT factor_table[] =
         {"min", TT_FUNCTION, F_MIN},
         {"minheight", TT_PROPERTY, P_MIN_HEIGHT},
         {"minimizebox", TT_PROPERTY, P_MINIMIZE_BOX},
+        {"minstackfileversion", TT_PROPERTY, P_MIN_STACK_FILE_VERSION},
         {"minwidth", TT_PROPERTY, P_MIN_WIDTH},
+        {"mirrored", TT_PROPERTY, P_MIRRORED},
 		{"miterlimit", TT_PROPERTY, P_MITER_LIMIT},
         {"mnemonic", TT_PROPERTY, P_MNEMONIC},
         {"mod", TT_BINOP, O_MOD},
@@ -1145,19 +1291,24 @@ LT factor_table[] =
         {"multiplelines", TT_PROPERTY, P_MULTIPLE_HILITES},
         {"multispace", TT_PROPERTY, P_MULTI_SPACE},
         {"name", TT_PROPERTY, P_NAME},
+        {"nativechartonum", TT_FUNCTION, F_NATIVE_CHAR_TO_NUM},
         {"navigationarrows", TT_PROPERTY, P_NAVIGATION_ARROWS},
 		{"networkinterfaces", TT_PROPERTY, P_NETWORK_INTERFACES},
+        {"newest", TT_PREP, PT_NEWEST},
         {"next", TT_CHUNK, CT_NEXT},
         {"ninth", TT_CHUNK, CT_NINTH},
         {"no", TT_UNOP, O_NOT},
         {"nodes", TT_PROPERTY, P_NODES},
         {"noncontiguoushilites", TT_PROPERTY, P_NONCONTIGUOUS_HILITES},
+        {"normalizetext", TT_FUNCTION, F_NORMALIZE_TEXT},
         {"not", TT_UNOP, O_NOT},
         {"num", TT_PROPERTY, P_NUMBER},
         {"number", TT_PROPERTY, P_NUMBER},
         {"numberformat", TT_PROPERTY, P_NUMBER_FORMAT},
 		{"numtobyte", TT_FUNCTION, F_NUM_TO_BYTE},
         {"numtochar", TT_FUNCTION, F_NUM_TO_CHAR},
+        {"numtocodepoint", TT_FUNCTION, F_NUM_TO_UNICODE_CHAR},
+        {"numtonativechar", TT_FUNCTION, F_NUM_TO_NATIVE_CHAR},
         {"of", TT_OF, PT_OF},
         {"offset", TT_FUNCTION, F_OFFSET},
         {"on", TT_OF, PT_ON},
@@ -1188,6 +1339,9 @@ LT factor_table[] =
         {"paintcompression", TT_PROPERTY, P_PAINT_COMPRESSION},
         {"palindromeframes", TT_PROPERTY, P_PALINDROME_FRAMES},
         {"pan", TT_PROPERTY, P_PAN},
+        {"paragraph", TT_CHUNK, CT_PARAGRAPH},
+        {"paragraphoffset", TT_FUNCTION, F_PARAGRAPH_OFFSET},
+        {"paragraphs", TT_CLASS, CT_PARAGRAPH},
         {"param", TT_FUNCTION, F_PARAM},
         {"paramcount", TT_FUNCTION, F_PARAM_COUNT},
         {"params", TT_FUNCTION, F_PARAMS},
@@ -1298,6 +1452,8 @@ LT factor_table[] =
         {"random", TT_FUNCTION, F_RANDOM},
 		{"randombytes", TT_FUNCTION, F_RANDOM_BYTES},
         {"randomseed", TT_PROPERTY, P_RANDOM_SEED},
+        {"rawclipboarddata", TT_PROPERTY, P_RAW_CLIPBOARD_DATA},
+        {"rawdragdata", TT_PROPERTY, P_RAW_DRAGBOARD_DATA},
         {"recent", TT_CHUNK, CT_RECENT},
         {"recentcards", TT_PROPERTY, P_RECENT_CARDS},
         {"recentnames", TT_PROPERTY, P_RECENT_NAMES},
@@ -1305,6 +1461,7 @@ LT factor_table[] =
         {"recordcompression", TT_PROPERTY, P_RECORD_COMPRESSION},
         {"recordcompressiontypes", TT_FUNCTION, F_RECORD_COMPRESSION_TYPES},
         {"recordformat", TT_PROPERTY, P_RECORD_FORMAT},
+        {"recordformats", TT_FUNCTION, F_RECORD_FORMATS},
         {"recording", TT_PROPERTY, P_RECORDING},
         {"recordinput", TT_PROPERTY, P_RECORD_INPUT},
         {"recordloudness", TT_FUNCTION, F_RECORD_LOUDNESS},
@@ -1330,30 +1487,31 @@ LT factor_table[] =
         {"result", TT_FUNCTION, F_RESULT},
         {"retainimage", TT_PROPERTY, P_RETAIN_IMAGE},
         {"retainpostscript", TT_PROPERTY, P_RETAIN_POSTSCRIPT},
-#ifdef MODE_DEVELOPMENT
-		{"revavailablehandlers", TT_PROPERTY, P_REV_AVAILABLE_HANDLERS},
+        {"returnkeytype", TT_PROPERTY, P_RETURN_KEY_TYPE},
+        {"revavailablehandlers", TT_PROPERTY, P_REV_AVAILABLE_HANDLERS},
 		{"revavailablevariables", TT_PROPERTY, P_REV_AVAILABLE_VARIABLES},
+        {"revbehavioruses", TT_PROPERTY, P_REV_BEHAVIOR_USES},
+#ifdef MODE_DEVELOPMENT
 		{"revcrashreportsettings", TT_PROPERTY, P_REV_CRASH_REPORT_SETTINGS},
 #endif
-#ifdef MODE_DEVELOPMENT
-		{"revlicenseinfo", TT_PROPERTY, P_REV_LICENSE_INFO},
+        {"revlibrarymapping", TT_PROPERTY, P_REV_LIBRARY_MAPPING},
+        {"revlicenseinfo", TT_PROPERTY, P_REV_LICENSE_INFO},
         {"revlicenselimits",TT_PROPERTY,P_REV_LICENSE_LIMITS},
-		{"revmessageboxlastobject", TT_PROPERTY, P_REV_MESSAGE_BOX_LAST_OBJECT},
-		{"revmessageboxredirect", TT_PROPERTY, P_REV_MESSAGE_BOX_REDIRECT},
+#if defined(MODE_DEVELOPMENT)
 #ifdef FEATURE_PROPERTY_LISTENER
 		// MM-2012-09-05: [[ Property Listener ]] Returns the list of all active object property listeners
 		{"revobjectlisteners", TT_PROPERTY, P_REV_OBJECT_LISTENERS},
-#endif
-#ifdef FEATURE_PROPERTY_LISTENER
 		// MM-2012-11-06: [[ Property Listener ]] Minimum number of milliseconds between propertyChanged messages.
 		{"revpropertylistenerthrottle", TT_PROPERTY, P_REV_PROPERTY_LISTENER_THROTTLE_TIME},
 #endif
 #endif
 		{"revruntimebehaviour", TT_PROPERTY, P_REV_RUNTIME_BEHAVIOUR},
+        {"revscriptdescription", TT_PROPERTY, P_REV_SCRIPT_DESCRIPTION},
 #ifdef MODE_DEVELOPMENT
 		{"revunplacedgroupids", TT_PROPERTY, P_UNPLACED_GROUP_IDS},
 #endif
         {"right", TT_PROPERTY, P_RIGHT},
+        {"rightbalance", TT_PROPERTY, P_RIGHT_BALANCE},
 		// MW-2011-01-25: [[ ParaStyles ]] The rightIndent paragraph property.
 		{"rightindent", TT_PROPERTY, P_RIGHT_INDENT},
         {"rightmargin", TT_PROPERTY, P_RIGHT_MARGIN},
@@ -1398,7 +1556,9 @@ LT factor_table[] =
         {"script", TT_PROPERTY, P_SCRIPT},
 		{"scriptexecutionerrors", TT_PROPERTY, P_SCRIPT_EXECUTION_ERRORS},
         {"scriptlimits", TT_FUNCTION, F_SCRIPT_LIMITS},
-		{"scriptparsingerrors", TT_PROPERTY, P_SCRIPT_PARSING_ERRORS},
+        {"scriptonly", TT_PROPERTY, P_SCRIPT_ONLY},
+        {"scriptparsingerrors", TT_PROPERTY, P_SCRIPT_PARSING_ERRORS},
+        {"scriptstatus", TT_PROPERTY, P_SCRIPT_STATUS},
         {"scripttextfont", TT_PROPERTY, P_SCRIPT_TEXT_FONT},
         {"scripttextsize", TT_PROPERTY, P_SCRIPT_TEXT_SIZE},		
         {"scroll", TT_PROPERTY, P_VSCROLL},
@@ -1414,6 +1574,9 @@ LT factor_table[] =
         {"securemode", TT_PROPERTY, P_SECURE_MODE},
 		{"securitycategories", TT_PROPERTY, P_SECURITY_CATEGORIES},
 		{"securitypermissions", TT_PROPERTY, P_SECURITY_PERMISSIONS},
+        {"segment", TT_CHUNK, CT_WORD},
+        {"segmentoffset", TT_FUNCTION, F_WORD_OFFSET},
+        {"segments", TT_CLASS, CT_WORD},
         {"selected", TT_PROPERTY, P_SELECTED},
         {"selectedbutton", TT_FUNCTION, F_SELECTED_BUTTON},
         {"selectedchunk", TT_FUNCTION, F_SELECTED_CHUNK},
@@ -1433,6 +1596,9 @@ LT factor_table[] =
         {"selectionmode", TT_PROPERTY, P_SELECTION_MODE},
         {"selobj", TT_FUNCTION, F_SELECTED_OBJECT},
         {"selobjs", TT_FUNCTION, F_SELECTED_OBJECT},
+        {"sentence", TT_CHUNK, CT_SENTENCE},
+        {"sentenceoffset", TT_FUNCTION, F_SENTENCE_OFFSET},
+        {"sentences", TT_CLASS, CT_SENTENCE},
         {"serialcontrolstring", TT_PROPERTY, P_SERIAL_CONTROL_STRING},
 		{"sessioncookiename", TT_PROPERTY, P_SESSION_COOKIE_NAME},
 		{"sessionid", TT_PROPERTY, P_SESSION_ID},
@@ -1508,6 +1674,8 @@ LT factor_table[] =
         {"startupiconic", TT_PROPERTY, P_START_UP_ICONIC},
         {"startvalue", TT_PROPERTY, P_START_VALUE},
         {"statround", TT_FUNCTION, F_STAT_ROUND},
+        // PM-2014-09-02: [[ Bug 13092 ]] Added status property to the player object
+        {"status", TT_PROPERTY, P_STATUS},
 		{"statusicon", TT_PROPERTY, P_STATUS_ICON},
 		{"statusiconmenu", TT_PROPERTY, P_STATUS_ICON_MENU},
 		{"statusicontooltip", TT_PROPERTY, P_STATUS_ICON_TOOLTIP},
@@ -1522,7 +1690,8 @@ LT factor_table[] =
         {"syncrate", TT_PROPERTY, P_SYNC_RATE},
         {"syserror", TT_FUNCTION, F_SYS_ERROR},
         {"system", TT_PROPERTY, P_SYSTEM},
-        {"systemcolorselector", TT_PROPERTY, P_SYSTEM_CS},
+		{"systemappearance", TT_PROPERTY, P_SYSTEM_APPEARANCE},
+		{"systemcolorselector", TT_PROPERTY, P_SYSTEM_CS},
         {"systemfileselector", TT_PROPERTY, P_SYSTEM_FS},
 		// IM-2013-12-04: [[ PixelScale ]] The "systemPixelScale" token
 		{"systempixelscale", TT_PROPERTY, P_SYSTEM_PIXEL_SCALE},
@@ -1558,6 +1727,9 @@ LT factor_table[] =
         {"textarrows", TT_PROPERTY, P_TEXT_ARROWS},
         {"textcolor", TT_PROPERTY, P_FORE_COLOR},
         {"textdata", TT_PROPERTY, P_TEXT},
+        {"textdecode", TT_FUNCTION, F_TEXT_DECODE},
+        {"textdirection", TT_PROPERTY, P_TEXTDIRECTION},
+        {"textencode", TT_FUNCTION, F_TEXT_ENCODE},
         {"textfont", TT_PROPERTY, P_TEXT_FONT},
         {"textheight", TT_PROPERTY, P_TEXT_HEIGHT},
         {"textheightsum", TT_FUNCTION, F_TEXT_HEIGHT_SUM},
@@ -1566,6 +1738,8 @@ LT factor_table[] =
         {"textsize", TT_PROPERTY, P_TEXT_SIZE},
         {"textstyle", TT_PROPERTY, P_TEXT_STYLE},
         {"the", TT_THE, F_UNDEFINED},
+        {"theme", TT_PROPERTY, P_THEME},
+        {"themeclass", TT_PROPERTY, P_THEME_CONTROL_TYPE},
         {"there", TT_UNOP, O_THERE},
         {"third", TT_CHUNK, CT_THIRD},
         {"thirdcolor", TT_PROPERTY, P_HILITE_COLOR},
@@ -1588,6 +1762,7 @@ LT factor_table[] =
         {"to", TT_TO, PT_TO},
         {"togglehilites", TT_PROPERTY, P_TOGGLE_HILITE},
         {"token", TT_CHUNK, CT_TOKEN},
+        {"tokenoffset", TT_FUNCTION, F_TOKEN_OFFSET},
         {"tokens", TT_CLASS, CT_TOKEN},
         {"tolower", TT_FUNCTION, F_TO_LOWER},
         {"tool", TT_PROPERTY, P_TOOL},
@@ -1612,6 +1787,9 @@ LT factor_table[] =
         {"tracks", TT_PROPERTY, P_TRACKS},
         {"transpose", TT_FUNCTION, F_TRANSPOSE},
         {"traversalon", TT_PROPERTY, P_TRAVERSAL_ON},
+        {"trueword", TT_CHUNK, CT_TRUEWORD},
+        {"truewordoffset", TT_FUNCTION, F_TRUEWORD_OFFSET},
+        {"truewords", TT_CLASS, CT_TRUEWORD},
         {"trunc", TT_FUNCTION, F_TRUNC},
         {"twelvehourtime", TT_PROPERTY, P_TWELVE_TIME},
         {"typingrate", TT_PROPERTY, P_TYPE_RATE},
@@ -1651,6 +1829,7 @@ LT factor_table[] =
         {"vc", TT_CHUNK, CT_VIDEO_CLIP},
         {"vcplayer", TT_PROPERTY, P_VC_PLAYER},
         {"vcs", TT_CLASS, CT_VIDEO_CLIP},
+        {"vectordotproduct", TT_FUNCTION, F_VECTOR_DOT_PRODUCT},
         {"version", TT_FUNCTION, F_VERSION},
         {"vgrid", TT_PROPERTY, P_VGRID},
         {"videoclip", TT_CHUNK, CT_VIDEO_CLIP},
@@ -1669,6 +1848,8 @@ LT factor_table[] =
         {"weekdaynames", TT_FUNCTION, F_WEEK_DAY_NAMES},
         {"wholematches", TT_PROPERTY, P_WHOLE_MATCHES},
         {"widemargins", TT_PROPERTY, P_WIDE_MARGINS},
+        {"widget", TT_CHUNK, CT_WIDGET},
+        {"widgets", TT_CLASS, CT_WIDGET},
         {"width", TT_PROPERTY, P_WIDTH},
         {"window", TT_CHUNK, CT_STACK},
         {"windowboundingrect", TT_PROPERTY, P_WINDOW_BOUNDING_RECT},
@@ -1700,7 +1881,7 @@ LT factor_table[] =
 
 extern const uint4 factor_table_size = ELEMENTS(factor_table);
 
-static LT find_table[] =
+const static LT find_table[] =
     {
         {"characters", TT_CHUNK, FM_CHARACTERS},
         {"chars", TT_CHUNK, FM_CHARACTERS},
@@ -1711,7 +1892,7 @@ static LT find_table[] =
         {"words", TT_CHUNK, FM_WORD}
     };
 
-static LT flip_table[] =
+const static LT flip_table[] =
     {
         {"down", TT_UNDEFINED, FL_VERTICAL},
         {"horizontal", TT_UNDEFINED, FL_HORIZONTAL},
@@ -1721,7 +1902,7 @@ static LT flip_table[] =
         {"vertical", TT_UNDEFINED, FL_VERTICAL}
     };
 
-static LT go_table[] =
+const static LT go_table[] =
     {
         {"back", TT_CHUNK, CT_BACKWARD},
         {"backward", TT_CHUNK, CT_BACKWARD},
@@ -1734,7 +1915,7 @@ static LT go_table[] =
         {"start", TT_CHUNK, CT_START}
     };
 
-static LT handler_table[] =
+const static LT handler_table[] =
     {
 		{"after", TT_HANDLER, HT_AFTER},
 		{"before", TT_HANDLER, HT_BEFORE},
@@ -1751,14 +1932,15 @@ static LT handler_table[] =
         {"variable", TT_VARIABLE, S_LOCAL}
     };
 
-static LT insert_table[] =
+const static LT insert_table[] =
     {
         {"back", TT_UNDEFINED, IP_BACK},
         {"front", TT_UNDEFINED, IP_FRONT}
     };
 
-static LT lock_table[] =
+const static LT lock_table[] =
     {
+        {"clipboard", TT_UNDEFINED, LC_CLIPBOARD},
         {"colormap", TT_UNDEFINED, LC_COLORMAP},
         {"cursor", TT_UNDEFINED, LC_CURSOR},
         {"dialog", TT_UNDEFINED, LC_ERRORS},
@@ -1771,7 +1953,7 @@ static LT lock_table[] =
         {"screen", TT_UNDEFINED, LC_SCREEN}
     };
 
-static LT mark_table[] =
+const static LT mark_table[] =
     {
         {"all", TT_UNDEFINED, MC_ALL},
         {"by", TT_UNDEFINED, MC_BY},
@@ -1781,7 +1963,7 @@ static LT mark_table[] =
         {"where", TT_UNDEFINED, MC_WHERE}
     };
 
-static LT mode_table[] =
+const static LT mode_table[] =
     {
         {"append", TT_UNDEFINED, OM_APPEND},
         {"appending", TT_UNDEFINED, OM_APPEND},
@@ -1796,13 +1978,13 @@ static LT mode_table[] =
         {"writing", TT_UNDEFINED, OM_WRITE}
     };
 
-static LT move_table[] =
+const static LT move_table[] =
     {
         {"messages", TT_UNDEFINED, MM_MESSAGES},
         {"waiting", TT_UNDEFINED, MM_WAITING}
     };
 
-static LT open_table[] =
+const static LT open_table[] =
     {
         {"directory", TT_UNDEFINED, OA_DIRECTORY},
         {"driver", TT_UNDEFINED, OA_DRIVER},
@@ -1820,7 +2002,7 @@ static LT open_table[] =
         {"stdout", TT_UNDEFINED, OA_STDOUT}
     };
 
-static LT play_table[] =
+const static LT play_table[] =
     {
         {"ac", TT_UNDEFINED, PP_AUDIO_CLIP},
         {"audioclip", TT_UNDEFINED, PP_AUDIO_CLIP},
@@ -1839,27 +2021,31 @@ static LT play_table[] =
         {"videoclip", TT_UNDEFINED, PP_VIDEO_CLIP}
     };
 
-static LT record_table[] =
+const static LT record_table[] =
     {
         {"best", TT_UNDEFINED, RC_BEST},
         {"better", TT_UNDEFINED, RC_BETTER},
         {"good", TT_UNDEFINED, RC_GOOD},
+        {"pause", TT_UNDEFINED, RC_PAUSE},
         {"quality", TT_UNDEFINED, RC_QUALITY},
+        {"resume", TT_UNDEFINED, RC_RESUME},
         {"sound", TT_UNDEFINED, RC_SOUND}
     };
 
-static LT repeat_table[] =
+const static LT repeat_table[] =
     {
         {"each", TT_UNDEFINED, RF_EACH},
         {"for", TT_UNDEFINED, RF_FOR},
         {"forever", TT_UNDEFINED, RF_FOREVER},
         {"step", TT_UNDEFINED, RF_STEP},
+        // SN-2015-06-18: [[ Bug 15509 ]] Parse 'times' in 'repeat for x times'
+        {"times", TT_UNDEFINED, RF_TIMES},
         {"until", TT_UNDEFINED, RF_UNTIL},
         {"while", TT_UNDEFINED, RF_WHILE},
         {"with", TT_UNDEFINED, RF_WITH}
     };
 
-static LT reset_table[] =
+const static LT reset_table[] =
     {
         {"cursors", TT_UNDEFINED, RT_CURSORS},
         {"paint", TT_UNDEFINED, RT_PAINT},
@@ -1875,10 +2061,10 @@ static LT reset_table[] =
         {"templateplayer", TT_UNDEFINED, RT_TEMPLATE_PLAYER},
         {"templatescrollbar", TT_UNDEFINED, RT_TEMPLATE_SCROLLBAR},
         {"templatestack", TT_UNDEFINED, RT_TEMPLATE_STACK},
-        {"templatevideoclip", TT_UNDEFINED, RT_TEMPLATE_VIDEO_CLIP}
+        {"templatevideoclip", TT_UNDEFINED, RT_TEMPLATE_VIDEO_CLIP},
     };
 
-static LT show_table[] =
+const static LT show_table[] =
     {
         {"all", TT_UNDEFINED, SO_ALL},
         {"background", TT_UNDEFINED, SO_BACKGROUND},
@@ -1904,9 +2090,10 @@ static LT show_table[] =
         {"window", TT_UNDEFINED, SO_WINDOW}
     };
 
-static LT sort_table[] =
+const static LT sort_table[] =
     {
         {"ascending", TT_UNDEFINED, ST_ASCENDING},
+        {"binary", TT_UNDEFINED, ST_BINARY},
         {"by", TT_UNDEFINED, ST_BY},
         {"cards", TT_UNDEFINED, ST_CARDS},
         {"cds", TT_UNDEFINED, ST_CARDS},
@@ -1923,14 +2110,14 @@ static LT sort_table[] =
     };
 
 
-static LT ssl_table[] =
+const static LT ssl_table[] =
     {
         {"certificate", TT_UNDEFINED, SSL_CERTIFICATE},
         {"verification", TT_UNDEFINED, SSL_VERIFICATION}
     };
 
 
-static LT start_table[] =
+const static LT start_table[] =
     {
         {"drag", TT_UNDEFINED, SC_DRAG},
         {"editing", TT_UNDEFINED, SC_EDITING},
@@ -1944,7 +2131,7 @@ static LT start_table[] =
         {"using", TT_UNDEFINED, SC_USING}
     };
 
-static LT sugar_table[] =
+const static LT sugar_table[] =
     {
 		{"anchor", TT_UNDEFINED, SG_ANCHOR},
 		{"bookmark", TT_UNDEFINED, SG_BOOKMARK},
@@ -1952,9 +2139,12 @@ static LT sugar_table[] =
         {"callback", TT_CHUNK, CT_UNDEFINED},
 		{"caller", TT_UNDEFINED, SG_CALLER},
 		{"closed", TT_UNDEFINED, SG_CLOSED},
+        {"data", TT_UNDEFINED, SG_DATA},
 		{"effects", TT_UNDEFINED, SG_EFFECTS},
 		{"elevated", TT_UNDEFINED, SG_ELEVATED},
         {"empty", TT_CHUNK, CT_UNDEFINED},
+        {"error", TT_UNDEFINED, SG_ERROR},
+        {"extension", TT_UNDEFINED, SG_EXTENSION},
 		// MW-2013-11-14: [[ AssertCmd ]] Token for 'failure'
 		{"failure", TT_UNDEFINED, SG_FAILURE},
 		// MW-2013-11-14: [[ AssertCmd ]] Token for 'false'
@@ -1963,6 +2153,9 @@ static LT sugar_table[] =
         {"file", TT_UNDEFINED, SG_FILE},
         {"font", TT_UNDEFINED, SG_FONT},
         {"globally", TT_UNDEFINED, SG_GLOBALLY},
+		
+        // MM-2014-06-13: [[ Bug 12567 ]] Added host. Used in 'with verification for host <host>'
+		{"host", TT_UNDEFINED, SG_HOST},		
 		{"initially", TT_UNDEFINED, SG_INITIALLY},
         {"keyword", TT_CHUNK, CT_UNDEFINED},
 		{"level", TT_UNDEFINED, SG_LEVEL},
@@ -1976,31 +2169,42 @@ static LT sugar_table[] =
         {"message", TT_CHUNK, CT_UNDEFINED},
         {"new", TT_CHUNK, CT_UNDEFINED},
 		{"nothing", TT_UNDEFINED, SG_NOTHING},
+        // MW-2014-09-30: [[ ScriptOnlyStack ]] Token for 'only'.
+        {"only", TT_UNDEFINED, SG_ONLY},
 		{"open", TT_UNDEFINED, SG_OPEN},
 		{"optimized", TT_UNDEFINED, SG_OPTIMIZED},
 		{"options", TT_UNDEFINED, SG_OPTIONS},
+		{"path", TT_UNDEFINED, SG_PATH},
 		// JS-2013-07-01: [[ EnhancedFilter ]] Token for 'pattern'.
 		{"pattern", TT_UNDEFINED, SG_PATTERN},
+		{"preserving", TT_UNDEFINED, SG_PRESERVING},
+        {"real", TT_UNDEFINED, SG_REAL},
 		// MERG-2013-08-26: [[ RecursiveArrayOp ]] Support nested arrays in union and intersect
 		// AL-2013-10-30: [[ Bug 11351 ]] Ensure table is in alphabetical order.
         {"recursively", TT_UNDEFINED, SG_RECURSIVELY},
 		// JS-2013-07-01: [[ EnhancedFilter ]] Token for 'regex'.
 		{"regex", TT_UNDEFINED, SG_REGEX},
+		{"replacing", TT_UNDEFINED, SG_REPLACING},
+		{"resource", TT_UNDEFINED, SG_RESOURCE},
 		{"standard", TT_UNDEFINED, SG_STANDARD},
+        {"strictly", TT_UNDEFINED, SG_STRICTLY},
 		// MERG-2013-06-24: [[ IsAnAsciiString ]] Token for 'string'.
         {"string", TT_UNDEFINED, SG_STRING},
+		{"styles", TT_UNDEFINED, SG_STYLES},
 		// MW-2013-11-14: [[ AssertCmd ]] Token for 'success'
 		{"success", TT_UNDEFINED, SG_SUCCESS},
 		// MW-2013-11-14: [[ AssertCmd ]] Token for 'true'
 		{"true", TT_UNDEFINED, SG_TRUE},
 		{"unicode", TT_UNDEFINED, SG_UNICODE},
 		{"url", TT_UNDEFINED, SG_URL},
+        {"urlresult", TT_UNDEFINED, SG_URL_RESULT},
+        {"value", TT_UNDEFINED, SG_VALUE},
 		// JS-2013-07-01: [[ EnhancedFilter ]] Token for 'wildcard'.
 		{"wildcard", TT_UNDEFINED, SG_WILDCARD},
 		{"without", TT_PREP, PT_WITHOUT},
     };
 
-static LT there_table[] =
+const static LT there_table[] =
     {
         {"directory", TT_UNDEFINED, TM_DIRECTORY},
         {"file", TT_UNDEFINED, TM_FILE},
@@ -2009,7 +2213,7 @@ static LT there_table[] =
         {"url", TT_UNDEFINED, TM_URL}
     };
 
-static LT tool_table[] =
+const static LT tool_table[] =
     {
         {"browse", TT_TOOL, T_BROWSE},
         {"brush", TT_TOOL, T_BRUSH},
@@ -2045,14 +2249,18 @@ static LT tool_table[] =
         {"tool", TT_END, T_UNDEFINED}
     };
 
-static LT unit_table[] =
+const static LT unit_table[] =
     {
-		{"byte", TT_UNDEFINED, FU_CHARACTER},
-		{"bytes", TT_UNDEFINED, FU_CHARACTER},
+		{"byte", TT_UNDEFINED, FU_BYTE},
+		{"bytes", TT_UNDEFINED, FU_BYTE},
         {"char", TT_UNDEFINED, FU_CHARACTER},
         {"character", TT_UNDEFINED, FU_CHARACTER},
         {"characters", TT_UNDEFINED, FU_CHARACTER},
         {"chars", TT_UNDEFINED, FU_CHARACTER},
+        {"codepoint", TT_UNDEFINED, FU_CODEPOINT},
+        {"codepoints", TT_UNDEFINED, FU_CODEPOINT},
+        {"codeunit", TT_UNDEFINED, FU_CODEUNIT},
+        {"codeunits", TT_UNDEFINED, FU_CODEUNIT},
         {"element", TT_UNDEFINED, FU_ELEMENT},
         {"int1", TT_UNDEFINED, FU_INT1},
         {"int1s", TT_UNDEFINED, FU_INT1},
@@ -2067,12 +2275,20 @@ static LT unit_table[] =
 		{"key", TT_UNDEFINED, FU_KEY},
         {"line", TT_UNDEFINED, FU_LINE},
         {"lines", TT_UNDEFINED, FU_LINE},
+        {"paragraph", TT_UNDEFINED, FU_PARAGRAPH},
+        {"paragraphs", TT_UNDEFINED, FU_PARAGRAPH},
         {"real4", TT_UNDEFINED, FU_REAL4},
         {"real4s", TT_UNDEFINED, FU_REAL4},
         {"real8", TT_UNDEFINED, FU_REAL8},
         {"real8s", TT_UNDEFINED, FU_REAL8},
+        {"segment", TT_UNDEFINED, FU_WORD},
+        {"segments", TT_UNDEFINED, FU_WORD},
+        {"sentence", TT_UNDEFINED, FU_SENTENCE},
+        {"sentences", TT_UNDEFINED, FU_SENTENCE},
         {"token", TT_UNDEFINED, FU_TOKEN},
         {"tokens", TT_UNDEFINED, FU_TOKEN},
+        {"trueword", TT_UNDEFINED, FU_TRUEWORD},
+        {"truewords", TT_UNDEFINED, FU_TRUEWORD},
         {"uint1", TT_UNDEFINED, FU_UINT1},
         {"uint1s", TT_UNDEFINED, FU_UINT1},
         {"uint2", TT_UNDEFINED, FU_UINT2},
@@ -2085,7 +2301,7 @@ static LT unit_table[] =
         {"words", TT_UNDEFINED, FU_WORD}
     };
 
-static LT validation_table[] =
+const static LT validation_table[] =
 {
     {"a", TT_UNDEFINED, IV_UNDEFINED},
     {"among", TT_UNDEFINED, IV_AMONG},
@@ -2104,7 +2320,7 @@ static LT validation_table[] =
     {"rectangle", TT_UNDEFINED, IV_RECT},
 };
 
-static LT visual_table[] =
+const static LT visual_table[] =
 {
     {"barn", TT_VISUAL, VE_BARN},
     {"black", TT_VISUAL, VE_BLACK},
@@ -2153,7 +2369,7 @@ static LT visual_table[] =
     {"zoom", TT_VISUAL, VE_ZOOM}
 };
 
-static LT server_table[] =
+const static LT server_table[] =
 {
 	{"binary", TT_PREP, PT_BINARY},
 	{"content", TT_PREP, PT_CONTENT},
@@ -2166,7 +2382,7 @@ static LT server_table[] =
 	{"unicode", TT_SERVER, SK_UNICODE},
 };
 
-LT *table_pointers[] =
+const LT * const table_pointers[] =
 {
     accept_table,
     ae_table,
@@ -2203,8 +2419,9 @@ LT *table_pointers[] =
     visual_table,
 	server_table
 };
+extern const uint4 table_pointers_size = ELEMENTS(table_pointers);
 
-uint2 table_sizes[] =
+const uint2 table_sizes[] =
 {
     ELEMENTS(accept_table),
     ELEMENTS(ae_table),
@@ -2241,3 +2458,4 @@ uint2 table_sizes[] =
     ELEMENTS(visual_table),
 	ELEMENTS(server_table),
 };
+extern const uint4 table_sizes_size = ELEMENTS(table_sizes);

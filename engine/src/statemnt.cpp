@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 
 #include "uidc.h"
-#include "execpt.h"
+
 #include "hndlrlst.h"
 #include "handler.h"
 #include "scriptpt.h"
@@ -36,6 +36,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parentscript.h"
 
 #include "globals.h"
+
+#include "redraw.h"
+
+////////////////////////////////////////////////////////////////////////////////
 
 MCStatement::MCStatement()
 {
@@ -52,10 +56,9 @@ Parse_stat MCStatement::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCStatement::exec(MCExecPoint &ep)
+void MCStatement::exec_ctxt(MCExecContext&)
 {
-	fprintf(stderr, "ERROR: tried to exec a statement\n");
-	return ES_ERROR;
+	fprintf(stderr, "ERROR: exec method for statement not implemented properly\n");
 }
 
 uint4 MCStatement::linecount()
@@ -121,8 +124,7 @@ Parse_stat MCStatement::gettargets(MCScriptPoint &sp, MCChunk **targets,
 		case PS_EOF:
 			if (needchunk)
 			{
-				MCperror->add
-				(PE_STATEMENT_BADCHUNK, sp);
+				MCperror->add(PE_STATEMENT_BADCHUNK, sp);
 				return PS_ERROR;
 			}
 			return PS_NORMAL;
@@ -130,12 +132,11 @@ Parse_stat MCStatement::gettargets(MCScriptPoint &sp, MCChunk **targets,
 			sp.backup();
 			return PS_NORMAL;
 		}
-		MCChunk *newptr = new MCChunk(forset);
+		MCChunk *newptr = new (nothrow) MCChunk(forset);
 		if (newptr->parse(sp, False) != PS_NORMAL)
 		{
 			delete newptr;
-			MCperror->add
-			(PE_STATEMENT_BADCHUNK, sp);
+			MCperror->add(PE_STATEMENT_BADCHUNK, sp);
 			return PS_ERROR;
 		}
 		if (pptr == NULL)
@@ -159,8 +160,7 @@ Parse_stat MCStatement::gettargets(MCScriptPoint &sp, MCChunk **targets,
 		case PS_EOF:
 			return PS_NORMAL;
 		default:
-			MCperror->add
-			(PE_STATEMENT_NOTAND, sp);
+			MCperror->add(PE_STATEMENT_NOTAND, sp);
 			return PS_ERROR;
 		}
 		needchunk = True;
@@ -191,8 +191,7 @@ Parse_stat MCStatement::getparams(MCScriptPoint &sp, MCParameter **params)
 		case PS_EOF:
 			if (needparam)
 			{
-				MCperror->add
-				(PE_STATEMENT_BADPARAM, sp);
+				MCperror->add(PE_STATEMENT_BADPARAM, sp);
 				return PS_ERROR;
 			}
 			return PS_NORMAL;
@@ -200,12 +199,11 @@ Parse_stat MCStatement::getparams(MCScriptPoint &sp, MCParameter **params)
 			sp.backup();
 			return PS_NORMAL;
 		}
-		MCParameter *newptr = new MCParameter;
+		MCParameter *newptr = new (nothrow) MCParameter;
 		if (newptr->parse(sp) != PS_NORMAL)
 		{
 			delete newptr;
-			MCperror->add
-			(PE_STATEMENT_BADPARAM, sp);
+			MCperror->add(PE_STATEMENT_BADPARAM, sp);
 			return PS_ERROR;
 		}
 		if (pptr == NULL)
@@ -228,14 +226,12 @@ Parse_stat MCStatement::getparams(MCScriptPoint &sp, MCParameter **params)
 		case PS_EOF:
 			return PS_NORMAL;
 		default:
-			MCperror->add
-			(PE_STATEMENT_NOTSEP, sp);
+			MCperror->add(PE_STATEMENT_NOTSEP, sp);
 			return PS_ERROR;
 		}
 		if (type != ST_SEP)
 		{
-			MCperror->add
-			(PE_STATEMENT_BADSEP, sp);
+			MCperror->add(PE_STATEMENT_BADSEP, sp);
 			return PS_ERROR;
 		}
 		needparam = True;
@@ -252,14 +248,12 @@ Parse_stat MCStatement::getmods(MCScriptPoint &sp, uint2 &mstate)
 	{
 		if (sp.next(type) != PS_NORMAL)
 		{
-			MCperror->add
-			(PE_STATEMENT_NOKEY, sp);
+			MCperror->add(PE_STATEMENT_NOKEY, sp);
 			return PS_ERROR;
 		}
 		if (sp.lookup(SP_FACTOR, te) != PS_NORMAL || te->type != TT_FUNCTION)
 		{
-			MCperror->add
-			(PE_STATEMENT_BADKEY, sp);
+			MCperror->add(PE_STATEMENT_BADKEY, sp);
 			return PS_ERROR;
 		}
 		switch (te->which)
@@ -277,8 +271,7 @@ Parse_stat MCStatement::getmods(MCScriptPoint &sp, uint2 &mstate)
 			mstate |= MS_SHIFT;
 			break;
 		default:
-			MCperror->add
-			(PE_STATEMENT_BADKEY, sp);
+			MCperror->add(PE_STATEMENT_BADKEY, sp);
 			return PS_ERROR;
 		}
 		if (sp.skip_token(SP_COMMAND, TT_ELSE, S_UNDEFINED) == PS_NORMAL)
@@ -294,14 +287,12 @@ Parse_stat MCStatement::getmods(MCScriptPoint &sp, uint2 &mstate)
 		case PS_EOF:
 			return PS_NORMAL;
 		default:
-			MCperror->add
-			(PE_STATEMENT_BADSEP, sp);
+			MCperror->add(PE_STATEMENT_BADSEP, sp);
 			return PS_ERROR;
 		}
 		if (type != ST_SEP)
 		{
-			MCperror->add
-			(PE_STATEMENT_BADSEP, sp);
+			MCperror->add(PE_STATEMENT_BADSEP, sp);
 			return PS_ERROR;
 		}
 	}
@@ -340,167 +331,4 @@ void MCStatement::initpoint(MCScriptPoint &sp)
 	pos = sp.getpos();
 }
 
-void MCStatement::getit(MCScriptPoint &sp, MCVarref *&it)
-{
-	// MW-2011-06-22: [[ SERVER ]] Update to use SP findvar method to take into account
-	//   execution outwith a handler.
-	if (sp.findnewvar(MCN_it, kMCEmptyName, &it) != PS_NORMAL)
-		it = it; // This should handle an error.
-}
-
-MCComref::MCComref(MCNameRef n)
-{
-	/* UNCHECKED */ MCNameClone(n, name);
-	handler = nil;
-	params = NULL;
-	resolved = false;
-}
-
-MCComref::~MCComref()
-{
-	while (params != NULL)
-	{
-		MCParameter *tmp = params;
-		params = params->getnext();
-		delete tmp;
-	}
-	MCNameDelete(name);
-}
-
-Parse_stat MCComref::parse(MCScriptPoint &sp)
-{
-	initpoint(sp);
-	if (getparams(sp, &params) != PS_NORMAL)
-	{
-		MCperror->add(PE_STATEMENT_BADPARAMS, sp);
-		return PS_ERROR;
-	}
-	return PS_NORMAL;
-}
-
-Exec_stat MCComref::exec(MCExecPoint &ep)
-{
-	if (MCscreen->abortkey())
-	{
-		MCeerror->add(EE_HANDLER_ABORT, line, pos);
-		return ES_ERROR;
-	}
-
-	if (!resolved)
-	{
-		// MW-2008-01-28: [[ Inherited parentScripts ]]
-		// If we are in parentScript context, then the object we search for
-		// private handlers in is the parentScript's object, rather than the
-		// ep's.
-		MCParentScriptUse *t_parentscript;
-		t_parentscript = ep . getparentscript();
-
-		MCObject *t_object;
-		if (t_parentscript == NULL)
-			t_object = ep . getobj();
-		else
-			t_object = t_parentscript -> GetParent() -> GetObject();
-
-		// MW-2008-10-28: [[ ParentScripts ]] Private handlers are resolved
-		//   relative to the object containing the handler we are executing.
-		MCHandler *t_resolved_handler;
-		t_resolved_handler = t_object -> findhandler(HT_MESSAGE, name);
-		if (t_resolved_handler != NULL && t_resolved_handler -> isprivate())
-			handler = t_resolved_handler;
-
-		resolved = true;
-		}
-
-	Exec_stat stat;
-	MCParameter *tptr = params;
-	while (tptr != NULL)
-	{
-		MCVariable* t_var;
-		t_var = tptr -> evalvar(ep);
-
-		if (t_var == NULL)
-		{
-			tptr -> clear_argument();
-			while ((stat = tptr->eval(ep)) != ES_NORMAL && (MCtrace || MCnbreakpoints) && !MCtrylock && !MClockerrors)
-				if (!MCB_error(ep, line, pos, EE_STATEMENT_BADPARAM))
-					break;
-			if (stat != ES_NORMAL)
-			{
-				MCeerror->add(EE_STATEMENT_BADPARAM, line, pos);
-				return ES_ERROR;
-			}
-			tptr->set_argument(ep);
-		}
-		else
-			tptr->set_argument_var(t_var);
-
-		tptr = tptr->getnext();
-
-	}
-	MCObject *p = ep.getobj();
-	MCExecPoint *oldep = MCEPptr;
-	MCEPptr = &ep;
-	stat = ES_NOT_HANDLED;
-	Boolean added = False;
-	if (MCnexecutioncontexts < MAX_CONTEXTS)
-	{
-		ep.setline(line);
-		MCexecutioncontexts[MCnexecutioncontexts++] = &ep;
-		added = True;
-	}
-
-	if (handler != nil)
-	{
-		// MW-2008-10-28: [[ ParentScripts ]] If we are in the context of a
-		//   parent, then use a special method.
-		if (ep . getparentscript() == NULL)
-			stat = p -> exechandler(handler, params);
-		else
-			stat = p -> execparenthandler(handler, params, ep . getparentscript());
-
-		switch(stat)
-		{
-		case ES_ERROR:
-		case ES_PASS:
-			MCeerror->add(EE_STATEMENT_BADCOMMAND, line, pos, handler -> getname());
-			if (MCerrorptr == NULL)
-				MCerrorptr = p;
-			stat = ES_ERROR;
-			break;
-
-		case ES_EXIT_HANDLER:
-			stat = ES_NORMAL;
-			break;
-
-		default:
-			break;
-		}
-	}
-	else
-	{
-		stat = MCU_dofrontscripts(HT_MESSAGE, name, params);
-		Boolean olddynamic = MCdynamicpath;
-		MCdynamicpath = MCdynamiccard != NULL;
-		if (stat == ES_PASS || stat == ES_NOT_HANDLED)
-			switch (stat = p->handle(HT_MESSAGE, name, params, p))
-			{
-			case ES_ERROR:
-			case ES_NOT_FOUND:
-			case ES_NOT_HANDLED:
-			case ES_PASS:
-				MCeerror->add(EE_STATEMENT_BADCOMMAND, line, pos, name);
-				stat = ES_ERROR;
-				break;
-			case ES_EXIT_HANDLER:
-				stat = ES_NORMAL;
-				break;
-			default:
-				break;
-			}
-		MCdynamicpath = olddynamic;
-	}
-	MCEPptr = oldep;
-	if (added)
-		MCnexecutioncontexts--;
-	return stat;
-}
+////////////////////////////////////////////////////////////////////////////////

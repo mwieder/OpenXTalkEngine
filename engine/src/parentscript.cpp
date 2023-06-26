@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -27,7 +27,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "field.h"
 #include "handler.h"
 #include "hndlrlst.h"
-#include "execpt.h"
+
 #include "scriptpt.h"
 #include "mcerror.h"
 #include "util.h"
@@ -36,6 +36,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "objectstream.h"
 #include "parentscript.h"
 #include "dispatch.h"
+#include "variable.h"
 
 ////////
 
@@ -112,7 +113,7 @@ MCVariable *MCParentScriptUse::GetVariable(uint32_t i)
 	t_handlers = GetParent() -> GetObject() -> gethandlers();
 
 	// Fetch the initializers for our parentScript
-	MCNameRef *t_vinits;
+	MCValueRef *t_vinits;
 	t_vinits = t_handlers -> getvinits();
 
 	// Fetch the linked list of variables from the handler-list
@@ -121,7 +122,7 @@ MCVariable *MCParentScriptUse::GetVariable(uint32_t i)
 
 	// Allocate the array of variables needed
 	m_local_count = t_handlers -> getnvars();
-	m_locals = new MCVariable *[m_local_count];
+	m_locals = new (nothrow) MCVariable *[m_local_count];
 
 	// Loop through initializing the variables as appropriate
 	for(uint32_t j = 0; j < m_local_count; ++j, t_vars = t_vars -> getnext())
@@ -129,7 +130,7 @@ MCVariable *MCParentScriptUse::GetVariable(uint32_t i)
 		// AL-2013-02-04: [[ Bug 9981 ]] Make sure the variable is created with its name so
 		//   it can be watched.
 		/* UNCHECKED */ MCVariable::createwithname(t_vars -> getname(), m_locals[j]);
-		m_locals[j] -> setnameref_unsafe(t_vinits[j] != nil ? t_vinits[j] : kMCEmptyName);
+		m_locals[j] -> setvalueref(t_vinits[j] != nil ? t_vinits[j] : kMCNull);
 	}
 
 	return m_locals[i];
@@ -153,13 +154,13 @@ void MCParentScriptUse::ClearVars(void)
 		delete m_locals[i];
 
 	// Finally delete the locals array
-	delete m_locals;
+	delete[] m_locals; /* Allocated with new[] */
 	
 	m_locals = NULL;
 	m_local_count = 0;
 }
 
-void MCParentScriptUse::PreserveVars(uint32_t *p_map, MCNameRef *p_new_var_inits, uint32_t p_new_var_count)
+void MCParentScriptUse::PreserveVars(uint32_t *p_map, MCValueRef *p_new_var_inits, uint32_t p_new_var_count)
 {
 	// If we don't have any vars then do nothing, since they will be initialized
 	// correctly on first use.
@@ -168,7 +169,7 @@ void MCParentScriptUse::PreserveVars(uint32_t *p_map, MCNameRef *p_new_var_inits
 
 	// We have some vars so we need to do some remapping. First allocate a new array
 	MCVariable **t_new_locals;
-	t_new_locals = new MCVariable *[p_new_var_count];
+	t_new_locals = new (nothrow) MCVariable *[p_new_var_count];
 	
 	// Initialize it to NULL
 	memset(t_new_locals, 0, sizeof(MCVariable *) * p_new_var_count);
@@ -200,7 +201,7 @@ void MCParentScriptUse::PreserveVars(uint32_t *p_map, MCNameRef *p_new_var_inits
 		/* UNCHECKED */ MCVariable::create(t_new_locals[i]);
 
 		// Initialize the variable
-		t_new_locals[i] -> setnameref_unsafe(p_new_var_inits[i] != nil ? p_new_var_inits[i] : kMCEmptyName);
+		t_new_locals[i] -> setvalueref(p_new_var_inits[i] != nil ? p_new_var_inits[i] : kMCNull);
 	}
 
 	m_locals = t_new_locals;
@@ -211,7 +212,7 @@ MCParentScriptUse *MCParentScriptUse::Clone(MCObject *p_new_referrer)
 {
 	// First allocate a new instance
 	MCParentScriptUse *t_new_use;
-	t_new_use = new MCParentScriptUse(m_parent, p_new_referrer);
+	t_new_use = new (nothrow) MCParentScriptUse(m_parent, p_new_referrer);
 	if (t_new_use == NULL)
 		return NULL;
 
@@ -271,7 +272,7 @@ bool MCParentScriptUse::Inherit(void)
 
 	// Create a new use of the super-object's parentScript
 	MCParentScriptUse *t_super_use;
-	t_super_use = new MCParentScriptUse(t_super_parentscript, m_referrer);
+	t_super_use = new (nothrow) MCParentScriptUse(t_super_parentscript, m_referrer);
 	if (t_super_use == NULL)
 		return false;
 
@@ -328,7 +329,7 @@ MCParentScript::MCParentScript(void)
 
 MCParentScript::~MCParentScript(void)
 {
-	MCNameDelete(m_object_stack);
+	MCValueRelease(m_object_stack);
 }
 
 ////
@@ -366,9 +367,8 @@ void MCParentScript::Resolve(MCObject *p_object)
 	// Unblock this
 	m_blocked = false;
 
-	// Mark the object as being used as a parent script - note that this is a
-	// button state flag since we currently restrict parentScripts to buttons.
-	m_object -> setstate(True, CS_IS_PARENTSCRIPT);
+	// Mark the object as being used as a parent script.
+	m_object -> setisparentscript(true);
 
 	// Mark the object's stack as having an object which is a parent script.
 	MCStack *t_stack;
@@ -396,6 +396,31 @@ void MCParentScript::Flush(void)
 	// Iterate through all the uses, clearing out variables
 	for(MCParentScriptUse *t_use = m_first_use; t_use != NULL; t_use = t_use -> m_next_use)
 		t_use -> ClearVars();
+}
+
+bool MCParentScript::CopyUses(MCArrayRef& r_use)
+{
+    MCAutoArrayRef t_use_list;
+    if (!MCArrayCreateMutable(&t_use_list))
+        return false;
+    
+    index_t t_index = 1;
+    for(MCParentScriptUse *t_use = m_first_use; t_use != NULL; t_use = t_use -> m_next_use)
+    {
+        MCAutoValueRef t_object_id;
+        if (!(t_use -> GetReferrer() -> names(P_LONG_ID, &t_object_id)) ||
+            !MCArrayStoreValueAtIndex(*t_use_list, t_index++, *t_object_id))
+            return false;
+    }
+    
+    if (!t_use_list.MakeImmutable())
+    {
+        return false;
+    }
+    
+    r_use = t_use_list.Take();
+    
+    return true;
 }
 
 // MW-2013-05-30: [[ InheritedPscripts ]] Loop through all uses of this parentScript
@@ -443,7 +468,7 @@ MCParentScriptUse *MCParentScript::Acquire(MCObject *p_referrer, uint32_t p_id, 
 	for(t_parent = s_table[t_index]; t_parent != NULL; t_parent = t_parent -> m_chain)
 		if (t_parent -> m_hash == t_hash &&
 			t_parent -> m_object_id == p_id &&
-			MCNameIsEqualTo(t_parent -> m_object_stack, p_stack, kMCCompareCaseless))
+			MCNameIsEqualToCaseless(t_parent -> m_object_stack, p_stack))
 			break;
 
 	// At this point we start a success variable since we are about to have to
@@ -458,16 +483,13 @@ MCParentScriptUse *MCParentScript::Acquire(MCObject *p_referrer, uint32_t p_id, 
 		// Note that the default constructor for the parent script object just
 		// zeros out the fields - we need to track the cloning of the stack
 		// and mainstack strings in case they error out.
-		t_parent = new MCParentScript;
+		t_parent = new (nothrow) MCParentScript;
 		if (t_parent == NULL)
 			t_success = false;
 
-		// Clone the stack string
-		if (t_success)
-			t_success = MCNameClone(p_stack, t_parent -> m_object_stack);
-
 		if (t_success)
 		{
+            t_parent->m_object_stack = MCValueRetain(p_stack);
 			t_parent -> m_hash = t_hash;
 			t_parent -> m_object_id = p_id;
 		}
@@ -479,7 +501,7 @@ MCParentScriptUse *MCParentScript::Acquire(MCObject *p_referrer, uint32_t p_id, 
 	t_use = NULL;
 	if (t_success)
 	{
-		t_use = new MCParentScriptUse(t_parent, p_referrer);
+		t_use = new (nothrow) MCParentScriptUse(t_parent, p_referrer);
 		if (t_use == NULL)
 			t_success = false;
 	}
@@ -533,7 +555,7 @@ MCParentScript *MCParentScript::Lookup(MCObject *p_object)
 	return nil;
 }
 
-void MCParentScript::PreserveVars(MCObject *p_object, uint32_t *p_map, MCNameRef *p_new_var_inits, uint32_t p_new_var_count)
+void MCParentScript::PreserveVars(MCObject *p_object, uint32_t *p_map, MCValueRef *p_new_var_inits, uint32_t p_new_var_count)
 {
 	MCParentScript *t_script;
 	t_script = Lookup(p_object);
@@ -621,7 +643,7 @@ void MCParentScript::Detach(MCParentScriptUse *p_use)
 		// Unset the object's IS_PARENTSCRIPT state as it is no longer being used as
 		// one.
 		if (m_object != NULL)
-			m_object -> setstate(False, CS_IS_PARENTSCRIPT);
+			m_object -> setisparentscript(false);
 
 		// Now delete our state
 		delete this;

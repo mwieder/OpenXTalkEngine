@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -98,6 +98,7 @@ Drag-Text-Add	25
 #define IDC_SIZENSA          MAKEINTRESOURCEA(32645)
 #define IDC_SIZEALLA         MAKEINTRESOURCEA(32646)
 #define IDC_NOA              MAKEINTRESOURCEA(32648)
+#define IDC_HELPA            MAKEINTRESOURCEA(32651)
 
 static LPCSTR kMCStandardWindowsCursors[] =
 {
@@ -116,7 +117,7 @@ static LPCSTR kMCStandardWindowsCursors[] =
 	IDC_ARROWA, /* PI_DROPPER */
 	IDC_CROSSA, /* PI_PLUS */
 	IDC_WAITA, /* PI_WATCH */
-	/* PI_HELP */
+	IDC_HELPA, /* PI_HELP */
 	IDC_WAITA, /* PI_BUSY1 */
 	IDC_WAITA, /* PI_BUSY2 */
 	IDC_WAITA, /* PI_BUSY3 */
@@ -137,7 +138,7 @@ static LPCSTR kMCStandardWindowsCursors[] =
 static MCCursorRef create_standard_cursor(LPCSTR p_cursor)
 {
 	MCCursorRef t_cursor;
-	t_cursor = new MCCursor;
+	t_cursor = new (nothrow) MCCursor;
 	// IM-2013-07-17: [[ bug 9836 ]] set up the nil string as the empty 'none' cursor
 	if (p_cursor == nil)
 		t_cursor -> kind = kMCCursorNone;
@@ -150,7 +151,7 @@ static MCCursorRef create_standard_cursor(LPCSTR p_cursor)
 static MCCursorRef create_custom_cursor(HCURSOR p_cursor)
 {
 	MCCursorRef t_cursor;
-	t_cursor = new MCCursor;
+	t_cursor = new (nothrow) MCCursor;
 	t_cursor -> kind = kMCCursorCustom;
 	t_cursor -> custom = p_cursor;
 	return t_cursor;
@@ -164,7 +165,7 @@ void MCScreenDC::resetcursors(void)
 	MCdispatcher -> clearcursors();
 
 	// XP and above allow alpha-blended cursors
-	if (MCmajorosversion >= 0x0501)
+	if (MCmajorosversion >= MCOSVersionMake(5,1,0))
 	{
 		MCcursormaxsize = 128;
 		MCcursorcanbealpha = True;
@@ -184,7 +185,7 @@ void MCScreenDC::resetcursors(void)
 	}
 
 	// Need to check: Windows 2000 for color cursors?
-	if (MCmajorosversion >= 0x0500)
+	if (MCmajorosversion >= MCOSVersionMake(5,0,0))
 		MCcursorcanbecolor = True;
 	else
 		MCcursorbwonly = True;
@@ -217,6 +218,10 @@ void MCScreenDC::setcursor(Window p_window, MCCursorRef p_cursor)
 bool MCImageCreateIcon(MCImageBitmap *p_bitmap, uint32_t p_width, uint32_t p_height, bool p_cursor, uint32_t p_xhot, uint32_t p_yhot, HICON &r_icon);
 MCCursorRef MCScreenDC::createcursor(MCImageBitmap *p_image, int2 p_xhot, int2 p_yhot)
 {
+	// PM-2016-03-21: [[ Bug 17042 ]] Make sure the image actually exists
+	if (p_image == nil)
+        return nil;
+		
 	HCURSOR t_alpha_cursor = nil;
 	/* UNCHECKED */ MCImageCreateIcon(p_image, p_image->width, p_image->height, true, p_xhot, p_yhot, t_alpha_cursor);
 

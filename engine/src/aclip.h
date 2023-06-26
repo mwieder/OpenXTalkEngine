@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -37,8 +37,17 @@ enum Audio_format {
 #define LOOP_RATE 250
 #endif
 
-class MCAudioClip : public MCObject
+typedef MCObjectProxy<MCAudioClip>::Handle MCAudioClipHandle;
+
+class MCAudioClip : public MCObject, public MCMixinObjectHandle<MCAudioClip>
 {
+public:
+    
+    enum { kObjectType = CT_AUDIO_CLIP };
+    using MCMixinObjectHandle<MCAudioClip>::GetHandle;
+    
+private:
+    
 	friend class MCHcsnd;
 	uint4 size;
 	int1 *samples;
@@ -64,7 +73,9 @@ class MCAudioClip : public MCObject
 #ifdef TARGET_PLATFORM_LINUX
 	X11Audio *x11audio ;
 #endif 
-
+	
+	static MCPropertyInfo kProperties[];
+	static MCObjectPropertyTable kPropertyTable;
 public:
 	MCAudioClip();
 	MCAudioClip(const MCAudioClip &cref);
@@ -72,11 +83,14 @@ public:
 	virtual ~MCAudioClip();
 	virtual Chunk_term gettype() const;
 	virtual const char *gettypestring();
-	virtual void timer(MCNameRef mptr, MCParameter *params);
-	virtual Exec_stat getprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
-	virtual Exec_stat setprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
 
-	virtual Boolean del();
+	virtual const MCObjectPropertyTable *getpropertytable(void) const { return &kPropertyTable; }
+    
+    virtual bool visit_self(MCObjectVisitor *p_visitor);
+    
+	virtual void timer(MCNameRef mptr, MCParameter *params);
+
+	virtual Boolean del(bool p_check_flag);
 	virtual void paste(void);
 
 	// MCAudioClip functions
@@ -91,19 +105,21 @@ public:
 	void convert_slin8toslin16();
 	void convert_slintoulin();
 	void convert_ulintoslin();
+    void convert_tocontainer(void*& r_data, size_t& r_data_size);
 	Boolean isdisposable();
 	Boolean issupported();
 	void setdisposable();
 	void setlooping(Boolean loop);
-	Boolean import(const char *fname, IO_handle stream);
+	Boolean import(MCStringRef fname, IO_handle stream);
 	Boolean open_audio();
 	Boolean play();
-	void stop(Boolean abort);
+    void stop(Boolean abort);
+    bool isPlaying();
 
-	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext);
-	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part);
-	IO_stat load(IO_handle stream, const char *version);
-	IO_stat extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length);
+    IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version);
+    IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version);
+	IO_stat load(IO_handle stream, uint32_t version);
+	IO_stat extendedload(MCObjectInputStream& p_stream, uint32_t version, uint4 p_length);
 
 	MCStack *getmessagestack()
 	{
@@ -145,5 +161,14 @@ public:
 	{
 		return (MCAudioClip *)MCDLlist::remove((MCDLlist *&)list);
 	}
+
+	////////// PROPERTY ACCESSORS
+
+	void GetPlayDestination(MCExecContext& ctxt, intenum_t& r_dest);
+	void SetPlayDestination(MCExecContext& ctxt, intenum_t p_dest);
+	void GetPlayLoudness(MCExecContext& ctxt, integer_t& r_value);
+	void SetPlayLoudness(MCExecContext& ctxt, integer_t p_value);
+	void GetSize(MCExecContext& ctxt, uinteger_t& r_size);
+
 };
 #endif

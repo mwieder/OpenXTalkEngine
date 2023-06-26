@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,13 +16,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "parsedef.h"
 #include "objdefs.h"
 
-#include "execpt.h"
+
 #include "dispatch.h"
 #include "stack.h"
 #include "button.h"
@@ -31,8 +30,11 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "stacklst.h"
 #include "sellst.h"
 #include "util.h"
+#include <wctype.h>
+#include "redraw.h"
 
 #include "globals.h"
+#include "exec.h"
 
 MCStacknode::~MCStacknode()
 {}
@@ -42,20 +44,22 @@ MCStack *MCStacknode::getstack()
 	return stackptr;
 }
 
-MCStacklist::MCStacklist()
+MCStacklist::MCStacklist(bool p_manage_topstack)
+    : restart(False)
 {
 	stacks = NULL;
 	menus = NULL;
 	nmenus = 0;
 	accelerators = NULL;
 	naccelerators = 0;
-	locktop = False;
 #ifdef _MACOSX
 	active = False;
 #else
 	active = True;
 #endif
 	dirty = false;
+	
+	m_manage_topstack = p_manage_topstack;
 }
 
 MCStacklist::~MCStacklist()
@@ -69,15 +73,14 @@ MCStacklist::~MCStacklist()
 	if (menus != NULL)
 		delete menus;
 	if (accelerators != NULL)
-		delete accelerators;
+		delete[] accelerators; /* Allocated with new[] */
 }
 
 void MCStacklist::add(MCStack *sptr)
 {
-	MCStacknode *tptr = new MCStacknode(sptr);
+	MCStacknode *tptr = new (nothrow) MCStacknode(sptr);
 	tptr->appendto(stacks);
-	if (this == MCstacks) // should be done with subclass
-		top(sptr);
+	top(sptr);
 }
 
 void MCStacklist::remove(MCStack *sptr)
@@ -107,12 +110,16 @@ void MCStacklist::destroy()
 	{
 		Boolean oldstate = MClockmessages;
 		MClockmessages = True;
-		while (stacks != NULL)
+        MCerrorlock++;
+        while (stacks != NULL)
 		{
 			MCStacknode *tptr = stacks->remove(stacks);
-			MCdispatcher->destroystack(tptr->getstack(), True);
+			if (tptr -> getstack() -> del(false))
+                tptr->getstack()->scheduledelete();
 			delete tptr;
 		}
+        MCerrorlock--;
+        
 		MClockmessages = oldstate;
 	}
 }
@@ -131,6 +138,7 @@ static int stack_real_mode(MCStack *p_stack)
 	return p_stack -> getmode();
 }
 
+#ifdef _WINDOWS
 static bool stack_is_above(MCStack *p_stack_a, MCStack *p_stack_b)
 {
 	int t_mode_a, t_mode_b;
@@ -145,10 +153,11 @@ static bool stack_is_above(MCStack *p_stack_a, MCStack *p_stack_b)
 
 	return t_mode_a > t_mode_b;
 }
+#endif /* _WINDOWS */
 
 void MCStacklist::top(MCStack *sptr)
 {
-	if (stacks == NULL || locktop)
+	if (stacks == NULL || !m_manage_topstack)
 		return;
 
 	MCStacknode *tptr = stacks;
@@ -197,21 +206,19 @@ void MCStacklist::top(MCStack *sptr)
 			tptr = tptr->next();
 		}
 		while (tptr != stacks);
-		// This is only necessary on MWM...
-#ifdef X11
-		restack(sptr);
-#endif
+        // AL-2014-07-14: [[ Bug 12790 ]] Removed call to restack which was only necessary for MWM.
 #endif
 	}
 
 	uint2 pass = WM_TOP_LEVEL;
-	MCtopstackptr = NULL;
+	MCtopstackptr = nil;
 	do
 	{
 		tptr = stacks;
 		do
 		{
-			if (tptr->getstack()->getmode() == pass)
+			if (tptr->getstack()->getmode() == pass &&
+                !tptr->getstack()->getstate(CS_DELETE_STACK))
 			{
 				MCtopstackptr = tptr->getstack();
 				return;
@@ -257,43 +264,69 @@ MCStack *MCStacklist::getstack(uint2 n)
 		tptr = tptr->next();
 	}
 	if (tptr->getstack()->getparent()->gettype() == CT_BUTTON
-	        || tptr->getstack() == (MCStack *)MCtooltip)
+	        || MCdispatcher -> is_transient_stack(tptr -> getstack()))
 		return NULL;
 	return tptr->getstack();
 }
 
-void MCStacklist::stackprops(MCExecPoint &ep, Properties p)
+bool MCStacklist::stackprops(MCExecContext& ctxt, Properties p_property, MCListRef& r_list)
 {
-	ep.clear();
-	if (stacks == NULL)
-		return;
+	MCAutoListRef t_list;
+    
+    // SN-2015-01-05: [[ Bug 14330 ]] Return if there is no open stacks
+    if (stacks == NULL)
+    {
+        r_list = MCValueRetain(kMCEmptyList);
+        return true;
+    }
+    
+	if (!MCListCreateMutable('\n', &t_list))
+		return false;
+
 	MCStacknode *tptr = stacks;
-	MCExecPoint ep2(ep);
 
 	do
 	{
 		MCStack *stackptr = tptr->getstack();
 
-		if (stackptr->getparent()->gettype() != CT_BUTTON && stackptr != (MCStack *)MCtooltip)
+		if (stackptr->getparent()->gettype() != CT_BUTTON && !MCdispatcher -> is_transient_stack(stackptr))
 		{
-			stackptr->getprop(0, p, ep2, True);
-			ep.concatmcstring(ep2.getsvalue(), EC_RETURN, tptr == stacks);
+			MCAutoStringRef t_string;
+			stackptr->getstringprop(ctxt, 0, p_property, True, &t_string);
+			if (ctxt.HasError())
+				return false;
+			if (!MCListAppend(*t_list, *t_string))
+				return false;
 		}
 		tptr = tptr->next();
 	}
 	while (tptr != stacks);
+
+	return MCListCopy(*t_list, r_list);
 }
 
-Boolean MCStacklist::doaccelerator(KeySym key)
+Boolean MCStacklist::doaccelerator(KeySym p_key)
 {
 	if (stacks == NULL)
 		return False;
-	if (key < 256 && isupper((uint1)key))
-		key = MCS_tolower((uint1)key);
+    
+    // Ensure that the character is lowercase
+    KeySym t_lowersym;
+    t_lowersym = MCKeySymToLower(p_key);
+    
+    // Convert from a keysym to a codepoint
+    codepoint_t t_char = 0;
+	if (t_lowersym < 0x7f)
+		t_char = t_lowersym;
+	else if ((t_lowersym & XK_Class_mask) == XK_Class_codepoint)
+		t_char = t_lowersym & XK_Codepoint_mask;
+
 	uint2 t_mod_mask = MS_CONTROL | MS_MAC_CONTROL | MS_MOD1;
 
-	if ((key >= 'a' && key <= 'z') || (key & 0xFF00) == 0xFF00)
+	// The shift state is important for lower-case letters and special keys
+	if (iswlower(t_char) || t_char == 0)
 		t_mod_mask |= MS_SHIFT;
+	
 	// There are numerous issues with menu accelerators at the moment. I belive these
 	// problems are caused by two things:
 	//   * No mousedown sent to the current menu bar before an accelerator search
@@ -301,13 +334,16 @@ Boolean MCStacklist::doaccelerator(KeySym key)
 	// We fix these issues here...
 
 	MCGroup *t_menubar;
-	if (MCmenubar != NULL)
+	if (MCmenubar)
 		t_menubar = MCmenubar;
 	else
 		t_menubar = MCdefaultmenubar;
 
 	if (t_menubar != NULL)
 	{
+        // MW-2014-06-10: [[ Bug 12590 ]] Make sure we lock screen around the menu update message.
+        MCRedrawLockScreen();
+        
 		// OK-2008-03-20 : Bug 6153. Don't send a mouse button number if the mouseDown is due to
 		// a menu accelerator.
 		// MW-2008-08-27: [[ Bug 6995 ]] Slowdown caused by repeated invocation of mouseDown even if
@@ -315,17 +351,23 @@ Boolean MCStacklist::doaccelerator(KeySym key)
 		//   first.
 		for(uint2 i = 0; i < naccelerators; i++)
 		{
-			if (key == (KeySym)accelerators[i] . key && (MCmodifierstate & t_mod_mask) == (accelerators[i].mods & t_mod_mask) && accelerators[i] . button -> getparent() == t_menubar)
+			if (t_lowersym == accelerators[i] . key && (MCmodifierstate & t_mod_mask) == (accelerators[i].mods & t_mod_mask) && accelerators[i] . button -> getparent() == t_menubar)
 			{
-				t_menubar -> message_with_args(MCM_mouse_down, "");
+                // SN-2014-11-06: [[ Bug 13836 ]] mouseDown must be sent to the menubar group.
+                // MW-2014-10-22: [[ Bug 13510 ]] Make sure we send the update message to the menu of menubar - not
+                //   the menubar group.
+				t_menubar -> message_with_valueref_args(MCM_mouse_down, kMCEmptyString);
 
 				// We now need to re-search for the accelerator, since it could have gone/been deleted in the mouseDown
-				for(uint2 i = 0; i < naccelerators; i++)
+				for(uint2 t_accelerator = 0; t_accelerator < naccelerators; t_accelerator++)
 				{
-					if (key == (KeySym)accelerators[i] . key && (MCmodifierstate & t_mod_mask) == (accelerators[i].mods & t_mod_mask) && accelerators[i] . button -> getparent() == t_menubar)
+					if (t_lowersym == accelerators[t_accelerator] . key && (MCmodifierstate & t_mod_mask) == (accelerators[t_accelerator].mods & t_mod_mask) && accelerators[t_accelerator] . button -> getparent() == t_menubar)
 					{
-						MCmodifierstate &= t_mod_mask;
-						accelerators[i] . button -> activate(True, (uint2)key);
+                        MCmodifierstate &= t_mod_mask;
+                        // TKD-2014-09-26: [[ Bug 13560 ]] Unlock the screen prior to triggering menu item. If code outside of
+                        //   the engine updates the window size the window isn't redrawn (e.g. [NSWindow toggleFullScreen:nil]).
+                        MCRedrawUnlockScreen();
+                        accelerators[t_accelerator] . button -> activate(True, t_lowersym);
 						return True;
 					}
 				}
@@ -335,13 +377,15 @@ Boolean MCStacklist::doaccelerator(KeySym key)
 				break;
 			}
 		}
+        
+        MCRedrawUnlockScreen();
 	}
 
 	// IM-2008-09-05: Reorganize loop to be more efficient - only loop through stacks once we've
 	// found a matching accelerator.
 	for (uint2 i = 0 ; i < naccelerators ; i++)
 	{
-		if (key == (KeySym)accelerators[i].key
+		if (t_lowersym == accelerators[i].key
 				&& (MCmodifierstate & t_mod_mask) == (accelerators[i].mods & t_mod_mask))
 		{
 			MCStacknode *tptr = stacks;
@@ -354,7 +398,7 @@ Boolean MCStacklist::doaccelerator(KeySym key)
 					)
 				{
 					MCmodifierstate &= t_mod_mask;
-					accelerators[i].button->activate(True, (uint2)key);
+                        accelerators[i].button->activate(True, t_lowersym);
 					return True;
 				}
 				tptr = tptr->next();
@@ -366,7 +410,7 @@ Boolean MCStacklist::doaccelerator(KeySym key)
 }
 
 void MCStacklist::addaccelerator(MCButton *button, MCStack *stack,
-                                 uint2 key, uint1 mods)
+                                 KeySym key, uint1 mods)
 {
 	MCU_realloc((char **)&accelerators, naccelerators, naccelerators + 1,
 	            sizeof(Accelerator));
@@ -395,7 +439,7 @@ void MCStacklist::deleteaccelerator(MCButton *button, MCStack *stack)
 			i++;
 }
 
-void MCStacklist::changeaccelerator(MCButton *button, uint2 key, uint1 mods)
+void MCStacklist::changeaccelerator(MCButton *button, KeySym key, uint1 mods)
 {
 	uint2 i;
 	for (i = 0 ; i < naccelerators ; i++)
@@ -408,14 +452,14 @@ void MCStacklist::changeaccelerator(MCButton *button, uint2 key, uint1 mods)
 	addaccelerator(button, button->getstack(), key, mods);
 }
 
-MCButton *MCStacklist::findmnemonic(char key)
+MCButton *MCStacklist::findmnemonic(KeySym p_key)
 {
 	MCStacknode *tptr = stacks;
 	do
 	{
 		uint2 i;
 		for (i = 0 ; i < nmenus ; i++)
-			if (menus[i].key == MCS_tolower(key)
+			if (menus[i].key == p_key
 			        && menus[i].button->getstack() == tptr->getstack())
 			{
 				return menus[i].button;
@@ -426,11 +470,11 @@ MCButton *MCStacklist::findmnemonic(char key)
 	return NULL;
 }
 
-void MCStacklist::addmenu(MCButton *button, char key)
+void MCStacklist::addmenu(MCButton *button, KeySym p_key)
 {
 	MCU_realloc((char **)&menus, nmenus, nmenus + 1, sizeof(Mnemonic));
 	menus[nmenus].button = button;
-	menus[nmenus].key = MCS_tolower(key);
+	menus[nmenus].key = p_key;
 	nmenus++;
 }
 
@@ -503,7 +547,7 @@ Window MCStacklist::restack(MCStack *sptr)
 		if (bottompalette != NULL)
 			return bottompalette->getstack()->getwindow();
 	}
-	return DNULL;
+	return NULL;
 }
 
 void MCStacklist::restartidle()
@@ -540,11 +584,9 @@ void MCStacklist::refresh(void)
 	while(t_node != stacks);
 }
 
-#if !defined(_MAC_DESKTOP)
 void MCStacklist::ensureinputfocus(Window window)
 {
 }
-#endif
 
 void MCStacklist::purgefonts()
 {

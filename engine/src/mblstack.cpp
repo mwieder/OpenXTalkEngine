@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "objdefs.h"
 #include "parsedef.h"
 
-#include "execpt.h"
+
 #include "dispatch.h"
 #include "stack.h"
 #include "card.h"
@@ -66,33 +66,11 @@ MCStack *MCStack::findstackd(Window w)
 }
 
 
-MCStack *MCStack::findchildstackd(Window w,uint2 &ccount,uint2 cindex)
-{
-	Window pwindow = getparentwindow();
-	if (pwindow != DNULL && w == pwindow)
-		if  (++ccount == cindex)
-			return this;
-	if (substacks != NULL)
-	{
-		MCStack *tptr = substacks;
-		do
-		{
-			pwindow = tptr->getparentwindow();
-			if (pwindow != DNULL && w == pwindow)
-			{
-				ccount++;
-				if (ccount == cindex)
-					return tptr;
-			}
-			tptr = (MCStack *)tptr->next();
-		}
-		while (tptr != substacks);
-	}
-	return NULL;
-}
-
 void MCStack::realize(void)
 {
+	// IM-2014-07-21: [[ Bug 12860 ]] Initialize window backing scale to the pixel scale
+	view_setbackingscale(MCResGetPixelScale());
+	
 	start_externals();
 
 	// For now, we just use the MCStack* as the window handle...
@@ -117,7 +95,7 @@ void MCStack::destroywindowshape(void)
 // IM-2013-09-30: [[ FullscreenMode ]] Mobile version of setgeom now calls view methods
 void MCStack::setgeom(void)
 {
-	if (MCnoui || !opened)
+	if (!opened)
 		return;
 	
 	// IM-2013-10-03: [[ FullscreenMode ]] Use view methods to get / set the stack viewport
@@ -146,7 +124,7 @@ void MCStack::stop_externals()
 	unloadexternals();
 }
 
-void MCStack::openwindow(Boolean override)
+void MCStack::platform_openwindow(Boolean override)
 {
 	MCscreen -> openwindow(window, override);
 }
@@ -156,6 +134,11 @@ void MCStack::setopacity(unsigned char p_level)
 }
 
 void MCStack::updatemodifiedmark(void)
+{
+}
+
+// MERG-2014-06-02: [[ IgnoreMouseEvents ]] Stub for ignoreMouseEvents.
+void MCStack::updateignoremouseevents(void)
 {
 }
 
@@ -175,7 +158,17 @@ void MCStack::clearscroll(void)
 {
 }
 
+// MERG-2015-10-12: [[ DocumentFilename ]] Stub for documentFilename.
+void MCStack::updatedocumentfilename(void)
+{
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+bool MCStack::view_platform_dirtyviewonresize() const
+{
+	return false;
+}
 
 MCRectangle MCStack::view_platform_getwindowrect() const
 {
@@ -211,6 +204,17 @@ void MCStack::view_platform_updatewindow(MCRegionRef p_dirty_region)
 	
 	if (t_scaled_region != nil)
 		MCRegionDestroy(t_scaled_region);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool MCStack::configure_window_buffer()
+{
+	return true;
+}
+
+void MCStack::release_window_buffer()
+{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

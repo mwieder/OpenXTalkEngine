@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,14 +14,15 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 
-#include "execpt.h"
+
+#include "exec.h"
 #include "dispatch.h"
 #include "stack.h"
 #include "image.h"
@@ -36,13 +37,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "osspec.h"
 
 #include "w32dc.h"
-#include "w32context.h"
 #include "resource.h"
 #include "meta.h"
 #include "mode.h"
-#include "core.h"
 
 #include "w32text.h"
+#include "w32compat.h"
 
 #include "graphicscontext.h"
 #include "graphics_util.h"
@@ -61,17 +61,25 @@ uint4 MCScreenDC::image_inks[] =
 
 static MCColor vgapalette[16] =
     {
-        {0, 0x0000, 0x0000, 0x0000, 0, 0}, {1, 0x8080, 0x0000, 0x0000, 0, 0},
-        {2, 0x0000, 0x8080, 0x0000, 0, 0}, {3, 0x0000, 0x0000, 0x8080, 0, 0},
-        {4, 0x8080, 0x8080, 0x0000, 0, 0}, {5, 0x8080, 0x0000, 0x8080, 0, 0},
-        {6, 0x0000, 0x8080, 0x8080, 0, 0}, {7, 0x8080, 0x8080, 0x8080, 0, 0},
-        {8, 0xC0C0, 0xC0C0, 0xC0C0, 0, 0}, {9, 0xFFFF, 0x0000, 0x0000, 0, 0},
-        {10, 0x0000, 0xFFFF, 0x0000, 0, 0}, {11, 0x0000, 0x0000, 0xFFFF, 0, 0},
-        {12, 0xFFFF, 0xFFFF, 0x0000, 0, 0}, {13, 0xFFFF, 0x0000, 0xFFFF, 0, 0},
-        {14, 0x0000, 0xFFFF, 0xFFFF, 0, 0}, {15, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0},
+        {0x0000, 0x0000, 0x0000},
+		{0x8080, 0x0000, 0x0000},
+        {0x0000, 0x8080, 0x0000},
+		{0x0000, 0x0000, 0x8080},
+        {0x8080, 0x8080, 0x0000},
+		{0x8080, 0x0000, 0x8080},
+        {0x0000, 0x8080, 0x8080},
+		{0x8080, 0x8080, 0x8080},
+        {0xC0C0, 0xC0C0, 0xC0C0},
+		{0xFFFF, 0x0000, 0x0000},
+        {0x0000, 0xFFFF, 0x0000},
+		{0x0000, 0x0000, 0xFFFF},
+        {0xFFFF, 0xFFFF, 0x0000},
+		{0xFFFF, 0x0000, 0xFFFF},
+        {0x0000, 0xFFFF, 0xFFFF},
+		{0xFFFF, 0xFFFF, 0xFFFF},
     };
 
-void MCScreenDC::setstatus(const char *status)
+void MCScreenDC::setstatus(MCStringRef status)
 { //No action
 }
 
@@ -135,12 +143,6 @@ Boolean MCScreenDC::open()
 	if (RegisterClassA(&wc) == 0)
 		return FALSE;
 
-	// Define the QT VIDEO CLIP window
-	wc.style         = 0/*CS_OWNDC | CS_VREDRAW | CS_HREDRAW*/;
-	wc.lpfnWndProc   = (WNDPROC)MCQTPlayerWindowProc;
-	wc.lpszClassName = MC_QTVIDEO_WIN_CLASS_NAME;  //video class
-	if (RegisterClassA(&wc) == 0)
-		return FALSE;
 
 	// Define Snapshot window. Has its own window proc
 	wc.style         = CS_DBLCLKS | CS_CLASSDC;
@@ -159,7 +161,7 @@ Boolean MCScreenDC::open()
 	f_src_dc = CreateCompatibleDC(NULL);
 	f_dst_dc = CreateCompatibleDC(NULL);
 
-	vis = new MCVisualInfo;
+	vis = new (nothrow) MCVisualInfo;
 
 	ncolors = 0;
 			redbits = greenbits = bluebits = 8;
@@ -172,74 +174,63 @@ Boolean MCScreenDC::open()
 
 	black_pixel.red = black_pixel.green = black_pixel.blue = 0;
 	white_pixel.red = white_pixel.green = white_pixel.blue = 0xFFFF;
-		black_pixel.pixel = 0;
-		white_pixel.pixel = 0xFFFFFF;
 
 	MCselectioncolor = MCpencolor = black_pixel;
-	alloccolor(MCselectioncolor);
-	alloccolor(MCpencolor);
 	
 	MConecolor = MCbrushcolor = white_pixel;
-	alloccolor(MCbrushcolor);
 	
 	gray_pixel.red = gray_pixel.green = gray_pixel.blue = 0x8080;
-	alloccolor(gray_pixel);
 	
 	MChilitecolor.red = MChilitecolor.green = 0x0000;
 	MChilitecolor.blue = 0x8080;
 
-	MCExecPoint ep;
-	ep.setstaticcstring("HKEY_CURRENT_USER\\Control Panel\\Colors\\Hilight");
-	MCS_query_registry(ep, NULL);
-	if (ep.getsvalue().getlength())
+    MCExecContext ctxt(nil, nil, nil);
+    MCStringRef t_key;
+    t_key = MCSTR("HKEY_CURRENT_USER\\Control Panel\\Colors\\Hilight");
+    MCAutoValueRef t_value;
+    MCAutoStringRef t_type, t_error;
+    /* UNCHECKED */ MCS_query_registry(t_key, &t_value, &t_type, &t_error);
+
+	if (*t_value != nil && !MCValueIsEmpty(*t_value))
 	{
-		char *name = NULL;
-		char *cstring = ep.getsvalue().clone();
-		char *sptr = cstring;
-		do
-		{
-			if (*sptr == ' ')
-				*sptr = ',';
-		}
-		while (*++sptr);
-		parsecolor(cstring, &MChilitecolor, &name);
-		delete cstring;
+		MCAutoStringRef t_string;
+		/* UNCHECKED */ ctxt . ConvertToString(*t_value, &t_string);
+		MCAutoStringRef t_string_mutable;
+		MCStringMutableCopy(*t_string, &t_string_mutable);
+		/* UNCHECKED */ MCStringFindAndReplaceChar(*t_string_mutable, ' ', ',', kMCCompareExact);
+		/* UNCHECKED */ parsecolor(*t_string_mutable, MChilitecolor);
 	}
-	alloccolor(MChilitecolor);
 	
 	MCaccentcolor = MChilitecolor;
-	alloccolor(MCaccentcolor);
 	
 	background_pixel.red = background_pixel.green = background_pixel.blue = 0xC0C0;
+    MCStringRef t_key2;
 
-	if (MCmajorosversion > 400)
-		ep.setstaticcstring("HKEY_CURRENT_USER\\Control Panel\\Colors\\MenuBar");
+	if (MCmajorosversion > MCOSVersionMake(4,0,0))
+		t_key2 = MCSTR("HKEY_CURRENT_USER\\Control Panel\\Colors\\MenuBar");
 	else
-		ep.setstaticcstring("HKEY_CURRENT_USER\\Control Panel\\Colors\\Menu");
+		t_key2 = MCSTR("HKEY_CURRENT_USER\\Control Panel\\Colors\\Menu");
 
-	MCS_query_registry(ep, NULL);
-	if (ep.getsvalue().getlength())
+	MCAutoValueRef t_value2;
+    MCAutoStringRef t_type2, t_error2;
+    /* UNCHECKED */ MCS_query_registry(t_key2, &t_value2, &t_type2, &t_error2);
+
+	if (*t_value != nil && !MCValueIsEmpty(*t_value2))
 	{
-		char *name = NULL;
-		char *cstring = ep.getsvalue().clone();
-		char *sptr = cstring;
-		do
-		{
-			if (*sptr == ' ')
-				*sptr = ',';
-		}
-		while (*++sptr);
-		parsecolor(cstring, &background_pixel, &name);
-		delete cstring;
+		MCAutoStringRef t_string;
+		/* UNCHECKED */ ctxt . ConvertToString(*t_value2, &t_string);
+		MCAutoStringRef t_string_mutable;
+		MCStringMutableCopy(*t_string, &t_string_mutable);
+		/* UNCHECKED */ MCStringFindAndReplaceChar(*t_string_mutable, ' ', ',', kMCCompareExact);
+		/* UNCHECKED */ parsecolor(*t_string_mutable, background_pixel);
 	}
-	alloccolor(background_pixel);
 
 	SetBkMode(f_dst_dc, OPAQUE);
-	SetBkColor(f_dst_dc, black_pixel . pixel);
-	SetTextColor(f_dst_dc, white_pixel . pixel);
+	SetBkColor(f_dst_dc, MCColorGetPixel(black_pixel));
+	SetTextColor(f_dst_dc, MCColorGetPixel(white_pixel));
 	SetBkMode(f_src_dc, OPAQUE);
-	SetBkColor(f_src_dc, black_pixel . pixel);
-	SetTextColor(f_src_dc, white_pixel . pixel);
+	SetBkColor(f_src_dc, MCColorGetPixel(black_pixel));
+	SetTextColor(f_src_dc, MCColorGetPixel(white_pixel));
 
 	mousetimer = 0;
 	grabbed = False;
@@ -257,6 +248,10 @@ Boolean MCScreenDC::open()
 	MCdoubletime = GetDoubleClickTime();
 	opened++;
 
+	/* Fetch any system metrics we need which are updated on WM_SETTINGCHANGE or 
+	 * WM_DISPLAYCHANGE. */
+	updatemetrics();
+
 	MCDisplay const *t_displays;
 	getdisplays(t_displays, false);
 	MCwbr = t_displays[0] . workarea;
@@ -264,7 +259,7 @@ Boolean MCScreenDC::open()
 
 	// The System and Input codepages are used to translate input characters.
 	// A keyboard layout will present characters via WM_CHAR in the
-	// input_codepage, while Revolution is running in the system_codepage.
+	// input_codepage, while LiveCode is running in the system_codepage.
 	//
 	system_codepage = GetACP();
 
@@ -320,17 +315,16 @@ Boolean MCScreenDC::close(Boolean force)
 			timeKillEvent(mousetimer);
 	timeEndPeriod(1);
 	opened = 0;
-	if (dnddata != NULL)
-	{
-		dnddata->Release();
-		dnddata = NULL;
-	}
+
+	DestroyWindow(invisiblehwnd);
+	invisiblehwnd = NULL;
+
 	return True;
 }
 
-const char *MCScreenDC::getdisplayname()
+MCNameRef MCScreenDC::getdisplayname()
 {
-	return "local Win32";
+	return MCN_local_win32;
 }
 
 void MCScreenDC::grabpointer(Window w)
@@ -421,13 +415,33 @@ void MCScreenDC::openwindow(Window w, Boolean override)
 	if (w == NULL)
 		return;
 
+	MCStack *t_stack;
+	t_stack = MCdispatcher -> findstackd(w);
+
+    // If there is a mainwindow callback then disable the mainwindow.
+    if (MCmainwindowcallback != NULL && !IsWindowVisible((HWND)w->handle.window))
+    {
+        MCAssert(m_main_window_depth < INT_MAX - 1);
+        m_main_window_depth += 1;
+        if (m_main_window_depth == 1)
+        {
+            m_main_window_current = (HWND)MCmainwindowcallback();
+            EnableWindow(m_main_window_current, False);
+        }
+        SetWindowLongPtr((HWND)w->handle.window, GWLP_HWNDPARENT, (LONG_PTR)m_main_window_current);
+    }
+
 	if (override)
 		ShowWindow((HWND)w->handle.window, SW_SHOWNA);
 	else
-		ShowWindow((HWND)w->handle.window, SW_SHOW);
+		// CW-2015-09-28: [[ Bug 15873 ]] If the stack state is iconic, restore the window minimised.
+		if (t_stack != NULL && t_stack -> getstate(CS_ICONIC))
+			ShowWindow((HWND)w->handle.window, SW_SHOWMINIMIZED);
+		else if (IsIconic((HWND)w->handle.window))
+			ShowWindow((HWND)w->handle.window, SW_RESTORE);
+		else 
+			ShowWindow((HWND)w->handle.window, SW_SHOW);
 
-	MCStack *t_stack;
-	t_stack = MCdispatcher -> findstackd(w);
 	if (t_stack != NULL)
 	{
 		if (t_stack -> getmode() == WM_SHEET || t_stack -> getmode() == WM_MODAL)
@@ -444,6 +458,20 @@ void MCScreenDC::closewindow(Window w)
 
 	MCStack *t_stack;
 	t_stack = MCdispatcher -> findstackd(w);
+
+    // If there is a mainwindow callback then re-enable the mainwindow if at
+    // depth 1.
+    if (MCmainwindowcallback != nullptr && IsWindowVisible((HWND)w->handle.window))
+    {
+        MCAssert(m_main_window_depth > 0);
+        m_main_window_depth -= 1;
+        if (m_main_window_depth == 0 &&
+            m_main_window_current != nullptr)
+        {
+            EnableWindow(m_main_window_current, True);
+            m_main_window_current = nullptr;
+        }
+    }
 
 	// If we are a sheet or a modal dialog we need to ensure we enable the right windows
 	// and activate the next obvious window.
@@ -575,7 +603,7 @@ void MCScreenDC::uniconifywindow(Window w)
 //   logic doesn't work :o(. Therefore I'm removing this for now and have instead
 //   added a bit to 'revRuntimeBehaviour' which allows turning off creation of
 //   unicode windows.
-void MCScreenDC::setname(Window w, const char *newname)
+void MCScreenDC::setname(Window w, MCStringRef newname)
 {
 	// MW-2009-11-01: Do nothing if there is no window
 	if (w == NULL)
@@ -583,17 +611,28 @@ void MCScreenDC::setname(Window w, const char *newname)
 
 	if (IsWindowUnicode((HWND)w -> handle . window))
 	{
-		LPWSTR t_unicode_name;
-		t_unicode_name = convertutf8towide(newname);
-		SetWindowTextW((HWND)w -> handle . window, t_unicode_name);
-		delete t_unicode_name;
+		// If the name begins with an RTL character, force windows to interpret
+        // it as such by pre-pending an RTL embedding (RTL) control.
+        MCAutoStringRef t_newname;
+        if (MCBidiFirstStrongIsolate(newname, 0) != 0)
+        {
+            /* UNCHECKED */ MCStringMutableCopy(newname, &t_newname);
+            /* UNCHECKED */ MCStringPrependChar(*t_newname, 0x202B);
+        }
+        else
+        {
+            t_newname = newname;
+        }
+        
+        MCAutoStringRefAsWString t_newname_w;
+		/* UNCHECKED */ t_newname_w . Lock(*t_newname);
+		SetWindowTextW((HWND)w -> handle . window, *t_newname_w);
 	}
 	else
 	{
-		LPCSTR t_ansi_name;
-		t_ansi_name = convertutf8toansi(newname);
-		SetWindowTextA((HWND)w->handle.window, t_ansi_name);
-		delete t_ansi_name;
+		MCAutoStringRefAsCString t_newname_a;
+		/* UNCHECKED */ t_newname_a . Lock(newname);
+		SetWindowTextA((HWND)w->handle.window, *t_newname_a);
 	}
 }
 
@@ -705,37 +744,37 @@ static void fixdata(uint4 *bits, uint2 width, uint2 height)
 		*bits++ |= mask;
 }
 
-uint4 MCScreenDC::dtouint4(Drawable d)
+uintptr_t MCScreenDC::dtouint(Drawable d)
 {
 	if (d == DNULL)
 		return 0;
 	else
 		if (d->type == DC_WINDOW)
-			return (uint4)(d->handle.window);
+			return (uintptr_t)(d->handle.window);
 		else
-			return (uint4)(d->handle.pixmap);
+			return (uintptr_t)(d->handle.pixmap);
 }
 
-Boolean MCScreenDC::uint4towindow(uint4 id, Window &w)
+Boolean MCScreenDC::uinttowindow(uintptr_t id, Window &w)
 {
-	w = new _Drawable;
+	w = new (nothrow) _Drawable;
 	w->type = DC_WINDOW;
 	w->handle.window = (MCSysWindowHandle)id;
 	return True;
 }
 
-void MCScreenDC::getbeep(uint4 which, MCExecPoint &ep)
+void MCScreenDC::getbeep(uint4 property, int4& r_value)
 {
-	switch (which)
+	switch (property)
 	{
 	case P_BEEP_LOUDNESS:
-		ep.setint(100);
+		r_value = 100;
 		break;
 	case P_BEEP_PITCH:
-		ep.setint(beeppitch);
+		r_value = beeppitch;
 		break;
 	case P_BEEP_DURATION:
-		ep.setint(beepduration);
+		r_value = beepduration;
 		break;
 	}
 }
@@ -761,9 +800,9 @@ void MCScreenDC::setbeep(uint4 which, int4 beep)
 	}
 }
 
-void MCScreenDC::getvendorstring(MCExecPoint &ep)
+MCNameRef MCScreenDC::getvendorname(void)
 {
-	ep.setstaticcstring("Win32");
+	return MCN_win32;
 }
 
 uint2 MCScreenDC::getpad()
@@ -775,7 +814,7 @@ Window MCScreenDC::getroot()
 {
 	static Meta::static_ptr_t<_Drawable> mydrawable;
 	if (mydrawable == DNULL)
-		mydrawable = new _Drawable;
+		mydrawable = new (nothrow) _Drawable;
 	mydrawable->type = DC_WINDOW;
 	mydrawable->handle.window = (MCSysWindowHandle)GetDesktopWindow();
 	return mydrawable;
@@ -795,7 +834,7 @@ static DwmIsCompositionEnabledPtr s_dwm_is_composition_enabled = NULL;
 
 static bool WindowsIsCompositionEnabled(void)
 {
-	if (MCmajorosversion < 0x0600)
+	if (MCmajorosversion < MCOSVersionMake(6,0,0))
 		return false;
 
 	if (s_dwmapi_library == NULL)
@@ -823,7 +862,8 @@ static bool WindowsIsCompositionEnabled(void)
 
 // MW-2014-02-20: [[ Bug 11811 ]] Updated to scale snapshot to requested size.
 bool create_temporary_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP& r_bitmap, void*& r_bits);
-MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *displayname, MCPoint *size)
+
+MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, MCStringRef displayname, MCPoint *size)
 {
 	bool t_is_composited;
 	t_is_composited = WindowsIsCompositionEnabled();
@@ -840,19 +880,30 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *di
 	for(uint4 t_index = 1; t_index < t_display_count; ++t_index)
 		t_virtual_viewport = MCU_union_rect(t_virtual_viewport, t_displays[t_index] . viewport);
 
-	HWND hwndsnap = CreateWindowExA(WS_EX_TRANSPARENT | WS_EX_TOPMOST,
-	                               MC_SNAPSHOT_WIN_CLASS_NAME,"", WS_POPUP, t_virtual_viewport . x, t_virtual_viewport . y,
-	                               t_virtual_viewport . width, t_virtual_viewport . height, invisiblehwnd,
+	// IM-2014-04-02: [[ Bug 12109 ]] Convert screenrect to screen coords
+	MCRectangle t_device_viewport;
+	t_device_viewport = logicaltoscreenrect(t_virtual_viewport);
+
+	DWORD t_ex_options = WS_EX_TRANSPARENT | WS_EX_TOPMOST;
+	// use layered if we don't need to select the snapshot area via cursor
+	if (window != 0 || r.x != -32768)
+	{
+		t_ex_options |= WS_EX_LAYERED;
+	}
+
+	HWND hwndsnap = CreateWindowExA(t_ex_options,
+	                               MC_SNAPSHOT_WIN_CLASS_NAME,"", WS_POPUP, t_device_viewport . x, t_device_viewport . y,
+	                               t_device_viewport . width, t_device_viewport . height, invisiblehwnd,
 	                               NULL, MChInst, NULL);
 	SetWindowPos(hwndsnap, HWND_TOPMOST,
-	             t_virtual_viewport . x, t_virtual_viewport . y, t_virtual_viewport . width, t_virtual_viewport . height, SWP_NOACTIVATE | SWP_SHOWWINDOW
+	             t_device_viewport . x, t_device_viewport . y, t_device_viewport . width, t_device_viewport . height, SWP_NOACTIVATE | SWP_SHOWWINDOW
 	             | SWP_DEFERERASE | SWP_NOREDRAW);
 
 	if (t_is_composited)
 	{
 		snaphdc = GetDC(NULL);
-		snapoffsetx = t_virtual_viewport . x;
-		snapoffsety = t_virtual_viewport . y;
+		snapoffsetx = t_device_viewport . x;
+		snapoffsety = t_device_viewport . y;
 	}
 	else
 	{
@@ -860,6 +911,9 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *di
 		snapoffsetx = 0;
 		snapoffsety = 0;
 	}
+
+	// IM-2014-04-02: [[ Bug 12109 ]] Calculate snapshot rect in screen coords
+	MCRectangle t_device_snaprect;
 
 	snapdone = False;
 	snapcancelled = False;
@@ -873,29 +927,30 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *di
 		SetROP2(snaphdc, R2_NOT);
 		SelectObject(snaphdc, GetStockObject(HOLLOW_BRUSH));
 		MSG msg;
-		while (!snapdone && GetMessageA(&msg, NULL, 0, 0))
+		while (!snapdone && GetMessageW(&msg, NULL, 0, 0))
 		{
 			TranslateMessage(&msg);
-			DispatchMessageA(&msg);
+			DispatchMessageW(&msg);
 		}
-		r = screentologicalrect(snaprect);
+		t_device_snaprect = snaprect;
 	}
-	
-	int t_width, t_height;
-	HBITMAP newimage = NULL;
-	void *t_bits = nil;
-	if (!snapcancelled)
+	else
 	{
 		if (r.x == -32768)
 			r.x = r.y = 0;
+
+		// IM-2014-04-02: [[ Bug 12109 ]] Convert snapshot rect to screen coords
+		t_device_snaprect = logicaltoscreenrect(r);
+
 		if (window != 0 || r.width == 0 || r.height == 0)
 		{
 			HWND w;
 			if (window == 0)
 			{
 				POINT p;
-				p.x = r.x;
-				p.y = r.y;
+				p.x = t_device_snaprect.x;
+				p.y = t_device_snaprect.y;
+
 				ShowWindow(hwndsnap, SW_HIDE);
 				if ((w = WindowFromPoint(p)) == NULL)
 				{
@@ -913,16 +968,22 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *di
 			p.x = p.y = 0;
 			ClientToScreen(w, &p);
 			if (r.width == 0 || r.height == 0)
-				MCU_set_rect(r, (int2)p.x, (int2)p.y,
-							 (uint2)(cr.right), (uint2)(cr.bottom));
+				t_device_snaprect = MCRectangleMake(p.x, p.y, cr.right - cr.left, cr.bottom - cr.top);
 			else
-			{
-				r.x += (int2)p.x;
-				r.y += (int2)p.y;
-			}
+				t_device_snaprect = MCRectangleOffset(t_device_snaprect, p.x, p.y);
 		}
-		r = MCU_clip_rect(r, t_virtual_viewport . x, t_virtual_viewport . y, t_virtual_viewport . width, t_virtual_viewport . height);
+	}
+	
+	int t_width, t_height;
+	HBITMAP newimage = NULL;
+	void *t_bits = nil;
+	if (!snapcancelled)
+	{
+		t_device_snaprect = MCU_intersect_rect(t_device_snaprect, t_device_viewport);
 		
+		// IM-2014-04-02: [[ Bug 12109 ]] Convert screen coords back to logical
+		r = screentologicalrect(t_device_snaprect);
+
 		if (size != nil)
 		{
 			t_width = size -> x;
@@ -934,8 +995,6 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *di
 			t_height = r . height;
 		}
 		
-		r = logicaltoscreenrect(r);
-
 		if (r.width != 0 && r.height != 0)
 		{
 			if (create_temporary_dib(snapdesthdc, t_width, t_height, newimage, t_bits))
@@ -946,11 +1005,11 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, const char *di
 				//   layered windows are included.
 				if (t_is_composited)
 					StretchBlt(snapdesthdc, 0, 0, t_width, t_height,
-								snaphdc, r . x, r . y, r . width, r . height, CAPTUREBLT | SRCCOPY);
+								snaphdc, t_device_snaprect . x, t_device_snaprect . y, t_device_snaprect . width, t_device_snaprect . height, CAPTUREBLT | SRCCOPY);
 				else
 				{
 					StretchBlt(snapdesthdc, 0, 0, t_width, t_height,
-								snaphdc, r.x - t_virtual_viewport . x, r.y - t_virtual_viewport . y, r . width, r . height, CAPTUREBLT | SRCCOPY);
+						snaphdc, t_device_snaprect.x - t_device_viewport . x, t_device_snaprect.y - t_device_viewport . y, t_device_snaprect . width, t_device_snaprect . height, CAPTUREBLT | SRCCOPY);
 				}
 				SelectObject(snapdesthdc, obm);
 			}
@@ -1051,7 +1110,7 @@ void MCScreenDC::settaskbarstate(bool p_visible)
 	HWND taskbarwnd = FindWindowA("Shell_traywnd", "");
 	SetWindowPos(taskbarwnd, 0, 0, 0, 0, 0, SWP_NOACTIVATE | (p_visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
 
-	if (MCmajorosversion >= 0x0600)
+	if (MCmajorosversion >= MCOSVersionMake(6,0,0))
 	{
 		HWND t_start_window;
 		t_start_window = FindWindowExA(NULL, NULL, "Button", "Start");
@@ -1063,14 +1122,18 @@ void MCScreenDC::settaskbarstate(bool p_visible)
 		}
 	}
 
-	processdesktopchanged(false);
+	// Don't notify or update fonts when changing titlebar visibility
+	processdesktopchanged(false, false);
 }
 
-void MCScreenDC::processdesktopchanged(bool p_notify)
+void MCScreenDC::processdesktopchanged(bool p_notify, bool p_update_fonts)
 {
 	// IM-2014-01-28: [[ HiDPI ]] Use updatedisplayinfo() method to update & compare display details
 	bool t_changed;
 	t_changed = false;
+
+	/* Update any system metrics which are used often and are cached. */
+	updatemetrics();
 
 	updatedisplayinfo(t_changed);
 
@@ -1083,6 +1146,11 @@ void MCScreenDC::processdesktopchanged(bool p_notify)
 		SetWindowPos(backdrop_window, NULL, t_displays[0] . workarea . x, t_displays[0] . workarea . y, t_displays[0] . workarea . width, t_displays[0] . workarea . height, 0);
 	}
 
+    // Force a recompute of fonts as they may have changed
+	if (p_update_fonts)
+	    MCdispatcher->recomputefonts(NULL, true);
+    //MCRedrawDirtyScreen();
+    
 	if (p_notify && t_changed)
 		MCscreen -> delaymessage(MCdefaultstackptr -> getcurcard(), MCM_desktop_changed);
 }
@@ -1296,8 +1364,6 @@ void MCScreenDC::configurebackdrop(const MCColor& p_colour, MCPatternRef p_patte
 		backdrop_pattern = p_pattern;
 		backdrop_colour = p_colour;
 	
-		alloccolor(backdrop_colour);
-	
 		if (backdrop_active || backdrop_hard)
 			InvalidateRect(backdrop_window, NULL, TRUE);
 	}
@@ -1380,15 +1446,16 @@ void MCScreenDC::redrawbackdrop(void)
 
 		// MM-2014-01-27: [[ UpdateImageFilters ]] Updated to use new libgraphics image filter types (was nearest).
 		// MM-2014-04-08: [[ Bug 12058 ]] Update back_pattern to be a MCPatternRef.
-		if (backdrop_pattern != nil && backdrop_pattern -> image != nil)
+		if (backdrop_pattern != nil)
 		{
 			MCGImageRef t_image;
-			t_image = backdrop_pattern->image;
-
 			MCGAffineTransform t_pattern_transform;
-			t_pattern_transform = MCGAffineTransformMakeScale(1.0 / backdrop_pattern->scale, 1.0 / backdrop_pattern->scale);
-
-			MCGContextSetFillPattern(t_context, t_image, t_pattern_transform, kMCGImageFilterNone);
+			// IM-2014-05-13: [[ HiResPatterns ]] Update pattern access to use lock function
+			if (MCPatternLockForContextTransform(backdrop_pattern, t_transform, t_image, t_pattern_transform))
+			{
+				MCGContextSetFillPattern(t_context, t_image, t_pattern_transform, kMCGImageFilterNone);
+				MCPatternUnlock(backdrop_pattern, t_image);
+			}
 		}
 		else
 			MCGContextSetFillRGBAColor(t_context, backdrop_colour.red / 65535.0, backdrop_colour.green / 65535.0, backdrop_colour.blue / 65535.0, 1.0);
@@ -1398,13 +1465,13 @@ void MCScreenDC::redrawbackdrop(void)
 		if (backdrop_badge != NULL && backdrop_hard)
 		{
 			MCContext *t_gfxcontext = nil;
-			t_success = nil != (t_gfxcontext = new MCGraphicsContext(t_context));
+			t_success = nil != (t_gfxcontext = new (nothrow) MCGraphicsContext(t_context));
 
 			if (t_success)
 			{
 				MCRectangle t_rect;
 				t_rect = backdrop_badge -> getrect();
-				backdrop_badge -> drawme(t_gfxcontext, 0, 0, t_rect . width, t_rect . height, 32, m_backdrop_rect.height - 32 - t_rect . height);
+				backdrop_badge -> drawme(t_gfxcontext, 0, 0, t_rect . width, t_rect . height, 32, m_backdrop_rect.height - 32 - t_rect . height, t_rect . width, t_rect . height);
 			}
 
 			delete t_gfxcontext;

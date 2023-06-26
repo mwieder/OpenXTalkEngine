@@ -82,7 +82,7 @@ typedef struct __MCObject *MCObjectRef;
 // generated while using the externals interface.
 typedef enum MCError
 {
-	// No errors occured, the operation succeeded.
+	// No errors occurred, the operation succeeded.
 	kMCErrorNone = 0,
 
 	// Memory ran out while performing the operation.
@@ -205,6 +205,27 @@ enum
 	kMCOptionAsCString = 6,
 
 	/////////
+    
+    // SN-2014-10-29: [[ Bug 13827 ]] Update libexternalv1 to match the Unicode-strings update
+    // V6-ADDITIONS-START
+    kMCOptionAsUTF8String = 7,
+    kMCOptionAsUTF8CString = 8,
+    kMCOptionAsUTF16String = 9,
+    kMCOptionAsUTF16CString = 10,
+    
+#ifdef __HAS_CORE_FOUNDATION__
+    kMCExternalValueOptionAsNSNumber = 17,
+    kMCExternalValueOptionAsCFNumber = 18,
+    kMCExternalValueOptionAsNSString = 19,
+    kMCExternalValueOptionAsCFString = 20,
+    kMCExternalValueOptionAsNSData = 21,
+    kMCExternalValueOptionAsCFData = 22,
+    kMCExternalValueOptionAsNSArray = 23,
+    kMCExternalValueOptionAsCFArray = 24,
+    kMCExternalValueOptionAsNSDictionary = 25,
+    kMCExternalValueOptionAsCFDictionary = 26,
+#endif
+    // V6-ADDITIONS-END
 
 	// Use the numberFormat settings in the calling context.
 	kMCOptionNumberFormatDefault = 0 << 26,
@@ -276,12 +297,12 @@ typedef enum MCInvokeStatus
 	// The script was successfully executed.
 	kMCInvokeStatusSuccess = 0,
 	
-	// A parse error occured while compiling the script
+	// A parse error occurred while compiling the script
 	kMCInvokeStatusParseError = 1,
 	
-	// An execution error occured while running the script
+	// An execution error occurred while running the script
 	kMCInvokeStatusExecutionError = 2
-};
+} MCInvokeStatus;
 	
 // MCThreadCallback is the signature of the function to be invoked when a run on main thread
 // callback is requested.
@@ -623,7 +644,7 @@ const char *MCErrorToString(MCError t_error);
 	{ 2, m_name, m_function },
 
 #define MC_EXTERNAL_HANDLERS_END \
-	{ 0 } };
+	{ 0, nil, nil } };
 
 #elif !defined(__EXCEPTIONS)
 
@@ -646,7 +667,7 @@ const char *MCErrorToString(MCError t_error);
 	{ 2, m_name, m_function },
 
 #define MC_EXTERNAL_HANDLERS_END \
-	{ 0 } }; }
+	{ 0, nil, nil } }; }
 
 #endif
 
@@ -670,7 +691,7 @@ public:
 		m_why = p_why;
 	}
 	
-	const char *what(void)
+	virtual const char *what(void) const throw()
 	{
 		return m_why;
 	}
@@ -1458,7 +1479,7 @@ template<MCExternalHandlerProc u_handler> bool MCExternalHandlerWrapper(MCVariab
 	{ 2, m_name, m_function },
 
 #define MC_EXTERNAL_HANDLERS_END \
-	{ 0 } }; }
+	{ 0, nil, nil } }; }
 
 #endif
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,14 +16,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "sellst.h"
 #include "util.h"
 #include "font.h"
@@ -51,7 +50,11 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "objptr.h"
 #include "stacksecurity.h"
 
-uint2 MCButton::mnemonicoffset = 2;
+#include "exec.h"
+
+#include "stackfileformat.h"
+
+uint2 MCButton::mnemonicoffset = 1;
 MCRectangle MCButton::optionrect = {0, 0, 12, 8};
 uint4 MCButton::clicktime;
 uint2 MCButton::menubuttonheight = 4;
@@ -63,16 +66,9 @@ MCImage *MCButton::macrbhilite = NULL;
 MCImage *MCButton::macrbhilitetrack = NULL;
 uint2 MCButton::focusedtab = MAXUINT2;
 
-// MW-2007-12-11: [[ Bug 5670 ]] This global is set to false before a card issues an
-//   mdown to its focused control. If the mdown resulted in a popup being shown on OS X, then it will be
-//   set to true. This is to work around the problem with the mouse down message being 'cancelled' on a
-//   popup-menu action resulting in the group mdown not returning true, and thus causing the card to
-//   send an errant mdown message to the script.
-
-bool MCosxmenupoppedup = false;
 bool MCmenupoppedup = false;
 
-Keynames MCButton::button_keys[] =
+const Keynames MCButton::button_keys[] =
     {
         {XK_F1, "f1"},
         {XK_F2, "f2"},
@@ -216,22 +212,73 @@ typedef struct
 	const char *token;
 } ModKeyToken;
 
-static ModKeyToken modifier_tokens[] =
-	{
-		{MS_SHIFT, 5, "shift"},
-		{MS_SHIFT, 1, "@"},
-		{MS_ALT, 6, "option"},
-		{MS_ALT, 3, "opt"},
-		{MS_ALT, 3, "alt"},
-		{MS_ALT, 1, "#"},
-		{MS_MAC_CONTROL, 7, "control"},
-		{MS_MAC_CONTROL, 4, "ctrl"},
-		{MS_MAC_CONTROL, 1, "%"},
-		{MS_CONTROL, 7, "command"},
-		{MS_CONTROL, 3, "cmd"},
-		{MS_CONTROL, 1, "^"},
-		{0, 0, NULL}
-	};
+////////////////////////////////////////////////////////////////////////////////
+
+MCPropertyInfo MCButton::kProperties[] =
+{
+	DEFINE_RW_OBJ_ENUM_PROPERTY(P_STYLE, InterfaceButtonStyle, MCButton, Style)
+	DEFINE_RW_OBJ_PROPERTY(P_AUTO_ARM, Bool, MCButton, AutoArm)
+	DEFINE_RW_OBJ_PROPERTY(P_AUTO_HILITE, Bool, MCButton, AutoHilite)
+	DEFINE_RW_OBJ_PROPERTY(P_ARM_BORDER, Bool, MCButton, ArmBorder)
+	DEFINE_RW_OBJ_PROPERTY(P_ARM_FILL, Bool, MCButton, ArmFill)
+	DEFINE_RW_OBJ_PROPERTY(P_HILITE_BORDER, Bool, MCButton, HiliteBorder)
+	DEFINE_RW_OBJ_PROPERTY(P_HILITE_FILL, Bool, MCButton, HiliteFill)
+	DEFINE_RW_OBJ_PROPERTY(P_SHOW_HILITE, Bool, MCButton, ShowHilite)
+	DEFINE_RW_OBJ_PROPERTY(P_ARM, Bool, MCButton, Arm)
+
+	DEFINE_RW_OBJ_PROPERTY(P_SHARED_HILITE, Bool, MCButton, SharedHilite)
+	DEFINE_RW_OBJ_PROPERTY(P_SHOW_ICON, Bool, MCButton, ShowIcon)
+	DEFINE_RW_OBJ_PROPERTY(P_SHOW_NAME, Bool, MCButton, ShowName) 
+
+	DEFINE_RW_OBJ_NON_EFFECTIVE_PROPERTY(P_LABEL, String, MCButton, Label)
+	DEFINE_RO_OBJ_EFFECTIVE_PROPERTY(P_LABEL, String, MCButton, Label)
+	DEFINE_RW_OBJ_NON_EFFECTIVE_PROPERTY(P_UNICODE_LABEL, BinaryString, MCButton, UnicodeLabel)
+	DEFINE_RO_OBJ_EFFECTIVE_PROPERTY(P_UNICODE_LABEL, BinaryString, MCButton, UnicodeLabel)
+	DEFINE_RW_OBJ_PROPERTY(P_LABEL_WIDTH, UInt16, MCButton, LabelWidth)
+	DEFINE_RW_OBJ_PROPERTY(P_FAMILY, UInt16, MCButton, Family)
+	DEFINE_RW_OBJ_PROPERTY(P_VISITED, Bool, MCButton, Visited)
+	DEFINE_RW_OBJ_PROPERTY(P_MENU_HISTORY, UInt16, MCButton, MenuHistory)
+	DEFINE_RW_OBJ_PROPERTY(P_MENU_LINES, OptionalUInt16, MCButton, MenuLines)
+	DEFINE_RW_OBJ_PROPERTY(P_MENU_BUTTON, UInt16, MCButton, MenuButton)
+	DEFINE_RW_OBJ_PROPERTY(P_MENU_NAME, Name, MCButton, MenuName)
+	DEFINE_RW_OBJ_PROPERTY(P_ACCELERATOR_TEXT, String, MCButton, AcceleratorText)
+	DEFINE_RO_OBJ_PROPERTY(P_UNICODE_ACCELERATOR_TEXT, BinaryString, MCButton, UnicodeAcceleratorText)
+	DEFINE_RW_OBJ_PROPERTY(P_ACCELERATOR_KEY, OptionalString, MCButton, AcceleratorKey)
+
+	DEFINE_RW_OBJ_SET_PROPERTY(P_ACCELERATOR_MODIFIERS, InterfaceButtonAcceleratorModifiers, MCButton, AcceleratorModifiers)
+	
+	DEFINE_RW_OBJ_PROPERTY(P_MNEMONIC, UInt16, MCButton, Mnemonic)
+	DEFINE_RO_OBJ_PROPERTY(P_FORMATTED_WIDTH, Int16, MCButton, FormattedWidth)
+	DEFINE_RO_OBJ_PROPERTY(P_FORMATTED_HEIGHT, Int16, MCButton, FormattedHeight)
+	DEFINE_RW_OBJ_PROPERTY(P_DEFAULT, Bool, MCButton, Default)
+	DEFINE_RW_OBJ_PROPERTY(P_TEXT, String, MCButton, Text)
+	DEFINE_RW_OBJ_PROPERTY(P_UNICODE_TEXT, BinaryString, MCButton, UnicodeText)
+    // SN-2014-06-25 [[ IconGravity ]]
+    DEFINE_RW_OBJ_ENUM_PROPERTY(P_ICON_GRAVITY, InterfaceButtonIconGravity, MCButton, IconGravity)
+	
+	DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_ICON, InterfaceButtonIcon, MCButton, Icon)
+	DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_ARMED_ICON, InterfaceButtonIcon, MCButton, ArmedIcon)
+	DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_DISABLED_ICON, InterfaceButtonIcon, MCButton, DisabledIcon)
+	DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_HILITED_ICON, InterfaceButtonIcon, MCButton, HiliteIcon)
+	DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_VISITED_ICON, InterfaceButtonIcon, MCButton, VisitedIcon)
+	DEFINE_RW_OBJ_CUSTOM_PROPERTY(P_HOVER_ICON, InterfaceButtonIcon, MCButton, HoverIcon)
+    
+    DEFINE_RW_OBJ_PART_CUSTOM_PROPERTY(P_HILITE, InterfaceTriState, MCButton, Hilite)
+    DEFINE_RW_OBJ_ENUM_PROPERTY(P_MENU_MODE, InterfaceButtonMenuMode, MCButton, MenuMode)
+    
+    DEFINE_WO_OBJ_CHAR_CHUNK_PROPERTY(P_HILITE, Bool, MCButton, Hilite)
+    DEFINE_WO_OBJ_CHAR_CHUNK_PROPERTY(P_DISABLED, Bool, MCButton, Disabled)
+    DEFINE_WO_OBJ_CHAR_CHUNK_PROPERTY(P_ENABLED, Bool, MCButton, Enabled)    
+};
+
+MCObjectPropertyTable MCButton::kPropertyTable =
+{
+	&MCControl::kPropertyTable,
+	sizeof(kProperties) / sizeof(kProperties[0]),
+	&kProperties[0],
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 MCButton::MCButton()
 {
@@ -240,106 +287,84 @@ MCButton::MCButton()
 	         | F_ARM_BORDER | F_SHARED_HILITE;
 	bdata = NULL;
 	icons = NULL;
-	label = NULL;
-	labelsize = 0;
+	label = MCValueRetain(kMCEmptyString);
 	labelwidth = 0;
 	menubutton = Button1;
 	menumode = WM_CLOSED;
-	menuname = NULL;
-	menustring = NULL;
-	menusize = 0;
+	menuname = MCValueRetain(kMCEmptyName);
+	menustring = MCValueRetain(kMCEmptyString);
 	menuhistory = 1;
 	menucontrol = MENUCONTROL_NONE;
 	menulines = DEFAULT_MENU_LINES;
 	menuhasitemtags = false;
-	menu = NULL; //stack based menu
-
-#ifdef _MAC_DESKTOP
-	bMenuID = 0; //for button/object based menus
-#endif
-
+	m_system_menu = NULL;
 	entry = NULL;
-	tabs = NULL;
-	ntabs = 0;
-	acceltext = NULL;
-	acceltextsize = 0;
+	tabs = MCValueRetain(kMCEmptyArray);
+	acceltext = MCValueRetain(kMCEmptyString);
 	accelkey = accelmods = 0;
 	mnemonic = 0;
 	family = 0;
 	ishovering = False;
+    
+    // MW-2014-06-19: [[ IconGravity ]] By default buttons use legacy behavior.
+    m_icon_gravity = kMCGravityNone;
+    
+    // MM-2014-07-31: [[ ThreadedRendering ]] Used to ensure the default button animate message is only posted from a single thread.
+    m_animate_posted = false;
+	
+	m_menu_handler = nil;
 }
 
 MCButton::MCButton(const MCButton &bref) : MCControl(bref)
 {
 	if (bref.icons != NULL)
 	{
-		icons = new iconlist;
+		icons = new (nothrow) iconlist;
 		memcpy(icons, bref.icons, sizeof(iconlist));
 		icons->curicon = NULL;
 	}
 	else
 		icons = NULL;
 	bdata = NULL;
-	if (bref.labelsize)
-	{
-		labelsize = bref.labelsize;
-		label = new char[labelsize];
-		memcpy(label, bref.label, labelsize);
-	}
-	else
-	{
-		label = NULL;
-		labelsize = 0;
-	}
+	label = MCValueRetain(bref.label);
 	labelwidth = bref.labelwidth;
 	menuhistory = bref.menuhistory;
 	menulines = bref.menulines;
 	menubutton = bref.menubutton;
 	menumode = bref.menumode;
-	menuname = strclone(bref.menuname);
+	menuname = MCValueRetain(bref.menuname);
 	menucontrol = bref.menucontrol;
 	menuhasitemtags = bref.menuhasitemtags;
-	menustring = NULL;
-	menusize = 0;
-	if (bref.menustring)
-	{
-		menusize = bref.menusize;
-		menustring = new char[menusize];
-		memcpy(menustring, bref.menustring, menusize);
-	}
-	menu = NULL;
+	menustring = MCValueRetain(bref.menustring);
+	m_system_menu = NULL;
 	entry = NULL;
-	tabs = NULL;
-	ntabs = 0;
-	acceltext = NULL;
-	acceltextsize = 0;
-	if (bref.acceltext)
-	{
-		acceltextsize = bref.acceltextsize;
-		acceltext = new char[acceltextsize];
-		memcpy(acceltext, bref.acceltext, acceltextsize);
-	}
+	tabs = MCValueRetain(kMCEmptyArray);
+	acceltext = MCValueRetain(bref.acceltext);
 	accelkey = bref.accelkey;
 	accelmods = bref.accelmods;
 	mnemonic = bref.mnemonic;
 	ishovering = False;
-
-#ifdef _MAC_DESKTOP
-	bMenuID = 0;
-#endif
 
 	if (bref.bdata != NULL)
 	{
 		MCCdata *bptr = bref.bdata;
 		do
 		{
-			MCCdata *newbdata = new MCCdata(*bptr);
+			MCCdata *newbdata = new (nothrow) MCCdata(*bptr);
 			newbdata->appendto(bdata);
 			bptr = (MCCdata *)bptr->next();
 		}
 		while (bptr != bref.bdata);
 	}
 	family = bref.family;
+    
+    // MW-2014-06-19: [[ IconGravity ]] Copy the other buttons gravity
+    m_icon_gravity = bref.m_icon_gravity;
+    
+    // MM-2014-07-31: [[ ThreadedRendering ]] Used to ensure the default button animate message is only posted from a single thread.
+    m_animate_posted = false;
+
+	m_menu_handler = nil;
 }
 
 MCButton::~MCButton()
@@ -348,19 +373,14 @@ MCButton::~MCButton()
 	// particuarly if the button had icons.
 	while (opened)
 		close();
-	
-	// MW-2008-10-28: [[ ParentScripts ]] Flush the parent scripts table if
-	//   tsub has the state flag marked.
-	if (getstate(CS_IS_PARENTSCRIPT))
-		MCParentScript::FlushObject(this);
 
 	delete icons;
 	freemenu(True);
-	delete label;
-	delete acceltext;
-	delete menuname;
-	delete menustring;
-	delete tabs;
+	MCValueRelease(acceltext);
+	MCValueRelease(label);
+	MCValueRelease(menuname);
+	MCValueRelease(menustring);
+	MCValueRelease(tabs);
 	if (accelkey != 0)
 		MCstacks->deleteaccelerator(this, NULL);
 	while (bdata != NULL)
@@ -373,8 +393,14 @@ MCButton::~MCButton()
 
 void MCButton::removelink(MCObject *optr)
 {
-	if (optr == menu)
-		menu = NULL;
+	if (menu.IsBound() && optr == menu)
+    {
+        if (this == MCmenuobjectptr)
+            MCmenuobjectptr = nil;
+        
+        MCValueAssign(menuname, kMCEmptyName);
+        menu = nil;
+    }
 }
 
 bool MCButton::imagechanged(MCImage *p_image, bool p_deleting)
@@ -401,37 +427,29 @@ const char *MCButton::gettypestring()
 	return MCbuttonstring;
 }
 
-bool MCButton::visit(MCVisitStyle p_style, uint32_t p_part, MCObjectVisitor* p_visitor)
+bool MCButton::visit_self(MCObjectVisitor* p_visitor)
 {
 	return p_visitor -> OnButton(this);
 }
 
 void MCButton::open()
 {
-	// MW-2008-10-28: [[ ParentScripts ]] We have to preserve the setting of the
-	//   CS_IS_PARENTSCRIPT state.
-	if (!getstate(CS_IS_PARENTSCRIPT))
-		MCControl::open();
-	else
-	{
-		MCControl::open();
-		setstate(True, CS_IS_PARENTSCRIPT);
-	}
+    MCControl::open();
 
 	// MW-2011-02-08: [[ Bug 9382 ]] Make sure we reset icons when opening and the state
-	//   has changed (i.e. background transition has occured).
+	//   has changed (i.e. background transition has occurred).
 	uint32_t t_old_state;
 	t_old_state = state;
-	switch(gethilite(0))
+	switch(gethilite(0).value)
 	{
-	case True:
+	case kMCTristateTrue:
 		state |= CS_HILITED;
 		state &= ~CS_MIXED;
 		break;
-	case False:
+	case kMCTristateFalse:
 		state &= ~(CS_HILITED | CS_MIXED);
 		break;
-	case Mixed:
+	case kMCTristateMixed:
 		state &= ~CS_HILITED;
 		state |= CS_MIXED;
 		break;
@@ -454,7 +472,8 @@ void MCButton::open()
 			switch (menumode)
 			{
 			case WM_TOP_LEVEL:
-				MCU_break_string(MCString(menustring, menusize), tabs, ntabs, hasunicode());
+				MCValueRelease(tabs);
+				/* UNCHECKED */ MCStringSplit(menustring, MCSTR("\n"), nil, kMCStringOptionCompareExact, tabs);
 				break;
 			case WM_COMBO:
 				createentry();
@@ -465,7 +484,7 @@ void MCButton::open()
 				break;
 			default:
 				findmenu(true);
-				if (menuname != NULL && menu != NULL)
+				if (!MCNameIsEmpty(menuname) && menu.IsValid())
 					menu->installaccels(getstack());
 				break;
 			}
@@ -492,12 +511,8 @@ void MCButton::close()
 		getcard()->freedefbutton(this);
 		
 		clearmnemonic();
-		if (tabs != NULL)
-		{
-			delete tabs;
-			tabs = NULL;
-			ntabs = 0;
-		}
+		MCValueAssign(tabs, kMCEmptyArray);
+
 		// AL-2013-01-13 [[ Bug 11363 ]] Close menu on button close. 
 		if (state & CS_SUBMENU)
 			closemenu(True, True);
@@ -557,9 +572,9 @@ void MCButton::kfocus()
 
 Boolean MCButton::kfocusnext(Boolean top)
 {
-	if ((IsMacLF() && !(state & CS_SHOW_DEFAULT))
-	        && !(flags & F_AUTO_ARM) && entry == NULL
-	        || !(flags & F_VISIBLE || MCshowinvisibles)
+	if (((IsMacLF() && !(state & CS_SHOW_DEFAULT))
+		 && !(flags & F_AUTO_ARM) && entry == NULL)
+	        || !(flags & F_VISIBLE || showinvisible())
 	        || !(flags & F_TRAVERSAL_ON) || state & CS_KFOCUSED || flags & F_DISABLED)
 		return False;
 	return True;
@@ -567,9 +582,9 @@ Boolean MCButton::kfocusnext(Boolean top)
 
 Boolean MCButton::kfocusprev(Boolean bottom)
 {
-	if ((IsMacLF() && !(state & CS_SHOW_DEFAULT))
-	        && !(flags & F_AUTO_ARM) && entry == NULL
-	        || !(flags & F_VISIBLE || MCshowinvisibles)
+	if (((IsMacLF() && !(state & CS_SHOW_DEFAULT))
+		 && !(flags & F_AUTO_ARM) && entry == NULL)
+	        || !(flags & F_VISIBLE || showinvisible())
 	        || !(flags & F_TRAVERSAL_ON) || state & CS_KFOCUSED || flags & F_DISABLED)
 		return False;
 	return True;
@@ -617,14 +632,16 @@ void MCButton::kunfocus()
 	}
 }
 
-Boolean MCButton::kdown(const char *string, KeySym key)
+Boolean MCButton::kdown(MCStringRef p_string, KeySym key)
 {
+	codepoint_t t_char;
+	t_char = key & XK_Codepoint_mask;
 	if (state & CS_SUBMENU)
 	{
-		if (MCObject::kdown(string, key))
+		if (MCObject::kdown(p_string, key))
 			return True;
 		MCButton *bptr;
-		MCString pick;
+		MCAutoStringRef t_pick;
 		switch (key)
 		{
 		case XK_Escape:
@@ -633,7 +650,7 @@ Boolean MCButton::kdown(const char *string, KeySym key)
 		case XK_Tab:
 		case XK_Left:
 		case XK_Right:
-			if (menu->kdown(string, key))
+			if (menu->kdown(p_string, key))
 				return True;
 			if (menumode == WM_CASCADE)
 			{
@@ -657,10 +674,7 @@ Boolean MCButton::kdown(const char *string, KeySym key)
 						newnum = 1;
 					else
 						newnum++;
-				char exp[U2L];
-				sprintf(exp, "%d", newnum);
-				bptr = (MCButton *)getcard()->getchild(CT_EXPRESSION, exp,
-				                                       CT_MENU, CT_UNDEFINED);
+				bptr = (MCButton *)getcard()->getnumberedchild(newnum, CT_MENU, CT_UNDEFINED);
 				if (bptr == this)
 					break;
 				if (bptr->menubutton == menubutton
@@ -677,37 +691,41 @@ Boolean MCButton::kdown(const char *string, KeySym key)
 			}
 			break;
 		case XK_Down:
-			if (menu->kdown(string, key))
+			if (menu->kdown(p_string, key))
 				return True;
 			return menu->kfocusnext(False);
 		case XK_Up:
-			if (menu->kdown(string, key))
+			if (menu->kdown(p_string, key))
 				return True;
 			return menu->kfocusprev(False);
 		case XK_WheelDown:
 		case XK_WheelUp:
 		case XK_WheelLeft:
 		case XK_WheelRight:
-			if (menu -> getcontrols() -> gettype() == CT_FIELD)
-				if (menu -> getcontrols() -> kdown(string, key))
+			if (menu->getcontrols()->gettype() == CT_FIELD)
+				if (menu->getcontrols()->kdown(p_string, key))
 					return True;
 			break;
 		case XK_space:
 		case XK_Return:
 		case XK_KP_Enter:
 			closemenu(False, True);
-			menu->menukdown(string, key, pick, menuhistory);
-			if (pick.getstring() != NULL)
+			menu->menukdown(p_string, key, &t_pick, menuhistory);
+
+			// This check must be for null (not empty) because an empty pick
+			// indicates that the function succeeded while a null pick means
+			// that no menu responded to the event.
+			if (*t_pick != nil)
 			{
 				if (menumode == WM_OPTION || menumode == WM_COMBO)
 				{
-					delete label;
-					label = (char *)pick.getstring();
-					labelsize = pick.getlength();
-					flags |= F_LABEL;
+					MCValueAssign(label, *t_pick);
+                    // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+                    //  we need to rely on the F_LABEL flag
+                    flags |= F_LABEL;
 					if (entry != NULL)
-						entry->settext(0, pick, False, hasunicode());
-					Exec_stat es = message_with_args(MCM_menu_pick, pick);
+						entry->settext(0, *t_pick, False);
+					Exec_stat es = handlemenupick(*t_pick, nil);
 					if (es == ES_NOT_HANDLED || es == ES_PASS)
 						message_with_args(MCM_mouse_up, menubutton);
 					// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
@@ -716,46 +734,44 @@ Boolean MCButton::kdown(const char *string, KeySym key)
 				else
 				{
 					if (!(state & CS_IGNORE_MENU))
-						docascade(pick);
-					delete (char *)pick.getstring();
+						docascade(*t_pick);
 				}
 			}
 			else
 				message_with_args(MCM_mouse_release, menubutton);
 			state &= ~CS_IGNORE_MENU;
 			if (MCmenuobjectptr == this)
-				MCmenuobjectptr = NULL;
+				MCmenuobjectptr = nil;
 			return True;
-		default:
-			MCButton *mbptr = menu->findmnemonic(string[0]);
+		default:	
+			MCButton *mbptr = menu->findmnemonic(t_char);
 			if (mbptr != NULL)
 			{
 				closemenu(False, True);
-				if (menuname != NULL)
-					mbptr->activate(False, string[0]);
+				if (!MCNameIsEmpty(menuname))
+					mbptr->activate(False, t_char);
 				else
 				{
-					MCString slabel;
-					bool t_is_unicode;
+					MCStringRef t_label;
 					if (mbptr->getmenuhastags())
-						slabel = mbptr -> getname_oldstring(), t_is_unicode = false;
+						t_label = MCNameGetString(mbptr->getname());
 					else
-						mbptr->getlabeltext(slabel, t_is_unicode);
-					menu->menukdown(string, key, pick, menuhistory);
-					Exec_stat es = message_with_args(MCM_menu_pick, slabel);
+						t_label = mbptr->getlabeltext();
+	
+					menu->menukdown(p_string, key, &t_pick, menuhistory);
+					Exec_stat es = handlemenupick(t_label, nil);
 					if (es == ES_NOT_HANDLED || es == ES_PASS)
 						message_with_args(MCM_mouse_up, menubutton);
-					delete (char *)pick.getstring();
 				}
 				if (MCmenuobjectptr == this)
-					MCmenuobjectptr = NULL;
+					MCmenuobjectptr = nil;
 				return True;
 			}
 			else
 			{
 				if (MCmodifierstate & MS_MOD1)
 				{
-					mbptr = MCstacks->findmnemonic(string[0]);
+					mbptr = MCstacks->findmnemonic(t_char);
 					if (mbptr != NULL && mbptr->isvisible() && !mbptr->isdisabled())
 					{
 						closemenu(True, True);
@@ -774,37 +790,37 @@ Boolean MCButton::kdown(const char *string, KeySym key)
 	else
 	{
 		if (entry != NULL)
-			return entry->kdown(string, key);
-		if (MCObject::kdown(string, key))
+			return entry->kdown(p_string, key);
+		if (MCObject::kdown(p_string, key))
 			return True;
 		if ((((key == XK_Right || key == XK_space
 		        || key == XK_Return || key == XK_KP_Enter)
 		        && (menumode == WM_CASCADE || menumode == WM_OPTION))
-		        || key == XK_Down && menumode != WM_CASCADE)
+			 || (key == XK_Down && menumode != WM_CASCADE))
 		        && state & CS_KFOCUSED && findmenu())
 		{
 			openmenu(True);
 			return True;
 		}
-		if ((key == XK_space || (state & CS_SHOW_DEFAULT || state & CS_ARMED)
-		        && (key == XK_Return || key == XK_KP_Enter))
+		if ((key == XK_space || ((state & CS_SHOW_DEFAULT || state & CS_ARMED)
+								 && (key == XK_Return || key == XK_KP_Enter)))
 		        && !(MCmodifierstate & MS_MOD1))
 		{
-			activate(False, string[0]);
+			activate(False, t_char);
 			return True;
 		}
 	}
 	return False;
 }
 
-Boolean MCButton::kup(const char *string, KeySym key)
+Boolean MCButton::kup(MCStringRef p_string, KeySym key)
 {
 	if (entry != NULL)
-		return entry->kup(string, key);
-	if (MCObject::kup(string, key))
+		return entry->kup(p_string, key);
+	if (MCObject::kup(p_string, key))
 		return True;
 	if (state & CS_SUBMENU)
-		return menu->kup(string, key);
+		return menu->kup(p_string, key);
 	return False;
 }
 
@@ -827,6 +843,9 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 		if ( sptr == NULL)
 			return False;
 
+        if (!(menu.IsValid()))
+            return False;
+        
 		sptr->translatecoords(menu, tx, ty);
 		MCRectangle trect = sptr->getrect();
 		Boolean handled = menu->mfocus(tx, ty);
@@ -845,11 +864,7 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 					return True;
 				for (cptr->count(CT_MENU, CT_UNDEFINED, NULL, i, True) ; i ; i--)
 				{
-					char string[U2L];
-					sprintf(string, "%d", i);
-					MCButton *bptr = (MCButton *)cptr->getchild(CT_EXPRESSION, string,
-					                 CT_MENU,
-					                 CT_UNDEFINED);
+					MCButton *bptr = (MCButton *)cptr->getnumberedchild(i, CT_MENU, CT_UNDEFINED);
 					if (bptr == this)
 						continue;
 					
@@ -873,9 +888,16 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 						menu->close();
 						menudepth--;
 						MCdispatcher->addmenu(bptr);
+                        // MW-2014-06-10: [[ Bug 12590 ]] Make sure we lock screen around the menu update message.
+                        MCRedrawLockScreen();
 						bptr->state |= CS_MFOCUSED;
 						bptr->message_with_args(MCM_mouse_down, menubutton);
+                        MCRedrawUnlockScreen();
 						bptr->findmenu();
+                        if (menudepth == 0)
+                        {
+                            MCmenuobjectptr = nullptr;
+                        }
 						bptr->openmenu(False);
 						return True;
 					}
@@ -900,11 +922,11 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 			case WM_OPTION:
 				// OK-2007-08-07 : Bug 5287, a button with a menu name (stack panel) set will not have 
 				// an associated field to contain items, so should break here to avoid crash.
-				if ((MClook != LF_WIN95) || menuname != NULL)
+				if ((MClook != LF_WIN95) || !MCNameIsEmpty(menuname))
 					break;
 			case WM_COMBO:
 				// MW-2014-03-11: [[ Bug 11893 ]] Make sure we don't do anything to a stack panel.
-				if (state & CS_MFOCUSED && menuname == NULL)
+				if (state & CS_MFOCUSED && MCNameIsEmpty(menuname))
 				{
 					uint2 fheight;
 					fheight = gettextheight();
@@ -924,8 +946,8 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 		handled; */
 		return True;
 	}
-	if (!(flags & F_VISIBLE || MCshowinvisibles)
-	        || flags & F_DISABLED && getstack()->gettool(this) == T_BROWSE)
+	if (!(flags & F_VISIBLE || showinvisible())
+		|| (flags & F_DISABLED && getstack()->gettool(this) == T_BROWSE))
 		return False;
 	Tool tool = getstack()->gettool(this);
 
@@ -938,8 +960,6 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 		if (getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL
 		        && IsMacLF() && state & CS_MFOCUSED)
 		{
-			MCRectangle trect = rect;
-			trect.height = 8 + MCFontGetAscent(m_font);
 			// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 			layer_redrawall();
 		}
@@ -984,9 +1004,9 @@ Boolean MCButton::mfocus(int2 x, int2 y)
 			        && (menumode != WM_TOP_LEVEL || getstyleint(flags) != F_MENU)
 			        && state & CS_MFOCUSED && !(state & CS_SELECTED))
 			{
-				if (MClook == LF_MOTIF || flags & F_SHOW_ICON
-				        || getstyleint(flags) != F_RADIO
-				        && getstyleint(flags) != F_CHECK)
+				if (MClook == LF_MOTIF || flags & F_SHOW_ICON ||
+					(getstyleint(flags) != F_RADIO &&
+					 getstyleint(flags) != F_CHECK))
 				{
 					if (MCU_point_in_rect(rect, x, y))
 					{
@@ -1050,7 +1070,7 @@ void MCButton::munfocus()
 {
 	if (entry != NULL)
 		entry->munfocus();
-	if (flags & F_AUTO_ARM && state & CS_ARMED)
+	if (flags & F_AUTO_ARM)
 	{
 		state &= ~CS_ARMED;
 		ishovering = False;
@@ -1114,8 +1134,22 @@ Boolean MCButton::mdown(uint2 which)
 	state |= CS_MFOCUSED;
 	if (state & CS_SUBMENU && (menubutton == 0 || (uint1)which == menubutton))
 	{
-		if (state & CS_SCROLLBAR && mx > rect.x + rect.width - MCscrollbarwidth
-		        && mx < rect.x + rect.width)
+        if (!(menu.IsValid()))
+            return False;
+        
+        // SN-2014-08-26: [[ Bug 13201 ]] mx/my are now related to the button's rectangle,
+        //  not the stack's rectangle anymore.
+        // SN-2014-10-17: [[ Bug 13675 ]] mx/my refer to the button's rectangle on Mac only
+        int2 t_right_limit, t_left_limit;
+#ifdef _MACOSX
+        t_left_limit = rect.width - MCscrollbarwidth;
+        t_right_limit = rect.width;
+#else
+        t_left_limit = rect.x + rect.width - MCscrollbarwidth;
+        t_right_limit = rect.x + rect.width;
+#endif
+        if (state & CS_SCROLLBAR && mx > t_left_limit
+                && mx < t_right_limit)
 		{
 			menu->mdown(which);
 			state |= CS_FIELD_GRAB;
@@ -1127,7 +1161,7 @@ Boolean MCButton::mdown(uint2 which)
 			return mfocus(mx, my);
 		}
 	}
-	if ((menuname != NULL || menu != NULL || getstyleint(flags) == F_MENU)
+	if ((!MCNameIsEmpty(menuname) || menu.IsValid() || getstyleint(flags) == F_MENU)
 	        && (menubutton == 0 || (uint1)which == menubutton)
 	        && (entry == NULL || !MCU_point_in_rect(entry->getrect(), mx, my))
 	        && (getstack()->gettool(this) == T_BROWSE
@@ -1136,7 +1170,7 @@ Boolean MCButton::mdown(uint2 which)
 		message_with_args(MCM_mouse_down, which);
 		if (menumode == WM_TOP_LEVEL)
 		{
-			if (menustring != NULL)
+			if (!MCStringIsEmpty(menustring))
 			{
 				int2 curx = rect.x + 2;
 				starttab = getmousetab(curx);
@@ -1147,14 +1181,19 @@ Boolean MCButton::mdown(uint2 which)
 				}
 				else
 				{
-					if (starttab < ntabs && starttab + 1 != menuhistory
-					        && tabs[starttab].getstring()[0] != '(')
+					uindex_t t_ntabs;
+					t_ntabs = MCArrayGetCount(tabs);
+					MCValueRef t_tab = nil;
+					/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, starttab + 1, t_tab);
+					if (starttab < t_ntabs && starttab + 1 != menuhistory
+					        && MCStringGetCharAtIndex((MCStringRef)t_tab, 0) != '(')
 					{
-						uint2 oldhist = menuhistory - 1;
+						MCValueRef t_oldhist = nil;
+						/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, menuhistory, t_oldhist);
 						setmenuhistoryprop(starttab + 1);
 						// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 						layer_redrawall();
-						message_with_args(MCM_menu_pick, tabs[starttab], tabs[oldhist]);
+						handlemenupick(t_tab, t_oldhist);
 					}
 				}
 			}
@@ -1170,6 +1209,7 @@ Boolean MCButton::mdown(uint2 which)
 		return True;
 	}
 	if (which == Button1)
+	{
 		switch (getstack()->gettool(this))
 		{
 		case T_BROWSE:
@@ -1179,10 +1219,12 @@ Boolean MCButton::mdown(uint2 which)
 				entry->mdown(which);
 			}
 			else
+			{
 				if (flags & F_AUTO_HILITE || family != 0)
-					if (MClook == LF_MOTIF || flags & F_SHOW_ICON
-					        || getstyleint(flags) != F_RADIO
-					        && getstyleint(flags) != F_CHECK)
+				{
+					if (MClook == LF_MOTIF || flags & F_SHOW_ICON ||
+						(getstyleint(flags) != F_RADIO &&
+						 getstyleint(flags) != F_CHECK))
 					{
 						if (getstyleint(flags) != F_RADIO || !(state & CS_HILITED))
 						{
@@ -1205,10 +1247,12 @@ Boolean MCButton::mdown(uint2 which)
 						// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 						layer_redrawall();
 					}
+				}
+			}
 			if ((!IsMacLF() || entry != NULL)
 			        && flags & F_TRAVERSAL_ON && !(state & CS_KFOCUSED))
 				getstack()->kfocusset(this);
-			message_with_args(MCM_mouse_down, "1");
+			message_with_valueref_args(MCM_mouse_down, MCSTR("1"));
 			break;
 		case T_POINTER:
 		case T_BUTTON:
@@ -1219,16 +1263,19 @@ Boolean MCButton::mdown(uint2 which)
 		default:
 			return False;
 		}
+	}
 	else
+	{
 		message_with_args(MCM_mouse_down, which);
+	}
 	return True;
 }
 
-Boolean MCButton::mup(uint2 which)
+Boolean MCButton::mup(uint2 which, bool p_release)
 {
 	if (state & CS_MENU_ATTACHED)
-		return MCObject::mup(which);
-	MCString pick;
+		return MCObject::mup(which, p_release);
+	MCAutoStringRef t_pick;
 	if (state & CS_SUBMENU
 	        && (which == 0 || menubutton == 0 || (uint1)which == menubutton))
 	{
@@ -1244,18 +1291,23 @@ Boolean MCButton::mup(uint2 which)
 		}
 
 		state &= ~CS_MFOCUSED;
-		if (state & CS_FIELD_GRAB)
+		
+        if (!(menu.IsValid()))
+            return False;
+        
+        if (state & CS_FIELD_GRAB)
 		{
 			state &= ~CS_FIELD_GRAB;
 			if (state & CS_SUBMENU)
-				menu->mup(which);
+				menu->mup(which, p_release);
 			else
-				entry->mup(which);
+				entry->mup(which, p_release);
 			return True;
 		}
 		if (menudepth > mymenudepth)
 		{
-			menu->mup(which);
+            // Forward the click to the nested menu
+            menu->mup(which, p_release);
 			if (menudepth > mymenudepth)
 				return True;
 		}
@@ -1264,7 +1316,9 @@ Boolean MCButton::mup(uint2 which)
 			        && MCeventtime - clicktime < OPTION_TIME)
 				return True;
 			else
-				if (menumode == WM_PULLDOWN && MCU_point_in_rect(rect, mx, my))
+                // SN-2014-10-02: [[ Bug 13539 ]] Only consider the mouse location if we are
+                //   sure that the coordinates are related to the stack, not the pulldown menu
+				if (menumode == WM_PULLDOWN && MCmousestackptr == getstack() && MCU_point_in_rect(rect, mx, my))
 				{
 					if (state & CS_MOUSE_UP_MENU)
 					{
@@ -1290,30 +1344,71 @@ Boolean MCButton::mup(uint2 which)
 		// MW-2008-03-27; [[ Bug 6225 ]] Make sure we send a mouseUp in this case
 		//   by setting the menupoppedup global.
 		MCmenupoppedup = true;
-		menu->menumup(which, pick, menuhistory);
+		menu->menumup(which, &t_pick, menuhistory);
 		MCmenupoppedup = false;
-		closemenu(True, True);
-		if (!(state & CS_IGNORE_MENU))
-			if (pick.getstring() != NULL)
+		if (state & CS_IGNORE_MENU)
+            closemenu(True, True);
+        else
+		{
+			// An empty string means something handled the menumup while the
+			// null string means nothing responded to it.
+			if (*t_pick != nil)
 			{
-				if (menumode == WM_OPTION || menumode == WM_COMBO)
+                // Something was selected so close the sub-menu
+                closemenu(True, True);
+                
+                if (menumode == WM_OPTION || menumode == WM_COMBO)
 				{
-					delete label;
-					label = (char *)pick.getstring();
-					labelsize = pick.getlength();
-					flags |= F_LABEL;
+					MCValueAssign(label, *t_pick);
+                    // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+                    //  we need to rely on the F_LABEL flag
+                    flags |= F_LABEL;
 					if (entry != NULL)
-						entry->settext(0, pick, False, hasunicode());
+						entry->settext(0, *t_pick, False);
 				}
-				docascade(pick);
+				docascade(*t_pick);
 			}
 			else
-				message_with_args(MCM_mouse_release, which);
-		if (menumode != WM_OPTION && menumode != WM_COMBO)
-			delete (char *)pick.getstring();
+            {
+                // If the mouse release was handled, close the submenu. This
+                // takes care of backwards compatibility. Otherwise, ignore the
+                // mouse-up event.
+                //
+                // We also need to close the menu if the button release happened
+                // outside of the menu tree.
+                bool t_outside = true;
+                MCObject* t_menu = menu;
+                while (t_outside && t_menu != NULL)
+                {
+                    // Check whether the click was inside the menu (the rect
+                    // that we need to check is the rect of the stack containing
+                    // the menu).
+                    MCRectangle t_rect = t_menu->getstack()->getrect();
+                    t_outside = !MCU_point_in_rect(t_rect, mx, my);
+                    
+                    // Move to the parent menu, if it exists
+                    if (t_menu->getstack()->getparent()    // Stack's parent
+                        && t_menu->getstack()->getparent()->gettype() == CT_BUTTON
+						&& t_menu->getstack()->getparent()->getstack()->getparent()
+						&& t_menu->getstack()->getparent()->getstack()->getparent()->gettype() == CT_BUTTON)
+                    {
+                        // This is a submenu
+                        t_menu = t_menu->getstack()->getparent();
+                    }
+                    else
+                    {
+                        // We walked up to the top of the submenu tree
+                        t_menu = NULL;
+                    }
+                }
+                Exec_stat es = message_with_args(MCM_mouse_release, which);
+                if (t_outside || (es != ES_NOT_HANDLED && es != ES_PASS))
+                    closemenu(True, True);
+            }
+		}
 		state &= ~CS_IGNORE_MENU;
 		if (MCmenuobjectptr == this)
-			MCmenuobjectptr = NULL;
+			MCmenuobjectptr = nil;
 		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 		layer_redrawall();
 		if (!opened)
@@ -1365,38 +1460,46 @@ Boolean MCButton::mup(uint2 which)
 	}
 	if (state & CS_GRAB)
 	{
-		if (flags && F_AUTO_HILITE)
+		if (flags & F_AUTO_HILITE)
+		{
 			if (starthilite)
 				state &= ~CS_HILITED;
 			else
 				state |= CS_HILITED;
+		}
 		ungrab(which);
 		return True;
 	}
 	if (which == Button1)
+	{
 		switch (getstack()->gettool(this))
 		{
 		case T_BROWSE:
 			if (state & CS_FIELD_GRAB)
 			{
 				state &= ~CS_FIELD_GRAB;
-				entry->mup(which);
+				entry->mup(which, p_release);
 			}
 			else
 			{
 				if (getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL
 				        && tabselectonmouseup())
 				{
+					uindex_t t_ntabs;
+					MCValueRef t_tab = nil;
+					t_ntabs = MCArrayGetCount(tabs);
+					/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, starttab + 1, t_tab);
 					int2 curx = rect.x + 2;
-					if (getmousetab(curx) == starttab && starttab < ntabs
+					if (getmousetab(curx) == starttab && starttab < t_ntabs
 					        && starttab + 1 != menuhistory
-					        && tabs[starttab].getstring()[0] != '(')
+					        && MCStringGetCharAtIndex((MCStringRef)t_tab, 0) != '(')
 					{
-						uint2 oldhist = menuhistory - 1;
+						MCValueRef t_oldhist = nil;
+						/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, menuhistory, t_oldhist);
 						setmenuhistoryprop(starttab + 1);
 						// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 						layer_redrawall();
-						message_with_args(MCM_menu_pick, tabs[starttab], tabs[oldhist]);
+						handlemenupick(t_tab, t_oldhist);
 					}
 				}
 				else
@@ -1407,16 +1510,18 @@ Boolean MCButton::mup(uint2 which)
 					            || getstyleint(flags) == F_CHECK))
 					{
 						if (MCU_point_in_rect(rect, mx, my))
+						{
 							if (getstyleint(flags) == F_CHECK)
 								state ^= CS_HILITED;
 							else
 								state |= CS_HILITED;
+						}
 						// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 						layer_redrawall();
 					}
 					else
-						if (state & CS_HILITED && (flags & F_AUTO_HILITE || family != 0)
-						        || state & CS_ARMED && flags & F_AUTO_ARM)
+						if ((state & CS_HILITED && (flags & F_AUTO_HILITE || family != 0)) ||
+							(state & CS_ARMED && flags & F_AUTO_ARM))
 						{
 							if (getstyleint(flags) == F_CHECK)
 							{
@@ -1428,10 +1533,12 @@ Boolean MCButton::mup(uint2 which)
 								if (getstyleint(flags) == F_RADIO)
 								{
 									if (flags & F_AUTO_ARM && flags & F_AUTO_HILITE)
+									{
 										if (state & CS_ARMED)
 											state |= CS_HILITED;
 										else
 											state &= ~CS_HILITED;
+									}
 								}
 								else
 									state &= ~CS_HILITED;
@@ -1446,18 +1553,18 @@ Boolean MCButton::mup(uint2 which)
 					if (state & CS_HILITED)
 						radio();
 				}
-				if (MCU_point_in_rect(rect, mx, my))
+				if (!p_release && MCU_point_in_rect(rect, mx, my))
 				{
 					state |= CS_VISITED;
-					message_with_args(MCM_mouse_up, "1");
+					message_with_valueref_args(MCM_mouse_up, MCSTR("1"));
 				}
 				else
-					message_with_args(MCM_mouse_release, "1");
+					message_with_valueref_args(MCM_mouse_release, MCSTR("1"));
 			}
 			break;
 		case T_BUTTON:
 		case T_POINTER:
-			end();
+			end(true, p_release);
 			break;
 		case T_HELP:
 			help();
@@ -1466,14 +1573,17 @@ Boolean MCButton::mup(uint2 which)
 		default:
 			return False;
 		}
+	}
 	else
-		if (MCU_point_in_rect(rect, mx, my))
+	{
+		if (!p_release && MCU_point_in_rect(rect, mx, my))
 		{
 			state |= CS_VISITED;
 			message_with_args(MCM_mouse_up, which);
 		}
 		else
 			message_with_args(MCM_mouse_release, which);
+	}
 	if (state & CS_ARMED)
 	{
 		state &= ~CS_ARMED;
@@ -1481,6 +1591,12 @@ Boolean MCButton::mup(uint2 which)
 		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 		layer_redrawall();
 	}
+    
+    // FG-2014-09-16: [[ Bugfix 13278 ]] Clear the mouse focus if this is not
+    // an auto-arming button (e.g. a button within a menu).
+    if (!(flags & F_AUTO_ARM))
+        state &= ~CS_MFOCUSED;
+    
 	return True;
 }
 
@@ -1488,7 +1604,7 @@ Boolean MCButton::doubledown(uint2 which)
 {
 	int2 tx = mx;
 	int2 ty = my;
-	if (menu)
+	if (menu.IsValid())
 	{
 		MCStack *sptr = MCmousestackptr;
 		MCRectangle trect = sptr->getrect();
@@ -1505,7 +1621,7 @@ Boolean MCButton::doubledown(uint2 which)
 			state |= CS_FIELD_GRAB;
 			return entry->doubledown(which);
 		}
-		else if (state & CS_SUBMENU && menu && MCU_point_in_rect(menu->getrect(), tx, ty))
+		else if (state & CS_SUBMENU && menu.IsValid() && MCU_point_in_rect(menu->getrect(), tx, ty))
 		{
 			state |= CS_FIELD_GRAB;
 			return menu->doubledown(which);
@@ -1524,7 +1640,7 @@ Boolean MCButton::doubleup(uint2 which)
 		state &= ~CS_FIELD_GRAB;
 		if (entry != NULL)
 			return entry->doubleup(which);
-		else if (state & CS_SUBMENU && menu)
+		else if (state & CS_SUBMENU && menu.IsValid())
 			return menu -> doubleup(which);
 	}
 	return MCControl::doubleup(which);
@@ -1533,10 +1649,12 @@ Boolean MCButton::doubleup(uint2 which)
 #ifdef _MAC_DESKTOP
 void MCButton::timer(MCNameRef mptr, MCParameter *params)
 {
-	if (MCNameIsEqualTo(mptr, MCM_internal, kMCCompareCaseless))
+	if (MCNameIsEqualToCaseless(mptr, MCM_internal))
 	{
 		if (state & CS_SHOW_DEFAULT)
 		{
+            // MM-2014-07-31: [[ ThreadedRendering ]] Flag that there is no longer a default button animation message pending.
+            m_animate_posted = false;            
 			// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 			layer_redrawall();
 		}
@@ -1560,7 +1678,7 @@ uint2 MCButton::gettransient() const
 }
 
 
-void MCButton::setrect(const MCRectangle &nrect)
+void MCButton::applyrect(const MCRectangle &nrect)
 {	
 	rect = nrect;
 	MCRectangle trect;
@@ -1579,19 +1697,14 @@ void MCButton::setrect(const MCRectangle &nrect)
 			winfo.type = WTHEME_TYPE_COMBOTEXT;
 			MCcurtheme->getwidgetrect(winfo, WTHEME_METRIC_CONTENTSIZE,comboentryrect,trect);
 
+			// PM-2015-10-12: [[ Bug 16193 ]] Make sure the label stays always within the combobox when resizing
+			trect.y = nrect.y + nrect.height / 2 - trect.height / 2;
 		}
 		else
 		{
 			trect = MCU_reduce_rect(nrect, borderwidth);
-			int2 tcombosize = 0;
-			if (tcombosize <= 0 )
-			{
-				trect.width -= trect.height;
-				if (tcombosize < 0)
-					trect.width += tcombosize;
-			}
-			else
-				rect.width -= tcombosize + 2;
+			trect.width -= trect.height;
+
 			if (IsMacEmulatedLF())
 				trect.width -= 5;
 		}
@@ -1600,910 +1713,11 @@ void MCButton::setrect(const MCRectangle &nrect)
 
 	// MW-2010-06-07: [[ Bug 8746 ]] Make sure we rebuild the menu after freeing it,
 	//   thus ensuring accelerators are not lost.
-	if (menu != NULL)
+	if (menu.IsValid())
 	{
 		freemenu(False);
 		findmenu(true);
 	}
-}
-
-Exec_stat MCButton::getprop(uint4 parid, Properties which, MCExecPoint& ep, Boolean effective)
-{
-	uint2 fheight;
-	uint2 j = 0;
-
-	switch (which)
-	{
-#ifdef /* MCButton::getprop */ LEGACY_EXEC
-	case P_STYLE:
-		{
-			const char *t_style_string;
-			if (getstyleint(flags) == F_MENU)
-				t_style_string = getstack()->hcaddress() ? MCpopupstring : MCmenustring;
-			else if (getstyleint(flags) == F_CHECK)
-				t_style_string = MCcheckboxstring;
-			else if (getstyleint(flags) == F_RADIO)
-				t_style_string = MCradiobuttonstring;
-			else if (getstyleint(flags) == F_ROUNDRECT)
-				t_style_string = MCroundrectstring;
-			else if (getstyleint(flags) == F_RECTANGLE)
-				t_style_string = MCrectanglestring;
-			else if (getstyleint(flags) == F_OVAL_BUTTON)
-				t_style_string = MCovalstring;
-			else if (!(flags & F_OPAQUE))
-				t_style_string = MCtransparentstring;
-			else if (flags & F_SHADOW)
-				t_style_string = MCshadowstring;
-			else if (!(flags & F_SHOW_BORDER))
-				t_style_string = MCopaquestring;
-			else
-				t_style_string = MCstandardstring;
-			ep . setstaticcstring(t_style_string);
-		}
-		break;
-	case P_AUTO_ARM:
-		ep.setboolean(getflag(F_AUTO_ARM));
-		break;
-	case P_AUTO_HILITE:
-		ep.setboolean(getflag(F_AUTO_HILITE));
-		break;
-	case P_ARM_BORDER:
-		ep.setboolean(getflag(F_ARM_BORDER));
-		break;
-	case P_ARM_FILL:
-		ep.setboolean(getflag(F_ARM_FILL));
-		break;
-	case P_HILITE_BORDER:
-		ep.setboolean(getflag(F_HILITE_BORDER));
-		break;
-	case P_HILITE_FILL:
-		ep.setboolean(getflag(F_HILITE_FILL));
-		break;
-	case P_SHOW_HILITE:
-		ep.setboolean(getflag(F_SHOW_HILITE));
-		break;
-	case P_ARM:
-		ep.setboolean(getstate(CS_ARMED));
-		break;
-	case P_HILITE:
-		j = gethilite(parid);
-		if (j == Mixed)
-			ep.setstaticcstring(MCmixedstring);
-		else
-			ep.setboolean((Boolean)j);
-		break;
-	case P_ARMED_ICON:
-	case P_DISABLED_ICON:
-	case P_ICON:
-	case P_HILITED_ICON:
-	case P_VISITED_ICON:
-	case P_HOVER_ICON:
-			ep.setint(icons == NULL ? 0 : icons->iconids[which - P_ARMED_ICON]);
-		break;
-	case P_SHARED_HILITE:
-		ep.setboolean(getflag(F_SHARED_HILITE));
-		break;
-	case P_SHOW_ICON:
-		ep.setboolean(getflag(F_SHOW_ICON));
-		break;
-	case P_SHOW_NAME:
-		ep.setboolean(getflag(F_SHOW_NAME));
-		break;
-	// MW-2012-02-16: [[ IntrinsicUnicode ]] Add support for a 'unicodeLabel' property.
-	case P_LABEL:
-	case P_UNICODE_LABEL:
-		{
-			// Get the label, noting whether its unicode or not.
-			MCString slabel;
-			bool isunicode;
-			if (entry != NULL || effective)
-				getlabeltext(slabel, isunicode);
-			else
-				slabel.set(label, labelsize), isunicode = hasunicode();
-			ep.setsvalue(slabel);
-
-			// Map the label's encoding to the requested encoding.
-			ep.mapunicode(isunicode, which == P_UNICODE_LABEL);
-		}
-		break;
-	case P_LABEL_WIDTH:
-		ep.setint(labelwidth);
-		break;
-	case P_FAMILY:
-		ep.setint(family);
-		break;
-	case P_VISITED:
-		ep.setboolean(getstate(CS_VISITED));
-		break;
-	case P_MENU_HISTORY:
-		ep.setint(menuhistory);
-		break;
-	case P_MENU_LINES:
-		ep.setint(menulines);
-		break;
-	case P_MENU_BUTTON:
-		ep.setint(menubutton);
-		break;
-	case P_MENU_MODE:
-		{
-			const char *t_menumode_string;
-			switch (menumode)
-			{
-			case WM_TOP_LEVEL:
-				t_menumode_string = MCtabstring;
-				break;
-			case WM_PULLDOWN:
-				t_menumode_string = MCpulldownstring;
-				break;
-			case WM_POPUP:
-				t_menumode_string = MCpopupstring;
-				break;
-			case WM_OPTION:
-				t_menumode_string = MCoptionstring;
-				break;
-			case WM_CASCADE:
-				t_menumode_string = MCcascadestring;
-				break;
-			case WM_COMBO:
-				t_menumode_string = MCcombostring;
-				break;
-			default:
-				t_menumode_string = MCnullstring;
-				break;
-			}
-			ep . setstaticcstring(t_menumode_string);
-		}
-		break;
-	case P_MENU_NAME:
-		ep.setsvalue(menuname);
-		break;
-	// MW-2012-02-16: [[ IntrinsicUnicode ]] Add support for a 'unicodeAcceleratorText' property.
-	case P_ACCELERATOR_TEXT:
-	case P_UNICODE_ACCELERATOR_TEXT:
-		ep.setsvalue(MCString(acceltext, acceltextsize));
-		// Map the menustring's encoding to the requested encoding.
-		ep.mapunicode(hasunicode(), which == P_UNICODE_ACCELERATOR_TEXT);
-		break;
-	case P_ACCELERATOR_KEY:
-		if (accelkey & 0xFF00)
-		{
-			const char *t_keyname = MCLookupAcceleratorName(accelkey);
-			if (t_keyname != NULL)
-				ep.setsvalue(t_keyname);
-			else
-				ep.setempty();
-		}
-		else
-			if (accelkey)
-			{
-				char tmp = (char)accelkey;
-				ep.copysvalue(&tmp, 1);
-			}
-			else
-				ep.clear();
-		break;
-	case P_ACCELERATOR_MODIFIERS:
-		ep.setempty();
-		if (accelmods & MS_SHIFT)
-			ep.concatcstring(MCshiftstring, EC_COMMA, j++ == 0);
-		if (accelmods & MS_CONTROL)
-#ifdef _MAC_DESKTOP
-			ep.concatcstring(MCcommandstring, EC_COMMA, j++ == 0);
-		if (accelmods & MS_MAC_CONTROL)
-			ep.concatcstring(MCcontrolstring, EC_COMMA, j++ == 0);
-#else
-			ep.concatcstring(MCcontrolstring, EC_COMMA, j++ == 0);
-#endif
-		if (accelmods & MS_MOD1)
-			ep.concatcstring(MCmod1string, EC_COMMA, j++ == 0);
-		break;
-	case P_MNEMONIC:
-		ep.setint(mnemonic);
-		break;
-	case P_FORMATTED_WIDTH:
-		// MW-2012-02-16: [[ FontRefs ]] As 'formatted' properties require
-		//   access to the font, we must be open before we can compute them.
-		if (opened)
-		{
-			// MW-2007-07-05: [[ Bug 2328 ]] - Formatted width of tab buttons incorrect.
-			if (getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL)
-				ep.setint(formattedtabwidth());
-			else
-			{
-				uint2 fwidth;
-				bool t_is_unicode;
-				MCString slabel;
-				getlabeltext(slabel, t_is_unicode);
-				if (slabel.getstring() == NULL)
-					fwidth = 0;
-				else
-					// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-					fwidth = leftmargin + rightmargin + MCFontMeasureText(m_font, slabel.getstring(), slabel.getlength(), t_is_unicode, getstack() -> getdevicetransform());
-				if (flags & F_SHOW_ICON && icons != NULL)
-				{
-					reseticon();
-					if (icons->curicon != NULL)
-					{
-						MCRectangle trect = icons->curicon->getrect();
-						if (trect.width > fwidth)
-							fwidth = trect.width;
-					}
-				}
-				else
-					if (getstyleint(flags) == F_CHECK || getstyleint(flags) == F_RADIO)
-						fwidth += CHECK_SIZE + leftmargin;
-				if (menumode == WM_OPTION)
-					fwidth += optionrect.width + (optionrect.width >> 1);
-				if (menumode == WM_CASCADE)
-					fwidth += rect.height;
-				ep.setint(fwidth);
-			}
-		}
-		else
-			ep.setint(0);
-		break;
-	case P_FORMATTED_HEIGHT:
-		// MW-2012-02-16: [[ FontRefs ]] As 'formatted' properties require
-		//   access to the font, we must be open before we can compute them.
-		if (opened)
-		{
-			fheight = topmargin + bottommargin + MCFontGetAscent(m_font) + MCFontGetDescent(m_font);
-			if (flags & F_SHOW_ICON && icons != NULL)
-			{
-				reseticon();
-				if (icons->curicon != NULL)
-				{
-					MCRectangle trect = icons->curicon->getrect();
-					if (trect.height > fheight)
-						fheight = trect.height;
-				}
-			}
-			else if ((getstyleint(flags) == F_CHECK || getstyleint(flags) == F_RADIO) && CHECK_SIZE > fheight)
-				fheight = CHECK_SIZE;
-			else if (getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL)
-				fheight += 8;
-			ep.setint(fheight);
-		}
-		else
-			ep.setint(0);
-		break;
-	case P_DEFAULT:
-		ep.setboolean(getflag(F_DEFAULT));
-		break;
-	// MW-2012-02-16: [[ IntrinsicUnicode ]] Add support for a 'unicodeText' property.
-	case P_TEXT:
-	case P_UNICODE_TEXT:
-		ep.setsvalue(MCString(menustring, menusize));
-
-		// Map the menustring's encoding to the requested encoding.
-		ep.mapunicode(hasunicode(), which == P_UNICODE_TEXT);
-		break;
-#endif /* MCButton::getprop */ 
-	default:
-		return MCControl::getprop(parid, which, ep, effective);
-	}
-	return ES_NORMAL;
-}
-
-Exec_stat MCButton::setprop(uint4 parid, Properties p, MCExecPoint &ep, Boolean effective)
-{
-	Boolean dirty = True;
-	Boolean all = p == P_STYLE || p == P_LABEL_WIDTH || MCaqua && standardbtn();
-	int2 i1;
-	uint2 i = 0;
-	uint4 newid;
-	MCString data = ep.getsvalue();
-	
-	switch (p)
-	{
-#ifdef /* MCButton::setprop */ LEGACY_EXEC
-	case P_NAME:
-		if (MCObject::setprop(parid, p, ep, effective) != ES_NORMAL)
-			return ES_ERROR;
-		clearmnemonic();
-		setupmnemonic();
-		return ES_NORMAL;
-	case P_STYLE:
-		flags &= ~(F_STYLE | F_DISPLAY_STYLE | F_ALIGNMENT);
-		if (entry != NULL)
-			deleteentry();
-		if (data == MCpopupstring || data == MCmenustring)
-		{
-			flags |= F_MENU | F_SHOW_BORDER | F_OPAQUE
-			         | F_ALIGN_CENTER | F_ARM_BORDER;
-			if (menumode == WM_COMBO)
-				createentry();
-			if (menumode == WM_TOP_LEVEL)
-				MCU_break_string(MCString(menustring, menusize), tabs, ntabs, hasunicode());
-		}
-		else if (data == MCcheckboxstring)
-			flags |= F_CHECK | F_ALIGN_LEFT;
-		else if (data == MCradiobuttonstring)
-		{
-			flags |= F_RADIO | F_ALIGN_LEFT;
-			flags &= ~F_SHARED_HILITE;
-		}
-		else if (data == MCroundrectstring)
-			flags |=  F_ROUNDRECT | F_SHOW_BORDER | F_OPAQUE
-			          | F_ALIGN_CENTER | F_HILITE_FILL;
-		else if (data == MCovalstring)
-			flags |= F_OVAL_BUTTON | F_HILITE_FILL;
-		else if (data == MCtransparentstring)
-			flags |= F_STANDARD | F_ALIGN_CENTER;
-		else if (data == MCshadowstring)
-				flags |= F_STANDARD | F_SHOW_BORDER | F_OPAQUE
-			         | F_SHADOW | F_ALIGN_CENTER | F_HILITE_BOTH | F_ARM_BORDER;
-		else if (data == MCopaquestring)
-			flags |= F_STANDARD | F_OPAQUE
-			         | F_ALIGN_CENTER | F_HILITE_FILL | F_ARM_BORDER;
-		else if (data == MCrectanglestring)
-			flags |= F_RECTANGLE | F_SHOW_BORDER | F_OPAQUE
-			         | F_ALIGN_CENTER | F_HILITE_BOTH | F_ARM_BORDER;
-		else
-			flags |= F_STANDARD | F_SHOW_BORDER | F_OPAQUE
-			         | F_ALIGN_CENTER | F_HILITE_BOTH | F_ARM_BORDER;
-
-		// MW-2011-09-21: [[ Layers ]] Make sure the layerattrs are recomputed.
-		m_layer_attr_changed = true;
-		break;
-	case P_AUTO_ARM:
-		if (!MCU_matchflags(data, flags, F_AUTO_ARM, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_AUTO_HILITE:
-		if (!MCU_matchflags(data, flags, F_AUTO_HILITE, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_ARM_BORDER:
-		if (!MCU_matchflags(data, flags, F_ARM_BORDER, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		// MW-2011-09-21: [[ Layers ]] Changing the armBorder property
-		//   affects the layer attrs.
-		if (dirty)
-			m_layer_attr_changed = true;
-		break;
-	case P_ARM_FILL:
-		if (!MCU_matchflags(data, flags, F_ARM_FILL, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_HILITE_BORDER:
-		if (!MCU_matchflags(data, flags, F_HILITE_BORDER, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		// MW-2011-09-21: [[ Layers ]] Changing the hiliteBorder property
-		//   affects the layer attrs.
-		if (dirty)
-			m_layer_attr_changed = true;
-		break;
-	case P_HILITE_FILL:
-		if (!MCU_matchflags(data, flags, F_HILITE_FILL, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_SHOW_HILITE:
-		if (!MCU_matchflags(data, flags, F_SHOW_HILITE, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_ARM:
-		if (!MCU_matchflags(data, state, CS_ARMED, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_HILITE:
-		Boolean newstate;
-		if (data == MCmixedstring)
-			newstate = Mixed;
-		else
-			if (!MCU_stob(data, newstate))
-			{
-				MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-				return ES_ERROR;
-			}
-		if (sethilite(parid, newstate))
-		{
-			if (state & CS_HILITED)
-			{
-				// MH-2007-03-20: [[ Bug 4035 ]] If the hilite of a radio button is set programmatically, other radio buttons were not unhilited if the radiobehavior of the group is set.
-				if (getstyleint(flags) == F_RADIO && parent -> gettype() == CT_GROUP)
-				{
-					MCGroup *gptr = (MCGroup *)parent;
-					gptr->radio(parid, this);
-				}
-				radio();
-			}
-			reseticon();
-		}
-		else
-			dirty = False;
-		break;
-	case P_ARMED_ICON:
-	case P_DISABLED_ICON:
-	case P_HILITED_ICON:
-	case P_ICON:
-	case P_VISITED_ICON:
-	case P_HOVER_ICON:
-		if (icons == NULL)
-		{
-			icons = new iconlist;
-			memset(icons, 0, sizeof(iconlist));
-		}
-		if (!MCU_stoui4(data, newid))
-		{
-			// MW-2013-03-06: [[ Bug 10695 ]] When searching for the image to resolve to an id,
-			//   make sure we use the behavior aware search function.
-			MCImage *ticon = resolveimagename(data);
-			if (ticon != NULL)
-				newid = ticon->getid();
-			else
-				newid = 0;
-		}
-		if (icons->iconids[p - P_ARMED_ICON] != newid)
-		{
-			icons->iconids[p - P_ARMED_ICON] = newid;
-			dirty = True;
-		}
-		if (dirty)
-		{
-			if (icons->iconids[CI_ARMED] == 0 && icons->iconids[CI_DISABLED] == 0
-			        && icons->iconids[CI_HILITED] == 0 && icons->iconids[CI_DEFAULT] == 0
-							&& icons->iconids[CI_VISITED] == 0 && icons->iconids[CI_HOVER] == 0)
-			{
-				flags &= ~(F_SHOW_ICON | F_HAS_ICONS);
-				if (icons->curicon != NULL)
-				{
-					icons->curicon->close();
-				}
-				delete icons;
-				icons = NULL;
-			}
-			else
-			{
-				flags |= F_SHOW_ICON | F_HAS_ICONS;
-				reseticon();
-			}
-		}
-		break;
-	case P_SHARED_HILITE:
-		if (!MCU_matchflags(data, flags, F_SHARED_HILITE, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		break;
-	case P_SHOW_ICON:
-		if (!MCU_matchflags(data, flags, F_SHOW_ICON, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		// MW-2011-09-21: [[ Layers ]] Changing the showIcon property
-		//   affects the layer attrs.
-		if (dirty)
-			m_layer_attr_changed = true;
-		break;
-	case P_SHOW_NAME:
-		if (!MCU_matchflags(data, flags, F_SHOW_NAME, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		// MW-2011-09-21: [[ Layers ]] Changing the showName property
-		//   affects the layer attrs.
-		if (dirty)
-			m_layer_attr_changed = true;
-		break;
-	// MW-2012-02-16: [[ IntrinsicUnicode ]] Add support for setting the 
-	//   'unicodeLabel'.
-	case P_LABEL:
-	case P_UNICODE_LABEL:
-		// Make sure the label is up to date.
-		if (entry != NULL)
-			getentrytext();
-
-		// If we aren't unicode and are setting unicode, first coerce all text
-		// to unicode; otherwise, if we are unicode and are setting native, convert
-		// the ep to unicode.
-		if (p == P_UNICODE_LABEL && !hasunicode())
-			switchunicode(true);
-		else if (p == P_LABEL && hasunicode())
-			ep.nativetoutf16();
-
-		// Only do anything if there is a change.
-		if (label == NULL || data.getlength() != labelsize
-		        || memcmp(data.getstring(), label, data.getlength()) != 0)
-		{
-			delete label;
-			if (data != MCnullmcstring)
-			{
-				labelsize = data.getlength();
-				label = new char[labelsize];
-				memcpy(label, data.getstring(), labelsize);
-				flags |= F_LABEL;
-			}
-			else
-			{
-				label = NULL;
-				labelsize = 0;
-				flags &= ~F_LABEL;
-			}
-
-			// Now that we've updated the label, try to change everything to native.
-			trytochangetonative();
-
-			if (entry != NULL)
-				if (label == NULL)
-					entry->settext(0, MCnullmcstring, False, False);
-				else
-					entry->settext(0, MCString(label, labelsize), False, hasunicode());
-
-			clearmnemonic();
-			setupmnemonic();
-		}
-		else
-		{
-			// Try to change everything back to native.
-			trytochangetonative();
-
-			dirty = False;
-		}
-		break;
-	case P_LABEL_WIDTH:
-		if (!MCU_stoi2(data, i1))
-		{
-			MCeerror->add(EE_OBJECT_MARGINNAN, 0, 0, data);
-			return ES_ERROR;
-		}
-		labelwidth = i1;
-		if (labelwidth == 0)
-			flags &= ~F_LABEL_WIDTH;
-		else
-			flags |= F_LABEL_WIDTH;
-		break;
-	case P_FAMILY:
-		if (!MCU_stoi2(data, i1))
-		{
-			MCeerror->add(EE_BUTTON_FAMILYNAN, 0, 0, data);
-			return ES_ERROR;
-		}
-		family = i1;
-		dirty = False;
-		break;
-	case P_VISITED:
-		if (!MCU_matchflags(data, state, CS_VISITED, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		reseticon();
-		break;
-	case P_MENU_HISTORY:
-		if (!MCU_stoi2(data, i1))
-		{
-			MCeerror->add(EE_BUTTON_MENUHISTORYNAN, 0, 0, data);
-			return ES_ERROR;
-		}
-		setmenuhistory(i1);
-		dirty = False;
-		break;
-	case P_MENU_LINES:
-		if (data != MCnullmcstring)
-		{
-			if (!MCU_stoi2(data, i1))
-			{
-				MCeerror->add(EE_BUTTON_MENULINESNAN, 0, 0, data);
-				return ES_ERROR;
-			}
-			menulines = (uint2)i1;
-			flags |= F_MENU_LINES;
-		}
-		else
-		{
-			flags &= ~F_MENU_LINES;
-			menulines = DEFAULT_MENU_LINES;
-		}
-		freemenu(False);
-		dirty = False;
-		break;
-	case P_MENU_BUTTON:
-		if (!MCU_stoi2(data, i1))
-		{
-			MCeerror->add(EE_BUTTON_MENUBUTTONNAN, 0, 0, data);
-			return ES_ERROR;
-		}
-		menubutton = (uint1)i1;
-		dirty = False;
-		break;
-	case P_MENU_MODE:
-		if (entry != NULL)
-			deleteentry();
-		else
-			freemenu(False);
-		if (data == MCpulldownstring)
-			menumode = WM_PULLDOWN;
-		else if (data == MCpopupstring)
-			menumode = WM_POPUP;
-		else if (data == MCoptionstring)
-			menumode = WM_OPTION;
-		else if (data == MCcascadestring)
-			menumode = WM_CASCADE;
-		else if (data == MCcombostring)
-		{
-			menumode = WM_COMBO;
-			createentry();
-		}
-		else if (data == MCtabstring)
-		{
-			menumode = WM_TOP_LEVEL;
-			if (getstyleint(flags) == F_MENU)
-				MCU_break_string(MCString(menustring, menusize), tabs, ntabs, hasunicode());
-		}
-		else
-			menumode = WM_CLOSED;
-		break;
-	case P_SHOW_BORDER:
-		if (MCControl::setprop(parid, p, ep, effective) != ES_NORMAL)
-			return ES_ERROR;
-		if (MCaqua && menumode == WM_PULLDOWN)
-		{
-			freemenu(False);
-			findmenu(true);
-		}
-		break;
-	case P_MENU_NAME:
-		freemenu(False);
-		delete menuname;
-		if (data != MCnullmcstring)
-		{
-			menuname = data.clone();
-			if (opened)
-			{
-				if (findmenu(true))
-					menu->installaccels(getstack());
-			}
-		}
-		else
-			menuname = NULL;
-		dirty = False;
-		break;
-	case P_ACCELERATOR_TEXT:
-		delete acceltext;
-		acceltext = NULL;
-		acceltextsize = 0;
-		if (data != MCnullmcstring)
-		{
-			acceltextsize  = data.getlength();
-			acceltext = new char[acceltextsize];
-			memcpy(acceltext, data.getstring(), acceltextsize);
-		}
-		break;
-	case P_ACCELERATOR_KEY:
-		if (data != MCnullmcstring)
-		{
-			accelkey = data.getstring()[0];
-			if (data.getlength() > 1)
-			{
-				uint4 t_accelkey = MCLookupAcceleratorKeysym(data);
-				if (t_accelkey != 0)
-					accelkey = t_accelkey;
-			}
-		}
-		else
-			accelkey = 0;
-		MCstacks->changeaccelerator(this, accelkey, accelmods);
-		dirty = False;
-		break;
-	case P_ACCELERATOR_MODIFIERS:
-		{
-			uint2 naccelmods = 0;
-			uint4 l = data.getlength();
-			const char *sptr = data.getstring();
-			MCU_skip_spaces(sptr, l);
-			while (l != 0)
-			{
-				const char *startptr = sptr;
-				if (!MCU_strchr(sptr, l, ','))
-				{
-					sptr += l;
-					l = 0;
-				}
-				MCString tdata(startptr, sptr - startptr);
-				MCU_skip_char(sptr, l);
-				MCU_skip_spaces(sptr, l);
-				if (tdata == MCshiftstring)
-				{
-					naccelmods |= MS_SHIFT;
-					continue;
-				}
-				if (tdata == MCcommandstring)
-				{
-					naccelmods |= MS_CONTROL;
-					continue;
-				}
-				if (tdata == MCcontrolstring)
-				{
-#ifdef _MAC_DESKTOP
-					naccelmods |= MS_MAC_CONTROL;
-#else
-					naccelmods |= MS_CONTROL;
-#endif
-					continue;
-				}
-				if (tdata == MCmod1string || tdata == MCoptionstring)
-				{
-					naccelmods |= MS_MOD1;
-					continue;
-				}
-				MCeerror->add
-				(EE_BUTTON_BADMODIFIER, 0, 0, data);
-				return ES_ERROR;
-			}
-			accelmods = (uint1)naccelmods;
-			MCstacks->changeaccelerator(this, accelkey, accelmods);
-		}
-		dirty = False;
-		break;
-	case P_MNEMONIC:
-		if (!MCU_stoi2(data, i1))
-		{
-			MCeerror->add
-			(EE_BUTTON_MNEMONICNAN, 0, 0, data);
-			return ES_ERROR;
-		}
-		clearmnemonic();
-		mnemonic = (uint1)i1;
-		setupmnemonic();
-		break;
-	case P_DEFAULT:
-	{
-		if (!MCU_matchflags(data, flags, F_DEFAULT, dirty))
-		{
-			MCeerror->add(EE_OBJECT_NAB, 0, 0, data);
-			return ES_ERROR;
-		}
-		if (dirty && opened && ((flags & F_DEFAULT) != 0) != ((state & CS_SHOW_DEFAULT) != 0))
-		{
-			uint2 t_old_trans;
-			t_old_trans = gettransient();
-			if (flags & F_DEFAULT)
-			{
-				getcard()->setdefbutton(this);
-				state |= CS_SHOW_DEFAULT;
-			}
-			else
-			{
-				getcard()->freedefbutton(this);
-				state &= ~CS_SHOW_DEFAULT;
-			}
-			// MW-2011-08-18: [[ Layers ]] Invalidate the whole object, noting
-			//   possible change in transient.
-			layer_transientchangedandredrawall(t_old_trans);
-			dirty = False;
-		}
-	}
-	break;
-	case P_TEXT_FONT:
-	case P_TEXT_HEIGHT:
-	case P_TEXT_SIZE:
-	case P_TEXT_STYLE:
-	case P_ENABLED:
-	case P_DISABLED:
-		if (MCControl::setprop(parid, p, ep, effective) != ES_NORMAL)
-			return ES_ERROR;
-
-		// MW-2007-07-05: [[ Bug 1292 ]] Field inside combo-box doesn't respect the button's properties
-		if (entry != NULL)
-			entry -> setprop(parid, p, ep, effective);
-
-		reseticon();
-		freemenu(False);
-		findmenu(true);
-		if (parent != NULL && parent->gettype() == CT_GROUP)
-		{
-			parent->setstate(True, CS_NEED_UPDATE);
-			if ((parent == MCmenubar || parent == MCdefaultmenubar) && !MClockmenus)
-				MCscreen->updatemenubar(True);
-		}
-		dirty = True;
-		break;
-	case P_MARGINS:
-		// MW-2007-07-05: [[ Bug 1292 ]] We pass the margins through to the combo-box field
-		if (MCControl::setprop(parid, p, ep, effective) != ES_NORMAL)
-			return ES_ERROR;
-
-		if (entry != NULL)
-			entry -> setprop(parid, p, ep, effective);
-		break;
-	// MW-2012-02-16: [[ IntrinsicUnicode ]] Add support for setting the 
-	//   'unicodeText'.
-	case P_TEXT:
-	case P_UNICODE_TEXT:
-		// Ensure that if we are setting unicode, we are unicode; or if we are already
-		// unicode, the value we are setting is unicode.
-		if (p == P_UNICODE_TEXT && !hasunicode())
-			switchunicode(true);
-		else if (p == P_TEXT && hasunicode())
-			ep.nativetoutf16();
-
-		// If nothing has changed then just reset the label; otherwise change the text.
-		if (menustring != NULL && data.getlength() == menusize
-		        && memcmp(data.getstring(), menustring, data.getlength()) == 0)
-		{
-			// Try to coerce everything back to native.
-			trytochangetonative();
-			dirty = resetlabel();
-		}
-		else
-		{
-			freemenu(False);
-			delete menustring;
-
-			if (data != MCnullmcstring)
-			{
-				flags |= F_MENU_STRING;
-				menusize = data.getlength();
-				menustring = new char[menusize];
-				memcpy(menustring, data.getstring(), menusize);
-			}
-			else
-			{
-				flags &= ~F_MENU_STRING;
-				menustring = NULL;
-				menusize = 0;
-			}
-
-			// Now that we've updated the text, try to coerce everything back to native.
-			trytochangetonative();
-			
-			if (getflag(F_MENU_STRING))
-				findmenu(true);
-
-			menuhistory = 1;
-			dirty = all = resetlabel() || menumode == WM_TOP_LEVEL;
-			if (parent != NULL && parent->gettype() == CT_GROUP)
-			{
-				parent->setstate(True, CS_NEED_UPDATE);
-				if ((parent == MCmenubar || parent == MCdefaultmenubar) && !MClockmenus)
-					MCscreen->updatemenubar(True);
-			}
-		}
-		break;
-	case P_CANT_SELECT:
-		// MW-2005-08-16: [[Bug 2820]] If we can't be selected, let us make sure our field can't either!
-		// MW-2005-09-05: [[Bug 3167]] Only set the entry's property if it exists!
-		if (entry != NULL)
-			entry -> setprop(parid, p, ep, effective);
-		return MCControl::setprop(parid, p, ep, effective);
-	default:
-		return MCControl::setprop(parid, p, ep, effective);
-#endif /* MCButton::setprop */
-	}
-	if (dirty && opened)
-	{
-		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
-		layer_redrawall();
-	}
-	return ES_NORMAL;
 }
 
 void MCButton::closemenu(Boolean kfocus, Boolean disarm)
@@ -2529,19 +1743,22 @@ void MCButton::closemenu(Boolean kfocus, Boolean disarm)
 		}
 		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 		layer_redrawall();
-		if (kfocus && !(state & CS_MFOCUSED))
-		{
-			menu->setstate(True, CS_KFOCUSED); // override state
-			menu->kunfocus();
-		}
-		MCButton *focused = (MCButton *)menu->getcurcard()->getmfocused();
-		if (focused != NULL && focused->gettype() == CT_BUTTON
-		        && focused->getmenumode() == WM_CASCADE)
-			focused->closemenu(kfocus, disarm);
+        if (menu.IsValid())
+        {
+            if (kfocus && !(state & CS_MFOCUSED))
+            {
+                menu->setstate(True, CS_KFOCUSED); // override state
+                menu->kunfocus();
+            }
+        
+            MCButton *focused = (MCButton *)menu->getcurcard()->getmfocused();
+            if (focused != NULL && focused->gettype() == CT_BUTTON
+                    && focused->getmenumode() == WM_CASCADE)
+                focused->closemenu(kfocus, disarm);
 
-		menu -> mode_closeasmenu();
-		menu->close();
-
+            menu->mode_closeasmenu();
+            menu->close();
+        }
 		state &= ~(CS_SUBMENU | CS_MOUSE_UP_MENU);
 		menudepth--;
 	}
@@ -2549,7 +1766,7 @@ void MCButton::closemenu(Boolean kfocus, Boolean disarm)
 
 MCControl *MCButton::clone(Boolean attach, Object_pos p, bool invisible)
 {
-	MCButton *newbutton = new MCButton(*this);
+	MCButton *newbutton = new (nothrow) MCButton(*this);
 	if (attach)
 		newbutton->attach(p, invisible);
 	return newbutton;
@@ -2566,13 +1783,13 @@ MCControl *MCButton::findnum(Chunk_term type, uint2 &num)
 		return NULL;
 }
 
-MCControl *MCButton::findname(Chunk_term type, const MCString &inname)
+MCControl *MCButton::findname(Chunk_term type, MCNameRef p_name)
 {
-	if ((type == gettype() || type == CT_LAYER
-	        || (type == CT_MENU && getstyleint(flags) == F_MENU
-	            && menumode == WM_PULLDOWN))
-	        && MCU_matchname(inname, gettype(), getname()))
-		return this;
+    if ((type == gettype() || type == CT_LAYER
+            || (type == CT_MENU && getstyleint(flags) == F_MENU
+                && menumode == WM_PULLDOWN))
+            && MCU_matchname(p_name, gettype(), getname()))
+        return this;
 	else
 		return NULL;
 }
@@ -2590,7 +1807,7 @@ Boolean MCButton::count(Chunk_term type, MCObject *stop, uint2 &num)
 
 Boolean MCButton::maskrect(const MCRectangle &srect)
 {
-	if (!(flags & F_VISIBLE || MCshowinvisibles))
+	if (!(flags & F_VISIBLE || showinvisible()))
 		return False;
 	MCRectangle trect = rect;
 	if (getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL)
@@ -2652,16 +1869,16 @@ void MCButton::replacedata(MCCdata *&data, uint4 newid)
 	bptr->appendto(bdata);
 	if (opened)
 	{
-		switch(gethilite(newid))
+		switch(gethilite(newid).value)
 		{
-		case True:
+		case kMCTristateTrue:
 			state |= CS_HILITED;
 			state &= ~CS_MIXED;
 			break;
-		case False:
+		case kMCTristateFalse:
 			state &= ~(CS_HILITED | CS_MIXED);
 			break;
-		case Mixed:
+		case kMCTristateMixed:
 			state &= ~CS_HILITED;
 			state |= CS_MIXED;
 			break;
@@ -2714,29 +1931,30 @@ void MCButton::resetfontindex(MCStack *oldstack)
 		bdata = tptr;
 		while (bptr != NULL)
 		{
-			MCCdata *tptr = (MCCdata *)bptr->remove(bptr);
+			tptr = (MCCdata *)bptr->remove(bptr);
 			delete tptr;
 		}
 	}
 	MCControl::resetfontindex(oldstack);
 }
 
-void MCButton::activate(Boolean notify, uint2 key)
+void MCButton::activate(Boolean notify, KeySym p_key)
 {
 	if (flags & F_DISABLED)
 		return;
 	if (findmenu(true))
 	{
 		bool t_disabled;
-		MCString pick;
+        t_disabled = false;
+		MCAutoStringRef t_pick;
 		
-		if (menu != NULL)
-			menu->findaccel(key, pick, t_disabled);
+		if (menu.IsValid())
+			menu->findaccel(p_key, &t_pick, t_disabled);
 #ifdef _MAC_DESKTOP
-		else if (bMenuID != 0)
-			getmacmenuitemtextfromaccelerator(bMenuID, key, MCmodifierstate, pick, hasunicode(), false);
+		else if (m_system_menu != nil)
+			getmacmenuitemtextfromaccelerator(m_system_menu, p_key, MCmodifierstate, &t_pick, false);
 #endif
-		if (pick.getstring() == NULL)
+		if (MCStringIsEmpty(*t_pick))
 		{
 			if (MCmodifierstate & MS_MOD1)
 			{
@@ -2748,8 +1966,7 @@ void MCButton::activate(Boolean notify, uint2 key)
 		else
 		{
 			if (!t_disabled)
-				message_with_args(MCM_menu_pick, pick);
-			delete (char *)pick.getstring();
+				handlemenupick(*t_pick, nil);
 		}
 	}
 	else
@@ -2762,7 +1979,7 @@ void MCButton::activate(Boolean notify, uint2 key)
 				// MH-2007-03-20: [[ Bug 2581 ]] If a radio button is hilited using the keyboard, others in the group are not unhilited (when radioBehavior is set).
 				if (parent->gettype() == CT_GROUP)
 				{
-					MCGroup *gptr = (MCGroup *)parent;
+					MCGroup *gptr = parent.GetAs<MCGroup>();
 					gptr->radio(0, this);
 				}
 				reseticon();
@@ -2793,7 +2010,7 @@ void MCButton::activate(Boolean notify, uint2 key)
 			// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 			layer_redrawall();
 		}
-		message_with_args(MCM_mouse_up, "1");
+		message_with_valueref_args(MCM_mouse_up, MCSTR("1"));
 		MCdispatcher->closemenus();
 	}
 }
@@ -2802,15 +2019,13 @@ void MCButton::setupmnemonic()
 {
 	if (opened && mnemonic != 0)
 	{
-		MCString slabel;
-		bool t_is_unicode;
-		getlabeltext(slabel, t_is_unicode);
-		const char *sptr = slabel.getstring();
-		if (!isdisabled() && sptr != NULL && mnemonic <= slabel.getlength())
+		MCStringRef t_label = getlabeltext();
+		if (!isdisabled() && !MCStringIsEmpty(t_label) && mnemonic <= MCStringGetLength(t_label))
 		{
-			getstack()->addmnemonic(this, sptr[mnemonic - 1]);
-			if (menustring != NULL || menuname != NULL)
-				MCstacks->addmenu(this, sptr[mnemonic - 1]);
+			codepoint_t t_codepoint = MCStringGetCodepointAtIndex(t_label, mnemonic - 1);
+			getstack()->addmnemonic(this, t_codepoint);
+			if (!MCStringIsEmpty(menustring) || !MCNameIsEmpty(menuname))
+				MCstacks->addmenu(this, t_codepoint);
 		}
 	}
 }
@@ -2843,7 +2058,7 @@ MCCdata *MCButton::getbptr(uint4 cardid)
 	}
 	if (foundptr == NULL)
 	{
-		foundptr = new MCCdata(cardid);
+		foundptr = new (nothrow) MCCdata(cardid);
 		foundptr->appendto(bdata);
 	}
 	return foundptr;
@@ -2854,7 +2069,7 @@ uint2 MCButton::getfamily()
 	return family;
 }
 
-Boolean MCButton::gethilite(uint4 parid)
+MCTristate MCButton::gethilite(uint4 parid)
 {
 	if (flags & F_SHARED_HILITE)
 		parid = 0;
@@ -2883,7 +2098,7 @@ void MCButton::setdefault(Boolean def)
 	}
 }
 
-Boolean MCButton::sethilite(uint4 parid, Boolean hilite)
+Boolean MCButton::sethilite(uint4 parid, MCTristate hilite)
 {
 	Boolean set
 		= True;
@@ -2898,21 +2113,21 @@ Boolean MCButton::sethilite(uint4 parid, Boolean hilite)
 	MCCdata *foundptr = getbptr(parid);
 	
 	bool t_hilite_changed;
-	t_hilite_changed = hilite != foundptr -> getset();
+	t_hilite_changed = hilite != MCTristate(foundptr -> getset());
 	
-	foundptr->setset(hilite);
+	foundptr->setset(!hilite.isFalse());
 	uint4 oldstate = state;
 	if (opened && set)
-			switch (hilite)
+			switch (hilite.value)
 			{
-			case True:
+			case kMCTristateTrue:
 				state |= CS_HILITED;
 				state &= ~CS_MIXED;
 				break;
-			case False:
+			case kMCTristateFalse:
 				state &= ~(CS_HILITED | CS_MIXED);
 				break;
-			case Mixed:
+			case kMCTristateMixed:
 				state &= ~CS_HILITED;
 				state |= CS_MIXED;
 			}
@@ -2923,7 +2138,7 @@ Boolean MCButton::sethilite(uint4 parid, Boolean hilite)
 	return state != oldstate;
 }
 
-void MCButton::resethilite(uint4 parid, Boolean hilite)
+void MCButton::resethilite(uint4 parid, MCTristate hilite)
 {
 	if (sethilite(parid, hilite))
 	{
@@ -2935,19 +2150,14 @@ void MCButton::resethilite(uint4 parid, Boolean hilite)
 
 void MCButton::getentrytext()
 {
-	// MW-2012-02-21: [[ FieldExport ]] Use the new plain text export method.
-	MCExecPoint ep;
-	entry->exportasplaintext(0, ep, 0, INT32_MAX, hasunicode());
-	delete label;
-	labelsize = ep.getsvalue().getlength();
-	if (labelsize)
-	{
-		label = new char[labelsize];
-		memcpy(label, ep.getsvalue().getstring(), labelsize);
-	}
-	else
-		label = NULL;
-	flags |= F_LABEL;
+    // MW-2012-02-21: [[ FieldExport ]] Use the new plain text export method.
+    MCAutoStringRef t_label;
+    if (entry -> exportasplaintext((uinteger_t)0, 0, INT32_MAX, &t_label))
+        MCValueAssign(label, *t_label);
+    
+    // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+    //  we need to rely on the F_LABEL flag
+    flags |= F_LABEL;
 }
 
 void MCButton::createentry()
@@ -2959,7 +2169,7 @@ void MCButton::createentry()
 		entry = (MCField *)MCtemplatefield->clone(False, OP_NONE, false);
 		// MW-2005-08-16: [[Bug 2820]] If we can't be selected, let us make sure our field can't either!
 		entry->setextraflag(getextraflag(EF_CANT_SELECT), EF_CANT_SELECT);
-		entry->setupentry(this, MCString(label, labelsize), hasunicode());
+		entry->setupentry(this, label);
 		entry->open();
 		setrect(rect);
 	}
@@ -2974,34 +2184,46 @@ void MCButton::deleteentry()
 }
 
 //major menustring
-void MCButton::getmenuptrs(const char *&sptr, const char *&eptr)
+//void MCButton::getmenuptrs(const char *&sptr, const char *&eptr)
+MCRange MCButton::getmenurange()
 {
-	uint2 i = 0;
-	eptr = menustring;
-	Boolean isunicode = hasunicode();
-	if (menustring == NULL)
-		sptr = eptr;
-	else
-	{
-		uint4 l = menusize;
-		do
-		{
-			sptr = eptr;
-			if (MCU_strchr(eptr, l, '\n', isunicode) == False)
-			{
-				if (++i == menuhistory)
-					eptr = menustring + menusize;
-				else
-					sptr = eptr = menustring;
-				return;
-			}
+	uindex_t sptr;
+	uindex_t i = 0;
+	MCRange t_search;
+	uindex_t t_length;
+	t_length = MCStringGetLength(menustring);
+	t_search = MCRangeMake(0, t_length);
+	if (MCStringIsEmpty(menustring))
+		return MCRangeMake(0, 0);
 
-			l -= MCU_charsize(isunicode);
-			if (++i < menuhistory)
-				eptr += MCU_charsize(isunicode);
+	do
+	{
+		// Finds the first newline character in the string.
+		// If there is no newline character, then if this is the last item in the string, the returned range is the
+		// remainder of the string. Otherwise, there are no more items in the string and an empty range is returned.
+		//
+		// If a newline was found and this is not the last item in the history, move past the newline and continue.
+		// Otherwise, terminate and return.
+			
+		sptr = t_search.offset;
+		MCRange t_temp;
+		if (!MCStringFind(menustring, t_search, MCSTR("\n"), kMCStringOptionCompareExact, &t_temp))
+		{
+			if (++i == menuhistory)
+				return MCRangeMakeMinMax(sptr, t_length);
+			else
+				return MCRangeMake(0, 0);
+			break;
 		}
-		while (i < menuhistory); // really! eptr++
+			
+		t_search.offset = t_temp.offset;
+		if (++i < menuhistory)
+			t_search.offset++;
+		t_search.length = t_length - t_search.offset;
 	}
+	while (i < menuhistory);
+		
+	return MCRangeMakeMinMax(sptr, t_search.offset);
 }
 
 void MCButton::makemenu(sublist *bstack, int2 &stackdepth, uint2 menuflags, MCFontRef fontref)
@@ -3010,9 +2232,9 @@ void MCButton::makemenu(sublist *bstack, int2 &stackdepth, uint2 menuflags, MCFo
 	uint2 pwidth = 0;
 	if (stackdepth > 0)
 	{
-		MCString lastname = bstack[stackdepth].parent->getname_oldstring();
-		// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-		pwidth = MCFontMeasureText(fontref, lastname . getstring(), lastname . getlength(), false, getstack() -> getdevicetransform()) + 16;
+		MCStringRef t_lastname = MCNameGetString(bstack[stackdepth].parent->getname());
+        // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+        pwidth = MCFontMeasureText(fontref, t_lastname, getstack() -> getdevicetransform()) + 16;
 	}
 	sublist *m = &bstack[stackdepth--];
 
@@ -3020,7 +2242,7 @@ void MCButton::makemenu(sublist *bstack, int2 &stackdepth, uint2 menuflags, MCFo
 
 	uint2 ty;
 	uint2 menuwidth, menuheight;
-	if (isxp && MCmajorosversion >= 0x0600)
+	if (isxp && MCmajorosversion >= MCOSVersionMake(6,0,0))
 	{
 		ty = 3;
 		m -> maxwidth += 22 + 4 + 2 + 4 + 17; // Icon - pad - Gutter - pad - ... - Submenu
@@ -3120,10 +2342,15 @@ void MCButton::makemenu(sublist *bstack, int2 &stackdepth, uint2 menuflags, MCFo
 	newmenu->menuwindow = True;
 	MCdispatcher->appendpanel(newmenu);
 	if (m->parent == this)
-		menu = newmenu;
+    {
+		menu = newmenu->GetHandle();
+        newmenu -> addneed(this);
+    }
 	else
 	{
-		m->parent->menu = newmenu;
+		m->parent->menu = newmenu->GetHandle();
+        newmenu -> addneed(m->parent);
+        
 		m->parent->menumode = WM_CASCADE;
 		if (getstyleint(menuflags) == F_CHECK || getstyleint(menuflags) == F_RADIO)
 			m->parent->leftmargin += CHECK_SIZE + leftmargin;
@@ -3192,7 +2419,6 @@ public:
 
 	virtual bool ProcessItem(MCMenuItem *p_menuitem)
 	{
-		Boolean isunicode = p_menuitem->is_unicode ? True : False;
 		int2 newdepth = p_menuitem->depth;
 		if (newdepth > 0 && newdepth > stackdepth
 		        && stackdepth < MAX_SUBMENU_DEPTH - 1
@@ -3206,39 +2432,33 @@ public:
 		}
 		while (newdepth < stackdepth)
 			parent->makemenu(bstack, stackdepth, menuflags, fontref);
-		MCButton *newbutton = new MCButton;
+		MCButton *newbutton = new (nothrow) MCButton;
 		newbutton->appendto(bstack[stackdepth].buttons);
-		if (p_menuitem->tag != NULL)
-			newbutton->setname_oldstring(p_menuitem->tag);
-		else if (p_menuitem->is_unicode)
-		{
-				MCExecPoint ep;
-				ep.setsvalue(p_menuitem->label);
-				ep.utf16tonative();
-			newbutton->setname_oldstring(ep.getsvalue());
-		}
+		MCNameRef t_name = nil;
+		if (!MCStringIsEmpty(p_menuitem->tag))
+			/* UNCHECKED */ MCNameCreate(p_menuitem->tag, t_name);
 		else
-		{
-			newbutton->setname_oldstring(p_menuitem->label);
-		}
+			/* UNCHECKED */ MCNameCreate(p_menuitem->label, t_name);
+		newbutton->setname(t_name);
+		MCValueRelease(t_name);
 
 #ifndef TARGET_PLATFORM_MACOS_X
-		const char *t_tabptr = p_menuitem->label.getstring();
-		uint4 t_labelsize = p_menuitem->label.getlength();
-		// replace any tabs, as these don't display in button menus
-		while (MCU_strchr(t_tabptr, t_labelsize, '\t', p_menuitem->is_unicode))
-		{
-			MCU_copychar(' ', (char*)t_tabptr, p_menuitem->is_unicode);
-		}
+		MCStringRef t_label;
+		/* UNCHECKED */ MCStringMutableCopy(p_menuitem->label, t_label);
+		/* UNCHECKED */ MCStringFindAndReplaceChar(t_label, '\t', ' ', kMCStringOptionCompareExact);
+		MCValueRelease(p_menuitem->label);
+		/* UNCHECKED */ MCStringCopyAndRelease(t_label, p_menuitem->label);
 #endif
 
 		newbutton->menubutton = parent->menubutton;
 		newbutton->menucontrol = MENUCONTROL_ITEM;
-		if (MCNameGetCharAtIndex(newbutton -> getname(), 0) == '-')
+        newbutton->m_theme_type = kMCPlatformControlTypeMenu;
+		if (MCStringGetNativeCharAtIndex(MCNameGetString(newbutton->getname()), 0) == '-')
 		{
 			newbutton->rect.height = 2;
 			newbutton->flags = DIVIDER_FLAGS;
 			newbutton->menucontrol = MENUCONTROL_SEPARATOR;
+            newbutton->m_theme_type = kMCPlatformControlTypeMenu;
 			if (MCcurtheme && MCcurtheme->getthemeid() == LF_NATIVEWIN)
 			{
 				newbutton->rect.height = 1;
@@ -3275,85 +2495,61 @@ public:
 				if (p_menuitem->accelerator != 0)
 				{
 					uint1 t_mods = p_menuitem->modifiers;
-					uint4 t_key = p_menuitem->accelerator;
-					const char *t_keyname = p_menuitem->accelerator_name;
+					KeySym t_key = p_menuitem->accelerator;
+					MCStringRef t_keyname = p_menuitem->accelerator_name;
 
 					if ((t_mods & (MS_MAC_CONTROL | MS_CONTROL | MS_ALT)) || t_keyname)
 					{
-						uint2 t_accelkey = (t_key <= 255) ? MCS_tolower(t_key) : t_key;
+						KeySym t_accelkey = MCKeySymToLower(t_key);
 						MCstacks->addaccelerator(parent, parent->getstack(), t_accelkey, t_mods);
-
-						uint4 t_acceltextlen;
-						if (t_keyname != NULL)
-							t_acceltextlen = strlen(t_keyname) + 1;
-						else
-							t_acceltextlen = 2;
-
-						if (t_mods & MS_MAC_CONTROL)
-							t_acceltextlen += 5;
-						if (MS_MAC_CONTROL != MS_CONTROL && t_mods & MS_CONTROL)
-							t_acceltextlen += 4;
-						if (t_mods & MS_ALT)
-							t_acceltextlen += 4;
-						if (t_mods & MS_SHIFT)
-							t_acceltextlen += 6;
-
-						newbutton->acceltext = new char[t_acceltextlen];
 						newbutton->accelkey = t_accelkey;
 						newbutton->accelmods = t_mods;
-						char *t_acceltext = newbutton->acceltext;
+
+						// ******
+						// The following text requires localization
+						// ******
+						MCStringRef t_acceltext = nil;
+						/* UNCHECKED */ MCStringCreateMutable(0, t_acceltext);
 						if (t_mods & MS_MAC_CONTROL)
-						{
-							sprintf(t_acceltext, "Ctrl+");
-							t_acceltext += 5;
-						}
+							/* UNCHECKED */ MCStringAppendFormat(t_acceltext, "Ctrl+");
 						if (MS_MAC_CONTROL != MS_CONTROL && t_mods & MS_CONTROL)
-						{
-							sprintf(t_acceltext, "Cmd+");
-							t_acceltext += 4;
-						}
+							/* UNCHECKED */ MCStringAppendFormat(t_acceltext, "Cmd+");
 						if (t_mods & MS_ALT)
-						{
-							sprintf(t_acceltext, "Alt+");
-							t_acceltext += 4;
-						}
+							/* UNCHECKED */ MCStringAppendFormat(t_acceltext, "Alt+");
 						if (t_mods & MS_SHIFT)
-						{
-							sprintf(t_acceltext, "Shift+");
-							t_acceltext += 6;
-						}
-						if (t_keyname != NULL)
-							sprintf(t_acceltext, "%s", t_keyname);
+							/* UNCHECKED */ MCStringAppendFormat(t_acceltext, "Shift+");
+						if (t_keyname != NULL && !MCStringIsEmpty(t_keyname))
+							/* UNCHECKED */ MCStringAppend(t_acceltext, t_keyname);
 						else
-							sprintf(t_acceltext, "%c", t_key);
-						newbutton->acceltextsize = strlen(newbutton->acceltext);
-						if (p_menuitem->is_unicode)
-						{
-							int t_unicodebuffersize = newbutton->acceltextsize * MCU_charsize(True);
-							char *t_unicodetext = new char[t_unicodebuffersize];
-							uint4 tlen;
-							MCU_multibytetounicode( newbutton->acceltext , newbutton->acceltextsize , (char *)t_unicodetext, t_unicodebuffersize,  tlen , 0);
-							delete newbutton->acceltext;
-							newbutton->acceltext = t_unicodetext;
-							newbutton->acceltextsize = tlen;
-						}
+                        {
+							codepoint_t t_codepoint;
+                            MCAutoStringRef t_key_text;
+                            
+                            if (t_key < 0x7f)
+                                t_codepoint = t_key;
+                            else if ((t_key & XK_Class_mask) == XK_Class_codepoint)
+                                t_codepoint = t_key & XK_Codepoint_mask;
+                            else
+                                t_codepoint = 0;    // Shouldn't happen!
+                            
+                            /* UNCHECKED */ MCStringCreateWithBytes((const byte_t*)&t_codepoint, 4, kMCStringEncodingUTF32, false, &t_key_text);
+                            /* UNCHECKED */ MCStringAppend(t_acceltext, *t_key_text);
+                        }
+
+						MCValueRelease(newbutton->acceltext);
+						/* UNCHECKED */ MCStringCopyAndRelease(t_acceltext, newbutton->acceltext);
 					}
 				}
 			}
-			uint2 t_labellength = p_menuitem->label.getlength();
-			// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-			uint2 width = MCFontMeasureText(fontref, p_menuitem->label.getstring(), t_labellength, p_menuitem -> is_unicode, parent -> getstack() -> getdevicetransform());
-			if (newbutton->acceltext != NULL)
-				bstack[stackdepth] . maxaccelwidth = MCU_max(bstack[stackdepth].maxaccelwidth, MCFontMeasureText(fontref, newbutton->acceltext, newbutton->acceltextsize, p_menuitem -> is_unicode, parent -> getstack() -> getdevicetransform()));
+            // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+            int32_t width = MCFontMeasureText(fontref, p_menuitem->label, parent -> getstack() -> getdevicetransform());
+			if (!MCStringIsEmpty(newbutton->acceltext))
+                bstack[stackdepth].maxaccelwidth = MCU_max(bstack[stackdepth].maxaccelwidth, MCFontMeasureText(fontref, newbutton->acceltext, parent -> getstack() -> getdevicetransform()));
+
 			if (width > bstack[stackdepth].maxwidth)
 				bstack[stackdepth].maxwidth = width;
-			newbutton->labelsize = t_labellength;
-			newbutton->label = new char[t_labellength];
-			memcpy(newbutton->label, p_menuitem->label.getstring(), t_labellength);
-			newbutton->flags |= F_LABEL;
-			if (p_menuitem -> is_unicode)
-				newbutton->m_font_flags |= FF_HAS_UNICODE;
-
+			MCValueAssign(newbutton->label, p_menuitem->label);
+			newbutton -> flags |= F_LABEL;
 		}
 		return false;
 	}
@@ -3372,70 +2568,63 @@ public:
 
 Boolean MCButton::findmenu(bool p_just_for_accel)
 {
-	Boolean isunicode = hasunicode();
-	if (menuname != NULL)
+	if (!MCNameIsEmpty(menuname))
 	{
-		if (menu == NULL)
+		if (!(menu.IsValid()))
 		{
 			MCerrorlock++;
-			menu = getstack()->findstackname(menuname);
-			MCerrorlock--;
-			if (menu != NULL)
-				menu->addneed(this);
+            MCStack * t_stack = getstack()->findstackname(menuname);
+            MCerrorlock--;
+            if (t_stack != nil)
+            {
+			    menu = t_stack->GetHandle();
+				t_stack->addneed(this);
+            }
 		}
 	}
-	else if (menustring != NULL && getstyleint(flags) == F_MENU)
+	else if (!MCStringIsEmpty(menustring) && getstyleint(flags) == F_MENU)
 	{
 		if (menumode == WM_TOP_LEVEL)
-			MCU_break_string(MCString(menustring, menusize), tabs, ntabs, isunicode);
-		else if (menu == NULL)
+		{
+			MCValueRelease(tabs);
+			/* UNCHECKED */ MCStringSplit(menustring, MCSTR("\n"), nil, kMCStringOptionCompareExact, tabs);
+		}
+		else if (!(menu.IsValid()))
 		{
 			uint2 fheight;
 			fheight = gettextheight();
-			if ((!IsMacLFAM() || MCModeMakeLocalWindows()) && menumode == WM_COMBO || menumode == WM_OPTION && MClook == LF_WIN95)
+			if (((!IsMacLFAM() || MCModeMakeLocalWindows()) && menumode == WM_COMBO) || (menumode == WM_OPTION && MClook == LF_WIN95))
 			{
-				uint2 dsize = menusize;
-				uint2 nlines = 1;
+				uindex_t nlines = 1;
 				//major menustring
-				const char *sptr = menustring;
-				const char *eptr = menustring + menusize;
-				while (sptr < eptr)
-				{
-					if (MCU_comparechar(sptr,'\n', isunicode))
-						nlines++;
-					sptr+= MCU_charsize(isunicode);
-				}
-				if (sptr > menustring)
-				{
-					sptr-= MCU_charsize(isunicode);
-					if (MCU_comparechar(sptr,'\n', isunicode))
-					{
-						dsize = sptr - menustring;
-						nlines--;
-					}
-				}
-				MCField *fptr = new MCField;
+				nlines = MCStringCountChar(menustring, MCRangeMake(0, MCStringGetLength(menustring)), '\n', kMCStringOptionCompareExact) + 1;
+
+				MCField *fptr = new (nothrow) MCField;
 				uint2 height;
 				if (nlines > menulines)
 				{
 					height = menulines * fheight;
-					fptr->setupmenu(MCString(menustring, dsize), fheight, True, isunicode);
+					fptr->setupmenu(menustring, fheight, True);
 					state |= CS_SCROLLBAR;
 				}
 				else
 				{
 					height = nlines * fheight;
-					fptr->setupmenu(MCString(menustring, dsize), fheight, False, isunicode);
+					fptr->setupmenu(menustring, fheight, False);
 				}
 				MCRectangle trect;
 				MCU_set_rect(trect, 0, 0, rect.width, height + 4);
 				trect = MCU_reduce_rect(trect, MClook == LF_MOTIF ? DEFAULT_BORDER : 1);
 				fptr->setrect(trect);
-				/* UNCHECKED */ MCStackSecurityCreateStack(menu);
-
-				menu->setparent(this);
-				menu->createmenu(fptr, rect.width, height + 4);
-				MCdispatcher->appendpanel(menu);
+                MCStack * t_menu;
+                if (!MCStackSecurityCreateStack(t_menu))
+                    return False;
+                
+				t_menu->setparent(this);
+				t_menu->createmenu(fptr, rect.width, height + 4);
+				MCdispatcher->appendpanel(t_menu);
+                menu = t_menu->GetHandle();
+                t_menu -> addneed(this);
 			}
 			else
 			{
@@ -3451,16 +2640,22 @@ Boolean MCButton::findmenu(bool p_just_for_accel)
 				}
 				else
 				{
-					MCU_break_string(MCString(menustring,menusize), tabs, ntabs, isunicode);
-					uint2 i;
+					MCValueRelease(tabs);
+					/* UNCHECKED */ MCStringSplit(menustring, MCSTR("\n"), nil, kMCStringOptionCompareExact, tabs);
+					uindex_t t_ntabs;
+					t_ntabs = MCArrayGetCount(tabs);
 					uint4 menuflags = MENU_ITEM_FLAGS;
 					if (flags & F_DISABLED)
 						menuflags |= F_DISABLED;
-					for (i = 0 ; i < ntabs ; i++)
+					for (uindex_t i = 0 ; i < t_ntabs ; i++)
 					{
-						if (MCU_comparechar(tabs[i].getstring(),'!',isunicode)
-						        || MCU_comparechar(tabs[i].getstring(),'(',isunicode)
-						        && MCU_comparechar(&tabs[i].getstring()[MCU_charsize(isunicode)],'!',isunicode))
+						MCValueRef t_tabval = nil;
+						/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, i + 1, t_tabval);
+						MCStringRef t_tab;
+						t_tab = (MCStringRef)t_tabval;
+						if (MCStringGetCharAtIndex(t_tab, 0) == '!' ||
+							(MCStringGetCharAtIndex(t_tab, 0) == '(' &&
+							 MCStringGetCharAtIndex(t_tab, 1) == '!'))
 						{
 							menuflags &= ~F_STYLE;
 							menuflags |= F_CHECK;
@@ -3469,101 +2664,98 @@ Boolean MCButton::findmenu(bool p_just_for_accel)
 					}
 
 					ButtonMenuCallback t_callback(this, menuflags);
-					MCString t_menustring(menustring, menusize);
-					MCParseMenuString(t_menustring, &t_callback, isunicode == True, menumode);
-
+					MCParseMenuString(menustring, &t_callback, menumode);
 				}
 			}
-			delete tabs;
-			tabs = NULL;
-			ntabs = 0;
+			MCValueAssign(tabs, kMCEmptyArray);
 		}
 	}
-	return menu != NULL;
+	return menu.IsValid();
 }
 
-bool MCSystemPick(const char *p_options, bool p_is_unicode, bool p_use_checkmark, uint32_t p_initial_index, uint32_t& r_chosen_index, MCRectangle p_button_rect);
+void MCButton::setmenuhandler(MCButtonMenuHandler *p_handler)
+{
+	m_menu_handler = p_handler;
+}
+
+Exec_stat MCButton::handlemenupick(MCValueRef p_pick, MCValueRef p_old_pick)
+{
+	if (m_menu_handler != nil)
+	{
+		if (m_menu_handler->OnMenuPick(this, p_pick, p_old_pick))
+			return ES_NORMAL;
+	}
+	
+	if (p_old_pick == nil)
+		return message_with_valueref_args(MCM_menu_pick, p_pick);
+	else
+		return message_with_valueref_args(MCM_menu_pick, p_pick, p_old_pick);
+}
+
+bool MCSystemPick(MCStringRef p_options, bool p_use_checkmark, uint32_t p_initial_index, uint32_t& r_chosen_index, MCRectangle p_button_rect);
 
 void MCButton::openmenu(Boolean grab)
 {
-	if (!opened || MCmousestackptr == NULL)
+	if (!opened || !MCmousestackptr)
 		return;
-	if (menuname != NULL && !MCModeMakeLocalWindows())
+	if (!MCNameIsEmpty(menuname) && !MCModeMakeLocalWindows())
 		return;
 #ifdef _MOBILE
 	if (menumode == WM_OPTION)
 	{
-		// loop counter
-		int i;
 		// result of picker action
 		long t_result;
 		// item selection
 		uint32_t t_selected, t_chosen_option;
-		// temporary options string from which to select the new label
-		MCString t_menustringcopy;
+
 		// the selected item
 		// get a pointer to this 
 		MCButton *pptr;
 		pptr = this;
-		// get the label and menu item strings
-		MCString t_menustring;
-		pptr->getmenustring(t_menustring);
-		// test if we are processing unicode
-		bool t_is_unicode = hasunicode();
-		MCExecPoint ep(nil, nil, nil);
-		if (t_is_unicode)
-		{
-			// convert unicode to binary 
-			ep . setsvalue(t_menustring);
-			ep . utf16toutf8();
-			t_menustring = ep . getsvalue();
-		}
 		
-		// MW-2012-10-08: [[ Bug 10254 ]] MCSystemPick expects a C-string so make sure we give it one.
-		char *t_menustring_cstring;
-		t_menustring_cstring = t_menustring . clone();
+		// get the label and menu item strings
+		MCStringRef t_menustring;
+		t_menustring = pptr->getmenustring();
 		
 		// process data using the pick wheel
 		t_selected = menuhistory;
-		t_result = MCSystemPick(t_menustring_cstring, t_is_unicode, false, t_selected, t_chosen_option, rect);
-		
-		free(t_menustring_cstring);
+		t_result = MCSystemPick(t_menustring, false, t_selected, t_chosen_option, rect);
 		
 		// populate the label with the value returned from the pick wheel if the user changed the selection
 		if (t_result && t_chosen_option > 0)
 		{
 			setmenuhistoryprop(t_chosen_option);
-			t_menustringcopy = t_menustring.clone();
-			char *t_newlabel;
-			t_newlabel = strtok((char *)t_menustringcopy.getstring(), "\n");
-			for (i = 1; i < t_chosen_option; i++)
-				t_newlabel = strtok(NULL, "\n");
-			// ensure processing takes care of unicode
-			ep . setsvalue(t_newlabel);
-			if (t_is_unicode)
-				ep . utf8toutf16();
-			// update the label text
-			delete label;
-			labelsize = ep . getsvalue() . getlength();
-			label = new char[labelsize];
-			memcpy(label, ep . getsvalue() . getstring(), labelsize);
+			
+			uindex_t t_offset = 0;
+            uindex_t t_new_offset = 0;
+			bool t_success = true;
+			
+			MCAutoProperListRef t_options;
+			
+			if (t_success)
+				t_success = MCStringSplitByDelimiter(t_menustring, kMCLineEndString, kMCStringOptionCompareExact, &t_options);
+			
+			MCStringRef t_label = static_cast<MCStringRef>(MCProperListFetchElementAtIndex(*t_options, t_chosen_option - 1));
+			
+			MCValueAssign(label, t_label);
+			
 			flags |= F_LABEL;
-			message_with_args(MCM_menu_pick, ep . getsvalue());
+			handlemenupick(t_label, nil);
 		}
 		return;
 	}
 #endif
-	MCStack *sptr = menumode == WM_CASCADE ? getstack() : MCmousestackptr;
+	MCStack *cascade_sptr = menumode == WM_CASCADE ? getstack() : MCmousestackptr;
 	if (flags & F_TRAVERSAL_ON && !(state & CS_KFOCUSED)
-	        && sptr->getmode() < WM_PULLDOWN)
+	        && cascade_sptr->getmode() < WM_PULLDOWN)
 	{
 		MCmousestackptr->kfocusset(this);
-		if (menu == NULL && !findmenu())
+		if (!(menu.IsValid()) && !findmenu())
 			return;
 	}
 	if (IsMacLFAM() &&
 		(!MCModeMakeLocalWindows() ||
-		 (menuname == NULL && (menumode == WM_OPTION || menumode == WM_POPUP || (menumode == WM_PULLDOWN && flags & F_SHOW_BORDER)))))
+		 (MCNameIsEmpty(menuname) && (menumode == WM_OPTION || menumode == WM_POPUP || (menumode == WM_PULLDOWN && flags & F_SHOW_BORDER)))))
 	{
 #ifdef _MAC_DESKTOP
 		macopenmenu();
@@ -3573,7 +2765,7 @@ void MCButton::openmenu(Boolean grab)
 	{
 		state |= CS_SUBMENU | CS_ARMED;
 		reseticon();
-		if (MCmenuobjectptr == NULL)
+		if (!MCmenuobjectptr)
 			MCmenuobjectptr = this;
 		mymenudepth = ++menudepth;
 		MCStack *sptr = menumode == WM_POPUP ? MCmousestackptr : getstack();
@@ -3613,10 +2805,10 @@ void MCButton::openmenu(Boolean grab)
 		}
 
 		menu->openrect(rel, (Window_mode)menumode, NULL, WP_DEFAULT, OP_NONE);
-		menu -> mode_openasmenu(t_did_grab ? sptr : NULL);
+		menu->mode_openasmenu(t_did_grab ? sptr : NULL);
 		
 		// MW-2014-03-11: [[ Bug 11893 ]] Make sure we don't do anything to a stack panel.
-		if (menumode == WM_OPTION && menuname == nil)
+		if (menumode == WM_OPTION && MCNameIsEmpty(menuname))
 		{
 			MCField *t_field = NULL;
 			MCObjptr *t_obj = menu->getcurcard()->getrefs();
@@ -3657,29 +2849,41 @@ void MCButton::freemenu(Boolean force)
 #ifdef _MAC_DESKTOP
 	macfreemenu();
 #endif
-	if (menu != NULL && !(state & CS_SUBMENU))
-		if (menuname != NULL)
+	if (menu.IsValid() && !(state & CS_SUBMENU))
+	{
+		if (!MCNameIsEmpty(menuname))
 		{
 			menu->removeaccels(getstack());
 			menu->removeneed(this);
-			menu = NULL;
+			menu = nil;
 		}
 		else
-			if (menustring != NULL || force)
-			{
-				closemenu(False, True);
+		{
+			if (!MCStringIsEmpty(menustring) || force)
+            {
+                closemenu(False, True);
+                
+                /* In this case the button owns the menu so after removing
+                 * any references to it that might exist in the environment
+                 * it must be explicitly deleted. */
 				MCdispatcher->removepanel(menu);
 				MCstacks->deleteaccelerator(this, NULL);
 				menu->removeneed(this);
-				delete menu;
-				menu = NULL;
+                
+                /* Schedule deletion of the menu stack. */
+                menu->scheduledelete();
+                
+				menu = nil;
 			}
+		}
+	}
 }
 
-void MCButton::docascade(MCString &pick)
+void MCButton::docascade(MCStringRef p_pick)
 {
+	MCAutoStringRef t_pick;
 	MCButton *pptr = this;
-	if (menuname == NULL && menustring == NULL)
+	if (MCNameIsEmpty(menuname) && MCStringIsEmpty(menustring))
 	{
 		//get tag info
 		bool t_has_tags = getmenuhastags();
@@ -3687,40 +2891,41 @@ void MCButton::docascade(MCString &pick)
 		pptr = this;
 		while(pptr->menumode == WM_CASCADE && pptr->parent->getparent()->getparent()->gettype() == CT_BUTTON)
 		{
-			bool isunicode;
-			MCString slabel;
-
-			if (t_has_tags && pptr -> getname() != nil)
-				slabel = pptr -> getname_oldstring(), isunicode = false;
+			MCStringRef t_label = nil;
+			if (t_has_tags && !MCNameIsEmpty(pptr->getname()))
+				t_label = MCNameGetString(pptr->getname());
 			else
-				pptr->getlabeltext(slabel, isunicode);
-
-			uint2 newpicksize = 0;
-			char *newpick = new char[slabel.getlength() + MCU_charsize(isunicode) + pick.getlength()];
-			memcpy(newpick, slabel.getstring(), slabel.getlength());
-			newpicksize += slabel.getlength();
+				t_label = pptr->getlabeltext();
 			
-			MCU_copychar('|', &newpick[newpicksize], isunicode);
+            if (*t_pick == nil)
+                /* UNCHECKED */ MCStringMutableCopy(p_pick, &t_pick);
+            
+            /* UNCHECKED */ MCStringPrependNativeChar(*t_pick, '|');
+            /* UNCHECKED */ MCStringPrepend(*t_pick, t_label);
 
-			newpicksize += MCU_charsize(isunicode);
-			memcpy(&newpick[newpicksize],pick.getstring(),pick.getlength());
-			newpicksize += pick.getlength();
-			delete (char *)pick.getstring();
-			pick.set(newpick,newpicksize);
 			pptr = (MCButton *)pptr->parent->getparent()->getparent();
 			pptr->state |= CS_IGNORE_MENU;
 		}
 	}
+	else
+	{
+			t_pick = p_pick;
+	}	
+	
 	if (pptr != this)
 	{
-		MCParameter *param = new MCParameter;
-		param->setbuffer((char *)pick.getstring(), pick.getlength());
-		MCscreen->addmessage(pptr, MCM_menu_pick, MCS_time(), param);
-		pick = NULL;
+		// IM-2015-10-06: [[ Bug 15502 ]] Call the handler of the *parent*
+		//    menu button, rather than of this one.
+		if (pptr->m_menu_handler == nil || !pptr->m_menu_handler->OnMenuPick(pptr, *t_pick, nil))
+		{
+			MCParameter *param = new (nothrow) MCParameter;
+			param->setvalueref_argument(*t_pick);
+			MCscreen->addmessage(pptr, MCM_menu_pick, MCS_time(), param);
+		}
 	}
 	else
 	{
-		Exec_stat es = pptr->message_with_args(MCM_menu_pick, pick);
+		Exec_stat es = pptr->handlemenupick(*t_pick, nil);
 		if (es == ES_NOT_HANDLED || es == ES_PASS)
 			pptr->message_with_args(MCM_mouse_up, menubutton);
 	}
@@ -3731,112 +2936,120 @@ void MCButton::setupmenu()
 	flags = MENU_FLAGS;
 }
 
-void MCButton::selectedchunk(MCExecPoint &ep)
+bool MCButton::menuisopen()
 {
-	getprop(0, P_NUMBER, ep, False);
-	ep.ton();
-	uint4 number = ep.getuint4();
-	const char *sptr;
-	const char *eptr;
-	getmenuptrs(sptr, eptr);
-	ep.setstringf("char %d to %d of button %d", sptr - menustring + 1, eptr - menustring, number);
+#ifdef _MAC_DESKTOP
+	return macmenuisopen();
+#else
+	return menu.IsValid() && menu->getopened();
+#endif
 }
 
-void MCButton::selectedline(MCExecPoint &ep)
+bool MCButton::selectedchunk(MCStringRef& r_string)
 {
-	getprop(0, P_NUMBER, ep, False);
-	uint2 number;
-	ep.getuint2(number, 0, 0, EE_UNDEFINED);
-	ep.setstringf("line %d of button %d", menuhistory, number);
+    MCExecContext ctxt(nil, nil, nil);
+	uinteger_t t_number;
+	GetNumber(ctxt, 0, t_number);
+	
+	MCRange t_range;
+	t_range = getmenurange();
+	return MCStringFormat(r_string, "char %d to %d of button %d", t_range.offset, t_range.offset + t_range.length, t_number);
 }
 
-void MCButton::selectedtext(MCExecPoint &ep)
+bool MCButton::selectedline(MCStringRef& r_string)
+{
+    MCExecContext ctxt(nil, nil, nil);
+	uinteger_t t_number;
+	GetNumber(ctxt, 0, t_number);
+	
+	return MCStringFormat(r_string, "line %d of button %d", menuhistory, t_number);
+}
+
+bool MCButton::selectedtext(MCStringRef& r_string)
 {
 	if (entry != NULL)
 	{
-		MCString slabel;
-		bool isunicode;
-		getlabeltext(slabel, isunicode);
-		ep.setsvalue(slabel);
+		r_string = MCValueRetain(getlabeltext());
+		return true;
 	}
 	else
 	{
-		const char *sptr;
-		const char *eptr;
-		getmenuptrs(sptr, eptr);
-		MCString s(sptr, eptr - sptr);
-		ep.setsvalue(s);
+		MCRange t_range;
+		t_range = getmenurange();
+		/* UNCHECKED */ MCStringCopySubstring(menustring, t_range, r_string);
+		return true;
 	}
+	return false;
 }
 
-// MW-2012-02-16: [[ IntrinsicUnicode ]] The encoding of the label text may not
-//   be the same as the 'hasunicode()' setting as it could be the name of the
-//   control (which, at the moment, is always native).
-void MCButton::getlabeltext(MCString &s, bool& r_unicode)
+MCStringRef MCButton::getlabeltext()
 {
-	if (entry != NULL)
+	if (entry != nil)
 		getentrytext();
+    // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+    //  we need to rely on the F_LABEL flag
 	if (flags & F_LABEL)
-	{
-		s.set(label, labelsize);
-		r_unicode = hasunicode();
-	}
+		return label;
 	else
-	{
-		s = getname_oldstring();
-		r_unicode = false;
-	}
+		return MCNameGetString(getname());
 }
 
-Boolean MCButton::resetlabel()
+bool MCButton::resetlabel()
 {
-	Boolean changed = False;
+	bool changed = false;
 	if (menumode == WM_OPTION || menumode == WM_COMBO)
 	{
-		char *oldlabel = label;
-		uint2 oldlabelsize = labelsize;
-		if (menustring == NULL)
+		if (MCStringIsEmpty(menustring))
 		{
-			label = NULL;
-			labelsize = 0;
 			if (entry != NULL)
-				entry->settext(0, MCnullmcstring, False, hasunicode());
+				entry->settext(0, kMCEmptyString, False);
 
-			flags &= ~F_LABEL;
-
-			if (oldlabel != NULL)
-				changed = True;
+			if (!MCStringIsEmpty(label))
+			{
+				MCValueAssign(label, kMCEmptyString);
+				changed = true;
+			}
+            
+            // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+            //  we need to rely on the F_LABEL flag
+            flags &= ~F_LABEL;
 		}
 		else
 		{
-			const char *sptr;
-			const char *eptr;
-			getmenuptrs(sptr, eptr);
-			labelsize = eptr - sptr;
-			if (labelsize == 0)
+			MCRange t_range;
+			t_range = getmenurange();
+			MCAutoStringRef t_label;
+			if (t_range.length == 0)
 			{
 				setmenuhistoryprop(1);
-				label = NULL;
+				t_label = kMCEmptyString;
 			}
 			else
 			{
-				label = new char[labelsize];
-				memcpy(label, sptr, labelsize);
+				/* UNCHECKED */ MCStringCopySubstring(menustring, t_range, &t_label);
 			}
+            
+            // AL-2014-08-04: [[ Bug 13089 ]] Set entry text to new label
 			if (entry != NULL)
-				entry->settext(0, MCString(label, labelsize), False, hasunicode());
+				entry->settext(0, *t_label, False);
+            
+            // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+            //  we need to rely on the F_LABEL flag
+            flags |= F_LABEL;
 
-			flags |= F_LABEL;
-
-			if (oldlabel == NULL || labelsize != oldlabelsize ||
-			        memcmp(label, oldlabel, labelsize) != 0)
-				changed = True;
+			if (!MCStringIsEqualTo(label, *t_label, kMCStringOptionCompareExact))
+			{
+				MCValueAssign(label, *t_label);
+				changed = true;
+			}
 		}
-		delete oldlabel;
 	}
 	else
 		if (menumode == WM_TOP_LEVEL)
-			MCU_break_string(MCString(menustring, menusize), tabs, ntabs, hasunicode());
+		{
+			MCValueRelease(tabs);
+			/* UNCHECKED */ MCStringSplit(menustring, MCSTR("\n"), nil, kMCStringOptionCompareExact, tabs);
+		}
 	return changed;
 }
 
@@ -3897,10 +3110,7 @@ void MCButton::radio()
 	Chunk_term ptype = parent->gettype() == CT_GROUP ? CT_BACKGROUND : CT_CARD;
 	for (cptr->count(CT_BUTTON, ptype, NULL, i, True) ; i ; i--)
 	{
-		char string[U2L];
-		sprintf(string, "%d", i);
-		MCButton *bptr = (MCButton *)cptr->getchild(CT_EXPRESSION, string,
-		                 CT_BUTTON, ptype);
+		MCButton *bptr = (MCButton *)cptr->getnumberedchild(i, CT_BUTTON, ptype);
 		if (bptr == this)
 			continue;
 		if (bptr->parent == parent && bptr->family == family)
@@ -3922,7 +3132,9 @@ public:
 	
 	~MCMenuPickBuilder(void)
 	{
-		MCCStringArrayFree(m_tags, m_tag_count);
+		for (uint32_t i = 0; i < m_tag_count; i++)
+			MCValueRelease(m_tags[i]);
+		MCMemoryDeleteArray(m_tags);
 	}
 	
 	bool Start(void)
@@ -3935,26 +3147,26 @@ public:
 		if (m_done)
 			return true;
 		
-		char *t_tag;
-		t_tag = nil;
+		MCStringRef t_tag = nil;
 		
-		MCExecPoint ep;
-		if (p_menu_item -> tag . getstring() != nil)
-			ep . setsvalue(p_menu_item -> tag);
+        // SN-2014-07-29: [[ Bug 12998 ]] has_tag member put back
+        //  as it was in 6.x
+		if (!MCStringIsEmpty(p_menu_item->tag))
+        {
+            p_menu_item -> has_tag = true;
+            t_tag = p_menu_item->tag;
+        }
 		else
-		{
-			ep . setsvalue(p_menu_item -> label);
-			if (p_menu_item -> is_unicode)
-				ep . utf16toutf8();
-		}
+        {
+            p_menu_item -> has_tag = false;
+            t_tag = p_menu_item->label;
+        }
 		
-		MCCStringClone(ep . getcstring(), t_tag);
-
 		for(uint32_t i = p_menu_item -> depth; i < m_tag_count; i++)
-			MCCStringFree(m_tags[i]);
+			MCValueRelease(m_tags[i]);
 		
 		MCMemoryResizeArray(p_menu_item -> depth + 1, m_tags, m_tag_count);
-		m_tags[p_menu_item -> depth] = t_tag;
+		m_tags[p_menu_item -> depth] = MCValueRetain(t_tag);
 		
 		m_current_index += 1;
 		
@@ -3972,13 +3184,15 @@ public:
 		return false;
 	}
 	
-	char *GetPickString(void)
+	void GetPickString(MCStringRef &r_string)
 	{
-		char *t_which;
-		MCCStringClone(m_tags[0], t_which);
+		MCStringRef t_string = nil;
+		/* UNCHECKED */ MCStringMutableCopy(m_tags[0], t_string);
 		for(uint32_t i = 1; i < m_tag_count; i++)
-			MCCStringAppendFormat(t_which, "|%s", m_tags[i]);
-		return t_which;
+		{
+            MCStringAppendFormat(t_string, "|%@", m_tags[i]);
+		}
+		MCStringCopyAndRelease(t_string, r_string);
 	}
 	
 	uint32_t GetPickIndex(void)
@@ -3990,7 +3204,7 @@ private:
 	bool m_done;
 	uint32_t m_current_index;
 	uint32_t m_target_index;
-	char **m_tags;
+	MCStringRef *m_tags;
 	uint32_t m_tag_count;
 };
 
@@ -4007,38 +3221,50 @@ void MCButton::setmenuhistoryprop(int2 newline)
 void MCButton::setmenuhistory(int2 newline)
 {
 	// I.M. [[bz 9603]] if there is no menu, then return
-	if (menustring == nil)
+	if (MCStringIsEmpty(menustring))
 		return;
 	if (menumode == WM_CASCADE || menumode == WM_POPUP || menumode == WM_PULLDOWN)
 	{
 		MCMenuPickBuilder t_builder(newline);
-		MCString t_menu_string(menustring, menusize);
-		MCParseMenuString(t_menu_string, &t_builder, hasunicode(), menumode);
+		MCParseMenuString(menustring, &t_builder, menumode);
 		
 		setmenuhistoryprop(t_builder . GetPickIndex());
 		
-		char *t_which;
-		t_which = t_builder . GetPickString();
-		message_with_args(MCM_menu_pick, t_which);
+		MCStringRef t_which;
+		t_builder.GetPickString(t_which);
+		handlemenupick(t_which, nil);
 		
 		resetlabel();
-		
-		MCCStringFree(t_which);
 	}
 	else
 	{
 		if (!(getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL) || !opened)
-			MCU_break_string(MCString(menustring, menusize), tabs, ntabs, hasunicode());
+		{
+			MCValueRelease(tabs);
+			/* UNCHECKED */ MCStringSplit(menustring, MCSTR("\n"), nil, kMCStringOptionCompareExact, tabs);
+		}
+		uindex_t t_ntabs;
+		t_ntabs = MCArrayGetCount(tabs);
 		uint2 oldline = menuhistory;
-		setmenuhistoryprop(MCU_max(MCU_min(newline, ntabs), 1));
-		if (menuhistory != oldline && !(state & CS_MFOCUSED) && tabs != NULL)
-			message_with_args(MCM_menu_pick, tabs[menuhistory - 1], tabs[oldline - 1]);
+		setmenuhistoryprop(MCU_max(MCU_min(newline, (int2)t_ntabs), 1));
+		
+        // SN-2014-09-03: [[ Bug 13328 ]] menupick should no be sent if there is a
+        // menuname: the oldline belongs to the panel stack, and certainly doesn't match
+        // the menustring of this button. At least, it would set a bad label, at worst,
+        // it gives garbage (and crashes in 7.0)
+        if (MCNameIsEmpty(menuname) && menuhistory != oldline && !(state & CS_MFOCUSED) && t_ntabs > 0)
+		{
+			MCValueRef t_menuhistory = nil;
+			MCValueRef t_oldline = nil;
+			/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, menuhistory, t_menuhistory);
+			/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, oldline, t_oldline);
+			handlemenupick(t_menuhistory, t_oldline);
+		}
+
 		resetlabel();
 		if (!(getstyleint(flags) == F_MENU && menumode == WM_TOP_LEVEL) || !opened)
 		{
-			delete tabs;
-			tabs = NULL;
-			ntabs = 0;
+			MCValueAssign(tabs, kMCEmptyArray);
 		}
 		if (menuhistory != oldline)
 		{
@@ -4055,20 +3281,25 @@ uint2 MCButton::getmousetab(int2 &curx)
 	if (IsMacLFAM() && MCaqua)
 	{
 		int4 totalwidth = 0;
-		for (i = 0 ; i < ntabs ; i++)
+		for (i = 0 ; i < MCArrayGetCount(tabs) ; i++)
 		{
-			const char *sptr = tabs[i].getstring();
-			uint2 length = tabs[i].getlength();
-			if (*sptr == '(')
+			MCValueRef t_tabval;
+			/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, i + 1, t_tabval);
+			MCStringRef t_tab;
+			t_tab = (MCStringRef)t_tabval;
+			
+			MCRange t_range;
+			t_range = MCRangeMake(0, MCStringGetLength(t_tab));
+			if (MCStringGetCharAtIndex(t_tab, t_range.offset) == '(')
 			{
-				sptr++;
-				length--;
+				t_range.offset++;
+				t_range.length--;
 			}
-			// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-			totalwidth += MCFontMeasureText(m_font, sptr, length, hasunicode(), getstack() -> getdevicetransform()) + 23;
+            // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+            totalwidth += MCFontMeasureTextSubstring(m_font, t_tab, t_range, getstack() -> getdevicetransform()) + 23;
 		}
 		if (totalwidth < rect.width)
-			curx += rect.width - totalwidth >> 1;
+			curx += (rect.width - totalwidth) >> 1;
 		if (mx < curx)
 			return MAXUINT2;
 	}
@@ -4088,17 +3319,33 @@ uint2 MCButton::getmousetab(int2 &curx)
 		tabrightmargin = MCcurtheme->getmetric(WTHEME_METRIC_TABRIGHTMARGIN);
 		tableftmargin = MCcurtheme->getmetric(WTHEME_METRIC_TABLEFTMARGIN);
 	}
-	for (i = 0 ; i < ntabs ; i++)
+	uindex_t t_ntabs;
+	t_ntabs = MCArrayGetCount(tabs);
+	for (i = 0 ; i < t_ntabs ; i++)
 	{
-		// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+		MCValueRef t_tabval = nil;
+		/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, i + 1, t_tabval);
+		MCStringRef t_tab;
+		t_tab = (MCStringRef)t_tabval;
+        
+        // AL-2014-09-24: [[ Bug 13528 ]] Measure disabled tab text correctly
+        MCRange t_range;
+        t_range = MCRangeMake(0, MCStringGetLength(t_tab));
+        if (MCStringGetCharAtIndex(t_tab, t_range.offset) == '(')
+        {
+            t_range.offset++;
+            t_range.length--;
+        }
+        
+        // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
 		if (MCcurtheme)
-			tx += MCFontMeasureText(m_font, tabs[i].getstring(), tabs[i].getlength(), hasunicode(), getstack() -> gettransform()) + tabrightmargin + tableftmargin - taboverlap;
+            tx += MCFontMeasureTextSubstring(m_font, t_tab, t_range, getstack() -> getdevicetransform()) + tabrightmargin + tableftmargin - taboverlap;
 		else
 		{
 			if (IsMacLF())
-				tx += MCFontMeasureText(m_font, tabs[i].getstring(), tabs[i].getlength(), hasunicode(), getstack() -> getdevicetransform()) + theight * 2 / 3 + 7;
+                tx += MCFontMeasureTextSubstring(m_font, t_tab, t_range, getstack() -> getdevicetransform()) + theight * 2 / 3 + 7;
 			else
-				tx += MCFontMeasureText(m_font, tabs[i].getstring(), tabs[i].getlength(), hasunicode(), getstack() -> getdevicetransform()) + 12;
+                tx += MCFontMeasureTextSubstring(m_font, t_tab, t_range, getstack() -> getdevicetransform()) + 12;
 
 		}
 		if (mx < tx)
@@ -4123,21 +3370,26 @@ int4 MCButton::formattedtabwidth(void)
 
     int4 tx;
 	tx = 0;
-	for (uint4 i = 0 ; i < ntabs ; i++)
-	{
-		// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+	uindex_t t_ntabs;
+	t_ntabs = MCArrayGetCount(tabs);
+	for (uint4 i = 0 ; i < t_ntabs ; i++)
+    {
+		MCValueRef t_tabval = nil;
+		/* UNCHECKED */ MCArrayFetchValueAtIndex(tabs, i + 1, t_tabval);
+		MCStringRef t_tab;
+		t_tab = (MCStringRef)t_tabval;
+        // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
 		if (MCcurtheme)
-			tx += MCFontMeasureText(m_font, tabs[i].getstring(), tabs[i].getlength(), hasunicode(), getstack() -> getdevicetransform()) + tabrightmargin + tableftmargin - taboverlap;
+            tx += MCFontMeasureText(m_font, t_tab, getstack() -> getdevicetransform()) + tabrightmargin + tableftmargin - taboverlap;
 		else
 		{
 			if (IsMacLF())
-				tx += MCFontMeasureText(m_font, tabs[i].getstring(), tabs[i].getlength(), hasunicode(), getstack() -> getdevicetransform()) + theight * 2 / 3 + 7;
+                tx += MCFontMeasureText(m_font, t_tab, getstack() -> getdevicetransform()) + theight * 2 / 3 + 7;
 			else
-				tx += MCFontMeasureText(m_font, tabs[i].getstring(), tabs[i].getlength(), hasunicode(), getstack() -> getdevicetransform()) + 12;
-
+                tx += MCFontMeasureText(m_font, t_tab, getstack() -> getdevicetransform()) + 12;
 		}
 	}
-	if (ntabs > 0)
+	if (t_ntabs > 0)
 		tx += taboverlap + tabrightmargin;
 	return tx;
 }
@@ -4149,7 +3401,7 @@ static void openicon(MCImage *&icon, uint1 *data, uint4 size)
 	// MW-2012-02-17: [[ FontRefs ]] Make sure we set a parent on the icon, and also
 	//   make it invisible. If we don't do this we get issues with parent references
 	//   and fontrefs.
-	icon = new MCImage;
+	icon = new (nothrow) MCImage;
 	icon->setparent(MCdispatcher);
 	icon->setflag(False, F_VISIBLE);
 	icon->setflag(True, F_I_ALWAYS_BUFFER);
@@ -4185,55 +3437,14 @@ void MCButton::freeicons()
 	closeicon(macrbhilitetrack);
 }
 
-// MW-2012-02-16: [[ IntrinsicUnicode ]] This utility method changes the encoding
-//   of the given string either to unicode (if to_unicode is true) or to native
-//   otherwise.
-static void switchunicodeofstring(bool p_to_unicode, char*& x_string, uint2& x_length)
-{
-	if (x_string == nil)
-		return;
-
-	MCExecPoint ep(nil, nil, nil);
-	ep . setsvalue(MCString(x_string, x_length));
-	if (p_to_unicode)
-		ep . nativetoutf16();
-	else
-		ep . utf16tonative();
-	
-	delete x_string;
-
-	x_length = ep . getsvalue() . getlength();
-	x_string = new char[x_length];
-	memcpy(x_string, ep . getsvalue() . getstring(), x_length);
-}
-
 // MW-2012-02-16: [[ IntrinsicUnicode ]] This method switches all the text in
 //   the button to or from unicode (to unicode if 'to_unicode' is set).
 void MCButton::switchunicode(bool p_to_unicode)
 {
-	if (hasunicode() == p_to_unicode)
-		return;
-
-	switchunicodeofstring(p_to_unicode, menustring, menusize);
-	switchunicodeofstring(p_to_unicode, label, labelsize);
-	switchunicodeofstring(p_to_unicode, acceltext, acceltextsize);
-	
 	if (p_to_unicode)
 		m_font_flags |= FF_HAS_UNICODE;
 	else
 		m_font_flags &= ~FF_HAS_UNICODE;
-}
-
-// MW-2012-02-16: [[ IntrinsicUnicode ]] This method returns 'true' if its possible
-//   to convert the given string to native without loss of information.
-static bool canconverttonative(const char *p_chars, uint32_t p_char_count)
-{
-	MCExecPoint ep(nil, nil, nil);
-	ep . setsvalue(MCString(p_chars, p_char_count));
-	ep . utf16tonative();
-	ep . nativetoutf16();
-	return ep . getsvalue() . getlength() == p_char_count &&
-				memcmp(ep . getsvalue() . getstring(), p_chars, p_char_count) == 0;
 }
 
 // MW-2012-02-16: [[ IntrinsicUnicode ]] This method attempts to coerce the text in
@@ -4243,10 +3454,7 @@ void MCButton::trytochangetonative(void)
 	if (!hasunicode())
 		return;
 
-	if (canconverttonative(menustring, menusize) &&
-		canconverttonative(label, labelsize) &&
-		canconverttonative(acceltext, acceltextsize))
-		switchunicode(false);
+	switchunicode(false);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -4254,7 +3462,9 @@ void MCButton::trytochangetonative(void)
 //  SAVING AND LOADING
 //
 
-IO_stat MCButton::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+#define BUTTON_EXTRA_ICONGRAVITY (1 << 0)
+
+IO_stat MCButton::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
 	// Extended data area for a button consists of:
 	//   uint4 hover_icon;
@@ -4263,13 +3473,36 @@ IO_stat MCButton::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
 
 	IO_stat t_stat;
 	t_stat = p_stream . WriteU32(icons == NULL ? 0 : icons -> iconids[CI_HOVER]);
+    
+    uint4 t_flags;
+    t_flags = 0;
+    
+    uint4 t_length;
+    t_length = 0;
+    
+    // MW-2014-06-20: [[ IconGravity ]] If we have a gravity then we need a gravity block.
+    //   Note: we save as a uint32_t even though it only needs 4-bits; this will allow
+    //         us to use the same field to save similar properties for label and such, the
+    //         defaults being 0 meaning 'legacy behavior'.
+    if (m_icon_gravity != kMCGravityNone)
+    {
+        t_flags |= BUTTON_EXTRA_ICONGRAVITY;
+        t_length += sizeof(uint32_t);
+    }
+    
+    if (t_stat == IO_NORMAL)
+        t_stat = p_stream . WriteTag(t_flags, t_length);
+    
+    if (t_stat == IO_NORMAL && (t_flags & BUTTON_EXTRA_ICONGRAVITY))
+        t_stat = p_stream . WriteU32(m_icon_gravity);
+    
 	if (t_stat == IO_NORMAL)
-		t_stat = defaultextendedsave(p_stream, p_part);
+		t_stat = MCObject::extendedsave(p_stream, p_part, p_version);
 
 	return t_stat;
 }
 
-IO_stat MCButton::extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_remaining)
+IO_stat MCButton::extendedload(MCObjectInputStream& p_stream, uint32_t p_version, uint4 p_remaining)
 {
 	IO_stat t_stat;
 	t_stat = IO_NORMAL;
@@ -4277,27 +3510,52 @@ IO_stat MCButton::extendedload(MCObjectInputStream& p_stream, const char *p_vers
 	if (p_remaining >= 4)
 	{
 		uint4 t_hover_icon_id;
-		t_stat = p_stream . ReadU32(t_hover_icon_id);
+		t_stat = checkloadstat(p_stream . ReadU32(t_hover_icon_id));
 		if (t_stat == IO_NORMAL)
 		{
-			icons = new iconlist;
+			icons = new (nothrow) iconlist;
 			memset(icons, 0, sizeof(iconlist));
 			icons -> iconids[CI_HOVER] = t_hover_icon_id;
 		}
 
-		p_remaining -= 4;
+        if (t_stat == IO_NORMAL)
+            p_remaining -= 4;
 	}
 
-	if (t_stat == IO_NORMAL && p_remaining > 0)
-		t_stat = defaultextendedload(p_stream, p_version, p_remaining);
+    if (p_remaining > 0)
+    {
+		uint4 t_flags, t_length, t_header_length;
+		t_stat = checkloadstat(p_stream . ReadTag(t_flags, t_length, t_header_length));
+        
+		if (t_stat == IO_NORMAL)
+			t_stat = checkloadstat(p_stream . Mark());
+        
+        // MW-2014-06-20: [[ IconGravity ]] Read in the iconGravity property.
+        if (t_stat == IO_NORMAL && (t_flags & BUTTON_EXTRA_ICONGRAVITY) != 0)
+        {
+            uint32_t t_value;
+            t_stat = checkloadstat(p_stream . ReadU32(t_value));
+            if (t_stat == IO_NORMAL)
+                m_icon_gravity = (MCGravity)t_value;
+        }
+        
+        if (t_stat == IO_NORMAL)
+            t_stat = checkloadstat(p_stream . Skip(t_length));
+        
+        if (t_stat == IO_NORMAL)
+            p_remaining -= t_length + t_header_length;
+    }
+    
+	if (t_stat == IO_NORMAL)
+		t_stat = MCObject::extendedload(p_stream, p_version, p_remaining);
 
 	return t_stat;
 }
 
-IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
+IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version)
 {
 	IO_stat stat;
-
+	
 	if ((stat = IO_write_uint1(OT_BUTTON, stream)) != IO_NORMAL)
 		return stat;
 	if (entry != NULL)
@@ -4314,7 +3572,13 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 
 	bool t_has_extension;
 	t_has_extension = icons != NULL && icons -> iconids[CI_HOVER] != 0;
-	if ((stat = MCObject::save(stream, p_part, t_has_extension || p_force_ext)) != IO_NORMAL)
+    
+    // MW-2014-06-20: [[ IconGravity ]] Force an extension if non-legacy gravity.
+    if (m_icon_gravity != kMCGravityNone)
+        t_has_extension = true;
+    
+	if ((stat = MCObject::save(stream, p_part, t_has_extension || p_force_ext,
+	                           p_version)) != IO_NORMAL)
 		return stat;
 
 	if (flags & F_HAS_ICONS)
@@ -4324,9 +3588,23 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 			if ((stat = IO_write_uint4(icons->iconids[i], stream)) != IO_NORMAL)
 				return stat;
 	}
-	if (flags & F_LABEL)
-		if ((stat = IO_write_string(label, labelsize, stream, hasunicode())) != IO_NORMAL)
-			return stat;
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode; otherwise use
+	//   legacy unicode output.
+    // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+    //  we need to rely on the F_LABEL flag
+    if (flags & F_LABEL)
+	{
+		if (p_version < kMCStackFileFormatVersion_7_0)
+		{
+			if ((stat = IO_write_stringref_legacy(label, stream, hasunicode())) != IO_NORMAL)
+				return stat;
+		}
+		else
+		{
+			if ((stat = IO_write_stringref_new(label, stream, true)) != IO_NORMAL)
+				return stat;
+		}
+    }
 	if (flags & F_LABEL_WIDTH)
 		if ((stat = IO_write_uint2(labelwidth, stream)) != IO_NORMAL)
 			return stat;
@@ -4341,11 +3619,24 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 		if ((stat = IO_write_int2(bottommargin, stream)) != IO_NORMAL)
 			return stat;
 	}
-	if ((stat = IO_write_string(menuname, stream)) != IO_NORMAL)
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+	if ((stat = IO_write_nameref_new(menuname, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
 		return stat;
-	if (flags & F_MENU_STRING)
-		if ((stat = IO_write_string(menustring, menusize, stream, hasunicode())) != IO_NORMAL)
-			return stat;
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode; otherwise use
+	//   legacy unicode output.
+    if (flags & F_MENU_STRING)
+	{
+		if (p_version < kMCStackFileFormatVersion_7_0)
+		{
+			if ((stat = IO_write_stringref_legacy(menustring, stream, hasunicode())) != IO_NORMAL)
+				return stat;
+		}
+		else
+		{
+			if ((stat = IO_write_stringref_new(menustring, stream, true)) != IO_NORMAL)
+				return stat;
+		}
+    }
 	menubutton |= family << 4;
 	if ((stat = IO_write_uint1(menubutton, stream)) != IO_NORMAL)
 		return stat;
@@ -4355,16 +3646,25 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	// since it wasn't added to the end, we must adjust.
 	if ((stat = IO_write_uint1(menumode > WM_MODAL ? menumode - 1 : menumode, stream)) != IO_NORMAL)
 		return stat;
-	if ((menumode == WM_OPTION || menumode == WM_TOP_LEVEL) && (menuname != NULL || flags & F_MENU_STRING))
+	if ((menumode == WM_OPTION || menumode == WM_TOP_LEVEL) && (!MCNameIsEmpty(menuname) || flags & F_MENU_STRING))
 		if ((stat = IO_write_uint2(menuhistory, stream)) != IO_NORMAL)
 			return stat;
 	if (flags & F_MENU_LINES)
 		if ((stat = IO_write_uint2(menulines, stream)) != IO_NORMAL)
+            return stat;
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode; otherwise use
+	//   legacy unicode output.
+	if (p_version < kMCStackFileFormatVersion_7_0)
+	{
+		if ((stat = IO_write_stringref_legacy(acceltext, stream, hasunicode())) != IO_NORMAL)
 			return stat;
-
-	if ((stat = IO_write_string(acceltext, acceltextsize, stream, hasunicode())) != IO_NORMAL)
-		return stat;
-
+	}
+	else
+	{
+		if ((stat = IO_write_stringref_new(acceltext, stream, true)) != IO_NORMAL)
+			return stat;
+	}
 
 	if ((stat = IO_write_uint2(accelkey, stream)) != IO_NORMAL)
 		return stat;
@@ -4373,7 +3673,7 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	if ((stat = IO_write_uint1(mnemonic, stream)) != IO_NORMAL)
 		return stat;
 
-	if ((stat = savepropsets(stream)) != IO_NORMAL)
+	if ((stat = savepropsets(stream, p_version)) != IO_NORMAL)
 		return stat;
 
 	MCCdata *tptr = bdata;
@@ -4381,7 +3681,7 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	{
 		do
 		{
-			if ((stat = tptr->save(stream, OT_BDATA, p_part)) != IO_NORMAL)
+			if ((stat = tptr->save(stream, OT_BDATA, p_part, nil, p_version)) != IO_NORMAL)
 				return stat;
 			tptr = (MCCdata *)tptr->next();
 		}
@@ -4390,30 +3690,30 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext)
 	return IO_NORMAL;
 }
 
-IO_stat MCButton::load(IO_handle stream, const char *version)
+IO_stat MCButton::load(IO_handle stream, uint32_t version)
 {
 	IO_stat stat;
 
 	if ((stat = MCControl::load(stream, version)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 
 	// MW-2012-02-17: [[ IntrinsicUnicode ]] If the unicode tag is set, then we are unicode.
 	if ((m_font_flags & FF_HAS_UNICODE_TAG) != 0)
 		m_font_flags |= FF_HAS_UNICODE;
 
-	if (strncmp(version, "2.3", 3) <= 0)
+	if (version <= kMCStackFileFormatVersion_2_3)
 	{
 		uint4 iconid;
 		uint4 hiliteiconid = 0;
 		if ((stat = IO_read_uint4(&iconid, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if (flags & F_HAS_ICONS)
 			if ((stat = IO_read_uint4(&hiliteiconid, stream)) != IO_NORMAL)
-				return stat;
+				return checkloadstat(stat);
 		if (iconid != 0 || hiliteiconid != 0)
 		{
 			flags |= F_HAS_ICONS;
-			icons = new iconlist;
+			icons = new (nothrow) iconlist;
 			memset(icons, 0, sizeof(iconlist));
 			icons->iconids[CI_DEFAULT] = iconid;
 			icons->iconids[CI_HILITED] = hiliteiconid;
@@ -4429,7 +3729,7 @@ IO_stat MCButton::load(IO_handle stream, const char *version)
 			//   area.
 			if (icons == NULL)
 			{
-				icons = new iconlist;
+				icons = new (nothrow) iconlist;
 				memset(icons, 0, sizeof(iconlist));
 			}
 
@@ -4437,74 +3737,100 @@ IO_stat MCButton::load(IO_handle stream, const char *version)
 			uint2 i;
 			for (i = CI_ARMED ; i < CI_FILE_NICONS ; i++)
 				if ((stat = IO_read_uint4(&icons->iconids[i], stream)) != IO_NORMAL)
-					return stat;
+					return checkloadstat(stat);
 		}
-
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode; otherwise use
+	//   legacy unicode output.
 	if (flags & F_LABEL)
 	{
-		uint4 tlabelsize;
-		if ((stat = IO_read_string(label, tlabelsize, stream, hasunicode())) != IO_NORMAL)
-			return stat;
-		labelsize = tlabelsize;
+		if (version < kMCStackFileFormatVersion_7_0)
+		{
+			if ((stat = IO_read_stringref_legacy(label, stream, hasunicode())) != IO_NORMAL)
+				return checkloadstat(stat);
+		}
+		else
+		{
+			if ((stat = IO_read_stringref_new(label, stream, true)) != IO_NORMAL)
+				return checkloadstat(stat);
+		}
 	}
 
 	if (flags & F_LABEL_WIDTH)
 		if ((stat = IO_read_uint2(&labelwidth, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 
 	if (!(flags & F_NO_MARGINS))
 	{
 		if ((stat = IO_read_int2(&leftmargin, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if ((stat = IO_read_int2(&rightmargin, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if ((stat = IO_read_int2(&topmargin, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if ((stat = IO_read_int2(&bottommargin, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if (leftmargin == defaultmargin
 		        && leftmargin == rightmargin
 		        && leftmargin == topmargin
 		        && leftmargin == bottommargin)
 			flags |= F_NO_MARGINS;
 	}
-	if ((stat = IO_read_string(menuname, stream)) != IO_NORMAL)
-		return stat;
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+	if ((stat = IO_read_nameref_new(menuname, stream, version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
+		return checkloadstat(stat);
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode; otherwise use
+	//   legacy unicode output.
 	if (flags &  F_MENU_STRING)
 	{
-		uint4 tmenusize;
-		if ((stat = IO_read_string(menustring, tmenusize, stream, hasunicode())) != IO_NORMAL)
-			return stat;
-		menusize = tmenusize;
+		if (version < kMCStackFileFormatVersion_7_0)
+		{
+			if ((stat = IO_read_stringref_legacy(menustring, stream, hasunicode())) != IO_NORMAL)
+				return checkloadstat(stat);
+		}
+		else
+		{
+			if ((stat = IO_read_stringref_new(menustring, stream, true)) != IO_NORMAL)
+				return checkloadstat(stat);
+		}
 	}
 
 	if ((stat = IO_read_uint1(&menubutton, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	family = menubutton >> 4;
 	menubutton &= 0x0F;
 
 	if ((stat = IO_read_uint1(&menumode, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 
 	if (menumode > WM_MODAL)
 		menumode++;
 	if ((menumode == WM_OPTION || menumode == WM_TOP_LEVEL)
-	        && (menuname != NULL || flags & F_MENU_STRING))
+	        && (!MCNameIsEmpty(menuname) || flags & F_MENU_STRING))
 		if ((stat = IO_read_uint2(&menuhistory, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 
 	if (flags & F_MENU_LINES)
 		if ((stat = IO_read_uint2(&menulines, stream)) != IO_NORMAL)
-			return stat;
-
-	uint4 tacceltextsize;
-	if ((stat = IO_read_string(acceltext, tacceltextsize, stream, hasunicode())) != IO_NORMAL)
-		return stat;
-
-	acceltextsize = tacceltextsize;
+			return checkloadstat(stat);
+	
+	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode; otherwise use
+	//   legacy unicode output.
+	if (version < kMCStackFileFormatVersion_7_0)
+	{
+		if ((stat = IO_read_stringref_legacy(acceltext, stream, hasunicode())) != IO_NORMAL)
+			return checkloadstat(stat);
+	}
+	else
+	{
+		if ((stat = IO_read_stringref_new(acceltext, stream, true)) != IO_NORMAL)
+			return checkloadstat(stat);
+	}
 
 	if ((stat = IO_read_uint2(&accelkey, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if (accelkey < 256)
 #ifdef __MACROMAN__
 		accelkey = MCisotranslations[accelkey];
@@ -4513,41 +3839,41 @@ IO_stat MCButton::load(IO_handle stream, const char *version)
 #endif
 
 	if ((stat = IO_read_uint1(&accelmods, stream)) != IO_NORMAL)
-		return stat;
+		return checkloadstat(stat);
 	if ((stat = IO_read_uint1(&mnemonic, stream)) != IO_NORMAL)
-		return stat;
-	if (strncmp(version, "2.0", 3) <= 0)
+		return checkloadstat(stat);
+	if (version <= kMCStackFileFormatVersion_2_0)
 	{
 		if (flags & F_DEFAULT)
 			rect = MCU_reduce_rect(rect, MOTIF_DEFAULT_WIDTH);
 		else
 			if (flags & F_TRAVERSAL_ON && !(flags & F_AUTO_ARM))
 				rect = MCU_reduce_rect(rect, MCfocuswidth);
-		if (menuname != NULL)
+		if (!MCNameIsEmpty(menuname))
 		{
 			if (menumode != WM_CASCADE)
 				flags &= ~F_AUTO_ARM;
-			flags = flags & ~F_STYLE | F_MENU | F_OPAQUE;
+			flags = (flags & ~F_STYLE) | F_MENU | F_OPAQUE;
 		}
 		if (flags & F_AUTO_ARM)
 			flags |= F_OPAQUE | F_TRAVERSAL_ON;
 	}
 
-	if ((stat = loadpropsets(stream)) != IO_NORMAL)
-		return stat;
+	if ((stat = loadpropsets(stream, version)) != IO_NORMAL)
+		return checkloadstat(stat);
 
 	while (True)
 	{
 		uint1 type;
 		if ((stat = IO_read_uint1(&type, stream)) != IO_NORMAL)
-			return stat;
+			return checkloadstat(stat);
 		if (type == OT_BDATA)
 		{
-			MCCdata *newbdata = new MCCdata;
+			MCCdata *newbdata = new (nothrow) MCCdata;
 			if ((stat = newbdata->load(stream, this, version)) != IO_NORMAL)
 			{
 				delete newbdata;
-				return stat;
+				return checkloadstat(stat);
 			}
 			newbdata->appendto(bdata);
 		}
@@ -4558,4 +3884,82 @@ IO_stat MCButton::load(IO_handle stream, const char *version)
 		}
 	}
 	return IO_NORMAL;
-}	
+}
+
+MCStack * MCButton::getmenu()
+{
+    return menu;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MCPlatformControlType MCButton::getcontroltype()
+{
+    MCPlatformControlType t_type;
+    t_type = MCObject::getcontroltype();
+    
+    if (t_type != kMCPlatformControlTypeGeneric)
+        return t_type;
+    else
+        t_type = kMCPlatformControlTypeButton;
+    
+    if (getstyleint(flags) == F_CHECK)
+        t_type = kMCPlatformControlTypeCheckbox;
+    else if (getstyleint(flags) == F_RADIO)
+        t_type = kMCPlatformControlTypeRadioButton;
+    else if (getstyleint(flags) == F_MENU || menucontrol != MENUCONTROL_NONE)
+    {
+        t_type = kMCPlatformControlTypeMenu;
+        switch (menumode)
+        {
+            case WM_POPUP:
+                t_type = kMCPlatformControlTypePopupMenu;
+                break;
+                
+            case WM_OPTION:
+                t_type = kMCPlatformControlTypeOptionMenu;
+                break;
+                
+            case WM_COMBO:
+                t_type = kMCPlatformControlTypeComboBox;
+                break;
+                
+            case WM_PULLDOWN:
+                t_type = kMCPlatformControlTypePulldownMenu;
+                break;
+                
+            case WM_TOP_LEVEL:
+                t_type = kMCPlatformControlTypeTabPane;
+                break;
+                
+            default:
+                break;
+        }
+    }
+    else if (menucontrol != MENUCONTROL_NONE)
+    {
+        t_type = kMCPlatformControlTypeMenuItem;
+    }
+    
+    return t_type;
+}
+
+MCPlatformControlPart MCButton::getcontrolsubpart()
+{
+    return kMCPlatformControlPartNone;
+}
+
+MCPlatformControlState MCButton::getcontrolstate()
+{
+    int t_state;
+    t_state = MCControl::getcontrolstate();
+    
+    if (flags & F_DEFAULT)
+        t_state |= kMCPlatformControlStateDefault;
+    
+    if (t_state & kMCPlatformControlStateMouseFocus
+        && MCbuttonstate & 1)
+        t_state |= kMCPlatformControlStatePressed;
+    
+    return MCPlatformControlState(t_state);
+}

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -19,7 +19,6 @@ package com.runrev.android;
 import android.content.*;
 import android.os.*;
 import android.util.*;
-
 import java.util.*;
 
 import android.hardware.*;
@@ -219,43 +218,39 @@ class SensorModule
         boolean m_use_gps;
         boolean m_gps_available;
         
+        // Offset (in seconds) between GPS monotonic timestamps and wall-clock time
+        double m_timestamp_offset;
+        
         Location m_last_location;
         
         LocationManager m_location_manager;
         
-        LocationListener m_network_location_listener;
-        LocationListener m_gps_location_listener;
+        LocationListener m_location_listener;
         
         public LocationTracker()
         {
+            // Get the number of seconds since the device was booted
+            double t_seconds_since_boot;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
+                t_seconds_since_boot = SystemClock.elapsedRealtimeNanos() / 1.0e9;
+            else
+                t_seconds_since_boot = SystemClock.elapsedRealtime() / 1.0e3;
+            
+            // Get the current wall-clock time in seconds since the Unix epoch
+            double t_seconds_since_epoch = System.currentTimeMillis() / 1000.0;
+            
+            // Calculate the offset between the since-boot monotonic clock and
+            // the current wall-clock time
+            m_timestamp_offset = t_seconds_since_epoch - t_seconds_since_boot;
+            
             m_location_manager = (LocationManager)m_engine.getContext().getSystemService(Context.LOCATION_SERVICE);
-            m_network_location_listener = new LocationListener()
+            m_location_listener = new LocationListener()
             {
                 // LocationListener methods
                 public void onLocationChanged(Location location)
                 {
                     if (m_gps_available)
                         return;
-                    LocationTracker.this.onLocationChanged(location);
-                }
-                
-                public void onProviderDisabled(String provider)
-                {
-                }
-                
-                public void onProviderEnabled(String provider)
-                {
-                }
-                
-                public void onStatusChanged(String provider, int status, Bundle extras)
-                {
-                }
-            };
-            
-            m_gps_location_listener = new LocationListener()
-            {
-                public void onLocationChanged(Location location)
-                {
                     LocationTracker.this.onLocationChanged(location);
                 }
                 
@@ -291,28 +286,22 @@ class SensorModule
                 return true;
             
             m_use_gps = !p_loosely;
+            
+            Criteria t_criteria = new Criteria();
+            if (m_use_gps)
+                t_criteria.setAccuracy(Criteria.ACCURACY_FINE);
+            else
+                t_criteria.setAccuracy(Criteria.ACCURACY_COARSE);
+            
             try
             {
-                m_location_manager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, m_network_location_listener);
+                m_location_manager.requestLocationUpdates(0, 0, t_criteria, m_location_listener, null);
                 m_registered = true;
             }
             catch (SecurityException e)
             {
             }
             
-            
-            if (m_use_gps)
-            {
-                try
-                {
-                    m_location_manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, m_gps_location_listener);
-                    m_registered = true;
-                }
-                catch (SecurityException e)
-                {
-                }
-            }
-
             return m_registered;
         }
         
@@ -321,8 +310,7 @@ class SensorModule
             if (!m_registered)
                 return true;
             
-            m_location_manager.removeUpdates(m_network_location_listener);
-            m_location_manager.removeUpdates(m_gps_location_listener);
+            m_location_manager.removeUpdates(m_location_listener);
             // MM-2011-03-13: [[ Bug 10077 ]] Make sure we flag as unregistered or else we will never be able to register again.5
             m_registered = false;
             return true;
@@ -345,8 +333,22 @@ class SensorModule
                 else
                     t_course = -1.0f;
 
+                // Get an approximate wall-clock time of the fix. This can drift
+                // over time if the wall-clock time is adjusted (forwards or
+                // backwards) but for location-tracking purposes, a monotonic
+                // timestamp is more important than one that matches the wall-
+                // clock time.
+                //
+                // For devices before Jelly Bean, this isn't possible and so the
+                // normal wall-clock time has to be used instead.
+                double t_timestamp;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1)
+                    t_timestamp = (location.getElapsedRealtimeNanos() / 1.0e9) + m_timestamp_offset;
+                else
+                    t_timestamp = location.getTime() / 1000.0;
+                
                 m_engine.onLocationChanged(location.getLatitude(), location.getLongitude(), location.getAltitude(),
-                                           location.getTime() / 1.0e3f, location.getAccuracy(), t_speed, t_course);
+                                           t_timestamp, location.getAccuracy(), t_speed, t_course);
             }
         }
         
@@ -356,17 +358,37 @@ class SensorModule
         public double getLongitude() { return m_last_location.getLongitude(); }
         public double getAltitude() { return m_last_location.getAltitude(); }
         
-        //override to make sure currently known location is sent if already started by heading tracker
-        public boolean startTracking(boolean p_loosely)
-        {
-            boolean t_result;
-            t_result = super.startTracking(p_loosely);
-            if (t_result && m_last_location != null)
-                onLocationChanged(m_last_location);
-            return t_result;
-        }
-    }
-    
+		//override to make sure currently known location is sent if already started by internal tracking
+		public boolean startTracking(boolean p_loosely)
+		{
+			// Check if already tracking at the requested level
+			int t_tracking_requested = p_loosely ? COARSE_TRACKING : FINE_TRACKING;
+
+			if (m_tracking_requested == t_tracking_requested)
+				return true;
+
+			boolean t_result;
+			t_result = super.startTracking(p_loosely);
+			if (t_result && m_last_location != null)
+				m_engine.post(new Runnable() {
+					public void run() {
+						onLocationChanged(m_last_location);
+					}
+				});
+			return t_result;
+		}
+
+		// override to clear cached last location if not tracking internallly
+		public boolean stopTracking()
+		{
+			boolean t_result;
+			t_result = super.stopTracking();
+			if (t_result && !isTracking())
+				m_last_location = null;
+			return t_result;
+		}
+	}
+	
     class HeadingTracker extends Tracker implements SensorEventListener
     {
         private Sensor m_magnetometer;

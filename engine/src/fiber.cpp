@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,17 +16,17 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
+
 #include "fiber.h"
 
-#include <pthread.h>
+#include "mcmanagedpthread.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct MCFiber
 {
 	MCFiber *next;
-	pthread_t thread;
+	MCManagedPThread thread;
 	bool owns_thread;
 	bool finished;
 	uindex_t depth;
@@ -132,7 +132,7 @@ static void *MCFiberOwnedThreadRoutine(void *p_context)
 bool MCFiberConvert(MCFiberRef& r_fiber)
 {
 	MCFiberRef self;
-	if (!MCMemoryNew(self))
+	if (!MCMemoryCreate(self))
 		return false;
 	
 	// If we have no fibers already, initialize ourselves.
@@ -156,17 +156,17 @@ bool MCFiberConvert(MCFiberRef& r_fiber)
 bool MCFiberCreate(size_t p_stack_size, MCFiberRef& r_fiber)
 {
 	MCFiberRef self;
-	if (!MCMemoryNew(self))
+	if (!MCMemoryCreate(self))
 		return false;
 	
 	if (s_fibers == nil)
 		MCFiberInitialize();
-	
-	self -> thread = nil;
+
 	self -> next = s_fibers;
 	s_fibers = self;
 
-	if (pthread_create(&self -> thread, nil, MCFiberOwnedThreadRoutine, self) != 0)
+	self->thread.Create(nil, MCFiberOwnedThreadRoutine, self);
+	if (!self->thread)
 	{
 		MCFiberDestroy(self);
 		return false;
@@ -183,7 +183,7 @@ void MCFiberDestroy(MCFiberRef self)
 	MCAssert(self -> depth == 0);
 	
 	// If the thread is owned by the fiber then wait on it to finish.
-	if (self -> owns_thread && self -> thread != nil)
+	if (self -> owns_thread && self -> thread)
 	{
 		// A fiber that owns its thread cannot destroy itself.
 		MCAssert(self != s_fiber_current);
@@ -193,10 +193,7 @@ void MCFiberDestroy(MCFiberRef self)
 			MCFiberMakeCurrent(self);
 		
 		// Join to the thread.
-		pthread_join(self -> thread, nil);
-
-		// The thread is now gone.
-		self -> thread = nil;
+		self->thread.Join(nil);
 	}
 	
 	// Remove the fiber record from the list.
@@ -211,7 +208,7 @@ void MCFiberDestroy(MCFiberRef self)
 		s_fibers = self -> next;
 	
 	// Delete the record.
-	MCMemoryDelete(self);
+	MCMemoryDestroy(self);
 	
 	// If there are now no fibers, finalize our state.
 	if (s_fibers == nil)
@@ -260,7 +257,7 @@ void MCFiberCall(MCFiberRef p_target, MCFiberCallback p_callback, void *p_contex
 
 bool MCFiberIsCurrentThread(MCFiberRef self)
 {
-	return pthread_self() == self -> thread;
+	return self->thread.IsCurrent();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

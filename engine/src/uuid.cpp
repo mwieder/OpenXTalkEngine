@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
@@ -49,16 +48,18 @@ bool MCUuidGenerateRandom(MCUuid& r_uuid)
 {
 	// Fill the UUID with random bytes (returns false if not enough random data
 	// is available).
-	if (!MCU_random_bytes(sizeof(MCUuid), &r_uuid))
+    MCAutoDataRef t_data;
+	if (!MCSRandomData (sizeof(MCUuid), &t_data))
 		return false;
-		
+    MCMemoryCopy(&r_uuid, MCDataGetBytePtr(*t_data), sizeof(MCUuid));
+    
 	// Now 'brand' the UUID with version 4.
 	MCUuidBrand(r_uuid, 4);
 	
 	return true;
 }
 
-void MCUuidGenerateMD5(const MCUuid& p_namespace_id, const MCString& p_name, MCUuid& r_uuid)
+void MCUuidGenerateMD5(const MCUuid& p_namespace_id, MCStringRef p_name, MCUuid& r_uuid)
 {
 	// Initialize an md5 context.
 	md5_state_t t_md5;
@@ -72,7 +73,10 @@ void MCUuidGenerateMD5(const MCUuid& p_namespace_id, const MCString& p_name, MCU
 	md5_append(&t_md5, t_namespace_bytes, sizeof(t_namespace_bytes));
 	
 	// Append the name bytes to the md5 stream.
-	md5_append(&t_md5, (const md5_byte_t *)p_name . getstring(), p_name . getlength());
+    MCAutoStringRefAsCString t_name;
+    /* UNCHECKED */ t_name.Lock(p_name);
+    md5_append(&t_md5, reinterpret_cast<const md5_byte_t*>(*t_name),
+               t_name.Size());
 	
 	// Extract the resulting digest from the md5 stream.
 	uint8_t t_uuid_bytes[16];
@@ -85,7 +89,7 @@ void MCUuidGenerateMD5(const MCUuid& p_namespace_id, const MCString& p_name, MCU
 	MCUuidBrand(r_uuid, 3);
 }
 
-void MCUuidGenerateSHA1(const MCUuid& p_namespace_id, const MCString& p_name, MCUuid& r_uuid)
+void MCUuidGenerateSHA1(const MCUuid& p_namespace_id, MCStringRef p_name, MCUuid& r_uuid)
 {
 	// Initialize an sha1 context.
 	sha1_state_t t_sha1;
@@ -99,7 +103,9 @@ void MCUuidGenerateSHA1(const MCUuid& p_namespace_id, const MCString& p_name, MC
 	sha1_append(&t_sha1, t_namespace_bytes, sizeof(t_namespace_bytes));
 	
 	// Append the name bytes to the sha1 stream.
-	sha1_append(&t_sha1, p_name . getstring(), p_name . getlength());
+    MCAutoStringRefAsCString t_name;
+    /* UNCHECKED */ t_name.Lock(p_name);
+    sha1_append(&t_sha1, *t_name, t_name.Size());
 	
 	// Extract the resulting digest from the sha1 stream.
 	uint8_t t_uuid_bytes[20];
@@ -165,11 +171,12 @@ bool MCUuidFromCString(const char *p_string, MCUuid& r_uuid)
 	r_uuid . clock_seq_hi_and_reserved = (t_clock >> 8) & 0xff;
 	
 	// Parse the 'node' part.
-	for(int i = 0; i < sizeof(r_uuid . node); i++)
+	for(size_t i = 0; i < sizeof(r_uuid . node); i++)
 	{
 		char t_hex_byte[3];
 		t_hex_byte[0] = p_string[24 + i * 2];
 		t_hex_byte[1] = p_string[24 + i * 2 + 1];
+		t_hex_byte[2] = 0;
 		r_uuid . node[i] = (uint8_t)strtoul(t_hex_byte, NULL, 16);
 	}
 	
@@ -234,7 +241,7 @@ void MCUuidFromBytes(uint8_t p_bytes[16], MCUuid& r_uuid)
 				p_bytes[9];
 				
 	// Pack the 'node' field.
-	for(int i = 0; i < sizeof(r_uuid . node); i++)
+	for(size_t i = 0; i < sizeof(r_uuid . node); i++)
 		r_uuid . node[i] = p_bytes[10 + i];
 }
 

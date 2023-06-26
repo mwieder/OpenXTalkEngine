@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,14 +16,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "filedefs.h"
 
 #include "object.h"
-#include "block.h"
+#include "MCBlock.h"
 #include "button.h"
 #include "graphic.h"
 #include "group.h"
@@ -33,6 +32,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "font.h"
 #include "mcstring.h"
 
+#include "stackfileformat.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct MCLogicalFontTableEntry
@@ -41,6 +42,13 @@ struct MCLogicalFontTableEntry
 	uint2 textstyle;
 	uint2 textsize;
 };
+
+inline bool operator== (const MCLogicalFontTableEntry& a, const MCLogicalFontTableEntry& b)
+{
+    return a.textfont == b.textfont
+            && a.textstyle == b.textstyle
+            && a.textsize == b.textsize;
+}
 
 static uint32_t s_logical_font_table_size = 0;
 static uint32_t s_logical_font_table_capacity = 0;
@@ -58,7 +66,7 @@ static void MCLogicalFontTableGetEntry(uint32_t p_index, MCNameRef& r_textfont, 
 
 static void MCLogicalFontTableSetEntry(uint32_t p_index, MCNameRef p_textfont, uint2 p_textstyle, uint2 p_textsize, bool p_unicode)
 {
-	s_logical_font_table[p_index] . textfont = p_textfont;
+    s_logical_font_table[p_index] . textfont = p_textfont;
 	s_logical_font_table[p_index] . textstyle = p_textstyle;
 	s_logical_font_table[p_index] . textsize = p_textsize & 0x7fff;
 	if (p_unicode)
@@ -75,7 +83,7 @@ static uint32_t MCLogicalFontTableLookupEntry(MCNameRef p_textfont, uint2 p_text
 		t_entry . textsize |= 0x8000;
 	
 	for(uint32_t i = 0; i < s_logical_font_table_size; i++)
-		if (memcmp(&t_entry, &s_logical_font_table[i], sizeof(MCLogicalFontTableEntry)) == 0)
+		if (t_entry == s_logical_font_table[i])
 			return i;
 
 	if (p_add)
@@ -84,7 +92,7 @@ static uint32_t MCLogicalFontTableLookupEntry(MCNameRef p_textfont, uint2 p_text
 			/* UNCHECKED */ MCMemoryResizeArray(s_logical_font_table_capacity > 0 ? s_logical_font_table_capacity * 2 : 32, s_logical_font_table, s_logical_font_table_capacity);
 		
 		s_logical_font_table[s_logical_font_table_size++] = t_entry;
-		MCNameClone(t_entry . textfont, t_entry . textfont);
+        MCValueRetain(t_entry.textfont);
 	}
 
 	return s_logical_font_table_size - 1;
@@ -144,11 +152,6 @@ public:
 
 	bool OnBlock(MCBlock *p_block)
 	{
-		// MW-2012-02-17: [[ SplitTextAttrs ]] If the block has no font attrs and is
-		//   not unicode, there's no font to register.
-		if (!p_block -> hasfontattrs() && !p_block -> hasunicode())
-			return true;
-
 		// MW-2012-02-17: [[ SplitTextAttrs ]] Fetch each of the font attrs from the block in
 		//   turn. Falling back on the parent attrs we have if necessary.
 		MCNameRef t_textfont;
@@ -161,7 +164,7 @@ public:
 		if (!p_block -> gettextstyle(t_textstyle))
 			t_textstyle = m_current_textstyle;
 
-		MCLogicalFontTableLookupEntry(t_textfont, t_textstyle, t_textsize, p_block -> hasunicode(), true);
+		MCLogicalFontTableLookupEntry(t_textfont, t_textstyle, t_textsize, true, true);
 		
 		return true;
 	}
@@ -207,7 +210,7 @@ void MCLogicalFontTableFinish(void)
 		uint2 t_textsize;
 		bool t_unicode;
 		MCLogicalFontTableGetEntry(i, t_textfont, t_textstyle, t_textsize, t_unicode);
-		MCNameDelete(t_textfont);
+		MCValueRelease(t_textfont);
 	}
 	MCMemoryDeleteArray(s_logical_font_table);
 
@@ -216,7 +219,7 @@ void MCLogicalFontTableFinish(void)
 	s_logical_font_table = nil;
 }
 
-IO_stat MCLogicalFontTableLoad(IO_handle p_stream)
+IO_stat MCLogicalFontTableLoad(IO_handle p_stream, uint32_t p_version)
 {
 	// Delete any existing font table.
 	MCLogicalFontTableFinish();
@@ -243,60 +246,54 @@ IO_stat MCLogicalFontTableLoad(IO_handle p_stream)
 		// Iterate t_count times to load each entry in.
 		for(uint32_t i = 0; i < t_count && t_stat == IO_NORMAL; i++)
 		{
-			char *t_textfont;
+			MCAutoStringRef t_textfont_string;
 			uint2 t_textsize, t_textstyle;
-			t_textfont = nil;
 
 			// Read in the textSize, textStyle and (original) textFont props.
 			t_stat = IO_read_uint2(&t_textsize, p_stream);
 			if (t_stat == IO_NORMAL)
 				t_stat = IO_read_uint2(&t_textstyle, p_stream);
+			
+			// MW-2013-11-20: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 			if (t_stat == IO_NORMAL)
-				t_stat = IO_read_string(t_textfont, p_stream);
+				t_stat = IO_read_stringref_new(&t_textfont_string, p_stream, p_version >= kMCStackFileFormatVersion_7_0);
 
 			// Now convert the textFont string into a name, splitting off the
 			// lang tag (if any).
-			MCNameRef t_textfont_name;
+			MCAutoStringRef t_textfont;
 			bool t_is_unicode;
 			if (t_stat == IO_NORMAL)
 			{
-				// MW-2012-02-17: [[ Bug ]] It seems possible for the textFont string
-				//   to be empty in some cases - so handle this case carefully.
-				const char *t_textfont_tag;
-				if (t_textfont != nil)
+				uindex_t t_offset;
+				if (MCStringFirstIndexOfChar(*t_textfont_string, ',', 0, kMCStringOptionCompareExact, t_offset))
 				{
-					t_textfont_tag = strchr(t_textfont, ',');
-					if (t_textfont_tag == nil)
-					{
-						t_textfont_tag = t_textfont + strlen(t_textfont);
-						t_is_unicode = false;
-					}
-					else
-						t_is_unicode = true;
+					if (!MCStringCopySubstring(*t_textfont_string, MCRangeMake(0, t_offset), &t_textfont))
+						t_stat = IO_ERROR;
+					t_is_unicode = true;
 				}
 				else
 				{
-					t_textfont_tag = nil;
+					t_textfont = *t_textfont_string;
 					t_is_unicode = false;
 				}
 
-				if (!MCNameCreateWithOldString(MCString(t_textfont, t_textfont_tag - t_textfont), t_textfont_name))
-					t_stat = IO_ERROR;
 			}
+				
+			MCNameRef t_textfont_name;
+			if (t_stat == IO_NORMAL)
+				if (!MCNameCreate(*t_textfont, t_textfont_name))
+					t_stat = IO_ERROR;
 
 			// Set the appropriate table entry.
 			if (t_stat == IO_NORMAL)
 				MCLogicalFontTableSetEntry(i, t_textfont_name, t_textstyle, t_textsize, t_is_unicode);
-
-			// Cleanup the (temporary) original textFont string.
-			delete t_textfont;
 		}
 	}
 
 	return t_stat;
 }
 
-IO_stat MCLogicalFontTableSave(IO_handle p_stream)
+IO_stat MCLogicalFontTableSave(IO_handle p_stream, uint32_t p_version)
 {
 	IO_stat t_stat;
 	t_stat = IO_NORMAL;
@@ -319,20 +316,24 @@ IO_stat MCLogicalFontTableSave(IO_handle p_stream)
 			t_stat = IO_write_uint2(t_textsize, p_stream);
 			if (t_stat == IO_NORMAL)
 				t_stat = IO_write_uint2(t_textstyle, p_stream);
+
+			// MW-2012-05-03: [[ Values* ]] Use a stringref and format to build
+			//   the actual font name.
+			MCAutoStringRef t_unicode_textfont;
 			if (t_stat == IO_NORMAL)
 			{
 				if (t_is_unicode)
 				{
-					char *t_unicode_textfont;
-					t_unicode_textfont = new char[strlen(MCNameGetCString(t_textfont)) + 9];
-					strcpy(t_unicode_textfont, MCNameGetCString(t_textfont));
-					strcat(t_unicode_textfont, ",unicode");
-					t_stat = IO_write_string(t_unicode_textfont, p_stream);
-					delete t_unicode_textfont;
+                    if (!MCStringFormat(&t_unicode_textfont, "%@,unicode", MCNameGetString(t_textfont)))
+						t_stat = IO_ERROR;
 				}
 				else
-					t_stat = IO_write_string(MCNameGetCString(t_textfont), p_stream);
+					t_unicode_textfont = MCNameGetString(t_textfont);
 			}
+			
+			// MW-2013-11-20: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
+            if (t_stat == IO_NORMAL)
+                t_stat = IO_write_stringref_new(*t_unicode_textfont, p_stream, p_version >= kMCStackFileFormatVersion_7_0);
 		}
 
 	return t_stat;

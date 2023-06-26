@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include <objbase.h>
 #include <oaidl.h>
@@ -24,7 +24,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "filedefs.h"
 #include "objdefs.h"
-#include "execpt.h"
+
 #include "mcerror.h"
 #include "ans.h"
 #include "stack.h"
@@ -38,9 +38,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "w32dc.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-
-extern int UnicodeToUTF8(const unsigned short *p_source_str, int p_source, char *p_dest_str, int p_dest);
-extern int UTF8ToUnicode(const char *p_source_str, int p_source, unsigned short *p_dest_str, int p_dest);
 
 BSTR ConvertUTF8ToBSTR(const char *p_string)
 {
@@ -61,7 +58,7 @@ LPOLESTR ConvertUTF8ToOLESTR(const char *p_string)
 	t_length = UTF8ToUnicode(p_string, strlen(p_string), NULL, 0);
 
 	LPOLESTR t_result;
-	t_result = new OLECHAR[t_length / 2 + 1];
+	t_result = new (nothrow) OLECHAR[t_length / 2 + 1];
 	if (t_result != NULL)
 		UTF8ToUnicode(p_string, strlen(p_string) + 1, (unsigned short *)t_result, t_length + 2);
 
@@ -74,7 +71,7 @@ char *ConvertBSTRToUTF8(BSTR p_string)
 	t_length = UnicodeToUTF8((unsigned short*)p_string, SysStringLen(p_string) * 2, NULL, 0);
 
 	char *t_result;
-	t_result = new char[t_length + 1];
+	t_result = new (nothrow) char[t_length + 1];
 	if (t_result != NULL)
 	{
 		UnicodeToUTF8((unsigned short*)p_string, SysStringLen(p_string) * 2, t_result, t_length);
@@ -236,7 +233,7 @@ HRESULT ActiveScriptDispatch::Invoke(DISPID p_member, REFIID p_interface, LCID p
 	t_result = S_OK;
 
 	char **t_str_parameters;
-	t_str_parameters = new char *[p_parameters -> cArgs];
+	t_str_parameters = new (nothrow) char *[p_parameters -> cArgs];
 	memset(t_str_parameters, 0, sizeof(char *) * p_parameters -> cArgs);
 	for(unsigned int i = 0; i < p_parameters -> cArgs; ++i)
 	{
@@ -473,7 +470,7 @@ public:
 
 	bool Define(const char* p_function, MCScriptEnvironmentCallback p_callback);
 
-	char *Run(const char* p_script);
+	void Run(MCStringRef p_script, MCStringRef& r_out);
 	char *Call(const char* p_method, const char** p_arguments, unsigned int p_argument_count);
 
 private:
@@ -515,7 +512,7 @@ bool MCWindowsActiveScriptEnvironment::Initialize(OLECHAR *p_language)
 	t_dispatch = NULL;
 	if (t_result == S_OK)
 	{
-		t_dispatch = new ActiveScriptDispatch;
+		t_dispatch = new (nothrow) ActiveScriptDispatch;
 		if (t_dispatch != NULL)
 			t_dispatch -> AddRef();
 		else
@@ -526,7 +523,7 @@ bool MCWindowsActiveScriptEnvironment::Initialize(OLECHAR *p_language)
 	t_site = NULL;
 	if (t_result == S_OK)
 	{
-		t_site = new ActiveScriptSite(t_dispatch);
+		t_site = new (nothrow) ActiveScriptSite(t_dispatch);
 		if (t_site != NULL)
 			t_site -> AddRef();
 		else
@@ -596,12 +593,11 @@ void MCWindowsActiveScriptEnvironment::Finalize(void)
 	m_dispatch = NULL;
 }
 
-char *MCWindowsActiveScriptEnvironment::Run(const char *p_script)
+void MCWindowsActiveScriptEnvironment::Run(MCStringRef p_script, MCStringRef& r_out)
 {
-	LPOLESTR t_ole_script;
-	t_ole_script = ConvertUTF8ToOLESTR(p_script);
-	if (t_ole_script == NULL)
-		return false;
+    MCAutoStringRefAsWString t_script;
+    if (!t_script.Lock(p_script))
+        return;
 
 	EXCEPINFO t_exception = { 0 };
 
@@ -609,15 +605,14 @@ char *MCWindowsActiveScriptEnvironment::Run(const char *p_script)
 	t_result = S_OK;
 
 	if (t_result == S_OK)
-		t_result = m_parser -> ParseScriptText(t_ole_script, NULL, NULL, NULL, 0, 0, SCRIPTTEXT_ISVISIBLE, NULL, &t_exception);
+		t_result = m_parser -> ParseScriptText(*t_script, NULL, NULL, NULL, 0, 0, SCRIPTTEXT_ISVISIBLE, NULL, &t_exception);
 
 	IDispatch *t_lang_dispatch;
 	t_lang_dispatch = NULL;
 	if (t_result == S_OK)
 		t_result = m_environment -> GetScriptDispatch(NULL, &t_lang_dispatch);
 
-	char *t_return_value;
-	t_return_value = NULL;
+    MCAutoStringRef t_return_value;
 	if (t_result == S_OK)
 	{
 		HRESULT t_var_result;
@@ -645,34 +640,28 @@ char *MCWindowsActiveScriptEnvironment::Run(const char *p_script)
 				t_result = VariantChangeType(&t_function_result, &t_function_result, VARIANT_ALPHABOOL, VT_BSTR);
 				if (t_result == S_OK)
 				{
-					t_return_value = ConvertBSTRToUTF8(t_function_result . bstrVal);
-					if (t_return_value == NULL)
-						t_result = E_OUTOFMEMORY;
+                    if (!MCStringCreateWithBSTR(t_function_result . bstrVal,
+                                                &t_return_value))
+                        t_result = E_OUTOFMEMORY;
 				}
 				VariantClear(&t_function_result);
 			}
 		}
 		else
-			t_return_value = strdup("");
+			t_return_value = kMCEmptyString;
 	}
 
 
 	if (t_result != S_OK)
 	{
-		if (t_return_value != NULL)
-		{
-			delete t_return_value;
-			t_return_value = NULL;
-		}
+        t_return_value = kMCEmptyString;
 	}
 
 	if (t_lang_dispatch != NULL)
 		t_lang_dispatch -> Release();
 
-	if (t_ole_script != NULL)
-		delete t_ole_script;
-
-	return t_return_value;
+    r_out = t_return_value.Take();
+	return;
 }
 
 bool MCWindowsActiveScriptEnvironment::Define(const char* p_function, MCScriptEnvironmentCallback p_callback)
@@ -707,7 +696,7 @@ char *MCWindowsActiveScriptEnvironment::Call(const char *p_method, const char **
 	t_ole_arguments = NULL;
 	if (t_result == S_OK)
 	{
-		t_ole_arguments = new VARIANTARG[p_argument_count];
+		t_ole_arguments = new (nothrow) VARIANTARG[p_argument_count];
 		if (t_ole_arguments != NULL)
 			memset(t_ole_arguments, 0, sizeof(VARIANTARG) * p_argument_count);
 		else
@@ -770,13 +759,15 @@ char *MCWindowsActiveScriptEnvironment::Call(const char *p_method, const char **
 	return t_return_value;
 }
 
-MCScriptEnvironment *MCScreenDC::createscriptenvironment(const char *p_language)
+MCScriptEnvironment *MCScreenDC::createscriptenvironment(MCStringRef p_language)
 {
+    MCAutoStringRefAsUTF8String t_language;
+    /* UNCHECKED */ t_language . Lock(p_language);
 	LPOLESTR t_ole_language;
-	t_ole_language = ConvertUTF8ToOLESTR(p_language);
+	t_ole_language = ConvertUTF8ToOLESTR(*t_language);
 
 	MCWindowsActiveScriptEnvironment *t_environment;
-	t_environment = new MCWindowsActiveScriptEnvironment;
+	t_environment = new (nothrow) MCWindowsActiveScriptEnvironment;
 
 	if (t_environment -> Initialize(t_ole_language))
 		t_environment -> Retain();

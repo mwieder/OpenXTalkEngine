@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -40,7 +40,7 @@ public:
 	bool Finalize(void);
 	bool IsInited() {return bInited;}
 
-	bool Start(const char* p_string);
+	bool Start(const char* p_string, bool p_is_utf8);
 	bool SpeakToFile(const char* p_string, const char* p_file);
 	bool Stop(void);
 	bool Busy(void);
@@ -62,9 +62,12 @@ private:
 	// Last Error Message
 	char m_strLastError[256];
 
+	// Process events to track speech output status
+	bool ProcessEvents(void);
+
 	// Internal Error Message
-	void Error( TCHAR* pText ){wcscpy((WCHAR *)m_strLastError, pText); };
-	void Error( TCHAR* pText, HRESULT hr){ sprintf(m_strLastError,"%s Error Code:0x%x", pText, hr); };
+	void Error( WCHAR* pText ){wcscpy((WCHAR *)m_strLastError, pText); };
+	void Error( WCHAR* pText, HRESULT hr){ sprintf(m_strLastError,"%s Error Code:0x%x", pText, hr); };
 
 	// Pointer to our tts voice	
 	CComPtr<ISpVoice> m_cpVoice;		

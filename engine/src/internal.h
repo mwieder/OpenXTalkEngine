@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -42,7 +42,7 @@ public:
 
 	virtual ~MCInternal(void);
 	virtual Parse_stat parse(MCScriptPoint&);
-	virtual Exec_stat exec(MCExecPoint&);
+    virtual void exec_ctxt(MCExecContext & ctxt);
 };
 
 inline MCInternal::MCInternal(void)

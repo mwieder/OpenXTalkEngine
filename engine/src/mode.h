@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -32,6 +32,7 @@ enum
 	kMCModeEnvironmentTypePlayer,
 	kMCModeEnvironmentTypeServer,
 	kMCModeEnvironmentTypeMobile,
+    kMCModeEnvironmentTypeEmbedded,
 };
 
 
@@ -45,7 +46,7 @@ void MCModePreMain(void);
 // The hook is called by MCDispatch::savestack and should return IO_NORMAL
 // or IO_ERROR depending on whether the check succeeds or not.
 //
-IO_stat MCModeCheckSaveStack(MCStack *stack, const MCString& filename);
+IO_stat MCModeCheckSaveStack(MCStack *stack, const MCStringRef p_filename);
 
 // This hook is used to work out the appropriate 'environment' string based
 // on the mode and various globals.
@@ -53,8 +54,16 @@ IO_stat MCModeCheckSaveStack(MCStack *stack, const MCString& filename);
 // The hook is called by MCEnvironment::eval and should return the
 // appropriate string constant.
 //
-const char *MCModeGetEnvironment(void);
+MCNameRef MCModeGetEnvironment(void);
 uint32_t MCModeGetEnvironmentType(void);
+
+
+// SN-2015-01-16: [[ Bug 14295 ]] Added mode-specific way to get the resources folder
+// This hook is used to work out what is the resource folder on Mac.
+// On a standalone built, it is <app>.app/Contents/Resources/_MacOS
+// On the other modes, it is 'the filename of this stack'
+//
+void MCModeGetResourcesFolder(MCStringRef &r_resources_folder);
 
 // This hook is used to work out whether the engine has been licensed.
 //
@@ -69,6 +78,20 @@ bool MCModeGetLicensed(void);
 //
 bool MCModeIsExecutableFirstArgument(void);
 
+// This hook is used to determine if we populate the command line name and
+// arguments at startup.
+//
+// This hook is called by X_open.
+//
+bool MCModeHasCommandLineArguments(void);
+
+// This hook is used to determine if we populate the environment
+// variables at startup.
+//
+// This hook is called by X_open.
+//
+bool MCModeHasEnvironmentVariables(void);
+
 // This hook is used to determine if any stacks on the command-line
 // should be opened on startup.
 //
@@ -81,7 +104,7 @@ bool MCModeShouldLoadStacksOnStartup(void);
 //
 // This hook is called by WinMain.
 //
-void MCModeGetStartupErrorMessage(const char*& r_caption, const char *& r_text);
+void MCModeGetStartupErrorMessage(MCStringRef& r_caption, MCStringRef& r_text);
 
 // This hook is used to determine if a given object can have its
 // script set.
@@ -104,19 +127,12 @@ bool MCModeShouldCheckCantStandalone(void);
 //
 uint4 MCModeComputeObjectOrigin(uint4 extraflags);
 
-// This hook is used to implement message box redirection. If it
-// returns 'false' the default message box behavior is observed.
-//
-// This hook is called by MCB_setmsg.
-//
-bool MCModeHandleMessageBoxChanged(MCExecPoint& ep);
-
 // This hook is used to work out the parameters for the 'relaunch'
 // feature.
 //
 // This hook is called by send_relaunch (dispatch.cpp)
 //
-bool MCModeHandleRelaunch(const char *& r_id);
+bool MCModeHandleRelaunch(MCStringRef & r_id);
 
 // This hook is used to work out what stack to startup with.
 //
@@ -143,13 +159,6 @@ void MCModeSetupCrashReporting(void);
 MCStatement *MCModeNewCommand(int2 which);
 MCExpression *MCModeNewFunction(int2 which);
 
-// This hook is called at the end of the MCObject destructor. It
-// allows the mode to remove any references it has to the object.
-//
-// It is called by MCObject::~MCObject.
-//
-void MCModeObjectDestroyed(MCObject *object);
-
 // This hook is used to determine whether to queue stacks that are wanting to
 // be opened (e.g. via an AppleEvent OpenDoc event).
 //
@@ -171,9 +180,9 @@ Window MCModeGetParentWindow(void);
 
 // This hook is used to determine whether a network resource can be accessed
 // while security limitations are in effect
-bool MCModeCanAccessDomain(const char *p_name);
+bool MCModeCanAccessDomain(MCStringRef p_name);
 
-#ifdef _LINUX
+#if defined(_LINUX) || defined (_LINUX_SERVER)
 void MCModePreSelectHook(int& maxfd, fd_set& rfds, fd_set& wfds, fd_set& efds);
 void MCModePostSelectHook(fd_set& rfds, fd_set& wfds, fd_set& efds);
 #endif
@@ -183,7 +192,7 @@ void MCModeQueueEvents(void);
 
 // This hook is used to invoke JavaScript in the browser when running in plugin
 // mode.
-Exec_stat MCModeExecuteScriptInBrowser(const MCString& script);
+Exec_stat MCModeExecuteScriptInBrowser(MCStringRef p_script);
 
 // This hook is used to activate (passive) IME.
 void MCModeActivateIme(MCStack *stack, bool activate);
@@ -194,12 +203,8 @@ void MCModeConfigureIme(MCStack *stack, bool enabled, int32_t x, int32_t y);
 bool MCModeMakeLocalWindows(void);
 
 // These hooks show and hide tooltips
-void MCModeShowToolTip(int32_t x, int32_t y, uint32_t text_size, uint32_t bg_color, const char *text_font, const char *message);
+void MCModeShowToolTip(int32_t x, int32_t y, uint32_t text_size, uint32_t bg_color, MCStringRef text_font, MCStringRef message);
 void MCModeHideToolTip(void);
-
-#ifdef _MACOSX
-uint32_t MCModePopUpMenu(MCMacSysMenuHandle p_menu, int32_t p_x, int32_t p_y, uint32_t p_index, MCStack *p_stack);
-#endif
 
 // This hook is used to handle the reset cursors action.
 void MCModeResetCursors(void);
@@ -212,5 +217,24 @@ bool MCModeCollectEntropy(void);
 // messages pass through it from other stacks. Server and IDE engines have
 // home stacks, standalones and installers do not.
 bool MCModeHasHomeStack(void);
+
+// Property getters & setters
+
+#ifdef MODE_DEVELOPMENT
+void MCModeGetRevCrashReportSettings(MCExecContext& ctxt, MCArrayRef& r_settings);
+void MCModeSetRevCrashReportSettings(MCExecContext& ctxt, MCArrayRef p_settings);
+void MCModeGetRevObjectListeners(MCExecContext& ctxt, uindex_t& r_count, MCStringRef*& r_listeners);
+void MCModeGetRevPropertyListenerThrottleTime(MCExecContext& ctxt, uinteger_t& r_time);
+void MCModeSetRevPropertyListenerThrottleTime(MCExecContext& ctxt, uinteger_t p_time);
+#endif
+
+// IM-2014-08-08: [[ Bug 12372 ]] Check if pixel scaling should be enabled.
+bool MCModeGetPixelScalingEnabled(void);
+
+// Check if this mode is allowed to change the pixel scaling settings.
+bool MCModeCanEnablePixelScaling(void);
+
+// Hook called in X_close for any mode-specific finalization.
+void MCModeFinalize(void);
 
 #endif

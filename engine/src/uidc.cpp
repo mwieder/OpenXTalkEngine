@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,6 +16,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
+#include "sysdefs.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
@@ -27,7 +28,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "util.h"
 #include "param.h"
 #include "globals.h"
-#include "execpt.h"
+
 #include "object.h"
 #include "stack.h"
 #include "card.h"
@@ -41,10 +42,15 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "redraw.h"
 #include "notify.h"
 #include "dispatch.h"
+#include "notify.h"
+#include "mode.h"
+#include "eventqueue.h"
 
 #include "graphicscontext.h"
 
 #include "resolution.h"
+
+#include "exec.h"
 
 class MCNullPrinter: public MCPrinter
 {
@@ -52,8 +58,8 @@ protected:
 	void DoInitialize(void) {}
 	void DoFinalize(void) {}
 
-	bool DoReset(const char *p_name) {return false;}
-	bool DoResetSettings(const MCString& p_settings) {return false;}
+	bool DoReset(MCStringRef p_name) {return false;}
+	bool DoResetSettings(MCDataRef p_settings) {return false;}
 
 	const char *DoFetchName(void) {return "";}
 	void DoFetchSettings(void*& r_buffer, uint4& r_length) {r_buffer = NULL; r_length = 0;}
@@ -63,7 +69,7 @@ protected:
 	MCPrinterDialogResult DoPrinterSetup(bool p_window_modal, Window p_owner) {return PRINTER_DIALOG_RESULT_ERROR;}
 	MCPrinterDialogResult DoPageSetup(bool p_window_modal, Window p_owner) {return PRINTER_DIALOG_RESULT_ERROR;}
 
-	MCPrinterResult DoBeginPrint(const char *p_document, MCPrinterDevice*& r_device) {return PRINTER_RESULT_ERROR;}
+	MCPrinterResult DoBeginPrint(MCStringRef p_document, MCPrinterDevice*& r_device) {return PRINTER_RESULT_ERROR;}
 	MCPrinterResult DoEndPrint(MCPrinterDevice* p_device) {return PRINTER_RESULT_ERROR;}
 };
 
@@ -75,7 +81,7 @@ typedef struct
 }
 SCCLUT;
 
-static SCCLUT sccolors[] =
+static const SCCLUT sccolors[] =
     {
         {255,255,255}, {255,255,204}, {255,255,153}, {255,255,102},
         {255,255,51}, {255,255,0}, {255,204,255}, {255,204,204},
@@ -134,7 +140,7 @@ static SCCLUT sccolors[] =
         {34,34,34}, {17,17,17}, {0,0,0}
     };
 
-static uint4 stdcmap[256] =
+static const uint4 stdcmap[256] =
     {
         0x000000, 0x800000, 0x008000, 0x808000, 0x000080,
         0x800080, 0x008080, 0xC0C0C0, 0xC0DCC0, 0xA6CAF0,
@@ -182,43 +188,172 @@ static uint4 stdcmap[256] =
         0xFFFF00, 0x0000FF, 0xFF00FF, 0x00FFFF, 0xFFFFFF
     };
 
+KeySym MCKeySymToLower(KeySym p_key)
+{
+	if ((p_key & XK_Class_mask) == XK_Class_codepoint)
+		return MCS_tolower(p_key & XK_Codepoint_mask) | XK_Class_codepoint;
+	else if (p_key < 0x80)
+		return MCS_tolower(p_key);
+	else
+		return p_key;
+}
+
 MCMovingList::~MCMovingList()
 {
 	delete pts;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+MCPendingMessagesList::~MCPendingMessagesList()
+{
+    // Delete all messages remaining on the queue
+    for (size_t i = GetCount(); i > 0; i--)
+        DeleteMessage(i - 1, true);
+    
+    MCMemoryDelete(m_array);
+}
+
+void MCPendingMessage::DeleteParameters()
+{
+    while (m_params != NULL)
+    {
+        MCParameter *t_param = m_params;
+        m_params = m_params->getnext();
+        delete t_param;
+    }
+}
+
+bool MCPendingMessagesList::InsertMessageAtIndex(size_t p_index, const MCPendingMessage& p_msg)
+{
+    MCAssert(p_index <= m_count);
+    
+    // Extend the array if necessary
+    if (m_count + 1 > m_capacity)
+    {
+        if (!MCMemoryReallocate(m_array, (m_count + 1) * sizeof(MCPendingMessage), m_array))
+            return false;
+        
+        // Ensure that the memory has been initialised
+        new (&m_array[m_count]) MCPendingMessage;
+        
+        m_capacity = m_count + 1;
+    }
+    
+    // Move all the messages in the range [p_index, m_count) up one
+    for (size_t i = m_count; i > p_index; i--)
+    {
+        m_array[i] = m_array[i - 1];
+    }
+    
+    // Insert the message into the newly-created space
+    m_array[p_index] = p_msg;
+    m_count += 1;
+    return true;
+}
+
+void MCPendingMessagesList::DeleteMessage(size_t p_index, bool p_delete_params)
+{
+    MCAssert(p_index < m_count);
+    
+    if (p_delete_params)
+        m_array[p_index].DeleteParameters();
+    
+    // Shift the remaining messages to cover the hole
+    for (size_t i = p_index; i < m_count - 1; i++)
+    {
+        m_array[i] = m_array[i + 1];
+    }
+    
+    // Clear the vacated entry at the end
+    m_array[m_count - 1] = MCPendingMessage();
+    
+    m_count -= 1;
+}
+
+void MCPendingMessagesList::ShiftMessageTo(size_t p_to, size_t p_from, real64_t p_newtime)
+{
+    MCAssert(p_to < m_count);
+    MCAssert(p_from < m_count);
+    
+    // Capture the message that needs moving
+    MCPendingMessage t_msg = m_array[p_from];
+    
+    // Move all messages in the range [from + 1, to) down one
+    for (size_t i = p_from; i < p_to; i++)
+    {
+        m_array[i] = m_array[i + 1];
+    }
+    
+    // Move the message into place
+    m_array[p_to] = t_msg;
+    m_array[p_to].m_time = p_newtime;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 MCUIDC::MCUIDC()
 {
+#if defined(FEATURE_NOTIFY)
+	MCNotifyInitialize();
+#endif
+    
 	messageid = 0;
-	nmessages = maxmessages = 0;
-	messages = NULL;
 	moving = NULL;
+	lockmoves = False;
+	locktime = 0.0;
 	ncolors = 0;
 	colors = NULL;
 	allocs = NULL;
-	colornames = NULL;
+	colornames = nil;
 	lockmods = False;
+    
+	redbits = greenbits = bluebits = 8;
+	redshift = 16;
+	greenshift = 8;
+	blueshift = 0;
+	
+	black_pixel.red = black_pixel.green = black_pixel.blue = 0;
+	white_pixel.red = white_pixel.green = white_pixel.blue = 0xFFFF;
+	
+	MCselectioncolor = MCpencolor = black_pixel;
+	
+	MConecolor = MCbrushcolor = white_pixel;
+	
+	gray_pixel.red = gray_pixel.green = gray_pixel.blue = 0x8080;
+	
+	MChilitecolor.red = MChilitecolor.green = 0x0000;
+	MChilitecolor.blue = 0x8080;
+	
+	MCaccentcolor = MChilitecolor;
+	
+	background_pixel.red = background_pixel.green = background_pixel.blue = 0xC0C0;
 
 	m_sound_internal = NULL ;
+
+	// IM-2014-03-06: [[ revBrowserCEF ]] List of callback functions to call during wait()
+	m_runloop_actions = nil;
+    
+    m_modal_loops = NULL;
 }
 
 MCUIDC::~MCUIDC()
 {
-	while (nmessages != 0)
-		cancelmessageindex(0, True);
-	delete messages;
+#if defined(FEATURE_NOTIFY)
+	MCNotifyFinalize();
+#endif
 }
 
 
-bool MCUIDC::setbeepsound ( const char * p_internal) 
+bool MCUIDC::setbeepsound(MCStringRef p_beep_sound) 
 {
-	if ( MCString(p_internal) == "internal" )
+	if (MCStringIsEqualToCString(p_beep_sound, "internal", kMCCompareCaseless))
 	{
 		m_sound_internal = "internal";
 		return true ;
 	}
 	
-	if ( MCString(p_internal) == "system")
+	if (MCStringIsEqualToCString(p_beep_sound, "system", kMCCompareCaseless))
 	{
 		m_sound_internal = "system" ;
 		return true ;
@@ -226,11 +361,11 @@ bool MCUIDC::setbeepsound ( const char * p_internal)
 	return false ;
 }
 
-const char * MCUIDC::getbeepsound(void)
+bool MCUIDC::getbeepsound(MCStringRef& r_beep_sound)
 {
 	if ( m_sound_internal == NULL )
 		m_sound_internal = "system" ;
-	return m_sound_internal;
+	return MCStringCreateWithCString(m_sound_internal, r_beep_sound);
 }
 
 
@@ -239,7 +374,7 @@ bool MCUIDC::hasfeature(MCPlatformFeature p_feature)
 	return false;
 }
 
-void MCUIDC::setstatus(const char *status)
+void MCUIDC::setstatus(MCStringRef status)
 { }
 Boolean MCUIDC::open()
 {
@@ -249,9 +384,9 @@ Boolean MCUIDC::close(Boolean force)
 {
 	return True;
 }
-const char *MCUIDC::getdisplayname()
+MCNameRef MCUIDC::getdisplayname()
 {
-	return "";
+	return kMCEmptyName;
 }
 void MCUIDC::resetcursors()
 { }
@@ -280,6 +415,32 @@ uint2 MCUIDC::getvclass()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// IM-2014-07-09: [[ Bug 12602 ]] Standard DC does not scale
+MCPoint MCUIDC::logicaltoscreenpoint(const MCPoint &p_point)
+{
+	return p_point;
+}
+
+// IM-2014-07-09: [[ Bug 12602 ]] Standard DC does not scale
+MCPoint MCUIDC::screentologicalpoint(const MCPoint &p_point)
+{
+	return p_point;
+}
+
+// IM-2014-07-09: [[ Bug 12602 ]] Standard DC does not scale
+MCRectangle MCUIDC::logicaltoscreenrect(const MCRectangle &p_rect)
+{
+	return p_rect;
+}
+
+// IM-2014-07-09: [[ Bug 12602 ]] Standard DC does not scale
+MCRectangle MCUIDC::screentologicalrect(const MCRectangle &p_rect)
+{
+	return p_rect;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void MCUIDC::setmouseloc(MCStack *p_target, MCPoint p_loc)
 {
 	MCPoint t_mouseloc;
@@ -295,11 +456,15 @@ void MCUIDC::setmouseloc(MCStack *p_target, MCPoint p_loc)
 
 void MCUIDC::getmouseloc(MCStack *&r_target, MCPoint &r_loc)
 {
-	r_target = MCmousestackptr;
-	r_loc = MCPointMake(MCmousex, MCmousey);
-
-	if (MCmousestackptr != nil)
-		r_loc = MCmousestackptr->stacktowindowloc(r_loc);
+    r_loc = MCPointMake(MCmousex, MCmousey);
+    
+    if (MCmousestackptr)
+    {
+        r_target = MCmousestackptr;
+        r_loc = MCmousestackptr->stacktowindowloc(r_loc);
+    }
+    else
+        r_target = nil;
 }
 
 void MCUIDC::setclickloc(MCStack *p_target, MCPoint p_loc)
@@ -317,11 +482,15 @@ void MCUIDC::setclickloc(MCStack *p_target, MCPoint p_loc)
 
 void MCUIDC::getclickloc(MCStack *&r_target, MCPoint &r_loc)
 {
-	r_target = MCclickstackptr;
-	r_loc = MCPointMake(MCclicklocx, MCclicklocy);
-
-	if (MCclickstackptr != nil)
-		r_loc = MCclickstackptr->stacktowindowloc(r_loc);
+    r_loc = MCPointMake(MCclicklocx, MCclicklocy);
+    
+    if (MCclickstackptr)
+    {
+        r_target = MCclickstackptr;
+        r_loc = MCclickstackptr->stacktowindowloc(r_loc);
+    }
+    else
+        r_target = nil;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -435,6 +604,7 @@ const MCDisplay *MCUIDC::getnearestdisplay(const MCRectangle& p_rectangle)
 
 	t_max_area = 0;
 	t_max_distance = MAXUINT4;
+    t_max_distance_index = 0;
 	for(uint4 t_display = 0; t_display < t_display_count; ++t_display)
 	{
 		MCRectangle t_workarea;
@@ -521,14 +691,14 @@ bool MCUIDC::platform_getwindowgeometry(Window p_window, MCRectangle &r_rect)
 ////////////////////////////////////////////////////////////////////////////////
 
 // IM-2014-01-24: [[ HiDPI ]] Change to use logical coordinates - device coordinate conversion no longer needed
-void MCUIDC::boundrect(MCRectangle &x_rect, Boolean p_title, Window_mode p_mode)
+void MCUIDC::boundrect(MCRectangle &x_rect, Boolean p_title, Window_mode p_mode, Boolean p_resizable)
 {
-	platform_boundrect(x_rect, p_title, p_mode);
+	platform_boundrect(x_rect, p_title, p_mode, p_resizable);
 }
 
 //////////
 
-void MCUIDC::platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m)
+void MCUIDC::platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -542,7 +712,9 @@ void MCUIDC::querymouse(int2 &x, int2 &y)
 //////////
 
 void MCUIDC::platform_querymouse(int2 &x, int2 &y)
-{ }
+{
+    x = y = 0;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -586,7 +758,7 @@ void MCUIDC::iconifywindow(Window window)
 { }
 void MCUIDC::uniconifywindow(Window window)
 { }
-void MCUIDC::setname(Window window, const char *newname)
+void MCUIDC::setname(Window window, MCStringRef newname)
 { }
 void MCUIDC::setcmap(MCStack *sptr)
 { }
@@ -640,28 +812,35 @@ MCCursorRef MCUIDC::createcursor(MCImageBitmap *p_image, int2 p_xhot, int2 p_yho
 void MCUIDC::freecursor(MCCursorRef c)
 { }
 
-uint4 MCUIDC::dtouint4(Drawable d)
+uintptr_t MCUIDC::dtouint(Drawable d)
 {
 	return 1;
 }
 
 
-Boolean MCUIDC::uint4towindow(uint4, Window &w)
+Boolean MCUIDC::uinttowindow(uintptr_t, Window &w)
 {
 	w = (Window)1;
 	return True;
 }
 
-void MCUIDC::getbeep(uint4 property, MCExecPoint &ep)
+void *MCUIDC::GetNativeWindowHandle(Window p_window)
 {
-	ep.clear();
+	return nil;
+}
+
+
+void MCUIDC::getbeep(uint4 property, int4& r_value)
+{
+	r_value = 0;
 }
 
 void MCUIDC::setbeep(uint4 property, int4 beep)
 { }
-void MCUIDC::getvendorstring(MCExecPoint &ep)
+
+MCNameRef MCUIDC::getvendorname(void)
 {
-	ep.clear();
+	return kMCEmptyName;
 }
 
 uint2 MCUIDC::getpad()
@@ -675,7 +854,7 @@ Window MCUIDC::getroot()
 }
 
 MCImageBitmap *MCUIDC::snapshot(MCRectangle &r, uint4 window,
-                           const char *displayname, MCPoint *size)
+                           MCStringRef displayname, MCPoint *size)
 {
 	return NULL;
 }
@@ -707,32 +886,12 @@ void MCUIDC::showtaskbar()
 
 void MCUIDC::getpaletteentry(uint4 n, MCColor &c)
 {
+	uint32_t t_pixel;
 	if (n < 256)
-		c.pixel = stdcmap[n];
+		t_pixel = stdcmap[n];
 	else
-		c.pixel = 0;
-	querycolor(c);
-}
-
-void MCUIDC::alloccolor(MCColor &color)
-{
-	color.pixel = MCGPixelPackNative(
-							   color.red >> 8,
-							   color.green >> 8,
-							   color.blue >> 8,
-							   255);
-}
-
-void MCUIDC::querycolor(MCColor &color)
-{
-	uint8_t t_r, t_g, t_b, t_a;
-	MCGPixelUnpackNative(color.pixel, t_r, t_g, t_b, t_a);
-	color.red = t_r;
-	color.green = t_g;
-	color.blue = t_b;
-	color.red |= color.red << 8;
-	color.green |= color.green << 8;
-	color.blue |= color.blue << 8;
+		t_pixel = 0;
+	MCColorSetPixel(c, t_pixel);
 }
 
 MCColor *MCUIDC::getaccentcolors()
@@ -770,19 +929,38 @@ Boolean MCUIDC::getmouseclick(uint2 button, Boolean& r_abort)
 
 Boolean MCUIDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 {
+	MCwaitdepth++;
+    MCDeletedObjectsEnterWait(dispatch);
+    
 	real8 curtime = MCS_time();
 	if (duration < 0.0)
 		duration = 0.0;
 	real8 exittime = curtime + duration;
+    Boolean abort = False;
 	Boolean done = False;
 	Boolean donepending = False;
 	do
 	{
+		// IM-2014-03-06: [[ revBrowserCEF ]] call additional runloop callbacks
+		DoRunloopActions();
+
 		real8 eventtime = exittime;
-		donepending = handlepending(curtime, eventtime, dispatch);
+        donepending = handlepending(curtime, eventtime, dispatch) ||
+            (dispatch && MCEventQueueDispatch());
+        
 		siguser();
+        
+		MCModeQueueEvents();
+
+#if defined(FEATURE_NOTIFY)
+		if ((MCNotifyDispatch(dispatch == True) || donepending) && anyevent)
+			break;
+#endif
+		if (abort)
+			break;
 		if (MCquit)
-			return True;
+            break;
+        
 		if (curtime < eventtime)
 		{
 			done = MCS_poll(donepending ? 0 : eventtime - curtime, 0);
@@ -790,16 +968,130 @@ Boolean MCUIDC::wait(real8 duration, Boolean dispatch, Boolean anyevent)
 		}
 	}
 	while (curtime < exittime  && !(anyevent && (done || donepending)));
-	return False;
+    
+    if (MCquit)
+        abort = True;
+    
+    MCDeletedObjectsLeaveWait(dispatch);
+    MCwaitdepth--;
+    
+	return abort;
 }
 
 void MCUIDC::pingwait(void)
 {
-#ifdef _DESKTOP
+#if defined(_DESKTOP) && defined(FEATURE_NOTIFY)
 	// MW-2013-06-14: [[ DesktopPingWait ]] Use the notify mechanism to wake up
 	//   any running wait.
 	MCNotifyPing(false);
 #endif
+}
+
+bool MCUIDC::FindRunloopAction(MCRunloopActionCallback p_callback, void *p_context, MCRunloopActionRef &r_action)
+{
+	for (MCRunloopAction *t_action = m_runloop_actions; t_action != nil; t_action = t_action->next)
+	{
+		if (t_action->callback == p_callback && t_action->context == p_context)
+		{
+			r_action = t_action;
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Add callback & context to runloop action list
+bool MCUIDC::AddRunloopAction(MCRunloopActionCallback p_callback, void *p_context, MCRunloopActionRef &r_action)
+{
+	MCRunloopAction *t_action;
+	t_action = nil;
+
+	if (FindRunloopAction(p_callback, p_context, t_action))
+	{
+		r_action = t_action;
+		r_action->references++;
+		
+		return true;
+	}
+	
+	if (!MCMemoryNew(t_action))
+		return false;
+
+	t_action->callback = p_callback;
+	t_action->context = p_context;
+
+	t_action->references = 1;
+	t_action->next = m_runloop_actions;
+	
+	m_runloop_actions = t_action;
+
+	r_action = t_action;
+
+	return true;
+}
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Remove action from runloop action list
+void MCUIDC::RemoveRunloopAction(MCRunloopActionRef p_action)
+{
+	if (p_action == nil)
+		return;
+
+	if (p_action->references > 1)
+	{
+		p_action->references--;
+		return;
+	}
+	
+	MCRunloopAction *t_remove_action;
+	t_remove_action = nil;
+
+	if (p_action == m_runloop_actions)
+	{
+		t_remove_action = m_runloop_actions;
+		m_runloop_actions = p_action->next;
+	}
+	else
+	{
+		MCRunloopAction *t_action;
+		t_action = m_runloop_actions;
+
+		while (t_action != nil && t_remove_action == nil)
+		{
+			if (t_action->next == p_action)
+			{
+				t_remove_action = p_action;
+				t_action->next = p_action->next;
+			}
+
+			t_action = t_action->next;
+		}
+	}
+
+	if (t_remove_action != nil)
+		MCMemoryDelete(t_remove_action);
+}
+
+// IM-2014-03-06: [[ revBrowserCEF ]] Call runloop action callbacks
+void MCUIDC::DoRunloopActions(void)
+{
+	MCRunloopAction *t_action;
+	t_action = m_runloop_actions;
+
+	while (t_action != nil)
+	{
+		// IM-2014-05-06: [[ Bug 12364 ]] Guard against runloop action deletion within callback
+		MCRunloopAction *t_next;
+		t_next = t_action->next;
+
+		t_action->callback(t_action->context);
+		t_action = t_next;
+	}
+}
+
+bool MCUIDC::HasRunloopActions()
+{
+	return m_runloop_actions != nil;
 }
 
 void MCUIDC::flushevents(uint2 e)
@@ -811,23 +1103,13 @@ Boolean MCUIDC::istripleclick()
 	return False;
 }
 
-void MCUIDC::getkeysdown(MCExecPoint &ep)
+bool MCUIDC::getkeysdown(MCListRef& r_list)
 {
-	ep.clear();
+	r_list = MCValueRetain(kMCEmptyList);
+	return true;
 }
 
-char *MCUIDC::charsettofontname(uint1 chharset, const char *oldfontname)
-{
-#ifdef TARGET_PLATFORM_LINUX
-	const char *t_charset;
-	t_charset = strchr(oldfontname, ',');
-	if (t_charset != NULL)
-		return strndup(oldfontname, t_charset - oldfontname);
-#endif
-	return strclone(oldfontname);
-}
-
-uint1 MCUIDC::fontnametocharset(const char *oldfontname)
+uint1 MCUIDC::fontnametocharset(MCStringRef p_fontname)
 {
 	return 0;
 }
@@ -840,14 +1122,16 @@ void MCUIDC::clearIME(Window w)
 {}
 void MCUIDC::closeIME()
 {}
+void MCUIDC::configureIME(int32_t x, int32_t y)
+{}
 
 void MCUIDC::updatemenubar(Boolean force)
 {
-	if (MCdefaultmenubar == NULL)
+	if (!MCdefaultmenubar)
 		MCdefaultmenubar = MCmenubar;
 
 	MCGroup *newMenuGroup;
-	if (MCmenubar != NULL)
+	if (MCmenubar)
 		newMenuGroup = MCmenubar;
 	else
 		newMenuGroup = MCdefaultmenubar;
@@ -863,81 +1147,51 @@ void MCUIDC::updatemenubar(Boolean force)
 			i = which;
 		}
 	}
-};
+}
 
 // MW-2014-04-16: [[ Bug 11690 ]] Pending message list is now sorted by time, all
 //   pending message generation functions use 'doaddmessage()' to insert the
 //   message in the right place.
 void MCUIDC::doaddmessage(MCObject *optr, MCNameRef mptr, real8 time, uint4 id, MCParameter *params)
 {
-    // MW-2014-05-14: [[ Bug 12294 ]] Rejigged to correct flaws.
-    
-    // If we are at capacity, then extend the message list.
-	if (nmessages == maxmessages)
-	{
-		maxmessages++;
-		MCU_realloc((char **)&messages, nmessages, maxmessages, sizeof(MCMessageList));
-	}
-    
     // Find where in the list to insert the pending message.
-    int t_index;
-    for(t_index = 0; t_index < nmessages; t_index++)
-        if (messages[t_index] . time > time)
+    size_t t_index;
+    for(t_index = 0; t_index < m_messages.GetCount(); t_index++)
+        if (m_messages[t_index].m_time > time)
             break;
-    
-    // Move all messages in the range [t_index, nmessages) up one.
-    MCMemoryMove(&messages[t_index + 1], &messages[t_index], (nmessages - t_index) * sizeof(MCMessageList));
-    
-	messages[t_index].object = optr;
-	/* UNCHECKED */ MCNameClone(mptr, messages[t_index].message);
-	messages[t_index].time = time;
-	messages[t_index].id = id;
-	messages[t_index].params = params;
-    
-    nmessages += 1;
+
+    m_messages.InsertMessageAtIndex(t_index, MCPendingMessage(optr, mptr, time, params, id));
 }
 
 // MW-2014-04-16: [[ Bug 11690 ]] Shift a message to a new time in the future.
-int MCUIDC::doshiftmessage(int index, real8 newtime)
+size_t MCUIDC::doshiftmessage(size_t index, real8 newtime)
 {
-    assert(index < nmessages);
-    
-    // MW-2014-05-14: [[ Bug 12294 ]] Rejigged to correct flaws.
-    
     // Find the first message after the new time.
-    uindex_t t_index;
-    for(t_index = index; t_index < nmessages - 1; t_index++)
-        if (messages[t_index + 1] . time > newtime)
+    size_t t_index;
+    for(t_index = index; t_index < m_messages.GetCount() - 1; t_index++)
+        if (m_messages[t_index + 1].m_time > newtime)
             break;
     
+    // If the message is already in the correct place, do nothing
     if (t_index == index)
         return index;
     
-    // Save the current message.
-    MCMessageList t_msg;
-    t_msg = messages[index];
-    
-    // Move all messages in the range [index + 1, t_index) down one.
-    MCMemoryMove(&messages[index], &messages[index + 1], (t_index - index) * sizeof(MCMessageList));
-    
-    // Move the target message to its new location.
-    messages[t_index] = t_msg;
-    messages[t_index] . time = newtime;
+    m_messages.ShiftMessageTo(t_index, index, newtime);
     
     return t_index;
 }
 
-void MCUIDC::delaymessage(MCObject *optr, MCNameRef mptr, char *p1, char *p2)
+void MCUIDC::delaymessage(MCObject *optr, MCNameRef mptr, MCStringRef p1, MCStringRef p2)
 {
 	MCParameter *params = NULL;
 	if (p1 != NULL)
 	{
-		params = new MCParameter;
-		params->setbuffer(p1, strlen(p1));
+		params = new (nothrow) MCParameter;
+		params->setvalueref_argument(p1);
 		if (p2 != NULL)
 		{
 			params->setnext(new MCParameter);
-			params->getnext()->setbuffer(p2, strlen(p2));
+			params->getnext()->setvalueref_argument(p2);
 		}
 	}
     
@@ -950,9 +1204,8 @@ void MCUIDC::addmessage(MCObject *optr, MCNameRef mptr, real8 time, MCParameter 
     t_id = ++messageid;
     doaddmessage(optr, mptr, time, t_id, params);
     
-	char buffer[U4L];
-	sprintf(buffer, "%u", t_id);
-	MCresult->copysvalue(buffer);
+    // MW-2014-05-28: [[ Bug 12463 ]] Previously the result would have been set here which is
+    //   incorrect as engine pending messages should not set the result.
 }
 
 void MCUIDC::addtimer(MCObject *optr, MCNameRef mptr, uint4 delay)
@@ -960,67 +1213,136 @@ void MCUIDC::addtimer(MCObject *optr, MCNameRef mptr, uint4 delay)
     // Remove existing message from the queue.
     cancelmessageobject(optr, mptr);
     
-    doaddmessage(optr, mptr, MCS_time() + delay / 1000.0, 0, NULL);
+    doaddmessage(optr, mptr, MCS_time() + delay / 1000.0, 0);
 }
 
-void MCUIDC::cancelmessageindex(uint2 i, Boolean dodelete)
+void MCUIDC::addsubtimer(MCObject *optr, MCValueRef suboptr, MCNameRef mptr, uint4 delay)
 {
-	if (dodelete)
-	{
-		while (messages[i].params != NULL)
-		{
-			MCParameter *tmp = messages[i].params;
-			messages[i].params = messages[i].params->getnext();
-			delete tmp;
-		}
-		MCNameDelete(messages[i] . message);
-	}
+    cancelmessageobject(optr, mptr, suboptr);
     
-    // MW-2014-05-14: [[ Bug 12294 ]] Use a memmove here (more efficient as the MCMessageList struct can be moved).
-    MCMemoryMove(&messages[i], &messages[i + 1], (nmessages - (i + 1)) * sizeof(MCMessageList));
-    
-	nmessages--;
+    MCParameter *t_param;
+    t_param = new (nothrow) MCParameter;
+    t_param -> setvalueref_argument(suboptr);
+    doaddmessage(optr, mptr, MCS_time() + delay / 1000.0, 0, t_param);
+}
+
+void MCUIDC::cancelsubtimer(MCObject *optr, MCNameRef mptr, MCValueRef suboptr)
+{
+    cancelmessageobject(optr, mptr, suboptr);
+}
+
+void MCUIDC::cancelmessageindex(size_t i, bool dodelete)
+{
+	m_messages.DeleteMessage(i, dodelete);
 }
 
 void MCUIDC::cancelmessageid(uint4 id)
 {
-	uint2 i;
-	for (i = 0 ; i < nmessages ; i++)
-		if (messages[i].id == id)
+	for(size_t i = 0 ; i < m_messages.GetCount(); i++)
+    {
+		if (m_messages[i].m_id == id)
 		{
 			cancelmessageindex(i, True);
 			return;
 		}
+    }
 }
 
-void MCUIDC::cancelmessageobject(MCObject *optr, MCNameRef mptr)
+void MCUIDC::cancelmessageobject(MCObject *optr, MCNameRef mptr, MCValueRef subobject)
 {
     // MW-2014-05-14: [[ Bug 12294 ]] Cancel list in reverse order to minimize movement.
-	for (uindex_t i = nmessages ; i > 0 ; i--)
-		if (messages[i - 1].object == optr
-		        && (mptr == NULL || MCNameIsEqualTo(messages[i - 1].message, mptr, kMCCompareCaseless)))
-			cancelmessageindex(i - 1, True);
+	for (size_t i = m_messages.GetCount(); i > 0; i--)
+    {
+        const MCPendingMessage& t_msg = m_messages[i - 1];
+        
+	// If this message refers to a dead object, take this opportunity to
+	// prune it from the pending queue
+	if (!t_msg.m_object.IsValid())
+	{
+	    cancelmessageindex(i - 1, true);
+	    continue;
+	}
+        
+        if (t_msg.m_object.Get() == optr
+		        && (mptr == NULL || MCNameIsEqualToCaseless(*t_msg.m_message, mptr))
+                && (subobject == NULL || (t_msg.m_params != nil &&
+                                          t_msg.m_params -> getvalueref_argument() == subobject)))
+			cancelmessageindex(i - 1, true);
+    }
 }
 
-void MCUIDC::listmessages(MCExecPoint &ep)
+bool MCUIDC::listmessages(MCExecContext& ctxt, MCListRef& r_list)
 {
-	uint2 i;
-	MCExecPoint ep1(ep);
-	bool first;
-	first = true;
-	ep.clear();
-	for (i = 0 ; i < nmessages ; i++)
+	MCAutoListRef t_list;
+	if (!MCListCreateMutable('\n', &t_list))
+		return false;
+
+	for (size_t i = 0; i < m_messages.GetCount(); i++)
 	{
-		if (messages[i].id != 0)
+		const MCPendingMessage& t_msg = m_messages[i];
+        
+        if (t_msg.m_id != 0)
 		{
-			ep.concatuint(messages[i].id, EC_RETURN, first);
-			ep.concatreal(messages[i].time, EC_COMMA, false);
-			ep.concatnameref(messages[i].message, EC_COMMA, false);
-			messages[i].object->getprop(0, P_LONG_ID, ep1, false);
-			ep.concatmcstring(ep1.getsvalue(), EC_COMMA, false);
-			first = false;
+			MCAutoListRef t_msg_info;
+			MCAutoValueRef t_id_string;
+			MCAutoStringRef t_time_string;
+
+            if (!t_msg.m_object.IsValid())
+                continue;
+
+			if (!MCListCreateMutable(',', &t_msg_info))
+				return false;
+
+			if (!MCListAppendUnsignedInteger(*t_msg_info, t_msg.m_id))
+				return false;
+
+			if (!ctxt.FormatReal(t_msg.m_time, &t_time_string)
+				|| !MCListAppend(*t_msg_info, *t_time_string))
+				return false;
+
+			if (!MCListAppend(*t_msg_info, *t_msg.m_message))
+				return false;
+
+			if (!t_msg.m_object->names(P_LONG_ID, &t_id_string) ||
+				!MCListAppend(*t_msg_info, *t_id_string))
+				return false;
+
+			if (!MCListAppend(*t_list, *t_msg_info))
+				return false;
 		}
 	}
+
+	return MCListCopy(*t_list, r_list);
+}
+
+// MW-2014-05-28: [[ Bug 12463 ]] This is called by 'send in time' to queue a user defined message.
+//   It puts a limit on the number of script sent messages of 64k which should be enough for any
+//   reasonable app. Note that the engine's internal / sent messages are still allowed beyond this
+//   limit as they definitely do not have a double-propagation problem that could cause engine lock-up.
+bool MCUIDC::addusermessage(MCObject* optr, MCNameRef name, real8 time, MCParameter *params)
+{
+    // Arbitrary limit on the number of pending messages
+    if (m_messages.GetCount() >= UINT16_MAX)
+        return false;
+    
+    addmessage(optr, name, time, params);
+    
+    // MW-2014-05-28: [[ Bug 12463 ]] Set the result to the pending message id.
+	char buffer[U4L];
+	sprintf(buffer, "%u", messageid);
+	MCresult->copysvalue(buffer);
+    
+    return true;
+}
+
+bool MCUIDC::hasmessagestodispatch(void)
+{
+    if (m_messages.GetCount() == 0)
+    {
+        return false;
+    }
+    
+    return m_messages[0].m_time <= MCS_time();
 }
 
 // MW-2014-04-16: [[ Bug 11690 ]] Rework pending message handling to take advantage
@@ -1029,36 +1351,40 @@ Boolean MCUIDC::handlepending(real8& curtime, real8& eventtime, Boolean dispatch
 {
     Boolean t_handled;
     t_handled = False;
-    for(int i = 0; i < nmessages; i++)
+    for(uindex_t i = 0; i < m_messages.GetCount(); i++)
     {
+        MCPendingMessage t_msg = m_messages[i];
+        
         // If the next message is later than curtime, we've not processed a message.
-        if (messages[i] . time > curtime)
+        if (t_msg.m_time > curtime)
             break;
         
-        if (!dispatch && messages[i] . id == 0 && MCNameIsEqualTo(messages[i] . message, MCM_idle, kMCCompareCaseless))
+        if (!dispatch && t_msg.m_id == 0 && MCNameIsEqualToCaseless(*t_msg.m_message, MCM_idle))
         {
             doshiftmessage(i, curtime + MCidleRate / 1000.0);
             continue;
         }
         
-        if (dispatch || messages[i] . id == 0)
+        if (dispatch || t_msg.m_id == 0)
         {
-            MCParameter *p = messages[i].params;
-            MCNameRef m = messages[i].message;
-            MCObject *o = messages[i].object;
-            cancelmessageindex(i, False);
-            MCSaveprops sp;
-            MCU_saveprops(sp);
-            MCU_resetprops(False);
-            o->timer(m, p);
-            MCU_restoreprops(sp);
-            while (p != NULL)
+            // Remove this message from the queue
+            cancelmessageindex(i, false);
+            
+            // If the object is still live, dispatch the message to it
+            if (t_msg.m_object.IsValid())
             {
-                MCParameter *tmp = p;
-                p = p->getnext();
-                delete tmp;
+                MCSaveprops sp;
+                MCU_saveprops(sp);
+                MCU_resetprops(False);
+                t_msg.m_object->timer(*t_msg.m_message, t_msg.m_params);
+                MCU_restoreprops(sp);
+                t_msg.DeleteParameters();
             }
-            MCNameDelete(m);
+            
+            // A message has been removed from the queue, so don't increment the
+            // counter on this iteration.
+            i -= 1;
+            
             curtime = MCS_time();
             
             t_handled = True;
@@ -1073,17 +1399,50 @@ Boolean MCUIDC::handlepending(real8& curtime, real8& eventtime, Boolean dispatch
     if (stime < eventtime)
         eventtime = stime;
     
-    if (nmessages > 0 && messages[0] . time < eventtime)
-        eventtime = messages[0] . time;
+    // SN-2014-12-12: [[ Bug 13360 ]] We don't want to change the eventtime if the message is not forced to be dispatched nor internal
+    if (m_messages.GetCount() > 0
+            && (dispatch || m_messages[0].m_id == 0)
+            && m_messages[0].m_time < eventtime)
+        eventtime = m_messages[0].m_time;
     
     return t_handled;
+}
+
+
+Boolean MCUIDC::getlockmoves() const
+{
+	return lockmoves;
+}
+
+void MCUIDC::setlockmoves(Boolean b)
+{
+	if (lockmoves == b)
+		return;
+
+	lockmoves = b;
+
+	if (lockmoves) {
+		// then save the time the lock started
+		locktime = MCS_time(); 
+
+	} else {
+		// adjust the start time of each movement.
+		real8 offset = MCS_time() - locktime;
+		if (moving != NULL)	{
+			MCMovingList *mptr = moving;
+			do {
+				mptr->starttime += offset;
+				mptr = mptr->next();
+			} while (mptr != moving);
+		}
+	}
 }
 
 void MCUIDC::addmove(MCObject *optr, MCPoint *pts, uint2 npts,
                      real8 &duration, Boolean waiting)
 {
 	stopmove(optr, False);
-	MCMovingList *mptr = new MCMovingList;
+	MCMovingList *mptr = new (nothrow) MCMovingList;
 	mptr->appendto(moving);
 	mptr->object = optr;
 	mptr->pts = pts;
@@ -1126,24 +1485,37 @@ void MCUIDC::addmove(MCObject *optr, MCPoint *pts, uint2 npts,
 			optr -> setrect(newrect);
 	}
 
-	mptr->starttime = MCS_time();
+	if (lockmoves) {
+		mptr->starttime = locktime;
+	} else {
+		mptr->starttime = MCS_time();
+	}
 }
 
-void MCUIDC::listmoves(MCExecPoint &ep)
+bool MCUIDC::listmoves(MCExecContext& ctxt, MCListRef& r_list)
 {
-	ep.clear();
+	MCAutoListRef t_list;
+	if (!MCListCreateMutable('\n', &t_list))
+		return false;
+
 	if (moving != NULL)
 	{
-		MCExecPoint ep2(ep);
 		MCMovingList *mptr = moving;
 		do
 		{
-			mptr->object->getprop(0, P_LONG_ID, ep2, False);
-			ep.concatmcstring(ep2.getsvalue(), EC_RETURN, mptr == moving);
+            if (mptr->object)
+            {
+                MCAutoValueRef t_string;
+                if (!mptr->object->names(P_LONG_ID, &t_string))
+                    return false;
+                if (!MCListAppend(*t_list, *t_string))
+                    return false;
+            }
 			mptr = mptr->next();
 		}
 		while (mptr != moving);
 	}
+	return MCListCopy(*t_list, r_list);
 }
 
 void MCUIDC::stopmove(MCObject *optr, Boolean finish)
@@ -1153,10 +1525,9 @@ void MCUIDC::stopmove(MCObject *optr, Boolean finish)
 		MCMovingList *mptr = moving;
 		do
 		{
-			if (mptr->object == optr)
+			if (mptr->object.IsBoundTo(optr))
 			{
-				mptr->remove
-				(moving);
+				mptr->remove(moving);
 				if (finish)
 				{
 					MCRectangle rect = mptr->object->getrect();
@@ -1170,7 +1541,7 @@ void MCUIDC::stopmove(MCObject *optr, Boolean finish)
 
 						// MW-2011-08-18: [[ Layers ]] Notify of position change.
 						if (mptr->object -> gettype() >= CT_GROUP)
-							static_cast<MCControl *>(mptr->object)->layer_setrect(newrect, false);
+							mptr->object.GetAs<MCControl>()->layer_setrect(newrect, false);
 						else
 							mptr->object->setrect(newrect);
 					}
@@ -1186,94 +1557,97 @@ void MCUIDC::stopmove(MCObject *optr, Boolean finish)
 
 void MCUIDC::handlemoves(real8 &curtime, real8 &eventtime)
 {
-	static real8 lasttime;
+	if (lockmoves) 
+		return;
 	eventtime = curtime + (real8)MCsyncrate / 1000.0;
 	MCMovingList *mptr = moving;
 	Boolean moved = False;
 	Boolean done = False;
 	do
 	{
-		if (MClockmoves)
+        if (!mptr->object)
+        {
+            moving = mptr->prev();
+            mptr->remove(moving);
+            delete mptr;
+            if (moving == NULL)
+                mptr = NULL;
+            else
+                mptr = moving->next();
+            continue;
+        }
+        
+        MCRectangle rect = mptr->object->getrect();
+        MCRectangle newrect = rect;
+        real8 dt = 0.0;
+        if (curtime >= mptr->starttime + mptr->duration
+            || (rect.x == mptr->donex && rect.y == mptr->doney))
+        {
+            newrect.x = mptr->donex;
+            newrect.y = mptr->doney;
+            dt = curtime - (mptr->starttime + mptr->duration);
+            done = True;
+        }
+        else
+        {
+            newrect.x = mptr->pts[mptr->curpt].x - (rect.width >> 1)
+                        + (int2)(mptr->dx * (curtime - mptr->starttime) / mptr->duration);
+            newrect.y = mptr->pts[mptr->curpt].y - (rect.height >> 1)
+                        + (int2)(mptr->dy * (curtime - mptr->starttime) / mptr->duration);
+        }
+        if (newrect.x != rect.x || newrect.y != rect.y)
+        {
+            moved = True;
+        
+            // MW-2011-08-18: [[ Layers ]] Notify of position change.
+            if (mptr->object -> gettype() >= CT_GROUP)
+                mptr->object.GetAs<MCControl>()->layer_setrect(newrect, false);
+            else
+                mptr->object->setrect(newrect);
+        }
+
+		if (done)
 		{
-			if (lasttime != 0.0)
-				mptr->starttime += curtime - lasttime;
-			mptr = mptr->next();
+			if (mptr->curpt < mptr->lastpt - 1)
+			{
+				do
+				{
+					mptr->curpt++;
+					mptr->dx = mptr->pts[mptr->curpt + 1].x - mptr->pts[mptr->curpt].x;
+					mptr->dy = mptr->pts[mptr->curpt + 1].y - mptr->pts[mptr->curpt].y;
+					mptr->duration = sqrt((double)(mptr->dx * mptr->dx + mptr->dy
+					                               * mptr->dy)) / mptr->speed;
+					dt -= mptr->duration;
+				}
+				while (dt > 0.0 && mptr->curpt < mptr->lastpt - 1);
+				mptr->duration = -dt;
+				mptr->starttime = curtime;
+				mptr->donex = mptr->pts[mptr->curpt + 1].x - (rect.width >> 1);
+				mptr->doney = mptr->pts[mptr->curpt + 1].y - (rect.height >> 1);
+			}
+			else
+			{
+				moving = mptr->prev();
+				mptr->remove(moving);
+				if (!mptr->waiting)
+                {
+					if (MClockmessages)
+						delaymessage(mptr->object, MCM_move_stopped);
+					else
+						mptr->object->message(MCM_move_stopped);
+                }
+				delete mptr;
+				if (moving == NULL)
+					mptr = NULL;
+				else
+					mptr = moving->next();
+			}
+			done = False;
 		}
 		else
-		{
-			MCRectangle rect = mptr->object->getrect();
-			MCRectangle newrect = rect;
-			real8 dt = 0.0;
-			if (curtime >= mptr->starttime + mptr->duration
-			        || rect.x == mptr->donex && rect.y == mptr->doney)
-			{
-				newrect.x = mptr->donex;
-				newrect.y = mptr->doney;
-				dt = curtime - (mptr->starttime + mptr->duration);
-				done = True;
-			}
-			else
-			{
-				newrect.x = mptr->pts[mptr->curpt].x - (rect.width >> 1)
-				            + (int2)(mptr->dx * (curtime - mptr->starttime) / mptr->duration);
-				newrect.y = mptr->pts[mptr->curpt].y - (rect.height >> 1)
-				            + (int2)(mptr->dy * (curtime - mptr->starttime) / mptr->duration);
-			}
-			if (newrect.x != rect.x || newrect.y != rect.y)
-			{
-				moved = True;
-			
-				// MW-2011-08-18: [[ Layers ]] Notify of position change.
-				if (mptr->object -> gettype() >= CT_GROUP)
-					static_cast<MCControl *>(mptr->object)->layer_setrect(newrect, false);
-				else
-					mptr->object->setrect(newrect);
-			}
-			if (done)
-			{
-				if (mptr->curpt < mptr->lastpt - 1)
-				{
-					do
-					{
-						mptr->curpt++;
-						mptr->dx = mptr->pts[mptr->curpt + 1].x - mptr->pts[mptr->curpt].x;
-						mptr->dy = mptr->pts[mptr->curpt + 1].y - mptr->pts[mptr->curpt].y;
-						mptr->duration = sqrt((double)(mptr->dx * mptr->dx + mptr->dy
-						                               * mptr->dy)) / mptr->speed;
-						dt -= mptr->duration;
-					}
-					while (dt > 0.0 && mptr->curpt < mptr->lastpt - 1);
-					mptr->duration = -dt;
-					mptr->starttime = curtime;
-					mptr->donex = mptr->pts[mptr->curpt + 1].x - (rect.width >> 1);
-					mptr->doney = mptr->pts[mptr->curpt + 1].y - (rect.height >> 1);
-				}
-				else
-				{
-					moving = mptr->prev();
-					mptr->remove(moving);
-					if (!mptr->waiting)
-						if (MClockmessages)
-							delaymessage(mptr->object, MCM_move_stopped);
-						else
-							mptr->object->message(MCM_move_stopped);
-					delete mptr;
-					if (moving == NULL)
-						mptr = NULL;
-					else
-						mptr = moving->next();
-				}
-				done = False;
-			}
-			else
-				mptr = mptr->next();
-		}
+			mptr = mptr->next();
 	}
 	while (mptr != NULL && mptr != moving);
-	if (MClockmoves)
-		lasttime = curtime;
-	else
-		lasttime = 0.0;
 		
 	// MW-2012-12-09: [[ Bug 9905 ]] Make sure we update the screen if something
 	//   moved (previously it only did so if there were still things to move also!).
@@ -1289,24 +1663,32 @@ void MCUIDC::siguser()
 	while (MCsiguser1)
 	{
 		MCsiguser1--;
-		MCdefaultstackptr->getcurcard()->message_with_args(MCM_signal, "1");
+		MCdefaultstackptr->getcurcard()->message_with_valueref_args(MCM_signal, MCSTR("1"));
 	}
 	while (MCsiguser2)
 	{
 		MCsiguser2--;
-		MCdefaultstackptr->getcurcard()->message_with_args(MCM_signal, "2");
+		MCdefaultstackptr->getcurcard()->message_with_valueref_args(MCM_signal, MCSTR("2"));
 	}
 }
 
 #include "rgb.cpp"
 
-Boolean MCUIDC::lookupcolor(const MCString &s, MCColor *color)
+Boolean MCUIDC::lookupcolor(MCStringRef s, MCColor *color)
 {
-	uint4 slength = s.getlength();
-	char *startptr = new char[slength + 1];
-	char *sptr = startptr;
-	MCU_lower(sptr, s);
-	sptr[slength] = '\0';
+	MCAutoStringRefAsCString t_cstring;
+	if (!t_cstring.Lock(s))
+		return false;
+
+    uint4 slength = strlen(*t_cstring);
+    /* UNCHECKED */ MCAutoPointer<char[]> startptr = new (nothrow) char[slength + 1];
+
+    MCU_lower(*startptr, *t_cstring);
+
+    (*startptr)[slength] = '\0';
+
+    char* sptr = *startptr;
+
 	if (*sptr == '#')
 	{
 		uint2 r, g, b;
@@ -1332,10 +1714,7 @@ Boolean MCUIDC::lookupcolor(const MCString &s, MCColor *color)
 					if (c >= 'a' && c <= 'f')
 						b |= c - ('a' - 10);
 					else
-					{
-						delete startptr;
 						return False;
-					}
 			}
 		}
 		while (*sptr != '\0');
@@ -1358,14 +1737,12 @@ Boolean MCUIDC::lookupcolor(const MCString &s, MCColor *color)
 			}
 			shiftbits -= goodbits;
 		}
-		color->flags = DoRed | DoGreen | DoBlue;
-		delete startptr;
 		return True;
 	}
 	char *tptr = sptr;
 	while (*tptr)
 		if (isspace((uint1)*tptr))
-			strcpy(tptr, tptr + 1);
+            memmove(tptr, tptr + 1, strlen(tptr));
 		else
 			tptr++;
 	uint2 high = ELEMENTS(color_table);
@@ -1385,12 +1762,9 @@ Boolean MCUIDC::lookupcolor(const MCString &s, MCColor *color)
 				color->red = (color_table[mid].red << 8) + color_table[mid].red;
 				color->green = (color_table[mid].green << 8) + color_table[mid].green;
 				color->blue = (color_table[mid].blue << 8) + color_table[mid].blue;
-				color->flags = DoRed | DoGreen | DoBlue;
-				delete startptr;
 				return True;
 			}
 	}
-	delete startptr;
 	return False;
 }
 
@@ -1425,14 +1799,12 @@ void MCUIDC::dropper(Window w, int2 mx, int2 my, MCColor *cptr)
 		return;
 	}
 
-	newcolor.pixel = MCImageBitmapGetPixel(image, 0, 0);
+	MCColorSetPixel(newcolor, MCImageBitmapGetPixel(image, 0, 0));
 	MCImageFreeBitmap(image);
-	querycolor(newcolor);
 	if (cptr != NULL)
 		*cptr = newcolor;
 	else
 	{
-		alloccolor(newcolor);
 		if (MCmodifierstate & MS_CONTROL)
 		{
 			if (MCbrushpattern != nil)
@@ -1449,28 +1821,37 @@ void MCUIDC::dropper(Window w, int2 mx, int2 my, MCColor *cptr)
 	}
 }
 
-Boolean MCUIDC::parsecolor(const MCString &s, MCColor *color, char **cname)
+/* WRAPPER */
+bool MCUIDC::parsecolor(MCStringRef p_string, MCColor& r_color)
 {
-	if (cname)
+	return True == parsecolor(p_string, r_color, nil);
+}
+
+Boolean MCUIDC::parsecolor(MCStringRef s, MCColor& color, MCStringRef *cname)
+{
+	if (cname != nil)
 	{
-		delete *cname;
-		*cname = NULL;
+		MCValueRelease(*cname);
+		*cname = nil;
 	}
 	
 	int2 i1, i2, i3;
-	Boolean done;
-	const char *sptr = s.getstring();
-	uint4 l = s.getlength();
+    Boolean done;
+	MCAutoStringRefAsCString t_cstring;
+	if (!t_cstring.Lock(s))
+		return false;
+	const char *sptr = *t_cstring;
+    uint4 l = strlen(sptr);
 	
 	// check for numeric first argument
 	i1 = MCU_strtol(sptr, l, ',', done);
 	if (!done)
 	{
-		// not numeric, check against the colornames
-		if (lookupcolor(s, color))
-		{
+        // not numeric, check against the colornames	
+		if (lookupcolor(s, &color))
+        {
 			if (cname)
-				*cname = s.clone();
+				*cname = MCValueRetain(s);
 			return True;
 		}
 		return False;
@@ -1498,89 +1879,40 @@ Boolean MCUIDC::parsecolor(const MCString &s, MCColor *color, char **cname)
 		if (!done || (l != 0))
 			return False;
 	}
-	color->red = (uint2)(i1 << 8) + i1;
-	color->green = (uint2)(i2 << 8) + i2;
-	color->blue = (uint2)(i3 << 8) + i3;
+	color.red = (uint2)(i1 << 8) + i1;
+	color.green = (uint2)(i2 << 8) + i2;
+	color.blue = (uint2)(i3 << 8) + i3;
 	
 	return True;
 }
 
 
-
-Boolean MCUIDC::parsecolors(const MCString &s, MCColor *colors,
-                            char *cnames[], uint2 ncolors)
+bool MCUIDC::getcolornames(MCStringRef& r_string)
 {
-	uint2 offset = 0;
-	char *data = s.clone();
-	char *sptr = data;
+	MCAutoListRef t_list;
+	if (!MCListCreateMutable('\n', &t_list))
+		return false;
 
-	while (*sptr && offset < ncolors)
-	{
-		char *tptr;
-		if ((tptr = strchr(sptr, '\n')) != NULL)
-			*tptr++ = '\0';
-		else
-			tptr = &sptr[strlen(sptr)];
-		if (strlen(sptr) != 0)
-		{
-			if (!parsecolor(sptr, &colors[offset], &cnames[offset]))
-			{
-				while (offset--)
-					if (cnames[offset] != NULL)
-						delete cnames[offset];
-				delete data;
-				return False;
-			}
-			colors[offset].flags = DoRed | DoGreen | DoBlue;
-		}
-		else
-		{
-			colors[offset].flags = 0;
-			cnames[offset] = NULL;
-		}
-		sptr = tptr;
-		offset++;
-	}
-	while (offset < ncolors)
-	{
-		colors[offset].flags = 0;
-		cnames[offset] = NULL;
-		offset++;
-	}
-	delete data;
-	return True;
-}
-
-Boolean MCUIDC::getcolors(MCExecPoint &ep)
-{
-		ep.setstaticcstring("fixed");
-		return True;
-	}
-
-Boolean MCUIDC::setcolors(const MCString &values)
-{
-		return False;
-		}
-
-void MCUIDC::getcolornames(MCExecPoint &ep)
-{
-	ep.getbuffer(NAME_LENGTH);
-	ep.clear();
 	uint2 end = ELEMENTS(color_table);
 	uint2 i;
 	for (i = 0 ; i < end ; i++)
-		ep.concatcstring(color_table[i].token, EC_RETURN, i == 0);
+	{
+		if (!MCListAppendCString(*t_list, color_table[i].token))
+			return false;
+	}
+
+	return MCListCopyAsString(*t_list, r_string);
 }
 
 void MCUIDC::seticon(uint4 p_icon)
 {
 }
 
-void MCUIDC::seticonmenu(const char *p_menu)
+void MCUIDC::seticonmenu(MCStringRef p_menu)
 {
 }
 
-void MCUIDC::configurestatusicon(uint32_t icon_id, const char *menu, const char *tooltip)
+void MCUIDC::configurestatusicon(uint32_t icon_id, MCStringRef menu, MCStringRef tooltip)
 {
 }
 
@@ -1589,9 +1921,10 @@ MCPrinter *MCUIDC::createprinter(void)
 	return new MCNullPrinter;
 }
 
-void MCUIDC::listprinters(MCExecPoint& ep)
+bool MCUIDC::listprinters(MCStringRef& r_printers)
 {
-	ep . clear();
+	r_printers = (MCStringRef)MCValueRetain(kMCEmptyString);
+	return true;
 }
 
 //
@@ -1615,62 +1948,27 @@ void MCUIDC::stopplayingsound(void)
 
 //
 
-bool MCUIDC::ownsselection(void)
-{
-	return false;
-}
-
-MCPasteboard *MCUIDC::getselection(void)
-{
-	return NULL;
-}
-
-bool MCUIDC::setselection(MCPasteboard *p_pasteboard)
-{
-	return false;
-}
-
-void MCUIDC::flushclipboard(void)
-{
-}
-
-bool MCUIDC::ownsclipboard(void)
-{
-	return false;
-}
-
-MCPasteboard *MCUIDC::getclipboard(void)
-{
-	return NULL;
-}
-
-bool MCUIDC::setclipboard(MCPasteboard *p_pasteboard)
-{
-	return false;
-}
-
-
 // TD-2013-07-01: [[ DynamicFonts ]]
-bool MCUIDC::loadfont(const char *p_path, bool p_globally, void*& r_loaded_font_handle)
+bool MCUIDC::loadfont(MCStringRef p_path, bool p_globally, void*& r_loaded_font_handle)
 {
 	return false;
 }
 
-bool MCUIDC::unloadfont(const char *p_path, bool p_globally, void *r_loaded_font_handle)
+bool MCUIDC::unloadfont(MCStringRef p_path, bool p_globally, void *r_loaded_font_handle)
 {
 	return false;
 }
 
 //
 
-MCDragAction MCUIDC::dodragdrop(MCPasteboard* p_pasteboard, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint *p_image_offset)
+MCDragAction MCUIDC::dodragdrop(Window w, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint *p_image_offset)
 {
 	return DRAG_ACTION_NONE;
 }
 
 //
 
-MCScriptEnvironment *MCUIDC::createscriptenvironment(const char *p_language)
+MCScriptEnvironment *MCUIDC::createscriptenvironment(MCStringRef p_language)
 {
 	return NULL;
 }
@@ -1681,12 +1979,71 @@ void MCUIDC::enactraisewindows(void)
 }
 //
 
-int32_t MCUIDC::popupanswerdialog(const char **p_buttons, uint32_t p_button_count, uint32_t p_type, const char *p_title, const char *p_message)
+int32_t MCUIDC::popupanswerdialog(MCStringRef *p_buttons, uint32_t p_button_count, uint32_t p_type, MCStringRef p_title, MCStringRef p_message, bool p_blocking)
 {
 	return 0;
 }
 
-char *MCUIDC::popupaskdialog(uint32_t p_type, const char *p_title, const char *p_message, const char *p_initial, bool p_hint)
+bool MCUIDC::popupaskdialog(uint32_t p_type, MCStringRef p_title, MCStringRef p_message, MCStringRef p_initial, bool p_hint, MCStringRef& r_result)
 {
-	return nil;
+	return false;
 }
+
+//
+
+void MCUIDC::controlgainedfocus(MCStack *s, uint32_t id)
+{
+}
+
+void MCUIDC::controllostfocus(MCStack *s, uint32_t id)
+{
+}
+
+//
+
+void MCUIDC::hidecursoruntilmousemoves(void)
+{
+    // Default action is to do nothing - Mac overrides and performs the
+    // appropriate function.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool MCUIDC::platform_get_display_handle(void *&r_display)
+{
+	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MCUIDC::breakModalLoops()
+{
+    modal_loop* loop = m_modal_loops;
+    while (loop != NULL)
+    {
+        loop->break_function(loop->context);
+        loop->broken = true;
+        loop = loop->chain;
+    }
+}
+
+void MCUIDC::modalLoopStart(modal_loop& info)
+{
+    info.chain = m_modal_loops;
+    info.broken = false;
+    m_modal_loops = &info;
+}
+
+void MCUIDC::modalLoopEnd()
+{
+    m_modal_loops = m_modal_loops->chain;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void MCUIDC::getsystemappearance(MCSystemAppearance &r_appearance)
+{
+	r_appearance = kMCSystemAppearanceLight;
+}
+
+////////////////////////////////////////////////////////////////////////////////

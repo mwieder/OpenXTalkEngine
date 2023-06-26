@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "literal.h"
 #include "scriptpt.h"
-#include "execpt.h"
 
 Parse_stat MCLiteral::parse(MCScriptPoint &sp, Boolean the)
 {
@@ -30,25 +29,8 @@ Parse_stat MCLiteral::parse(MCScriptPoint &sp, Boolean the)
 	return PS_NORMAL;
 }
 
-Exec_stat MCLiteral::eval(MCExecPoint &ep)
+void MCLiteral::eval_ctxt(MCExecContext& ctxt, MCExecValue& r_value)
 {
-	ep.setnameref_unsafe(value);
-	return ES_NORMAL;
-}
-
-Parse_stat MCLiteralNumber::parse(MCScriptPoint &sp, Boolean the)
-{
-	initpoint(sp);
-	return PS_NORMAL;
-}
-
-Exec_stat MCLiteralNumber::eval(MCExecPoint &ep)
-{
-	// MW-2013-04-12: [[ Bug 10837 ]] Make sure we set 'both' when evaluating the
-	//   literal. Not doing this causes problems for things like 'numberFormat'.
-	if (nvalue == BAD_NUMERIC)
-		ep.setnameref_unsafe(value);
-	else
-		ep.setboth(MCNameGetOldString(value), nvalue);
-	return ES_NORMAL;
+	r_value . type = kMCExecValueTypeValueRef;
+	r_value . valueref_value = MCValueRetain(value);
 }

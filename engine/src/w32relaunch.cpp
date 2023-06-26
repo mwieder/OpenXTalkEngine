@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -28,7 +28,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "stacklst.h"
 #include "sellst.h"
 #include "util.h"
-#include "execpt.h"
+
 #include "debug.h"
 #include "param.h"
 
@@ -37,6 +37,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "globals.h"
 
 #include "w32dc.h"
+
+#include <shobjidl.h>
+#include <shlobj.h>
+#include <shlwapi.h>
 
 #ifdef FEATURE_RELAUNCH_SUPPORT
 
@@ -66,11 +70,11 @@ struct message_t
 };
 
 extern void md5_compute(const char *p_data, unsigned int p_length, void *p_buffer);
-extern char *MCcmdline;
+extern MCStringRef MCcmdline;
 
 static char *s_previous_folder = NULL;
 
-char *strndup(const char *p_string, unsigned int p_length)
+char *strndup(const char *p_string, size_t p_length)
 {
 	char *t_result;
 	t_result = (char *)malloc(p_length + 1);
@@ -206,7 +210,7 @@ static char *concatenate(char *p_first, bool p_free_first, char *p_last, bool p_
 bool message_send_with_data(message_t *p_message, unsigned int *r_reply)
 {
 	COPYDATASTRUCT t_data;
-	DWORD t_result;
+	DWORD_PTR t_result;
 
 	t_data . dwData = CWM_RELAUNCH;
 	t_data . cbData = p_message -> data_length;
@@ -223,7 +227,7 @@ bool message_send_with_data(message_t *p_message, unsigned int *r_reply)
 	return true;
 }
 
-bool relaunch_get_current_instance(instance_t& r_instance, const char *p_id)
+bool relaunch_get_current_instance(instance_t& r_instance, MCStringRef p_id)
 {
 	char t_executable_path[4096];
 
@@ -258,7 +262,9 @@ bool relaunch_get_current_instance(instance_t& r_instance, const char *p_id)
 		t_file_id[t_file_id_length++] = 0;
 
 	unsigned int t_stack_id[4];
-	md5_compute(p_id, strlen(p_id), t_stack_id);
+    MCAutoPointer<char> t_id;
+    /* UNCHECKED */ MCStringConvertToCString(p_id, &t_id);
+	md5_compute(*t_id, MCStringGetLength(p_id), t_stack_id);
 
 	unsigned int t_process_id;
 	t_process_id = GetCurrentProcessId();
@@ -408,7 +414,7 @@ bool relaunch_list_instances(const char *p_instance_folder, const instance_t& p_
 	return true;
 }
 
-bool relaunch_startup(const char *p_stack_name)
+bool relaunch_startup(MCStringRef p_stack_name)
 {
 	bool t_error;
 	t_error = false;
@@ -444,11 +450,15 @@ bool relaunch_startup(const char *p_stack_name)
 	{
 		for(unsigned int t_instance = 0; t_instance < t_existing_instance_count; ++t_instance)
 		{
+			MCAutoStringRefAsLPWSTR t_cmdline_wstr;
+			/* UNCHECKED */ t_cmdline_wstr.Lock(MCcmdline);
+			
 			message_t t_message;
 			t_message . window = t_existing_instances[t_instance] . message_window;
 			t_message . id = CWM_RELAUNCH;
-			t_message . data = (void *)MCcmdline;
-			t_message . data_length = strlen(MCcmdline);
+			t_message . data = *t_cmdline_wstr;
+			// SN-2014-11-19: [[ Bug 14058 ]] We pass the number of bytes, not the numbers of wchars 
+			t_message . data_length = MCStringGetLength(MCcmdline) * 2;
 			t_message . timeout = 1 << 30;
 
 			unsigned int t_reply;

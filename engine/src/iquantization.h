@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -71,9 +71,9 @@ public:
 		}
 
 		if (t_prev == NULL)
-			head = new MCPQNode(p_item, t_current);
+			head = new (nothrow) MCPQNode(p_item, t_current);
 		else
-			t_prev->next = new MCPQNode(p_item, t_current);
+			t_prev->next = new (nothrow) MCPQNode(p_item, t_current);
 
 		item_count++;
 	}
@@ -89,7 +89,7 @@ private:
 	MCPQComparator compare;
 };
 
-extern bool MCImageParseColourList(const MCString &p_input, uint32_t &r_ncolours, MCColor *&r_colours);
+extern bool MCImageParseColourList(MCStringRef p_input, uint32_t &r_ncolours, MCColor *&r_colours);
 
 extern bool MCImageGenerateOptimalPaletteWithWeightedPixels(MCImageBitmap *p_bitmap, uint32_t p_palette_size, MCColor *&r_colours);
 extern bool MCImageGenerateWebsafePalette(uint32_t &r_palette_size, MCColor *&r_colours);

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -19,8 +19,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "mblsyntax.h"
 
-typedef struct
+struct MCSensorLocationReading
 {
+    MCSensorLocationReading *next;
+    
     double latitude;
     double longitude;
     double altitude;
@@ -33,7 +35,7 @@ typedef struct
     // MM-2013-02-21: Add speed and course to detailed location reading.
     double speed;
     double course;
-} MCSensorLocationReading;
+};
 
 typedef struct
 {
@@ -63,12 +65,58 @@ typedef struct
     double timestamp;
 } MCSensorRotationRateReading;
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool MCSystemStartTrackingLocation(bool p_loosely);
+bool MCSystemStopTrackingLocation();
+
+bool MCSystemStartTrackingHeading(bool p_loosely);
+bool MCSystemStopTrackingHeading();
+
+bool MCSystemStartTrackingAcceleration(bool p_loosely);
+bool MCSystemStopTrackingAcceleration();
+
+bool MCSystemStartTrackingRotationRate(bool p_loosely);
+bool MCSystemStopTrackingRotationRate();
+
+bool MCSystemGetSensorAvailable(MCSensorType p_sensor, bool& r_available);
+void MCSystemAllowBackgroundLocationUpdates(bool p_allow);
+
+bool MCSystemStartTrackingSensor(MCSensorType p_sensor, bool p_loosely);
+bool MCSystemStopTrackingSensor(MCSensorType p_sensor);
+
+double MCSystemGetSensorDispatchThreshold(MCSensorType p_sensor);
+
+bool MCSystemGetLocationReading(MCSensorLocationReading &r_reading, bool p_detailed);
+bool MCSystemGetHeadingReading(MCSensorHeadingReading &r_reading, bool p_detailed);
+bool MCSystemGetAccelerationReading(MCSensorAccelerationReading &r_reading, bool p_detailed);
+bool MCSystemGetRotationRateReading(MCSensorRotationRateReading &r_reading, bool p_detailed);
+
+// MM-2012-02-11: Added support for iPhoneGet/SetCalibrationTimeout
+bool MCSystemGetLocationCalibrationTimeout(int32_t&);
+bool MCSystemSetLocationCalibrationTimeout(int32_t);
+
+void MCSystemSensorInitialize(void);
+void MCSystemSensorFinalize(void);
+
+// SN-2014-10-15: [[ Merge-6.7.0-rc-3 ]]
+bool MCSystemGetLocationAuthorizationStatus(MCStringRef& r_status);
+
+void MCSensorAddLocationSample(const MCSensorLocationReading& p_reading);
+bool MCSensorPopLocationSample(MCSensorLocationReading& r_reading);
+size_t MCSensorGetLocationSampleLimit(void);
+void MCSensorSetLocationSampleLimit(size_t p_limit);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void MCSensorPostChangeMessage(MCSensorType p_sensor);
-void MCSensorPostErrorMessage(MCSensorType p_sensor, const char *p_error);
+void MCSensorPostErrorMessage(MCSensorType p_sensor, MCStringRef p_error);
 
 // MM-2012-03-13: Added intialize and finalize calls to sensor module.
 void MCSensorInitialize(void);
 void MCSensorFinalize(void);
 
+bool MCSensorTypeToCString(MCSensorType p_sensor, char *&r_string);
+MCSensorType MCSensorTypeFromString(MCStringRef p_string);
 
 #endif

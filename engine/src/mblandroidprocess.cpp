@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,10 +16,18 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "system.h"
+#include "globdefs.h"
+#include "filedefs.h"
+#include "objdefs.h"
+#include "parsedef.h"
+#include "globals.h"
+
 #include "mblandroid.h"
 #include "mblandroidutil.h"
+
+// MM-2015-06-08: [[ MobileSockets ]] curtime global is required by opensslsocket.cpp
+real8 curtime;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,58 +38,51 @@ uint32_t MCAndroidSystem::GetProcessId(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char *MCAndroidSystem::GetVersion(void)
+bool MCAndroidSystem::GetVersion(MCStringRef& r_string)
 {
-	char *t_system_version = NULL;
-	MCAndroidEngineCall("getSystemVersion", "s", &t_system_version);
-	
-	return t_system_version;
+	MCAndroidEngineCall("getSystemVersion", "x", &r_string);
+	return true;
 }
 
-char *MCAndroidSystem::GetMachine(void)
+bool MCAndroidSystem::GetMachine(MCStringRef& r_string)
 {
-	char *t_machine = NULL;
-	MCAndroidEngineCall("getMachine", "s", &t_machine);
-	
-	return t_machine;
+	MCAndroidEngineCall("getMachine", "x", &r_string);
+	return true;
 }
 
-char *MCAndroidSystem::GetProcessor(void)
+bool MCAndroidSystem::GetAddress(MCStringRef& r_address)
 {
-#ifdef __i386__
-	return strclone("i386");
-#else
-	return strclone("ARM");
-#endif
-}
-
-char *MCAndroidSystem::GetAddress(void)
-{
-	extern char *MCcmd;
-	char *t_address;
-	t_address = new char[strlen(MCcmd) + strlen("android:") + 1];
-	sprintf(t_address, "android:%s", MCcmd);
-	return t_address;
+	extern MCStringRef MCcmd;
+    MCAutoStringRef t_address;
+    bool t_success;
+    t_success = MCStringFormat(&t_address, "android:%@", MCcmd);
+    if (t_success)
+        r_address = MCValueRetain(*t_address);
+    
+	return t_success;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MCAndroidSystem::SetEnv(const char *name, const char *value)
+void MCAndroidSystem::SetEnv(MCStringRef p_name, MCStringRef p_value)
 {
 }
 
-char *MCAndroidSystem::GetEnv(const char *name)
+bool MCAndroidSystem::GetEnv(MCStringRef p_name, MCStringRef& r_value)
 {
-	return "";
+    r_value = MCValueRetain(kMCEmptyString);
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 real64_t MCAndroidSystem::GetCurrentTime(void)
 {
+    // MM-2015-06-08: [[ MobileSockets ]] Store the current time globally, required by opensslsocket.cpp
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
-	return tv . tv_sec + tv . tv_usec / 1000000.0;
+	curtime = tv . tv_sec + tv . tv_usec / 1000000.0;
+    return curtime;
 }
 
 void MCAndroidSystem::Alarm(real64_t p_when)
@@ -94,9 +95,26 @@ void MCAndroidSystem::Sleep(real64_t p_when)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCAndroidSystem::Shell(const char *p_cmd, uint32_t p_cmd_length, void*& r_data, uint32_t& r_data_length, int& r_retcode)
+bool MCAndroidSystem::Shell(MCStringRef filename, MCDataRef& r_data, int& r_retcode)
 {
 	return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int MCAndroidSystem::GetErrno(void)
+{
+    return errno;
+}
+
+void MCAndroidSystem::SetErrno(int p_errno)
+{
+    errno = p_errno;
+}
+
+uint32_t MCAndroidSystem::GetSystemError(void)
+{
+    return errno;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

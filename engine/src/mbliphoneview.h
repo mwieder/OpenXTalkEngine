@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -26,8 +26,15 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #import <QuartzCore/QuartzCore.h>
 #import <OpenGLES/EAGL.h>
 #import <OpenGLES/EAGLDrawable.h>
-#import <OpenGLES/ES1/gl.h>
-#import <OpenGLES/ES1/glext.h>
+#import <OpenGLES/ES3/gl.h>
+#import <OpenGLES/ES3/glext.h>
+
+////////////////////////////////////////////////////////////////////////////////
+
+static inline CGRect MCRectangleToCGRect(const MCRectangle &p_rect)
+{
+    return CGRectMake(p_rect.x, p_rect.y, p_rect.width, p_rect.height);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

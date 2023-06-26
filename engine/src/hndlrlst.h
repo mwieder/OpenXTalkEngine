@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -68,6 +68,10 @@ private:
 	static int compare_handler(const void *a, const void *b);
 };
 
+typedef bool (*MCHandlerlistListConstantsCallback)(void *p_context, MCHandlerConstantInfo *info);
+typedef bool (*MCHandlerlistListVariablesCallback)(void *p_context, MCVariable *p_variable);
+typedef bool (*MCHandlerlistListHandlersCallback)(void *p_context, Handler_type p_type, MCHandler* p_handler, bool p_include_all);
+
 class MCHandlerlist
 {
 	// MW-2012-08-08: [[ BeforeAfter ]] The before/after handlers are stored
@@ -91,7 +95,7 @@ class MCHandlerlist
 	// MW-2008-10-28: [[ ParentScripts ]] We keep track of the initializers for
 	//   the script locals so we can initialize the vars correctly when a use
 	//   is used.
-	MCNameRef *vinits;
+	MCValueRef *vinits;
 
 	// MW-2008-10-28: [[ ParentScripts ]] Store the old variables in a vector
 	//   rather than a list. Once a variable has been re-used when re-compiling
@@ -114,22 +118,31 @@ public:
 	// MW-2011-08-23: [[ UQL ]] 'ignore_uql' ignores UQL vars when searching.
     //   This is used when going from handler to script scope for var searches.
 	Parse_stat findvar(MCNameRef name, bool ignore_uql, MCVarref **);
-	Parse_stat newvar(MCNameRef name, MCNameRef init, MCVarref **, Boolean initialised);
+	Parse_stat newvar(MCNameRef name, MCValueRef init, MCVarref **, Boolean initialised);
 	Parse_stat findconstant(MCNameRef name, MCExpression **);
-	Parse_stat newconstant(MCNameRef name, MCNameRef value);
-	void appendlocalnames(MCExecPoint &ep);
-	void appendglobalnames(MCExecPoint &ep, bool first);
+	Parse_stat newconstant(MCNameRef name, MCValueRef value);
+	bool getlocalnames(MCListRef& r_list);
+	bool getglobalnames(MCListRef& r_list);
+    bool getconstantnames(MCListRef& r_list);
+    void appendglobalnames(MCStringRef& r_string, bool first);
 	void newglobal(MCNameRef name);
-	Parse_stat parse(MCObject *, const char *);
-
+	
+    Parse_stat parse(MCObject *, MCDataRef);
+    Parse_stat parse(MCObject *, MCStringRef);
+	
 	Exec_stat findhandler(Handler_type, MCNameRef name, MCHandler *&);
 	bool hashandler(Handler_type type, MCNameRef name);
 	void addhandler(Handler_type type, MCHandler *handler);
 
 	uint2 getnglobals(void);
 	MCVariable *getglobal(uint2 p_index);
-	bool enumerate(MCExecPoint& ep, bool p_first = true);
-
+    bool enumerate(MCExecContext& ctxt, bool p_include_private, bool p_first, uindex_t& r_count, MCStringRef*& r_handlers);
+	
+	bool listconstants(MCHandlerlistListConstantsCallback p_callback, void *p_context);
+	bool listhandlers(MCHandlerlistListHandlersCallback p_callback, void *p_context, bool p_include_all);
+    bool listvariables(MCHandlerlistListVariablesCallback p_callback, void *p_context);
+    bool listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context);
+    
 	uint2 getnvars(void)
 	{
 		return nvars;
@@ -140,7 +153,7 @@ public:
 		return vars;
 	}
 
-	MCNameRef *getvinits(void)
+	MCValueRef *getvinits(void)
 	{
 		return vinits;
 	}

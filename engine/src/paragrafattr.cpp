@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "parsedef.h"
@@ -24,69 +23,172 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "mcio.h"
 
 #include "stack.h"
-#include "block.h"
+#include "MCBlock.h"
 #include "line.h"
 #include "field.h"
 #include "paragraf.h"
-#include "execpt.h"
+
 #include "util.h"
 #include "mcerror.h"
-#include "unicode.h"
+#include "segment.h"
 
 #include "globals.h"
+
+#include "exec-interface.h"
+
+#include "stackfileformat.h"
 
 #include <stddef.h>
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static struct {const char *name; Properties prop; } kMCParagraphAttrsProps[] =
-{
-	{"textAlign", P_TEXT_ALIGN},
-	{"listStyle", P_LIST_STYLE},
-	{"listDepth", P_LIST_DEPTH},
-	{"listIndent", P_LIST_INDENT},
-	{"firstIndent", P_FIRST_INDENT},
-	{"leftIndent", P_LEFT_INDENT},
-	{"rightIndent", P_RIGHT_INDENT},
-	{"spaceAbove", P_SPACE_ABOVE},
-	{"spaceBelow", P_SPACE_BELOW},
-	{"tabStops", P_TAB_STOPS},
-	{"backgroundColor", P_BACK_COLOR},
-	{"borderWidth", P_BORDER_WIDTH},
-	{"borderColor", P_BORDER_COLOR},
-	{"hGrid", P_HGRID},
-	{"vGrid", P_VGRID},
-	{"dontWrap", P_DONT_WRAP},
-	{"padding", P_PADDING},
-	{"listIndex", P_LIST_INDEX},
-	{nil},
-};
 
 bool MCParagraph::hasattrs(void)
 {
 	return attrs != nil;
 }
 
-void MCParagraph::storeattrs(MCVariableValue *dst)
+void MCParagraph::cleanattrs(void)
 {
-	MCExecPoint ep(nil, nil, nil);
-	for(uint32_t i = 0; kMCParagraphAttrsProps[i] . name != nil; i++)
-	{
-		getparagraphattr(kMCParagraphAttrsProps[i] . prop, ep, False);
-		if (!ep . isempty())
-			dst -> store_element(ep, kMCParagraphAttrsProps[i] . name);
-	}
+	if (attrs != nil && attrs -> flags == 0)
+        clearattrs();
 }
 
-void MCParagraph::fetchattrs(MCVariableValue *src)
+void MCParagraph::fetchattrs(MCArrayRef src)
 {
-	MCExecPoint ep(nil, nil, nil);
-	for(uint32_t i = 0; kMCParagraphAttrsProps[i] . name != nil; i++)
-		if (src -> fetch_element_if_exists(ep, kMCParagraphAttrsProps[i] . name, false))
-			setparagraphattr(kMCParagraphAttrsProps[i] . prop, ep);
+    intenum_t t_intenum_value;
+    uinteger_t t_uint_value;
+    integer_t t_integer_value;
+    MCStringRef t_stringref_value;
+    MCBooleanRef t_boolean_value;
+    MCInterfaceNamedColor t_color;
+    MCExecContext ctxt(nil, nil, nil);
+    
+    t_color . name = nil;
+
+    // AL-2014-09-30: [[ Bug 13559 ]] Don't explicitly set any paragraph styles that aren't in the array (even to empty)
+	// PM-2015-10-14: [[ Bug 16210 ]] Make sure textAlign is respected when setting the styledText
+	if (ctxt.CopyElementAsEnum(src, MCNAME("textAlign"), false, kMCInterfaceTextAlignTypeInfo, t_intenum_value))
+		SetTextAlign(ctxt, &t_intenum_value);
+    
+	// PM-2015-10-14: [[ Bug 16210 ]] Make sure listStyle is respected when setting the styledText
+	if (ctxt.CopyElementAsEnum(src, MCNAME("listStyle"), false, kMCInterfaceListStyleTypeInfo, t_intenum_value))
+		SetListStyle(ctxt, t_intenum_value);
+	
+    if (ctxt . CopyElementAsUnsignedInteger(src, MCNAME("listDepth"), false, t_uint_value))
+        SetListDepth(ctxt, &t_uint_value);
+
+    if (ctxt . CopyElementAsInteger(src, MCNAME("listIndent"), false, t_integer_value))
+        SetListIndent(ctxt, &t_integer_value);
+
+    if (ctxt . CopyElementAsInteger(src, MCNAME("firstIndent"), false, t_integer_value))
+        SetFirstIndent(ctxt, &t_integer_value);
+
+    if (ctxt . CopyElementAsInteger(src, MCNAME("leftIndent"), false, t_integer_value))
+        SetLeftIndent(ctxt, &t_integer_value);
+
+    if (ctxt . CopyElementAsInteger(src, MCNAME("rightIndent"), false, t_integer_value))
+        SetRightIndent(ctxt, &t_integer_value);
+
+    if (ctxt . CopyElementAsUnsignedInteger(src, MCNAME("spaceAbove"), false, t_uint_value))
+        SetSpaceAbove(ctxt, &t_uint_value);
+
+    if (ctxt . CopyElementAsUnsignedInteger(src, MCNAME("spaceBelow"), false, t_uint_value))
+        SetSpaceBelow(ctxt, &t_uint_value);
+
+    if (ctxt . CopyElementAsString(src, MCNAME("tabStops"), false, t_stringref_value))
+    {
+        uint16_t t_count;
+        vector_t<uinteger_t> t_tabstops;
+        uint16_t *t_uint16_tabs;
+
+        if (MCField::parsetabstops(P_TAB_STOPS, t_stringref_value, t_uint16_tabs, t_count))
+        {
+            /* UNCHECKED */ MCMemoryAllocate(sizeof(uinteger_t) * t_count, t_tabstops . elements);
+            for (uint16_t i = 0; i < t_count; ++i)
+                t_tabstops . elements[i] = t_uint16_tabs[i];
+
+			t_tabstops . count = t_count;
+            SetTabStops(ctxt, t_tabstops);
+            MCMemoryDeallocate(t_tabstops . elements);
+            MCMemoryDeallocate(t_uint16_tabs);
+        }
+
+        MCValueRelease(t_stringref_value);
+    }
+
+    if (ctxt . CopyElementAsString(src, MCNAME("tabAlign"), false, t_stringref_value))
+    {
+		MCInterfaceFieldTabAlignments t_alignments;
+		MCMemoryClear(t_alignments);
+
+		if (MCField::parsetabalignments(t_stringref_value, t_alignments.m_alignments, t_alignments.m_count))
+        {
+			SetTabAlignments(ctxt, t_alignments);
+			MCMemoryDeallocate(t_alignments.m_alignments);
+        }
+
+        MCValueRelease(t_stringref_value);
+    }
+
+    if (ctxt . CopyElementAsString(src, MCNAME("backgroundColor"), false, t_stringref_value))
+    {
+        MCInterfaceNamedColorParse(ctxt, t_stringref_value, t_color);
+        SetBackColor(ctxt, t_color);
+        
+        MCValueRelease(t_stringref_value);
+    }
+
+    if (ctxt . CopyElementAsUnsignedInteger(src, MCNAME("borderWidth"), false, t_uint_value))
+        SetBorderWidth(ctxt, &t_uint_value);
+
+    if (ctxt . CopyElementAsString(src, MCNAME("borderColor"), false, t_stringref_value))
+    {
+        MCInterfaceNamedColorParse(ctxt, t_stringref_value, t_color);
+        SetBorderColor(ctxt, t_color);
+        
+        MCValueRelease(t_stringref_value);
+    }
+
+    if (ctxt . CopyElementAsBoolean(src, MCNAME("hGrid"), false, t_boolean_value))
+    {
+        bool t_bool;
+        t_bool = t_boolean_value == kMCTrue;
+        SetHGrid(ctxt, &t_bool);
+        MCValueRelease(t_boolean_value);
+    }
+
+    if (ctxt . CopyElementAsBoolean(src, MCNAME("vGrid"), false, t_boolean_value))
+    {
+        bool t_bool;
+        t_bool = t_boolean_value == kMCTrue;
+        SetVGrid(ctxt, &t_bool);
+        MCValueRelease(t_boolean_value);
+    }
+
+    if (ctxt . CopyElementAsBoolean(src, MCNAME("dontWrap"), false, t_boolean_value))
+    {
+        bool t_bool;
+        t_bool = t_boolean_value == kMCTrue;
+        SetDontWrap(ctxt, &t_bool);
+    }
+
+    if (ctxt . CopyElementAsUnsignedInteger(src, MCNAME("padding"), false, t_uint_value))
+        SetPadding(ctxt, &t_uint_value);
+
+	// PM-2016-02-26: [[ Bug 17019 ]] Make sure listIndex is set correctly
+    if (ctxt . CopyElementAsUnsignedInteger(src, MCNAME("listIndex"), false, t_uint_value))
+        SetListIndex(ctxt, &t_uint_value);
+    
+    if (ctxt . CopyElementAsBoolean(src, MCNAME("hidden"), false, t_boolean_value))
+    {
+        bool t_bool;
+        t_bool = t_boolean_value == kMCTrue;
+        SetInvisible(ctxt, t_bool);
+        MCValueRelease(t_boolean_value);
+    }
 }
 
-IO_stat MCParagraph::loadattrs(IO_handle stream)
+IO_stat MCParagraph::loadattrs(IO_handle stream, uint32_t version)
 {
 	IO_stat t_stat;
 	t_stat = IO_NORMAL;
@@ -97,7 +199,7 @@ IO_stat MCParagraph::loadattrs(IO_handle stream)
 	// Read in the size of the attrs.
 	uint32_t t_size;
 	if (t_stat == IO_NORMAL)
-		t_stat = IO_read_uint2or4(&t_size, stream);
+		t_stat = checkloadstat(IO_read_uint2or4(&t_size, stream));
 	
 	// Fetch the stream position at this point and use it to compute
 	// the end of the record.
@@ -108,17 +210,20 @@ IO_stat MCParagraph::loadattrs(IO_handle stream)
 	// Read the (first) flags word
 	uint2 t_flags;
 	if (t_stat == IO_NORMAL)
-		t_stat = IO_read_uint2(&t_flags, stream);
+		t_stat = checkloadstat(IO_read_uint2(&t_flags, stream));
 		
 	// Initialize the paragraph attrs to default values.
-	attrs = new MCParagraphAttrs;
-	attrs -> flags = t_flags;
+    if (t_stat == IO_NORMAL)
+    {
+        attrs = new (nothrow) MCParagraphAttrs;
+        attrs -> flags = t_flags;
+    }
 
 	// Now read each attribute in turn.
 	if (t_stat == IO_NORMAL && (attrs -> flags & (PA_HAS_TEXT_ALIGN | PA_HAS_LIST_STYLE | PA_HAS_VGRID | PA_HAS_HGRID | PA_HAS_DONT_WRAP)) != 0)
 	{
 		uint2 t_value;
-		t_stat = IO_read_uint2(&t_value, stream);
+		t_stat = checkloadstat(IO_read_uint2(&t_value, stream));
 		if (t_stat == IO_NORMAL)
 		{
 			attrs -> text_align = (t_value & 0x03);
@@ -130,36 +235,36 @@ IO_stat MCParagraph::loadattrs(IO_handle stream)
 		}
 	}
 	if (t_stat == IO_NORMAL && (attrs -> flags & (PA_HAS_BORDER_WIDTH)) != 0)
-		t_stat = IO_read_uint1(&attrs -> border_width, stream);
+		t_stat = checkloadstat(IO_read_uint1(&attrs -> border_width, stream));
 	// MW-2012-02-29: [[ Bug ]] Read the first indent field if either has first
 	//   or has list indent.
-	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_FIRST_INDENT) != 0 || (attrs -> flags & PA_HAS_LIST_INDENT) != 0)
-		t_stat = IO_read_int2(&attrs -> first_indent, stream);
+	if (t_stat == IO_NORMAL && ((attrs -> flags & PA_HAS_FIRST_INDENT) != 0 || (attrs -> flags & PA_HAS_LIST_INDENT) != 0))
+		t_stat = checkloadstat(IO_read_int2(&attrs -> first_indent, stream));
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_LEFT_INDENT) != 0)
-		t_stat = IO_read_int2(&attrs -> left_indent, stream);
+		t_stat = checkloadstat(IO_read_int2(&attrs -> left_indent, stream));
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_RIGHT_INDENT) != 0)
-		t_stat = IO_read_int2(&attrs -> right_indent, stream);
+		t_stat = checkloadstat(IO_read_int2(&attrs -> right_indent, stream));
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_SPACE_ABOVE) != 0)
-		t_stat = IO_read_int2(&attrs -> space_above, stream);
+		t_stat = checkloadstat(IO_read_int2(&attrs -> space_above, stream));
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_SPACE_BELOW) != 0)
-		t_stat = IO_read_int2(&attrs -> space_below, stream);
+		t_stat = checkloadstat(IO_read_int2(&attrs -> space_below, stream));
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_TABS) != 0)
 	{
-		t_stat = IO_read_uint2(&attrs -> tab_count, stream);
+		t_stat = checkloadstat(IO_read_uint2(&attrs -> tab_count, stream));
 		if (t_stat == IO_NORMAL)
 		{
-			attrs -> tabs = new uint16_t[attrs -> tab_count];
+			attrs -> tabs = new (nothrow) uint16_t[attrs -> tab_count];
 			for(uint32_t i = 0; i < attrs -> tab_count && t_stat == IO_NORMAL; i++)
-				t_stat = IO_read_uint2(&attrs -> tabs[i], stream);
+				t_stat = checkloadstat(IO_read_uint2(&attrs -> tabs[i], stream));
 		}
 	}
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_BACKGROUND_COLOR) != 0)
-		t_stat = IO_read_uint4(&attrs -> background_color, stream);
+		t_stat = checkloadstat(IO_read_uint4(&attrs -> background_color, stream));
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_BORDER_COLOR) != 0)
-		t_stat = IO_read_uint4(&attrs -> border_color, stream);
+		t_stat = checkloadstat(IO_read_uint4(&attrs -> border_color, stream));
 	// MW-2012-02-22: [[ Bug ]] Load the padding setting from the stream.
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_PADDING) != 0)
-		t_stat = IO_read_uint1(&attrs -> padding, stream);
+		t_stat = checkloadstat(IO_read_uint1(&attrs -> padding, stream));
 
 	// MW-2012-03-19: [[ HiddenText ]] If there is still more to read, we must have
 	//   a second flags word.
@@ -167,7 +272,7 @@ IO_stat MCParagraph::loadattrs(IO_handle stream)
 	{
 		uint2 t_flags_2;
 		if (t_stat == IO_NORMAL)
-			t_stat = IO_read_uint2(&t_flags_2, stream);
+			t_stat = checkloadstat(IO_read_uint2(&t_flags_2, stream));
 		if (t_stat == IO_NORMAL)
 		{
 				attrs -> flags |= t_flags_2 << 16;
@@ -176,29 +281,61 @@ IO_stat MCParagraph::loadattrs(IO_handle stream)
 			if ((attrs -> flags & PA_HAS_HIDDEN) != 0)
 				attrs -> hidden = true;
 		}
-
+		
+		// MW-2013-11-20: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 		if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_METADATA) != 0)
-			t_stat = IO_read_nameref(attrs -> metadata, stream);
+            t_stat = checkloadstat(IO_read_stringref_new(attrs -> metadata, stream, version >= kMCStackFileFormatVersion_7_0));
 
 		if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_LIST_INDEX) != 0)
-			t_stat = IO_read_uint2(&attrs -> list_index, stream);
+			t_stat = checkloadstat(IO_read_uint2(&attrs -> list_index, stream));
+        
+        // SN-2015-05-01: [[ Bug 15175 ]] Load the paragraph's tab alignments
+        if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+        {
+            intenum_t *t_alignments;
+            uint16_t t_nalignments;
+            t_alignments = NULL;
+            
+            t_stat = checkloadstat(IO_read_uint2(&t_nalignments, stream));
+            
+            if (t_stat == IO_NORMAL)
+            {
+                if (!MCMemoryAllocate(sizeof(intenum_t) * t_nalignments, t_alignments))
+                    t_stat = checkloadstat(IO_ERROR);
+                
+                for (uint16_t i = 0; i < t_nalignments && t_stat == IO_NORMAL; ++i)
+                {
+                    int1 t_alignment;
+                    if ((t_stat = IO_read_int1(&t_alignment, stream)) == IO_NORMAL)
+                        t_alignments[i] = t_alignment;
+                }
+                
+                if (t_stat == IO_NORMAL)
+                {
+                    attrs -> alignments_count = t_nalignments;
+                    attrs -> alignments = t_alignments;
+                }
+                else
+                    MCMemoryDeallocate(t_alignments);
+            }
+        }
 	}
 	
 	// Finally skip to the end of the record for future modifications.
 	if (t_stat == IO_NORMAL)
-		t_stat = MCS_seek_set(stream, t_attr_end);
+		t_stat = checkloadstat(MCS_seek_set(stream, t_attr_end));
 
-	return t_stat;
+	return checkloadstat(t_stat);
 }
 
-IO_stat MCParagraph::saveattrs(IO_handle stream)
+IO_stat MCParagraph::saveattrs(IO_handle stream, uint32_t p_version)
 {
 	IO_stat t_stat;
 	t_stat = IO_NORMAL;
 
 	// First we work out the size of the attrs.
 	uint32_t t_attr_size;
-	t_attr_size = measureattrs();
+	t_attr_size = measureattrs(p_version);
 	
 	// Write out the size as either a 2 byte or 4 byte size.
 	if (t_stat == IO_NORMAL)
@@ -216,7 +353,7 @@ IO_stat MCParagraph::saveattrs(IO_handle stream)
 		t_stat = IO_write_uint1(attrs -> border_width, stream);
 	// MW-2012-02-29: [[ Bug ]] Write the first indent field if either has first
 	//   or has list indent.
-	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_FIRST_INDENT) != 0 || (attrs -> flags & PA_HAS_LIST_INDENT) != 0)
+	if (t_stat == IO_NORMAL && ((attrs -> flags & PA_HAS_FIRST_INDENT) != 0 || (attrs -> flags & PA_HAS_LIST_INDENT) != 0))
 		t_stat = IO_write_int2(attrs -> first_indent, stream);
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_LEFT_INDENT) != 0)
 		t_stat = IO_write_int2(attrs -> left_indent, stream);
@@ -245,21 +382,39 @@ IO_stat MCParagraph::saveattrs(IO_handle stream)
 	//   add any more data.
 	// MW-2012-11-13: [[ ParaMetadata ]] Write out the extended flags word if we have metadata.
 	// MW-2012-11-13: [[ ParaListIndex ]] Write out the extended flags word if we have list index.
-	if (t_stat == IO_NORMAL && (attrs -> flags & (PA_HAS_HIDDEN | PA_HAS_METADATA | PA_HAS_LIST_INDEX)) != 0)
+    // SN-2015-05-01: [[ Bug 15175 ]] AdUse refactored function
+	if (t_stat == IO_NORMAL && hasextraflag())
 		t_stat = IO_write_uint2(attrs -> flags >> 16, stream);
 
 	// MW-2012-11-13: [[ ParaMetadata ]] Write out the metadata, if any.
+	// MW-2013-11-20: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_METADATA) != 0)
-		t_stat = IO_write_nameref(attrs -> metadata, stream);
+        t_stat = IO_write_stringref_new(attrs -> metadata, stream, p_version >= kMCStackFileFormatVersion_7_0);
 
 	// MW-2012-11-13: [[ ParaListIndex ]] Write out the list index, if any.
 	if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_LIST_INDEX) != 0)
 		t_stat = IO_write_uint2(attrs -> list_index, stream);
+    
+    // SN-2015-05-01: [[ Bug 15175 ]] Save the paragraph tabAlign property
+    if (t_stat == IO_NORMAL && (attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+    {
+        t_stat = IO_write_uint2(attrs -> alignments_count, stream);
+        for (uint2 i = 0; i < attrs -> alignments_count && t_stat == IO_NORMAL; ++i)
+            t_stat = IO_write_int1((int1)attrs->alignments[i], stream);
+    }
 	
 	return t_stat;
 }
 
-uint32_t MCParagraph::measureattrs(void)
+bool MCParagraph::hasextraflag(void)
+{
+    if (attrs == NULL)
+        return false;
+    
+    return (attrs -> flags > UINT16_MAX);
+}
+
+uint32_t MCParagraph::measureattrs(uint32_t p_version)
 {
 	// If there are no attrs, then the size is 0.
 	if (attrs == nil)
@@ -306,743 +461,28 @@ uint32_t MCParagraph::measureattrs(void)
 	
 	// MW-2012-03-19: [[ HiddenText ]] If the hidden prop is set, then we need a second flags
 	//   word.
-	if ((attrs -> flags & (PA_HAS_HIDDEN | PA_HAS_METADATA | PA_HAS_LIST_INDEX)) != 0)
+	if (hasextraflag())
 		t_size += 2;
 	
 	// MW-2012-11-13: [[ ParaMetadata ]] If the paragraph has metadata then add that on.
-	extern uint32_t measure_nameref(MCNameRef name);
+	extern uint32_t measure_stringref(MCStringRef string, uint32_t p_version);
 	if ((attrs -> flags & PA_HAS_METADATA) != 0)
-		t_size += measure_nameref(attrs -> metadata);
+		t_size += measure_stringref(attrs -> metadata, p_version);
 
 	// MW-2012-11-13: [[ ParaListIndex ]] If the paragraph has a list index, then add that on.
 	if ((attrs -> flags & PA_HAS_LIST_INDEX) != 0)
 		t_size += 2;
+    
+    // SN-2015-05-01: [[ Bug 15175 ]] Need 2 bytes for the uint16_t size, and 1
+    //  byte per alignment.
+    if ((attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+        t_size += 2 + attrs->alignments_count;
 
 	return t_size;
 }
 
-template<typename T, int Min, int Max> static bool setparagraphattr_int(MCExecPoint& ep, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset, Exec_errors p_error)
-{
-	if (ep . isempty())
-	{
-		if (attrs == nil)
-			return true;
-
-		((T *)((char *)attrs + p_field_offset))[0] = 0;
-		attrs -> flags &= ~p_flag;
-		return true;
-	}
-
-	int4 t_field;
-	if (!MCU_stoi4(ep . getsvalue(), t_field))
-	{
-		MCeerror -> add(p_error, 0, 0, ep . getsvalue());
-		return false;
-	}
-
-	T t_clamped_field;
-	t_clamped_field = MCMin(MCMax(t_field, Min), Max);
-
-	if (attrs == nil)
-		attrs = new MCParagraphAttrs;
-
-	attrs -> flags |= p_flag;
-	((T *)((char *)attrs + p_field_offset))[0] = t_clamped_field;
-
-	return true;
-}
-
-static bool setparagraphattr_uint8(MCExecPoint& ep, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset, Exec_errors p_error)
-{
-	return setparagraphattr_int<uint8_t, 0, 255>(ep, attrs, p_flag, p_field_offset, p_error);
-}
-
-static bool setparagraphattr_int16(MCExecPoint& ep, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset, Exec_errors p_error)
-{
-	return setparagraphattr_int<int16_t, INT16_MIN, INT16_MAX>(ep, attrs, p_flag, p_field_offset, p_error);
-}
-
-static bool setparagraphattr_color(MCExecPoint& ep, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset)
-{
-	if (ep . isempty())
-	{
-		if (attrs == nil)
-			return true;
-
-		((uint32_t *)((char *)attrs + p_field_offset))[0] = 0;
-		attrs -> flags &= ~p_flag;
-		return true;
-	}
-
-	MCColor t_color;
-	char *t_color_name;
-	t_color_name = nil;
-	if (!MCscreen -> parsecolor(ep . getsvalue(), &t_color, &t_color_name))
-	{
-		MCeerror->add(EE_OBJECT_BADCOLOR, 0, 0, ep . getsvalue());
-		return false;
-	}
-
-	delete t_color_name;
-
-	if (attrs == nil)
-		attrs = new MCParagraphAttrs;
-
-	MCscreen -> alloccolor(t_color);
-
-	attrs -> flags |= p_flag;
-	((uint32_t *)((char *)attrs + p_field_offset))[0] = t_color . pixel;
-
-	return true;
-}
-
-static bool setparagraphattr_bool(MCExecPoint& ep, MCParagraphAttrs*& attrs, uint32_t p_flag, bool& r_new_value)
-{
-	if (ep . isempty())
-	{
-		if (attrs == nil)
-			return true;
-
-		r_new_value = false;
-		attrs -> flags &= ~p_flag;
-		return true;
-	}
-
-	Boolean t_new_value;
-	if (ep . getboolean(t_new_value, 0, 0, EE_PROPERTY_NAB) != ES_NORMAL)
-		return false;
-
-	if (attrs == nil)
-		attrs = new MCParagraphAttrs;
-
-	attrs -> flags |= p_flag;
-	r_new_value = t_new_value == True;
-
-	return true;
-}
-
-Exec_stat MCParagraph::setparagraphattr(Properties which, MCExecPoint& ep)
-{
-	switch(which)
-	{
-	case P_TEXT_ALIGN:
-		{
-			if (ep . isempty())
-			{
-				if (attrs == nil)
-					break;
-
-				attrs -> flags &= ~PA_HAS_TEXT_ALIGN;
-				attrs -> text_align = kMCParagraphTextAlignLeft;
-				break;
-			}
-			
-			uint4 myflags;
-			uint2 fontheight, size, style;
-			char *fname;
-			if (MCF_parsetextatts(which, ep . getsvalue(), myflags, fname, fontheight, size, style) != ES_NORMAL)
-				return ES_ERROR;
-
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-			attrs -> flags |= PA_HAS_TEXT_ALIGN;
-			attrs -> text_align = ((myflags & F_ALIGNMENT) >> F_ALIGNMENT_SHIFT);
-		}
-		break;
-	case P_LIST_STYLE:
-		{
-			int32_t t_new_list_style;
-			t_new_list_style = -1;
-			for(uint32_t i = 0; MCliststylestrings[i] != nil; i++)
-				if (ep . getsvalue() == MCliststylestrings[i])
-				{
-					t_new_list_style = i;
-					break;
-				}
-
-			if (t_new_list_style == -1)
-			{
-				MCeerror -> add(EE_FIELD_BADLISTSTYLE, 0, 0);
-				return ES_ERROR;
-			}
-
-			setliststyle(t_new_list_style);
-		}
-		break;
-	case P_LIST_DEPTH:
-		{
-			uint16_t t_depth;
-			if (!MCU_stoui2(ep . getsvalue(), t_depth) || t_depth < 1 || t_depth > 16)
-			{
-				MCeerror -> add(EE_FIELD_BADLISTDEPTH, 0, 0);
-				return ES_ERROR;
-			}
-
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-
-			if ((attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-			{
-				attrs -> flags |= PA_HAS_LIST_STYLE;
-				attrs -> list_style = kMCParagraphListStyleDisc;
-			}
-
-			attrs -> list_depth = t_depth - 1;
-		}
-		break;
-	case P_LIST_INDENT:
-		if (!setparagraphattr_int16(ep, attrs, PA_HAS_LIST_INDENT, offsetof(MCParagraphAttrs, first_indent), EE_FIELD_LISTINDENTNAN))
-			return ES_ERROR;
-
-		if (attrs != nil && (attrs -> flags & PA_HAS_LIST_INDENT) != 0)
-		{
-			attrs -> flags &= ~PA_HAS_FIRST_INDENT;
-
-			if ((attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-			{
-				attrs -> flags |= PA_HAS_LIST_STYLE;
-				attrs -> list_style = kMCParagraphListStyleDisc;
-				attrs -> list_depth = 0;
-			}
-		}
-		break;
-	// MW-2012-11-13: [[ ParaListIndex ]] Set the listIndex property.
-	case P_LIST_INDEX:
-		if (!setparagraphattr_int<uint16_t, 1, 65535>(ep, attrs, PA_HAS_LIST_INDEX, offsetof(MCParagraphAttrs, list_index), EE_FIELD_LISTINDEXNAN))
-			return ES_ERROR;
-		break;
-	case P_FIRST_INDENT:
-		if (!setparagraphattr_int16(ep, attrs, PA_HAS_FIRST_INDENT, offsetof(MCParagraphAttrs, first_indent), EE_FIELD_FIRSTINDENTNAN))
-			return ES_ERROR;
-
-		if (attrs != nil && (attrs -> flags & PA_HAS_FIRST_INDENT) != 0)
-			attrs -> flags &= ~PA_HAS_LIST_INDENT;
-		break;
-	case P_LEFT_INDENT:
-		if (!setparagraphattr_int16(ep, attrs, PA_HAS_LEFT_INDENT, offsetof(MCParagraphAttrs, left_indent), EE_FIELD_LEFTINDENTNAN))
-			return ES_ERROR;
-		break;
-	case P_RIGHT_INDENT:
-		if (!setparagraphattr_int16(ep, attrs, PA_HAS_RIGHT_INDENT, offsetof(MCParagraphAttrs, right_indent), EE_FIELD_RIGHTINDENTNAN))
-			return ES_ERROR;
-		break;
-	case P_SPACE_ABOVE:
-		if (!setparagraphattr_int<int16_t, 0, 32767>(ep, attrs, PA_HAS_SPACE_ABOVE, offsetof(MCParagraphAttrs, space_above), EE_FIELD_SPACEBEFORENAN))
-			return ES_ERROR;
-		break;
-	case P_SPACE_BELOW:
-		if (!setparagraphattr_int<int16_t, 0, 32767>(ep, attrs, PA_HAS_SPACE_BELOW, offsetof(MCParagraphAttrs, space_below), EE_FIELD_SPACEAFTERNAN))
-			return ES_ERROR;
-		break;
-	// MW-2012-02-11: [[ TabWidths ]] Handle the new tabWidths property.
-	case P_TAB_WIDTHS:
-	case P_TAB_STOPS:
-		{
-			if (ep . isempty())
-			{
-				if (attrs == nil)
-					break;
-
-				attrs -> flags &= ~PA_HAS_TABS;
-				attrs -> tab_count = 0;
-				delete attrs -> tabs;
-				break;
-			}
-
-			uint16_t *t_new_tabs;
-			uint16_t t_new_tab_count;
-			if (!MCField::parsetabstops(which, ep . getsvalue(), t_new_tabs, t_new_tab_count))
-				return ES_ERROR;
-
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-
-			attrs -> flags |= PA_HAS_TABS;
-			delete attrs -> tabs;
-			attrs -> tab_count = t_new_tab_count;
-			attrs -> tabs = t_new_tabs;
-		}
-		break;
-	case P_BACK_COLOR:
-		if (!setparagraphattr_color(ep, attrs, PA_HAS_BACKGROUND_COLOR, offsetof(MCParagraphAttrs, background_color)))
-			return ES_ERROR;
-		break;
-	case P_BORDER_COLOR:
-		if (!setparagraphattr_color(ep, attrs, PA_HAS_BORDER_COLOR, offsetof(MCParagraphAttrs, border_color)))
-			return ES_ERROR;
-		break;
-	case P_BORDER_WIDTH:
-		if (!setparagraphattr_uint8(ep, attrs, PA_HAS_BORDER_WIDTH, offsetof(MCParagraphAttrs, border_width), EE_FIELD_BORDERWIDTHNAN))
-			return ES_ERROR;
-		break;
-	case P_PADDING:
-		if (!setparagraphattr_uint8(ep, attrs, PA_HAS_PADDING, offsetof(MCParagraphAttrs, padding), EE_FIELD_PADDINGNAN))
-			return ES_ERROR;
-		break;
-	case P_HGRID:
-		{
-			bool t_new_value;
-			if (!setparagraphattr_bool(ep, attrs, PA_HAS_HGRID, t_new_value))
-				return ES_ERROR;
-			attrs -> hgrid = t_new_value;
-		}
-		break;
-	case P_VGRID:
-		{
-			bool t_new_value;
-			if (!setparagraphattr_bool(ep, attrs, PA_HAS_VGRID, t_new_value))
-				return ES_ERROR;
-			attrs -> vgrid = t_new_value;
-		}
-		break;
-	case P_DONT_WRAP:
-		{
-			bool t_new_value;
-			if (!setparagraphattr_bool(ep, attrs, PA_HAS_DONT_WRAP, t_new_value))
-				return ES_ERROR;
-			attrs -> dont_wrap = t_new_value;
-		}
-		break;
-	// MW-2012-03-05: [[ HiddenText ]] Set the 'hidden' property. Notice that if the
-	//   setting becomes false, we unset the 'has_hidden' flag thus allowing the attrs
-	//   to be freed if its the only setting.
-	case P_INVISIBLE:
-		{
-			bool t_new_value;
-			if (!setparagraphattr_bool(ep, attrs, PA_HAS_HIDDEN, t_new_value))
-				return ES_ERROR;
-			attrs -> hidden = t_new_value;
-			if (!t_new_value)
-				attrs -> flags &= ~PA_HAS_HIDDEN;
-		}
-		break;
-	// MW-2012-11-13: [[ ParaMetadata ]] Set the metadata attribute.
-	case P_METADATA:
-		if (ep . isempty())
-		{
-			if (attrs == nil)
-				break;
-
-			attrs -> flags &= ~PA_HAS_METADATA;
-			MCNameDelete(attrs -> metadata);
-			attrs -> metadata = nil;
-		}
-
-		if (attrs == nil)
-			attrs = new MCParagraphAttrs;
-
-		attrs -> flags |= PA_HAS_METADATA;
-		MCNameDelete(attrs -> metadata);
-		/* UNCHECKED */ ep . copyasnameref(attrs -> metadata);
-		break;
-	}
-
-	if (attrs != nil && attrs -> flags == 0)
-		clearattrs();
-
-	return ES_NORMAL;
-}
-
-Exec_stat MCParagraph::getparagraphattr(Properties which, MCExecPoint& ep, Boolean effective)
-{
-	ep . clear();
-
-
-	switch(which)
-	{
-	case P_TEXT_ALIGN:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_TEXT_ALIGN) == 0))
-			return ES_NORMAL;
-		MCF_unparsetextatts(P_TEXT_ALIGN, ep, gettextalign() << F_ALIGNMENT_SHIFT, nil, 0, 0, 0);
-		break;
-	case P_LIST_STYLE:
-		if (attrs == nil || (attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-			return ES_NORMAL;
-		ep . setstaticcstring(MCliststylestrings[getliststyle()]);
-		break;
-	case P_LIST_DEPTH:
-		if (attrs == nil || (attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-			return ES_NORMAL;
-		ep . setuint(attrs -> list_depth + 1);
-		break;
-	case P_LIST_INDENT:
-		// MW-2012-02-27: [[ Bug ]] Crash when evaluating listIndent if its not been set.
-		if (attrs == nil || (attrs -> flags & PA_HAS_LIST_INDENT) == 0)
-			return ES_NORMAL;
-		ep . setint(attrs -> first_indent);
-		break;
-	case P_LIST_INDEX:
-		// MW-2012-11-13: [[ ParaListIndex ]] Fetch the list index of the paragraph.
-		if (!effective)
-		{
-			if (attrs == nil || (attrs -> flags & PA_HAS_LIST_INDEX) == 0)
-				return ES_NORMAL;
-			ep . setint(attrs -> list_index);
-		}
-		else
-		{
-			uint32_t t_index;
-			computelistindex(getparent() -> getparagraphs() -> prev(), t_index);
-			ep . setint(t_index);
-		}
-		break;
-	case P_FIRST_INDENT:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_FIRST_INDENT) == 0))
-			return ES_NORMAL;
-		ep . setint(getfirstindent());
-		break;
-	case P_LEFT_INDENT:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_LEFT_INDENT) == 0))
-			return ES_NORMAL;
-		ep . setint(getleftindent());
-		break;
-	case P_RIGHT_INDENT:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_RIGHT_INDENT) == 0))
-			return ES_NORMAL;
-		ep . setint(getrightindent());
-		break;
-	case P_SPACE_ABOVE:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_SPACE_ABOVE) == 0))
-			return ES_NORMAL;
-		ep . setint(getspaceabove());
-		break;
-	case P_SPACE_BELOW:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_SPACE_BELOW) == 0))
-			return ES_NORMAL;
-		ep . setint(getspacebelow());
-		break;
-	case P_TAB_WIDTHS:
-	case P_TAB_STOPS:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_TABS) == 0))
-			return ES_NORMAL;
-		{
-			uint16_t *t_tabs;
-			uint16_t t_tab_count;
-			Boolean t_fixed;
-			gettabs(t_tabs, t_tab_count, t_fixed);
-			MCField::formattabstops(which, ep, t_tabs, t_tab_count);
-		}
-		break;
-	case P_BACK_COLOR:
-		if (attrs == nil || (attrs -> flags & PA_HAS_BACKGROUND_COLOR) == 0)
-			return ES_NORMAL;
-		ep . setpixel(attrs -> background_color);
-		break;
-	case P_BORDER_COLOR:
-		if (attrs == nil || (attrs -> flags & PA_HAS_BORDER_COLOR) == 0)
-			return ES_NORMAL;
-		ep . setpixel(attrs -> border_color);
-		break;
-	case P_BORDER_WIDTH:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_BORDER_WIDTH) == 0))
-			return ES_NORMAL;
-		ep . setuint(getborderwidth());
-		break;
-	case P_PADDING:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_PADDING) == 0))
-			return ES_NORMAL;
-		ep . setuint(getpadding());
-		break;
-	case P_HGRID:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective - notice
-		//   that we use the attr value in non-effective mode, as 'gethgrid()' takes
-		//   into account other propeties.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_HGRID) == 0))
-			return ES_NORMAL;
-		ep . setboolean(effective ? gethgrid() : attrs -> hgrid);
-		break;
-	case P_VGRID:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective - notice
-		//   that we use the attr value in non-effective mode, as 'getvgrid()' takes
-		//   into account other propeties.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_VGRID) == 0))
-			return ES_NORMAL;
-		ep . setboolean(effective ? getvgrid() : attrs -> vgrid);
-		break;
-	case P_DONT_WRAP:
-		// MW-2012-02-13: [[ ParaStyles ]] Added support for effective adjective - notice
-		//   that we use the attr value in non-effective mode, as 'getdontwrap()' takes
-		//   into account other propeties.
-		if (!effective && (attrs == nil || (attrs -> flags & PA_HAS_DONT_WRAP) == 0))
-			return ES_NORMAL;
-		ep . setboolean(effective ? getdontwrap() : attrs -> dont_wrap);
-		break;
-	// MW-2012-03-05: [[ HiddenText ]] Add support for the 'hidden' property. If there are no
-	//   attrs, the hidden is false.
-	case P_INVISIBLE:
-		ep . setboolean(attrs != nil ? attrs -> hidden : false);
-		break;
-	// MW-2012-11-13: [[ ParaMetadata ]] Add support for the 'metadata' property.
-	case P_METADATA:
-		if (attrs != nil && (attrs -> flags & PA_HAS_METADATA) != 0)
-			ep . setnameref_unsafe(attrs -> metadata);
-		else
-			ep . clear();
-		break;
-	}
-
-	return ES_NORMAL;
-}
-
-template<typename T> static void copysingleattr_int(MCParagraphAttrs *other_attrs, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset)
-{
-	if (other_attrs == nil || (other_attrs -> flags & p_flag) == 0)
-	{
-		if (attrs == nil)
-			return;
-
-		attrs -> flags &= ~p_flag;
-		((T *)((char *)attrs + p_field_offset))[0] = 0;
-	}
-	else
-	{
-		if (attrs == nil)
-			attrs = new MCParagraphAttrs;
-		attrs -> flags |= p_flag;
-		((T *)((char *)attrs + p_field_offset))[0] = ((T *)((char *)other_attrs + p_field_offset))[0];
-	}
-}
-
-static bool copysingleattr_bool(MCParagraphAttrs *other_attrs, MCParagraphAttrs*& attrs, uint32_t p_flag)
-{
-	if (other_attrs == nil || (other_attrs -> flags & p_flag) == 0)
-	{
-		if (attrs == nil)
-			return false;
-
-		attrs -> flags &= ~p_flag;
-		return false;
-	}
-
-	if (attrs == nil)
-		attrs = new MCParagraphAttrs;
-	attrs -> flags |= p_flag;
-	return true;
-}
-
-static void copysingleattr_int8(MCParagraphAttrs *other_attrs, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset)
-{
-	copysingleattr_int<int8_t>(other_attrs, attrs, p_flag, p_field_offset);
-}
-
-static void copysingleattr_int16(MCParagraphAttrs *other_attrs, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset)
-{
-	copysingleattr_int<int16_t>(other_attrs, attrs, p_flag, p_field_offset);
-}
-
-static void copysingleattr_uint16(MCParagraphAttrs *other_attrs, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset)
-{
-	copysingleattr_int<uint16_t>(other_attrs, attrs, p_flag, p_field_offset);
-}
-
-static void copysingleattr_int32(MCParagraphAttrs *other_attrs, MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset)
-{
-	copysingleattr_int<int32_t>(other_attrs, attrs, p_flag, p_field_offset);
-}
-
 void MCParagraph::copysingleattr(Properties which, MCParagraph *other)
 {
-	switch(which)
-	{
-	case P_TEXT_ALIGN:
-		if (other -> attrs == nil || (other -> attrs -> flags & PA_HAS_TEXT_ALIGN) == 0)
-		{
-			if (attrs != nil)
-			{
-				attrs -> flags &= ~PA_HAS_TEXT_ALIGN;
-				attrs -> text_align = kMCParagraphTextAlignLeft;
-			}
-		}
-		else
-		{
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-			attrs -> flags |= PA_HAS_TEXT_ALIGN;
-			attrs -> text_align = other -> attrs -> text_align;
-		}
-		break;
-	case P_LIST_STYLE:
-		if (other -> attrs == nil || (other -> attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-		{
-			if (attrs != nil)
-			{
-				attrs -> flags &= ~PA_HAS_LIST_STYLE;
-				attrs -> list_style = kMCParagraphListStyleNone;
-				attrs -> list_depth = 0;
-			}
-		}
-		else
-		{
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-			attrs -> flags |= PA_HAS_LIST_STYLE;
-			attrs -> list_style = other -> attrs -> list_style;
-		}
-		break;
-	case P_LIST_DEPTH:
-		if (other -> attrs == nil || (other -> attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-		{
-			if (attrs != nil)
-			{
-				attrs -> flags &= ~PA_HAS_LIST_STYLE;
-				attrs -> list_style = kMCParagraphListStyleNone;
-				attrs -> list_depth = 0;
-			}
-		}
-		else
-		{
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-			if ((attrs -> flags & PA_HAS_LIST_STYLE) == 0)
-			{
-				attrs -> flags |= PA_HAS_LIST_STYLE;
-				attrs -> list_style = kMCParagraphListStyleDisc;
-			}
-			attrs -> list_depth = other -> attrs -> list_depth;
-		}
-		break;
-	case P_LIST_INDENT:
-		if (other -> attrs == nil || (other -> attrs -> flags & PA_HAS_LIST_INDENT) == 0)
-		{
-			if (attrs != nil)
-			{
-				attrs -> flags &= ~PA_HAS_LIST_INDENT;
-				if ((attrs -> flags & PA_HAS_FIRST_INDENT) == 0)
-					attrs -> first_indent = 0;
-			}
-		}
-		else
-		{
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-			attrs -> flags |= PA_HAS_LIST_INDENT;
-			attrs -> flags &= ~PA_HAS_FIRST_INDENT;
-			attrs -> first_indent = other -> attrs -> first_indent;
-		}
-		break;
-	// MW-2012-11-13: [[ ParaListIndex ]] Make sure we copy the list index.
-	case P_LIST_INDEX:
-		copysingleattr_uint16(other -> attrs, attrs, PA_HAS_LIST_INDEX, offsetof(MCParagraphAttrs, list_index));
-		break;
-	case P_FIRST_INDENT:
-		copysingleattr_int16(other -> attrs, attrs, PA_HAS_FIRST_INDENT, offsetof(MCParagraphAttrs, first_indent));
-		break;
-	case P_LEFT_INDENT:
-		copysingleattr_int16(other -> attrs, attrs, PA_HAS_LEFT_INDENT, offsetof(MCParagraphAttrs, left_indent));
-		break;
-	case P_RIGHT_INDENT:
-		copysingleattr_int16(other -> attrs, attrs, PA_HAS_RIGHT_INDENT, offsetof(MCParagraphAttrs, right_indent));
-		break;
-	case P_SPACE_ABOVE:
-		copysingleattr_int16(other -> attrs, attrs, PA_HAS_SPACE_ABOVE, offsetof(MCParagraphAttrs, space_above));
-		break;
-	case P_SPACE_BELOW:
-		copysingleattr_int16(other -> attrs, attrs, PA_HAS_SPACE_BELOW, offsetof(MCParagraphAttrs, space_below));
-		break;
-	// MW-2012-02-11: [[ TabWidths ]] There's no difference between copying tabWidths or
-	//   tabStops as tabWidths is synthetic (derived from tabStops).
-	case P_TAB_WIDTHS:
-	case P_TAB_STOPS:
-		{
-			if (attrs != nil && (attrs -> flags & PA_HAS_TABS) != 0)
-			{
-				delete attrs -> tabs;
-				attrs -> tabs = nil;
-				attrs -> tab_count = 0;
-				attrs -> flags &= ~PA_HAS_TABS;
-			}
-			
-			if (other -> attrs != nil && (other -> attrs -> flags & PA_HAS_TABS) != 0)
-			{
-				if (attrs == nil)
-					attrs = new MCParagraphAttrs;
-				
-				attrs -> tabs = new uint2[other -> attrs -> tab_count];
-				memcpy(attrs -> tabs, other -> attrs -> tabs, other -> attrs -> tab_count * sizeof(uint2));
-				attrs -> tab_count = other -> attrs -> tab_count;
-				attrs -> flags |= PA_HAS_TABS;
-			}
-		}
-		break;
-	case P_BACK_COLOR:
-		copysingleattr_int32(other -> attrs, attrs, PA_HAS_BACKGROUND_COLOR, offsetof(MCParagraphAttrs, background_color));
-		break;
-	case P_BORDER_COLOR:
-		copysingleattr_int32(other -> attrs, attrs, PA_HAS_BORDER_COLOR, offsetof(MCParagraphAttrs, border_color));
-		break;
-	case P_BORDER_WIDTH:
-		copysingleattr_int8(other -> attrs, attrs, PA_HAS_BORDER_WIDTH, offsetof(MCParagraphAttrs, border_width));
-		break;
-	case P_PADDING:
-		copysingleattr_int8(other -> attrs, attrs, PA_HAS_PADDING, offsetof(MCParagraphAttrs, padding));
-		break;
-	case P_HGRID:
-		{
-			if (copysingleattr_bool(other -> attrs, attrs, PA_HAS_HGRID))
-				attrs -> hgrid = other -> attrs -> hgrid;
-			else if (attrs != nil)
-				attrs -> hgrid = false;
-		}
-		break;
-	case P_VGRID:
-		{
-			if (copysingleattr_bool(other -> attrs, attrs, PA_HAS_VGRID))
-				attrs -> vgrid = other -> attrs -> vgrid;
-			else if (attrs != nil)
-				attrs -> vgrid = false;
-		}
-		break;
-	case P_DONT_WRAP:
-		{
-			if (copysingleattr_bool(other -> attrs, attrs, PA_HAS_DONT_WRAP))
-				attrs -> dont_wrap = other -> attrs -> dont_wrap;
-			else if (attrs != nil)
-				attrs -> dont_wrap = false;
-		}
-		break;
-	// MW-2012-03-05: [[ HiddenText ]] Copy across the hidden property. Notice that we unset
-	//   the flag if the value ends up being false.
-	case P_INVISIBLE:
-		{
-			if (copysingleattr_bool(other -> attrs, attrs, PA_HAS_HIDDEN))
-				attrs -> hidden = other -> attrs -> hidden;
-			else if (attrs != nil)
-				attrs -> hidden = false;
-			// MW-2013-08-20: [[ Bug 11108 ]] If we don't have attributes, then don't tweak
-			//   the flags.
-			if (attrs != nil && !attrs -> hidden)
-				attrs -> flags &= ~PA_HAS_HIDDEN;
-		}
-		break;
-	// MW-2012-11-13: [[ ParaMetadata ]] Make sure we copy the metadata.
-	case P_METADATA:
-		if (attrs != nil && (attrs -> flags & PA_HAS_METADATA) != 0)
-		{
-			MCNameDelete(attrs -> metadata);
-			attrs -> metadata = nil;
-			attrs -> flags &= ~PA_HAS_METADATA;
-		}
-		
-		if (other -> attrs != nil && (other -> attrs -> flags & PA_HAS_METADATA) != 0)
-		{
-			if (attrs == nil)
-				attrs = new MCParagraphAttrs;
-			
-			MCNameClone(other -> attrs -> metadata, attrs -> metadata);
-			attrs -> flags |= PA_HAS_METADATA;
-		}
-		break;
-	}
-
 	if (attrs == nil)
 		return;
 
@@ -1060,7 +500,7 @@ void MCParagraph::copyattrs(const MCParagraph& other)
 		return;
 
 	// Make a new attrs structure.
-	attrs = new MCParagraphAttrs;
+	attrs = new (nothrow) MCParagraphAttrs;
 	
 	// Copy across all the fields byte-wise.
 	memcpy(attrs, other . attrs, sizeof(MCParagraphAttrs));
@@ -1068,13 +508,19 @@ void MCParagraph::copyattrs(const MCParagraph& other)
 	// If the struct has tabs, then copy them properly.
 	if ((other . attrs -> flags & PA_HAS_TABS) != 0)
 	{
-		attrs -> tabs = new uint16_t[other . attrs -> tab_count];
+		attrs -> tabs = new (nothrow) uint16_t[other . attrs -> tab_count];
 		memcpy(attrs -> tabs, other . attrs -> tabs, sizeof(uint16_t) * other . attrs -> tab_count);
+	}
+
+	// If the struct has tabalignments then copy them properly
+	if ((other . attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+	{
+		/* UNCHECKED */ MCMemoryAllocateCopy(other . attrs -> alignments, sizeof(intenum_t) * other . attrs -> alignments_count, attrs -> alignments);
 	}
 
 	// MW-2012-12-04: [[ Bug 10577 ]] If the struct has metadata, then copy it properly.
 	if ((other . attrs -> flags & PA_HAS_METADATA) != 0)
-		MCNameClone(other . attrs -> metadata, attrs -> metadata);
+        /* UNCHECKED */ MCStringCopy(other . attrs -> metadata, attrs -> metadata);
 }
 
 void MCParagraph::clearattrs(void)
@@ -1087,9 +533,13 @@ void MCParagraph::clearattrs(void)
 	if ((attrs -> flags & PA_HAS_TABS) != 0)
 		delete attrs -> tabs;
 
+	// If we have tab alignments then delete them.
+	if ((attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+		MCMemoryDeallocate(attrs -> alignments);
+
 	// MW-2012-11-13: [[ ParaMetadata ]] If we have metadata, delete it.
 	if ((attrs -> flags & PA_HAS_METADATA) != 0)
-		MCNameDelete(attrs -> metadata);
+        MCValueRelease(attrs -> metadata);
 
 	// Delete the structure.
 	delete attrs;
@@ -1146,6 +596,12 @@ void MCParagraph::exportattrs(MCFieldParagraphStyle& x_style)
 		x_style . has_tabs = true;	
 		x_style . tabs = attrs -> tabs;
 		x_style . tab_count = attrs -> tab_count;
+	}
+	if ((attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+	{
+		x_style . has_tab_alignments = true;
+		x_style . tab_alignments = attrs -> alignments;
+		x_style . tab_alignment_count = attrs -> alignments_count;
 	}
 	if ((attrs -> flags & PA_HAS_BACKGROUND_COLOR) != 0)
 	{
@@ -1212,7 +668,7 @@ void MCParagraph::importattrs(const MCFieldParagraphStyle& p_style)
 {
 	clearattrs();
 	
-	attrs = new MCParagraphAttrs;
+	attrs = new (nothrow) MCParagraphAttrs;
 	if (p_style . has_text_align)
 	{
 		attrs -> flags |= PA_HAS_TEXT_ALIGN;
@@ -1253,8 +709,14 @@ void MCParagraph::importattrs(const MCFieldParagraphStyle& p_style)
 	{
 		attrs -> flags |= PA_HAS_TABS;
 		attrs -> tab_count = p_style . tab_count;
-		attrs -> tabs = new uint16_t[p_style . tab_count];
+		attrs -> tabs = new (nothrow) uint16_t[p_style . tab_count];
 		memcpy(attrs -> tabs, p_style . tabs, sizeof(uint16_t) * p_style . tab_count);
+	}
+	if (p_style . has_tab_alignments)
+	{
+		attrs -> flags |= PA_HAS_TAB_ALIGNMENTS;
+		attrs -> alignments_count = p_style . tab_alignment_count;
+		/* UNCHECKED */ MCMemoryAllocateCopy(p_style . tab_alignments, sizeof(intenum_t) * p_style . tab_alignment_count, attrs -> alignments);
 	}
 	if (p_style . has_background_color)
 	{
@@ -1305,7 +767,7 @@ void MCParagraph::importattrs(const MCFieldParagraphStyle& p_style)
 	if (p_style . has_metadata)
 	{
 		attrs -> flags |= PA_HAS_METADATA;
-		MCNameClone(p_style . metadata, attrs -> metadata);
+        /* UNCHECKED */ MCStringCopy(p_style . metadata, attrs -> metadata);
 	}
 	// MW-2012-11-13: [[ ParaListIndex ]] Import the listIndex setting.
 	if (p_style . has_list_index)
@@ -1335,7 +797,7 @@ void MCParagraph::setliststyle(uint32_t p_new_list_style)
 	else
 	{
 		if (attrs == nil)
-			attrs = new MCParagraphAttrs;
+			attrs = new (nothrow) MCParagraphAttrs;
 		if ((attrs -> flags & PA_HAS_LIST_STYLE) == 0)
 		{
 			attrs -> flags |= PA_HAS_LIST_STYLE;
@@ -1345,22 +807,22 @@ void MCParagraph::setliststyle(uint32_t p_new_list_style)
 	}
 }
 
-void MCParagraph::setmetadata(const char *p_metadata)
+void MCParagraph::setmetadata(MCStringRef p_metadata)
 {
 	if (attrs != nil && (attrs -> flags & PA_HAS_METADATA) != 0)
 	{
 		attrs -> flags &= ~PA_HAS_METADATA;
-		MCNameDelete(attrs -> metadata);
+        MCValueRelease(attrs -> metadata);
 		attrs -> metadata = nil;
 	}
 
-	if (p_metadata == nil || *p_metadata == '\0')
+    if (p_metadata == nil || MCStringIsEmpty(p_metadata))
 		return;
 
 	if (attrs == nil)
-		attrs = new MCParagraphAttrs;
-	attrs -> flags |= PA_HAS_METADATA;
-	/* UNCHECKED */ MCNameCreateWithCString(p_metadata, attrs -> metadata);
+		attrs = new (nothrow) MCParagraphAttrs;
+    attrs -> flags |= PA_HAS_METADATA;
+    /* UNCHECKED */ MCValueInter(p_metadata, attrs -> metadata);
 }
 
 void MCParagraph::setlistindex(uint32_t p_new_list_index)
@@ -1376,7 +838,7 @@ void MCParagraph::setlistindex(uint32_t p_new_list_index)
 	else
 	{
 		if (attrs == nil)
-			attrs = new MCParagraphAttrs;
+			attrs = new (nothrow) MCParagraphAttrs;
 
 		attrs -> flags |= PA_HAS_LIST_INDEX;
 		attrs -> list_index = p_new_list_index;
@@ -1496,8 +958,8 @@ int32_t MCParagraph::getlistindent(void) const
 	if (attrs != nil && (attrs -> flags & PA_HAS_LIST_INDENT) != 0)
 		return MCAbs(attrs -> first_indent);
 
-	// MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
-	return 8 * MCFontMeasureText(parent -> getfontref(), " ", 1, false, parent -> getstack() -> getdevicetransform());
+    // MM-2014-04-16: [[ Bug 11964 ]] Pass through the transform of the stack to make sure the measurment is correct for scaled text.
+    return 8 * MCFontMeasureText(parent -> getfontref(), MCSTR(" "), parent -> getstack() -> getdevicetransform());
 }
 
 void MCParagraph::gettabs(uint16_t*& r_tabs, uint16_t& r_tab_count, Boolean& r_fixed) const
@@ -1511,6 +973,17 @@ void MCParagraph::gettabs(uint16_t*& r_tabs, uint16_t& r_tab_count, Boolean& r_f
 		parent -> gettabs(r_tabs, r_tab_count, r_fixed);
 
 	r_fixed = getvgrid();
+}
+
+void MCParagraph::gettabaligns(intenum_t*& r_tab_aligns, uint16_t& r_tab_count) const
+{
+    if (attrs != nil && (attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+    {
+        r_tab_aligns = attrs -> alignments;
+        r_tab_count = attrs -> alignments_count;
+    }
+    else
+        parent -> gettabaligns(r_tab_aligns, r_tab_count);
 }
 
 bool MCParagraph::getvgrid(void) const
@@ -1566,11 +1039,11 @@ int32_t MCParagraph::gettablewidth(void) const
 	return 0;
 }
 
-MCNameRef MCParagraph::getmetadata(void) const
+MCStringRef MCParagraph::getmetadata(void) const
 {
-	if (attrs != nil && (attrs -> flags & PA_HAS_METADATA))
+	if (attrs != nil && (attrs -> flags & PA_HAS_METADATA) && attrs -> metadata != nil)
 		return attrs -> metadata;
-	return kMCEmptyName;
+    return kMCEmptyString;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1748,7 +1221,7 @@ void MCParagraph::computerects(int32_t x, int32_t y, int32_t p_layout_width, uin
 	t_total_width = r_inner . width + t_left_margin + t_right_margin;
 	if (t_total_width > p_layout_width)
 	{
-		int32_t t_offset;
+		int32_t t_offset = 0;
 		switch(gettextalign())
 		{
 		case kMCParagraphTextAlignLeft:
@@ -1761,6 +1234,8 @@ void MCParagraph::computerects(int32_t x, int32_t y, int32_t p_layout_width, uin
 		case kMCParagraphTextAlignRight:
 			t_offset = p_layout_width - t_total_width;
 			break;
+		default:
+			MCUnreachableReturn();
 		}
 		r_inner . x += t_offset;
 		r_outer . x += t_offset;
@@ -1795,8 +1270,8 @@ void MCParagraph::computeparaoffsetandwidth(int32_t& r_offset, int32_t& r_width)
 	t_layout_width = parent -> getlayoutwidth();
 	t_para_width = getwidth();
 
-	int32_t t_offset;
-	if (t_para_width > t_layout_width)
+    int32_t t_offset = 0;
+	if (getdontwrap())
 	{
 		switch(gettextalign())
 		{
@@ -1814,7 +1289,7 @@ void MCParagraph::computeparaoffsetandwidth(int32_t& r_offset, int32_t& r_width)
 	}
 	else
 		t_offset = 0;
-
+    
 	r_offset = t_offset;
 	r_width = t_para_width;
 }
@@ -1823,7 +1298,8 @@ void MCParagraph::computeparaoffsetandwidth(int32_t& r_offset, int32_t& r_width)
 // left of the inner paragraph box. It also returns the width of the paragraph box.
 void MCParagraph::computeboxoffsetandwidth(int32_t& r_offset, int32_t& r_width) const
 {
-	MCRectangle t_outer, t_inner;
+	MCRectangle t_outer(kMCEmptyRectangle);
+	MCRectangle t_inner(kMCEmptyRectangle);
 	computerects(0, 0, parent -> getlayoutwidth(), getwidth(), 0, t_outer, t_inner);
 	r_offset = t_inner . x;
 	r_width = t_inner . width;
@@ -1875,19 +1351,29 @@ int32_t MCParagraph::computelineinneroffset(int32_t p_layout_width, MCLine *p_li
 		}
 	}
 
-	if (p_layout_width > t_line_width)
-		switch(gettextalign())
-		{
-		case kMCParagraphTextAlignLeft:
-		case kMCParagraphTextAlignJustify:
-			break;
-		case kMCParagraphTextAlignCenter:
-			t_offset += (p_layout_width - t_line_width) / 2;
-			break;
-		case kMCParagraphTextAlignRight:
-			t_offset += p_layout_width - t_line_width;
-			break;
-		}
+
+    // FG-2014-05-06: [[ TabAlignments ]]
+    // Lines now handle offsets themselves unless they are non-flowed
+    if (getdontwrap())
+    {
+        if (p_layout_width > t_line_width)
+            switch(gettextalign())
+            {
+            case kMCParagraphTextAlignLeft:
+            case kMCParagraphTextAlignJustify:
+                break;
+            case kMCParagraphTextAlignCenter:
+                t_offset += (p_layout_width - t_line_width) / 2;
+                break;
+            case kMCParagraphTextAlignRight:
+                t_offset += p_layout_width - t_line_width;
+                break;
+            }
+    }
+    else
+    {
+           t_offset += p_line->GetLineOffset(); 
+    }
 
 	return t_offset;
 }

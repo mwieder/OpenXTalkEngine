@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -25,7 +25,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define UNLICENSED_USING_LIMIT 50
 #define UNLICENSED_INSERT_LIMIT 10
 
-#define DEFAULT_TEXT_FONT "helvetica"
+#if defined(__EMSCRIPTEN__)
+#	define DEFAULT_TEXT_FONT "Droid Sans Fallback"
+#else
+// SN-2015-05-14: [[ Bug 14116 ]] Make the default font a correct PostScript font
+#	define DEFAULT_TEXT_FONT "Helvetica"
+#endif
 #define DEFAULT_TEXT_SIZE 14
 #define DEFAULT_TAB_SPACING 8
 #define DEFAULT_BORDER 2
@@ -47,9 +52,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #define STACK_SIZE "10000"
 #define FREE_SIZE  "0"
-#define HEAP_SPACE  "1000000"
 #define DISK_SPACE  "1000000"
-#define STACK_SPACE  "1000000"
 
 #define START_ID 1001
 
@@ -212,6 +215,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define F_LOOPING               (1UL << 19)
 #define F_PLAY_SELECTION        (1UL << 20)
 #define F_SHOW_SELECTION        (1UL << 21)
+#define F_SHOW_VOLUME           (1UL << 22)
+#define F_MIRRORED              (1UL << 23)
 // MCVideoClip attributes, scale is for backward compatibility
 #define F_SCALE_FACTOR          (1UL << 15)
 // MCEPS attributes
@@ -295,7 +300,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define F_HAS_SHIFT             (1UL << 16)
 #define F_HAS_BACK_COLOR        (1UL << 17)
 #define F_HAS_COLOR_NAME        (1UL << 18)
-#define F_HAS_TAB               (1UL << 19)
+// SN-2014-12-04: [[ Bug 14149 ]] Flag required for saving in legacy format.
+#define F_HAS_TAB               (1UL << 19) // [[ TabAlignments ]] No longer required
 #define F_HAS_BACK_COLOR_NAME   (1UL << 20)
 #define F_HAS_LINK              (1UL << 21)
 #define F_HAS_IMAGE             (1UL << 22)
@@ -401,10 +407,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define CS_MOUSE_UP_MENU        (1UL << 21)
 #define CS_VISITED              (1UL << 22)
 
-// MW-2008-10-28: [[ ParentScripts ]] If this state flag is set it means that
-//   the button is referenced as a parentScript.
-#define CS_IS_PARENTSCRIPT		(1UL << 21)
-
 // MCImage state
 #define CS_BEEN_MOVED           (1UL << 13)
 
@@ -447,13 +449,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define CS_PAUSED               (1UL << 15)
 #define CS_CLOSING              (1UL << 16)
 #define CS_EXTERNAL_CONTROLLER	(1UL << 17)
+#define CS_CTC_PENDING          (1UL << 18)
 // MCGroup state
 #define CS_NEED_UPDATE          (1UL << 13)
 // Uses CS_HSCROLL 14
 // Uses CS_VSCROLL 15
 #define CS_SENDING_RESIZE		(1UL << 16)
 // MCCard state
-#define CS_OWN_CONTROLS         (1UL << 14)
 #define CS_INSIDE               (1UL << 15)
 // MCStack state
 #define CS_BEEN_MOVED           (1UL << 13)
@@ -480,7 +482,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define ECS_MEDIA_ORIGIN		(1UL << 28)
 #define ECS_EXTERNALS_RESOLVED	(1UL << 27)
 #define ECS_DURING_STARTUP		(1UL << 26)
-#define ECS_IDE					(1UL << 25)
 #define ECS_FULLSCREEN			(1UL << 24)
 
 // MW-2008-10-28: [[ ParentScripts ]] If this extended state flag is set it
@@ -501,6 +502,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 // If this is set then this stack needs parentScripts resolve
 #define ECS_USES_PARENTSCRIPTS	(1UL << 18)
+
+// MERG-2014-06-02: [[ IgnoreMouseEvents ]] If this is set then the stack is transparent to mouse events
+#define ECS_IGNORE_MOUSE_EVENTS (1UL << 17)
 
 // Has handlers
 #define HH_IDLE                 (1UL << 0)
@@ -559,6 +563,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define FA_LINK               (1UL << 14)
 #define FA_FONT               (1UL << 15)  // to mark a font change in paragraph HTML
 
+// Font is special and should be ignored for font lookups, etc
+#define FA_SYSTEM_FONT        (1UL << 31)
+
 #define STYLE_LENGTH           256
 
 typedef struct
@@ -580,11 +587,11 @@ Keynames;
 typedef struct _Linkatts
 {
 	MCColor color;
-	char *colorname;
+	MCStringRef colorname;
 	MCColor hilitecolor;
-	char *hilitecolorname;
+	MCStringRef hilitecolorname;
 	MCColor visitedcolor;
-	char *visitedcolorname;
+	MCStringRef visitedcolorname;
 	Boolean underline;
 }
 Linkatts;
@@ -597,7 +604,16 @@ enum Draw_index {
     DI_TOP,
     DI_BOTTOM,
     DI_SHADOW,
-    DI_FOCUS
+    DI_FOCUS,
+    
+    // Pseudo-DIs used for theming
+    DI_PSEUDO_TEXT_COLOR,           // Text colour for non-selected text
+    DI_PSEUDO_TEXT_BACKGROUND,      // Text background colour
+    DI_PSEUDO_TEXT_COLOR_SEL_FORE,  // Text colour for selected text, use DI_FORE
+    DI_PSEUDO_TEXT_COLOR_SEL_BACK,  // Text colour for selected text, use DI_BACK
+    DI_PSEUDO_TEXT_BACKGROUND_SEL,  // Text selection colour
+    DI_PSEUDO_BUTTON_TEXT,          // Text colour for button text
+    DI_PSEUDO_BUTTON_TEXT_SEL      // Text colour for selected menu items
 };
 
 
@@ -663,7 +679,7 @@ enum Etch {
 enum Field_translations {
     FT_UNDEFINED,
     FT_DELBCHAR,
-	FT_DELBSUBCHAR = FT_DELBCHAR,
+	FT_DELBSUBCHAR,
     FT_DELBWORD,
     FT_DELFCHAR,
     FT_DELFWORD,
@@ -685,15 +701,15 @@ enum Field_translations {
     FT_PARAGRAPH,
 	FT_PARAGRAPHAFTER,
     FT_LEFTCHAR,
-	FT_BACKCHAR = FT_LEFTCHAR,
+	FT_BACKCHAR,
     FT_LEFTWORD,
-	FT_BACKWORD = FT_LEFTWORD,
+	FT_BACKWORD,
 	FT_LEFTPARA,
 	FT_BACKPARA = FT_LEFTPARA,
     FT_RIGHTCHAR,
-	FT_FORWARDCHAR = FT_RIGHTCHAR,
+	FT_FORWARDCHAR,
     FT_RIGHTWORD,
-	FT_FORWARDWORD = FT_RIGHTWORD,
+	FT_FORWARDWORD,
 	FT_RIGHTPARA,
 	FT_FORWARDPARA = FT_RIGHTPARA,
     FT_UP,
@@ -720,7 +736,8 @@ enum Field_translations {
 	FT_SCROLLPAGEUP,
 	FT_SCROLLBOTTOM,
 	FT_SCROLLPAGEDOWN,
-    FT_IMEINSERT
+    FT_IMEINSERT,
+	FT_SELECTALL,
 };
 
 inline uint4 getstyleint(uint4 flags)
@@ -760,6 +777,8 @@ enum Lang_charset
 	LCH_LITHUANIAN,
     LCH_UNICODE,
     LCH_UTF8,
+    // SN-2015-06-18: [[ Bug 11803 ]] Added for Android TextEncode
+    LCH_WINDOWS_NATIVE,
 	LCH_DEFAULT = 255
 };
 
@@ -777,5 +796,30 @@ typedef struct _MCImagePaletteSettings
 	MCColor *colors;
 	uint32_t ncolors;
 } MCImagePaletteSettings;
+
+// MW-2014-07-17: [[ ImageMetadata ]] Struct representing image metadata contents - at
+//   some point (post-7.0) this would be better as an opaque type, but this will do for now.
+struct MCImageMetadata
+{
+    bool has_density : 1;
+    double density;
+};
+
+enum MCGravity
+{
+    kMCGravityNone,
+    kMCGravityLeft,
+    kMCGravityTop,
+    kMCGravityRight,
+    kMCGravityBottom,
+    kMCGravityTopLeft,
+    kMCGravityTopRight,
+    kMCGravityBottomLeft,
+    kMCGravityBottomRight,
+    kMCGravityCenter,
+    kMCGravityResize,
+    kMCGravityResizeAspect,
+    kMCGravityResizeAspectFill,
+};
 
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,29 +16,28 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 
-#include "execpt.h"
+
 #include "date.h"
 
-#if defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER) || defined(_DARWIN_SERVER)
-#include <time.h>
-#define sys_time_t time_t
-#define sys_localtime localtime
-#define sys_mktime mktime
-#define sys_gmtime gmtime
-#define sys_timegm timegm
-#elif defined(_ANDROID_MOBILE)
+#if defined(_ANDROID_MOBILE) && !defined(__LP64__)
 #include <time64.h>
 #define sys_time_t time64_t
 #define sys_localtime localtime64
 #define sys_mktime mktime64
 #define sys_gmtime gmtime64
 #define sys_timegm timegm64
+#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER) || defined(_DARWIN_SERVER) || defined(__EMSCRIPTEN__) || defined(_ANDROID_MOBILE)
+#include <time.h>
+#define sys_time_t time_t
+#define sys_localtime localtime
+#define sys_mktime mktime
+#define sys_gmtime gmtime
+#define sys_timegm timegm
 #else
 #error 'sysunxdate.cpp' not supported on this platform
 #endif
@@ -156,7 +155,7 @@ bool MCS_secondstodatetime(double p_seconds, MCDateTime& r_datetime)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
+#if defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER) || defined(__EMSCRIPTEN__)
 
 #include <locale.h>
 #include <langinfo.h>
@@ -164,53 +163,70 @@ bool MCS_secondstodatetime(double p_seconds, MCDateTime& r_datetime)
 
 static MCDateTimeLocale *s_datetime_locale = nil;
 
-static char *string_prepend(const char *trunk, const char *prefix)
+static MCStringRef string_prepend(MCStringRef t_string, unichar_t t_char)
 {
-	char *t_new_string;
-	t_new_string = new char[strlen(trunk) + strlen(prefix) + 1];
-	strcpy(t_new_string, prefix);
-	strcat(t_new_string, trunk);
-	delete trunk;
+	MCStringRef t_result;
+	MCStringFormat(t_result, "%lc%@", t_char, t_string);
+	MCValueRelease(t_string);
+	return t_result;
+}
+
+
+// PM-2015-09-07: [[ Bug 9942 ]] On Linux, the short/abbr system time should
+//  not return the seconds
+static MCStringRef remove_seconds(MCStringRef p_input)
+{
+    MCStringRef t_new_string;
+    t_new_string = NULL;
+    MCRange t_range;
+
+    if (MCStringFind(p_input, MCRangeMake(0, UINDEX_MAX), MCSTR(":%S"), kMCStringOptionCompareExact, &t_range))
+    {
+        // If :%S is found, then we remove it
+        MCStringRef t_mutable_copy;
+        if (MCStringMutableCopy(p_input, t_mutable_copy))
+        {
+        	if (!MCStringRemove(t_mutable_copy, t_range)
+        			|| !MCStringCopyAndRelease(t_mutable_copy, t_new_string))
+        		MCValueRelease(t_mutable_copy);
+        }
+    }
+    
+    if (t_new_string == NULL)
+    {
+        // If removing ':%S' failed, or wasn't necessary, we copy the whole string
+        t_new_string = MCValueRetain(p_input);
+    }
+	
 	return t_new_string;
 }
 
 
-static char *query_locale(uint4 t_index)
+static MCStringRef query_locale(uint4 t_index)
 {
 	char *t_buffer;
+	MCStringRef t_result;
 	t_buffer = nl_langinfo(t_index);
-	return strdup(t_buffer);
+    // SN-2015-04-07: [[ Bug 15161 ]] We get a system string, not a C-string.
+    MCStringCreateWithSysString(t_buffer, t_result);
+	return t_result;
 }
 
-
-
-char * swap_time_tokens ( char * p_instr ) 
+static MCStringRef swap_time_tokens(MCStringRef p_instr)
 {
-	char * t_ptr = p_instr ;
-	while (*t_ptr != '\0')
-	{
-		switch (*t_ptr)
-		{
-			case 'l':
-				*t_ptr = 'I' ;
-			break;
-
-			case 'P':
-				*t_ptr = 'p' ;
-			break;
-		}
-		t_ptr ++ ;
-	}
-	return (p_instr);
+	MCStringRef t_new;
+	MCStringMutableCopy(p_instr, t_new);
+	MCStringFindAndReplaceChar(t_new, 'l', 'I', kMCStringOptionCompareExact);
+	MCStringFindAndReplaceChar(t_new, 'p', 'P', kMCStringOptionCompareExact);
+	return t_new;
 }
-
 
 static void cache_locale(void)
 {
 	if (s_datetime_locale != NULL)
 		return;
 
-	s_datetime_locale = new MCDateTimeLocale;
+	s_datetime_locale = new (nothrow) MCDateTimeLocale;
 
 	// OK-2007-05-23: Fix for bug 5035. Adjusted to ensure that first element of weekday names is always Sunday.
 
@@ -230,45 +246,53 @@ static void cache_locale(void)
 	}
 
 	
-	s_datetime_locale -> date_formats[0] = string_prepend(query_locale(D_FMT), "^");
-	s_datetime_locale -> date_formats[1] = "%a, %b %#d, %#Y";
-	s_datetime_locale -> date_formats[2] = "%A, %B %#d, %#Y" ;
+	s_datetime_locale -> date_formats[0] = string_prepend(query_locale(D_FMT), '^');
+	s_datetime_locale -> date_formats[1] = MCSTR("%a, %b %#d, %#Y");
+	s_datetime_locale -> date_formats[2] = MCSTR("%A, %B %#d, %#Y");
 
-    const char *t_time_ampm;
+    MCAutoStringRef t_time_ampm;
     t_time_ampm = query_locale(T_FMT_AMPM);
     
     // AL-2014-01-16: [[ Bug 11672 ]] If the locale doesn't use AM/PM, then always use 24-hour time.
-    if (t_time_ampm[0] == '\0')
+    if (MCStringIsEmpty(*t_time_ampm))
     {
-        s_datetime_locale -> time_formats[0] = "!%H:%M" ;
-        s_datetime_locale -> time_formats[1] = "!%H:%M:%S" ;
+        s_datetime_locale -> time24_formats[0] = MCSTR("!%H:%M");
+        s_datetime_locale -> time24_formats[1] = MCSTR("!%H:%M:%S");
     }
     else
     {
-        s_datetime_locale -> time_formats[0] = string_prepend(swap_time_tokens(strdup(t_time_ampm)), "!");
-        s_datetime_locale -> time_formats[1] = string_prepend(swap_time_tokens(strdup(t_time_ampm)), "");
+        // PM-2015-09-07: [[ Bug 9942 ]] On Linux, the short/abbr system time
+        //  should not return the seconds
+        MCStringRef t_short_time;
+        t_short_time = string_prepend(swap_time_tokens(*t_time_ampm), '!');
+
+        s_datetime_locale -> time_formats[0] = remove_seconds(t_short_time);
+        s_datetime_locale -> time_formats[1] = swap_time_tokens(*t_time_ampm);
+
+        // string_prepend() returns a new StringRef, which we must release
+        MCValueRelease(t_short_time);
     }
     
-	s_datetime_locale -> time24_formats[0] = "!%H:%M" ;
-	s_datetime_locale -> time24_formats[1] = "!%H:%M:%S" ;
+	s_datetime_locale -> time24_formats[0] = MCSTR("!%H:%M");
+	s_datetime_locale -> time24_formats[1] = MCSTR("!%H:%M:%S");
 
-	s_datetime_locale -> time_morning_suffix = "AM";
-	s_datetime_locale -> time_evening_suffix = "PM";
+	s_datetime_locale -> time_morning_suffix = MCSTR("AM");
+	s_datetime_locale -> time_evening_suffix = MCSTR("PM");
 	
 
 }
-extern MCDateTimeLocale *g_english_locale;
+
 const MCDateTimeLocale *MCS_getdatetimelocale(void)
 {
 	if (s_datetime_locale == NULL)
 	{
 		char *old_locale, *stored_locale;
-		old_locale = setlocale(LC_ALL, NULL);		// Query the current locale
+		old_locale = setlocale(LC_TIME, NULL);		// Query the current locale
 		stored_locale = strdup(old_locale);
 	
-		setlocale(LC_ALL, "");						// Set the locale using the LANG environment
+		setlocale(LC_TIME, "");						// Set the locale using the LANG environment
 		cache_locale();
-		setlocale(LC_ALL, stored_locale);			// Restore the locale
+		setlocale(LC_TIME, stored_locale);			// Restore the locale
 		free(stored_locale);
 	}
 	
@@ -279,8 +303,8 @@ const MCDateTimeLocale *MCS_getdatetimelocale(void)
 
 const MCDateTimeLocale *MCS_getdatetimelocale(void)
 {
-	extern MCDateTimeLocale g_english_locale;
-	return &g_english_locale;
+	extern MCDateTimeLocale *g_basic_locale;
+	return g_basic_locale;
 }
 
 #endif

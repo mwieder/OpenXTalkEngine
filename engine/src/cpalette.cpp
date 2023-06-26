@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "util.h"
 #include "sellst.h"
 #include "stack.h"
@@ -56,6 +56,11 @@ const char *MCColors::gettypestring()
 	return MCcolorstring;
 }
 
+bool MCColors::visit_self(MCObjectVisitor* p_visitor)
+{
+    return p_visitor -> OnControl(this);
+}
+
 static void getcells(uint2 &xcells, uint2 &ycells)
 {
 	switch (MCscreen->getdepth())
@@ -85,7 +90,7 @@ static void getcells(uint2 &xcells, uint2 &ycells)
 
 Boolean MCColors::mfocus(int2 x, int2 y)
 {
-	if (!(flags & F_VISIBLE || MCshowinvisibles))
+	if (!(flags & F_VISIBLE || showinvisible()))
 		return False;
 	if (state & CS_MOVE || state & CS_SIZE)
 		return MCControl::mfocus(x, y);
@@ -126,10 +131,10 @@ Boolean MCColors::mdown(uint2 which)
 			getcells(xcells, ycells);
 			MCscreen->getpaletteentry((my - rect.y) * ycells / rect.height * xcells
 			                          + (mx - rect.x) * xcells / rect.width, color);
-			selectedcolor = color.pixel;
+			selectedcolor = MCColorGetPixel(color);
 			// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 			layer_redrawall();
-			message_with_args(MCM_mouse_down, "1");
+			message_with_valueref_args(MCM_mouse_down, MCSTR("1"));
 			break;
 		case T_POINTER:
 			start(True);
@@ -146,7 +151,7 @@ Boolean MCColors::mdown(uint2 which)
 	return True;
 }
 
-Boolean MCColors::mup(uint2 which)
+Boolean MCColors::mup(uint2 which, bool p_release)
 {
 	if (!(state & CS_MFOCUSED))
 		return False;
@@ -157,10 +162,10 @@ Boolean MCColors::mup(uint2 which)
 		switch (getstack()->gettool(this))
 		{
 		case T_BROWSE:
-			message_with_args(MCM_mouse_up, "1");
+			message_with_valueref_args(MCM_mouse_up, MCSTR("1"));
 			break;
 		case T_POINTER:
-			end();
+			end(true, p_release);
 			break;
 		default:
 			return False;
@@ -174,60 +179,6 @@ Boolean MCColors::mup(uint2 which)
 	return True;
 }
 
-Exec_stat MCColors::getprop(uint4 parid, Properties which, MCExecPoint& ep, Boolean effective)
-{
-	switch (which)
-	{
-#ifdef /* MCColors::getprop */ LEGACY_EXEC
-	case P_SELECTED_COLOR:
-		MCColor color;
-		color.pixel = selectedcolor;
-		MCscreen->querycolor(color);
-		ep.setcolor(color);
-		break;
-#endif /* MCColors::getprop */ 
-	default:
-		return MCControl::getprop(parid, which, ep, effective);
-	}
-	return ES_NORMAL;
-}
-
-Exec_stat MCColors::setprop(uint4 parid, Properties p, MCExecPoint &ep, Boolean effective)
-{
-	Boolean dirty = True;
-	MCString data = ep.getsvalue();
-
-	switch (p)
-	{
-#ifdef /* MCColors::setprop */ LEGACY_EXEC
-	case P_SELECTED_COLOR:
-		{
-			MCColor color;
-			char *colorname = NULL;
-			if (!MCscreen->parsecolor(data, &color, &colorname))
-			{
-				MCeerror->add
-				(EE_COLOR_BADSELECTEDCOLOR, 0, 0, data);
-				return ES_ERROR;
-			}
-			if (colorname != NULL)
-				delete colorname;
-			MCscreen->alloccolor(color);
-			selectedcolor = color.pixel;
-		}
-		break;
-#endif /* MCColors::setprop */
-	default:
-		return MCControl::setprop(parid, p, ep, effective);
-	}
-	if (dirty && opened)
-	{
-		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
-		layer_redrawall();
-	}
-	return ES_NORMAL;
-}
-
 Boolean MCColors::count(Chunk_term type, MCObject *stop, uint2 &num)
 {
 	if (type == CT_COLOR_PALETTE || type == CT_LAYER)
@@ -239,7 +190,7 @@ Boolean MCColors::count(Chunk_term type, MCObject *stop, uint2 &num)
 
 MCControl *MCColors::clone(Boolean attach, Object_pos p, bool invisible)
 {
-	MCColors *newcolors = new MCColors(*this);
+	MCColors *newcolors = new (nothrow) MCColors(*this);
 	if (attach)
 		newcolors->attach(p, invisible);
 	return newcolors;
@@ -272,14 +223,16 @@ void MCColors::draw(MCDC *dc, const MCRectangle &dirty, bool p_isolated, bool p_
 			MCscreen->getpaletteentry(i * xcells + j, c);
 			dc->setforeground(c);
 			dc->fillrect(trect);
-			if (c.pixel == selectedcolor)
+			if (MCColorGetPixel(c) == selectedcolor)
 				draw3d(dc, trect, ETCH_SUNKEN, borderwidth);
 		}
 	if (flags & F_SHOW_BORDER)
+	{
 		if (flags & F_3D)
 			draw3d(dc, rect, ETCH_SUNKEN, borderwidth);
 		else
 			drawborder(dc, rect, borderwidth);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -287,31 +240,31 @@ void MCColors::draw(MCDC *dc, const MCRectangle &dirty, bool p_isolated, bool p_
 //  SAVING AND LOADING
 //
 
-IO_stat MCColors::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part)
+IO_stat MCColors::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version)
 {
-	return MCObject::defaultextendedsave(p_stream, p_part);
+	return MCObject::defaultextendedsave(p_stream, p_part, p_version);
 }
 
-IO_stat MCColors::extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length)
+IO_stat MCColors::extendedload(MCObjectInputStream& p_stream, uint32_t p_version, uint4 p_length)
 {
 	return MCObject::defaultextendedload(p_stream, p_version, p_length);
 }
 
-IO_stat MCColors::save(IO_handle stream, uint4 p_part, bool p_force_ext)
+IO_stat MCColors::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version)
 {
 	IO_stat stat;
 
 	if ((stat = IO_write_uint1(OT_COLORS, stream)) != IO_NORMAL)
 		return stat;
-	if ((stat = MCObject::save(stream, p_part, p_force_ext)) != IO_NORMAL)
+	if ((stat = MCObject::save(stream, p_part, p_force_ext, p_version)) != IO_NORMAL)
 		return stat;
-	return savepropsets(stream);
+	return savepropsets(stream, p_version);
 }
 
-IO_stat MCColors::load(IO_handle stream, const char *version)
+IO_stat MCColors::load(IO_handle stream, uint32_t version)
 {
 	IO_stat stat;
 	if ((stat = MCObject::load(stream, version)) != IO_NORMAL)
-		return stat;
-	return loadpropsets(stream);
+		return checkloadstat(stat);
+	return loadpropsets(stream, version);
 }

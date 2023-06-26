@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -1637,7 +1637,7 @@ enum Parse_errors
 	PE_RESOLVE_BADOBJECT,
 	
 	// MERG-2013-10-04: [[ EditScriptAt ]] edit script of object at.
-    // {EE-0536} edit script: no at expression
+    // {PE-0536} edit script: no at expression
 	PE_EDIT_NOAT,
 	
 	// MW-2013-11-14: [[ AssertCmd ]] Parsing errors for assert command.
@@ -1658,6 +1658,146 @@ enum Parse_errors
 	// MM-2014-02-12: [[ SecureSocket ]]	
 	// {PE-0541} secure: expected 'verification'
 	PE_SECURE_BADMESSAGE,
+
+    // {PE-0542} textDecode: bad parameters
+    PE_TEXTDECODE_BADPARAM,
+    
+    // {PE-0543} textEncode: bad parameters
+    PE_TEXTENCODE_BADPARAM,
+    
+    // {PE-0544} normalizeText: bad parameters
+    PE_NORMALIZETEXT_BADPARAM,
+    
+    // {PE-0545} codepointProperty: bad parameters
+    PE_CODEPOINTPROPERTY_BADPARAM,
+    
+    // SN-2014-05-06 [[ Bug 12360 ]] Bad encoding expression
+    // {PE-0546} open: bad encoding parameter
+    PE_OPEN_BADENCODING,
+    
+    // SN-2014-05-06 [[ Bug 12360 ]]
+    // {PE-0547} open: no encoding when opening in binary mode
+    PE_OPEN_BADBINARYENCODING,
+	
+	// MM-2014-06-13: [[ Bug 12567 ]] New variant secure socket <socket> with verification for host <host>
+	// {PE-0548} secure: bad host name
+	PE_SECURE_BADHOST,
+
+	// MM-2014-06-13: [[ Bug 12567 ]] New variant secure socket <socket> with verification for host <host>
+	// {PE-0549} secure: expected 'host'
+	PE_SECURE_NOHOST,
+	
+	// MM-2014-06-13: [[ Bug 12567 ]] New variant open socket <socket> with verification for host <host>
+	// {PE-0550} open: bad host name
+	PE_OPEN_BADHOST,
+	
+	// MM-2014-06-13: [[ Bug 12567 ]] New variant open socket <socket> with verification for host <host>
+	// {PE-0551} open: expected 'host'
+	PE_OPEN_NOHOST,
+    
+    // AL-2014-10-17: [[ BiDi ]] Returns the result of applying the bi-directional algorithm to text
+    // {PE-0552} bidiDirection: bad parameters
+	PE_BIDIDIRECTION_BADPARAM,
+	
+	// MDW-2014-08-23: [[ feature_floor ]] floor: error in source expression
+	// {PE-0553} floor: error in source expression
+	PE_FLOOR_BADPARAM,
+	
+	// MDW-2014-08-23: [[ feature_floor ]] ceil: error in source expression
+	// {PE-0554} ceil: error in source expression
+	PE_CEIL_BADPARAM,
+    
+    // SN-2015-11-15: [[ Bug 165452 ]] New error, if a global variable shadows
+    // a local variable declared beforehand
+    // {PE-0555} global: shadowing a local variable
+    PE_GLOBAL_SHADOW,
+    
+	// {PE-0556} load: error in extension expression
+	PE_LOAD_BADEXTENSION,
+	
+	// {PE-0557} load: expected 'resource'
+	PE_LOAD_NORESOURCE,
+	
+	// {PE-0558} load: expected 'path'
+	PE_LOAD_NOPATH,
+	
+	// {PE-0559} load: error in resource path expression
+	PE_LOAD_BADRESOURCEPATH,
+    
+    // {PE-0560} load: missing file or display name
+    PE_LOAD_NOFILE,
+    
+    // {PE-0561} load: missing 'from'
+    PE_LOAD_NOFROM,
+
+    // {PE-0562} is strictly: missing 'an' or 'a'
+    PE_ISSTRICTLY_NOAN,
+    
+    // {PE-0563} is strictly: missing 'string'
+    PE_ISSTRICTLY_NOSTRING,
+    
+    // {PE-0564} is strictly: missing type
+    PE_ISSTRICTLY_NOTYPE,
+    
+    // {PE-0565} import: no array expression
+    PE_IMPORT_NOARRAY,
+    
+    // {PE-0566} export: no array expression
+    PE_EXPORT_NOARRAY,
+	
+	// {PE-0567} go: error in widget expression
+	PE_GO_BADWIDGETEXP,
+	
+	// {PE-0568} launch: error in widget expression
+	PE_LAUNCH_BADWIDGETEXP,
+
+	// {PE-0569} save: error in format expression
+	PE_SAVE_BADFORMATEXP,
+	
+	// {PE-0570} replace: missing 'styles'
+	PE_REPLACE_NOSTYLES,
+    
+    // {PE-0571} revert: bad stack expression
+    PE_REVERT_BADSTACK,
+	
+    // {PE-0572} vectordot: bad parameter
+    PE_VECTORDOT_BADPARAM,
+    
+    // {PE-0573} return: form not allowed in handler type
+    PE_RETURN_BADFORMINCONTEXT,
+    
+    // {PE-0574} return: form not allowed in handler type
+    PE_RETURN_BADFOR,
+
+	// {PE-0575} files: bad folder expression
+	PE_FILES_BADPARAM,
+
+	// {PE-0576} folders: bad folder expression
+	PE_FOLDERS_BADPARAM,
+
+    // {PE-0577} open: expected 'from' address
+    PE_OPEN_NOFROM,
+
+    // {PE-0578} messageDigest: bad parameters
+    PE_MESSAGEDIGEST_BADPARAM,
+    
+    // {PE-0579} setop: missing 'difference'
+    PE_ARRAYOP_NODIFFERENCE,
+    
+    // {PE-0580} setop: 'recursive' only makes sense for union or intersect
+    PE_ARRAYOP_BADRECURSIVE,
+    
+    // {PE-0581} setop: destination is not a container (did you mean to use 'into'?)
+    PE_ARRAYOP_DSTNOTCONTAINER,
+	
+    // {PE-0582} send: can't send script in time
+    PE_SEND_SCRIPTINTIME,
+    
+    // {PE-0583} fontLanguage: bad type expression
+    PE_FONTLANGUAGE_BADPARAM,
+    
+    // {PE-0584} out of memory
+    PE_OUTOFMEMORY,
 };
 
 extern const char *MCparsingerrors;

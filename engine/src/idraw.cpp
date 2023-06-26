@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,6 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "objdefs.h"
 #include "parsedef.h"
 
+#include "exec.h"
 #include "stacklst.h"
 #include "undolst.h"
 #include "image.h"
@@ -35,25 +36,53 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "graphicscontext.h"
 #include "graphics_util.h"
 
+////////////////////////////////////////////////////////////////////////////////
+
+void MCImage::getcurrentcolor(MCGPaintRef& r_paint)
+{
+    MCColor t_color;
+    MCPatternRef t_pattern = nil;
+    int2 x, y;
+    if (getforecolor(DI_BACK, false, false, t_color, t_pattern, x, y, CONTEXT_TYPE_SCREEN, this, false))
+    {
+        MCGPaintCreateWithSolidColor(t_color.red / 65535.0f, t_color.green / 65535.0f, t_color.blue / 65535.0f, 1.0f, r_paint);
+    }
+    else if (t_pattern != nullptr)
+    {
+        r_paint = nullptr;
+    }
+    else
+    {
+        r_paint = nullptr;
+    }
+}
+
 bool MCImage::get_rep_and_transform(MCImageRep *&r_rep, bool &r_has_transform, MCGAffineTransform &r_transform)
 {
 	// IM-2013-11-05: [[ RefactorGraphics ]] Use resampled image rep for best-quality scaling
-	if (m_has_transform && MCGAffineTransformIsRectangular(m_transform) && resizequality == INTERPOLATION_BICUBIC)
+	// IM-2014-08-07: [[ Bug 13127 ]] Don't use resampled rep for images with a centerRect
+	if (m_has_transform && MCGAffineTransformIsRectangular(m_transform) && resizequality == INTERPOLATION_BICUBIC && m_center_rect.x == INT16_MIN)
 	{
-		MCGFloat t_h_scale, t_v_scale;
-		t_h_scale = m_transform.a;
-		t_v_scale = m_transform.d;
-		
-		if (m_resampled_rep != nil && m_resampled_rep->Matches(t_h_scale, t_v_scale, m_rep))
+		bool t_h_flip, t_v_flip;
+		t_h_flip = m_transform.a == -1.0;
+		t_v_flip = m_transform.d == -1.0;
+
+		if (m_resampled_rep != nil && m_resampled_rep->Matches(rect.width, rect.height, t_h_flip, t_v_flip, m_rep))
 			r_rep = m_resampled_rep;
 		else
 		{
-			if (!MCImageRepGetResampled(t_h_scale, t_v_scale, m_rep, r_rep))
-				return false;
-			
-			if (m_resampled_rep != nil)
-				m_resampled_rep->Release();
-			m_resampled_rep = static_cast<MCResampledImageRep*>(r_rep);
+			// MM-2014-08-05: [[ Bug 13112 ]] Make sure only a single thread resamples the image.
+			if (m_resampled_rep != nil && m_resampled_rep->Matches(rect.width, rect.height, t_h_flip, t_v_flip, m_rep))
+				r_rep = m_resampled_rep;
+			else
+			{
+				if (!MCImageRepGetResampled(rect.width, rect.height, t_h_flip, t_v_flip, m_rep, r_rep))
+					return false;
+
+				if (m_resampled_rep != nil)
+					m_resampled_rep->Release();
+				m_resampled_rep = static_cast<MCResampledImageRep*>(r_rep);
+			}
 		}
 		
 		r_has_transform = false;
@@ -68,17 +97,78 @@ bool MCImage::get_rep_and_transform(MCImageRep *&r_rep, bool &r_has_transform, M
 	return true;
 }
 
-void MCImage::drawme(MCDC *dc, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, int2 dy)
+void MCImage::drawme(MCDC *dc, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, int2 dy, uint2 dw, uint2 dh)
 {
-	MCRectangle drect, crect;
-
 	if (m_rep != nil)
 	{
+        /* Printer output generally requires special-casing */
+        bool t_printer = dc->gettype() == CONTEXT_TYPE_PRINTER;
+        
+        /* Update the transform - as necessary */
+        bool t_update = !((state & CS_SIZE) && (state & CS_EDITED));
+
+        if (t_update)
+            apply_transform();
+    
 		if (m_rep->GetType() == kMCImageRepVector)
 		{
-			MCU_set_rect(drect, dx - sx, dy - sy, rect.width, rect.height);
-			MCU_set_rect(crect, dx, dy, sw, sh);
-			static_cast<MCVectorImageRep*>(m_rep)->Render(dc, false, drect, crect);
+            MCGAffineTransform t_transform;
+            if (m_has_transform)
+            {
+                t_transform = m_transform;
+            }
+            else
+            {
+                t_transform = MCGAffineTransformMakeIdentity();
+            }
+            
+            uindex_t t_rep_width, t_rep_height;
+            m_rep->GetGeometry(t_rep_width, t_rep_height);
+            
+            // MW-2014-06-19: [[ IconGravity ]] Scale the image appropriately.
+            if (dw != sw || dh != sh)
+            {
+                t_transform = MCGAffineTransformPreScale(t_transform, dw / (float)sw, dh / (float)sh);
+            }
+
+            // MW-2014-06-19: [[ IconGravity ]] Only clip if we are drawing a partial image (we need to double-check, but I don't think sx/sy are ever non-zero).
+            MCRectangle t_old_clip;
+            t_old_clip = dc->getclip();
+            if (sx != 0 && sy != 0)
+            {
+                dc->setclip(MCRectangleMake(dx, dy, sw, sh));
+            }
+            
+            t_transform = MCGAffineTransformConcat(t_transform,
+                                                   MCGAffineTransformMakeTranslation(-(dx - sx), -(dy - sy)));
+            t_transform = MCGAffineTransformPreTranslate(t_transform, (dx - sx), (dy - sy));
+            
+            MCGContextRef t_gcontext;
+            if (dc->lockgcontext(t_gcontext))
+            {
+                MCGContextSave(t_gcontext);
+                
+                MCGContextConcatCTM(t_gcontext, t_transform);
+                
+                auto t_vector_rep = static_cast<MCVectorImageRep *>(m_rep);
+                
+                void* t_data;
+                uindex_t t_data_size;
+                t_vector_rep->GetData(t_data, t_data_size);
+                
+                MCGPaintRef t_current_color;
+                getcurrentcolor(t_current_color);
+                
+                MCGContextPlaybackRectOfDrawing(t_gcontext, MCMakeSpan((const byte_t*)t_data, t_data_size), MCGRectangleMake(0, 0, t_rep_width, t_rep_height), MCGRectangleMake(dx - sx, dy - sy, t_rep_width, t_rep_height), t_current_color);
+                
+                MCGPaintRelease(t_current_color);
+                
+                MCGContextRestore(t_gcontext);
+                
+                dc->unlockgcontext(t_gcontext);
+            }
+            
+            dc->setclip(t_old_clip);
 		}
 		else
 		{
@@ -88,13 +178,7 @@ void MCImage::drawme(MCDC *dc, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, in
 			// source images from flushing everything else out of the cache.
 			bool t_success = true;
 
-			MCImageFrame *t_frame = nil;
-
-			bool t_printer = dc->gettype() == CONTEXT_TYPE_PRINTER;
-			bool t_update = !((state & CS_SIZE) && (state & CS_EDITED));
-
-			if (t_update)
-				apply_transform();
+			MCGImageFrame t_frame;
 			
 			// IM-2013-11-06: [[ RefactorGraphics ]] Use common method to get image rep & transform
 			// so imagedata & rendered image have the same appearance
@@ -113,32 +197,33 @@ void MCImage::drawme(MCDC *dc, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, in
 			else
 				/* UNCHECKED */ get_rep_and_transform(t_rep, t_has_transform, t_transform);
 			
+            // MW-2014-06-19: [[ IconGravity ]] Scale the image appropriately.
+            if (dw != sw || dh != sh)
+            {
+                if (!t_has_transform)
+                {
+                    t_has_transform = true;
+                    t_transform = MCGAffineTransformMakeIdentity();
+                }
+                t_transform = MCGAffineTransformPreScale(t_transform, dw / (float)sw, dh / (float)sh);
+            }
+            
 			MCGFloat t_device_scale;
 			t_device_scale = 1.0;
 			
-			// IM-2014-01-31: [[ HiDPI ]] If we're rendering to an MCGraphicsContext, get the device scale from its MCGContextRef
-			if (dc->gettype() != CONTEXT_TYPE_PRINTER)
-			{
-				MCGContextRef t_gcontext;
-				t_gcontext = ((MCGraphicsContext *)dc)->getgcontextref();
-				
-				if (t_gcontext != nil)
-				{
-					MCGAffineTransform t_device_transform;
-					t_device_transform = MCGContextGetDeviceTransform(t_gcontext);
-					
-					// If the image has a transform, combine it with the context device transform
-					if (t_has_transform)
-						t_device_transform = MCGAffineTransformConcat(t_device_transform, t_transform);
-					
-					// get the effective scale from the combined transform
-					t_device_scale = MCGAffineTransformGetEffectiveScale(t_device_transform);
-				}
-			}
+			MCGAffineTransform t_device_transform;
+			t_device_transform = dc->getdevicetransform();
+			
+			// If the image has a transform, combine it with the context device transform
+			if (t_has_transform)
+				t_device_transform = MCGAffineTransformConcat(t_device_transform, t_transform);
+			
+			// get the effective scale from the combined transform
+			t_device_scale = MCGAffineTransformGetEffectiveScale(t_device_transform);
 			
 			// IM-2014-01-31: [[ HiDPI ]] Get the appropriate image for the combined
 			//   context device & image transforms
-			t_success = t_rep->LockImageFrame(currentframe, true, t_device_scale, t_frame);
+			t_success = t_rep->LockImageFrame(currentframe, t_device_scale, t_frame);
 			if (t_success)
 			{
 				MCImageDescriptor t_image;
@@ -149,28 +234,14 @@ void MCImage::drawme(MCDC *dc, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, in
 					t_image.transform = t_transform;
 				
 				// IM-2013-07-19: [[ ResIndependence ]] set scale factor so hi-res image draws at the right size
-				// IM-2013-10-30: [[ FullscreenMode ]] Get scale factor from the returned frame
-				t_image.scale_factor = t_frame->density;
+				// IM-2014-08-07: [[ Bug 13021 ]] Split density into x / y scale components
+				t_image.x_scale = t_frame.x_scale;
+				t_image.y_scale = t_frame.y_scale;
 
                 // MM-2014-01-27: [[ UpdateImageFilters ]] Updated to use new libgraphics image filter types.
-				// MM-2014-05-29: [[ Bug 12382 ]] Temporarily reverted the box filter back to none to improve perfromace on non-Mac platforms.
-				switch (resizequality)
-				{
-                    case INTERPOLATION_NEAREST:
-                        t_image . filter = kMCGImageFilterNone;
-                        break;
-                    case INTERPOLATION_BOX:
-                        t_image . filter = kMCGImageFilterNone;
-                        break;
-                    case INTERPOLATION_BILINEAR:
-                        t_image . filter = kMCGImageFilterMedium;
-                        break;
-                    case INTERPOLATION_BICUBIC:
-                        t_image . filter = kMCGImageFilterHigh;
-                        break;
-				}
+				t_image.filter = getimagefilter();
 
-				t_image . bitmap = t_frame->image;
+				t_image . image = t_frame.image;
 
 				if (t_printer && m_rep->GetType() == kMCImageRepResident)
 				{
@@ -190,39 +261,60 @@ void MCImage::drawme(MCDC *dc, int2 sx, int2 sy, uint2 sw, uint2 sh, int2 dx, in
 				else
 					t_image . data_type = kMCImageDataNone;
 
+                if (m_center_rect . x != INT16_MIN)
+                {
+                    t_image . has_center = true;
+                    // IM-2014-07-10: [[ Bug 12794 ]] Provide unscaled center rect to context
+					t_image . center = MCRectangleToMCGRectangle(m_center_rect);
+                }
+                else
+                    t_image . has_center = false;
+                
 				dc -> drawimage(t_image, sx, sy, sw, sh, dx, dy);
 			}
 			else
 			{
 				// can't get image data from rep
-                drawnodata(dc, drect, sw, sh, dx, dy);
+                drawnodata(dc, sw, sh, dx, dy, dw, dh);
 			}
 
-			t_rep->UnlockImageFrame(currentframe, t_frame);
+            if (t_success)
+				t_rep->UnlockImageFrame(currentframe, t_frame);
 		}
 
 		if (state & CS_DO_START)
 		{
-			MCImageFrame *t_frame = nil;
-			if (m_rep->LockImageFrame(currentframe, true, getdevicescale(), t_frame))
+			// MM-2014-07-31: [[ ThreadedRendering ]] Make sure only a single thread posts the timer message (i.e. the first that gets here)
+			if (!m_animate_posted)
 			{
-				MCscreen->addtimer(this, MCM_internal, t_frame->duration);
-				m_rep->UnlockImageFrame(currentframe, t_frame);
-
-				state &= ~CS_DO_START;
+				if (!m_animate_posted)
+				{
+					// IM-2014-11-25: [[ ImageRep ]] Use ImageRep method to get frame duration
+					uint32_t t_frame_duration;
+					t_frame_duration = 0;
+					
+					/* UNCHECKED */ m_rep->GetFrameDuration(currentframe, t_frame_duration);
+					
+					m_animate_posted = true;
+					MCscreen->addtimer(this, MCM_internal, t_frame_duration);
+				}
 			}
+
+			state &= ~CS_DO_START;
 		}
 	}
-    else if (filename != nil)
+    // AL-2014-08-04: [[ Bug 13097 ]] Image filename is never nil; check for emptiness instead
+    else if (!MCStringIsEmpty(filename))
     {
         // AL-2014-01-15: [[ Bug 11570 ]] Draw stippled background when referenced image file not found
-        drawnodata(dc, rect, sw, sh, dx, dy);
+        drawnodata(dc, sw, sh, dx, dy, dw, dh);
     }
 }
 
-void MCImage::drawnodata(MCDC *dc, MCRectangle drect, uint2 sw, uint2 sh, int2 dx, int2 dy)
+void MCImage::drawnodata(MCDC *dc, uint2 sw, uint2 sh, int2 dx, int2 dy, uint2 dw, uint2 dh)
 {
-    MCU_set_rect(drect, dx, dy, sw, sh);
+    MCRectangle drect;
+    MCU_set_rect(drect, dx, dy, dw, dh);
     setforeground(dc, DI_BACK, False);
     dc->setbackground(MCscreen->getwhite());
     dc->setfillstyle(FillOpaqueStippled, nil, 0, 0);
@@ -246,7 +338,103 @@ void MCImage::drawcentered(MCDC *dc, int2 x, int2 y, Boolean reversed)
 	dc -> setfunction(ink);
 	t_old_opacity = dc -> getopacity();
 	dc -> setopacity(blendlevel * 255 / 100);
-	drawme(dc, 0, 0, rect.width, rect.height, x - (rect.width >> 1), y - (rect.height >> 1));
+	drawme(dc, 0, 0, rect.width, rect.height, x - (rect.width >> 1), y - (rect.height >> 1), rect.width, rect.height);
+	dc -> setopacity(t_old_opacity);
+	dc -> setfunction(t_old_function);
+	flags = oldflags;
+	state = oldstate;
+}
+
+void MCImage::drawwithgravity(MCDC *dc, MCRectangle r, MCGravity p_gravity)
+{
+    assert(p_gravity != kMCGravityNone);
+    
+	uint4 oldflags = flags;
+	uint4 oldstate = state;
+	flags &= ~F_SHOW_BORDER;
+	state &= ~(CS_MAGNIFY | CS_OWN_SELECTION | CS_SELECTED);
+	uint1 t_old_function;
+	uint1 t_old_opacity;
+	t_old_function = dc -> getfunction();
+	dc -> setfunction(ink);
+	t_old_opacity = dc -> getopacity();
+	dc -> setopacity(blendlevel * 255 / 100);
+
+	int2 dx = 0;
+	int2 dy = 0;
+	uint2 dw = 0;
+	uint2 dh = 0;
+    
+    switch(p_gravity)
+    {
+        case kMCGravityLeft:
+        case kMCGravityBottomLeft:
+        case kMCGravityTopLeft:
+            dx = r . x;
+            dw = rect . width;
+            break;
+            
+        case kMCGravityRight:
+        case kMCGravityBottomRight:
+        case kMCGravityTopRight:
+            dx = r . x + r . width - rect . width;
+            dw = rect . width;
+            break;
+            
+        case kMCGravityTop:
+        case kMCGravityCenter:
+        case kMCGravityBottom:
+            dx = r . x + r . width / 2 - rect . width / 2;
+            dw = rect . width;
+            break;
+            
+        case kMCGravityResize:
+        case kMCGravityResizeAspect:
+        case kMCGravityResizeAspectFill:
+            dx = r . x;
+            dw = r . width;
+            break;
+		case kMCGravityNone:
+			MCUnreachable();
+			break;
+    }
+    
+    switch(p_gravity)
+    {
+        case kMCGravityTop:
+        case kMCGravityTopLeft:
+        case kMCGravityTopRight:
+            dy = r . y;
+            dh = rect . height;
+            break;
+            
+        case kMCGravityBottom:
+        case kMCGravityBottomRight:
+        case kMCGravityBottomLeft:
+            dy = r . y + r . height - rect . height;
+            dh = rect . height;
+            break;
+            
+        case kMCGravityRight:
+        case kMCGravityLeft:
+        case kMCGravityCenter:
+            dy = r . y + r . height / 2 - rect . height / 2;
+            dh = rect . height;
+            break;
+            
+        case kMCGravityResize:
+        case kMCGravityResizeAspect:
+        case kMCGravityResizeAspectFill:
+            dy = r . y;
+            dh = r . height;
+            break;
+		case kMCGravityNone:
+			MCUnreachable();
+			break;
+    }
+    
+    drawme(dc, 0, 0, rect . width, rect . height, dx, dy, dw, dh);
+    
 	dc -> setopacity(t_old_opacity);
 	dc -> setfunction(t_old_function);
 	flags = oldflags;
@@ -268,28 +456,28 @@ void MCImage::canceldraw(void)
 
 void MCImage::startmag(int2 x, int2 y)
 {
-	MCStack *sptr = getstack()->findstackname("Magnify");
+	MCStack *sptr = getstack()->findstackname(MCNAME("Magnify"));
 	if (sptr == NULL)
 		return;
-	if (MCmagimage != NULL)
+	if (MCmagimage)
 		MCmagimage->endmag(False);
 	MCmagimage = this;
 	state |= CS_MAGNIFY;
 
-	char buffer[U2L];
-	sprintf(buffer, "%d", rect.width * MCmagnification);
-	sptr->setsprop(P_MAX_WIDTH, buffer);
+    MCExecContext ctxt(this, nil, nil);
+    
+    sptr->SetMaxWidth(ctxt, rect.width * MCmagnification);
 
-	sprintf(buffer, "%d", rect.width * MCmagnification);
-	sptr->setsprop(P_MAX_HEIGHT, buffer);
+    sptr->SetMaxHeight(ctxt, rect.height * MCmagnification);
 
 	uint2 ssize = MCU_min(32, rect.width);
-	sprintf(buffer, "%d", ssize * MCmagnification);
-	sptr->setsprop(P_WIDTH, buffer);
+	
+    sptr->SetWidth(ctxt, ssize * MCmagnification);
 
 	ssize = MCU_min(32, rect.height);
-	sprintf(buffer, "%d", ssize * MCmagnification);
-	sptr->setsprop(P_HEIGHT, buffer);
+
+    sptr->SetHeight(ctxt, ssize * MCmagnification);
+
 
 	MCRectangle drect = sptr->getrect();
 	magrect.width = drect.width / MCmagnification;
@@ -311,10 +499,10 @@ void MCImage::endmag(Boolean close)
 		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 		layer_redrawall();
 	}
-	MCmagimage = NULL;
+	MCmagimage = nil;
 	if (close)
 	{
-		MCStack *sptr = getstack()->findstackname("Magnify");
+		MCStack *sptr = getstack()->findstackname(MCNAME("Magnify"));
 		if (sptr != NULL)
 			sptr->close();
 	}
@@ -353,7 +541,7 @@ void MCImage::magredrawdest(const MCRectangle &brect)
 
 void MCImage::magredrawrect(MCContext *dest_context, const MCRectangle &drect)
 {
-	if (MCmagnifier == NULL)
+	if (!MCmagnifier)
 		endmag(False);
 
 	MCRectangle t_mr;
@@ -370,7 +558,7 @@ void MCImage::magredrawrect(MCContext *dest_context, const MCRectangle &drect)
 	MCGContextClipToRect(t_context, MCRectangleToMCGRectangle(t_mr));
 
 	MCContext *t_gfxcontext = nil;
-	/* UNCHECKED */ t_gfxcontext = new MCGraphicsContext(t_context);
+	/* UNCHECKED */ t_gfxcontext = new (nothrow) MCGraphicsContext(t_context);
 
 	getstack() -> getcurcard() -> draw(t_gfxcontext, t_mr, false); 
 	
@@ -402,15 +590,22 @@ void MCImage::magredrawrect(MCContext *dest_context, const MCRectangle &drect)
 		// OVERHAUL - REVISIT: may be able to use scaling transform with nearest filter
 		// instead of manually scaling image
 
+		MCGImageRef t_line_img;
+		t_line_img = nil;
+		
+		/* UNCHECKED */ MCGImageCreateWithRasterNoCopy(MCImageBitmapGetMCGRaster(t_line, true), t_line_img);
+		
 		// Render the scanline into the destination context.
 		MCImageDescriptor t_image;
 		memset(&t_image, 0, sizeof(MCImageDescriptor));
-		t_image . bitmap = t_line;
+		t_image . image = t_line_img;
 
 		dest_context -> drawimage(t_image, 0, 0, linewidth, MCmagnification, 0, dy);
 		
 		dy += MCmagnification;
 		yoffset += t_magimage->stride;
+		
+		MCGImageRelease(t_line_img);
 	}
 
 	MCImageFreeBitmap(t_line);
@@ -422,8 +617,11 @@ Boolean MCImage::magmfocus(int2 x, int2 y)
 	mx = x / MCmagnification + magrect.x + rect.x;
 	my = y / MCmagnification + magrect.y + rect.y;
 
-	static_cast<MCMutableImageRep *>(m_rep)->image_mfocus(mx, my);
-
+	// IM-2014-09-15: [[ Bug 13429 ]] Make sure we're editing before calling mfocus on the
+	// mutable image
+	if (isediting())
+		static_cast<MCMutableImageRep *>(m_rep)->image_mfocus(mx, my);
+		
 	return True;
 }
 
@@ -466,10 +664,12 @@ Boolean MCImage::magmdown(uint2 which)
 
     // PM-2014-04-01: [[Bug 11072]] Convert image to mutable if an editing tool is selected, to prevent LC crashing
     if (isEditingTool(getstack()->gettool(this)))
+    {
         convert_to_mutable();
     
-	if (static_cast<MCMutableImageRep *>(m_rep)->image_mdown(which) == True)
-		return True;
+        if (static_cast<MCMutableImageRep *>(m_rep)->image_mdown(which) == True)
+            return True;
+    }
 
 	state |= CS_MFOCUSED;
 

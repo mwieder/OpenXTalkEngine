@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,8 +21,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "globals.h"
 
 #include "uidc.h"
-
-#include "core.h"
 
 #include "image.h"
 
@@ -113,7 +111,6 @@ bool MCImageCopyBitmapRegion(MCImageBitmap *p_bitmap, MCRectangle &p_region, MCI
 	if (!MCImageBitmapCreate(p_region.width, p_region.height, r_copy))
 		return false;
 
-	MCPoint t_dst_offset = {0, 0};
 	MCImageBitmapCopyRegionToBitmap(p_bitmap, r_copy, p_region.x, p_region.y, 0, 0, p_region.width, p_region.height);
 
 	if (p_bitmap->has_transparency)
@@ -474,7 +471,6 @@ void MCImageBitmapFixPremultiplied(MCImageBitmap *p_bitmap)
 				t_pixel = 0;
 			else if (t_alpha != 255)
 			{
-				uint4 t_brokenbits = 0;
 				if ((t_pixel & 0xFF) > t_alpha)
 					t_pixel = (t_pixel & ~0xFF) | t_alpha;
 				if (((t_pixel >> 8) & 0xFF) > t_alpha)
@@ -582,7 +578,6 @@ bool MCImageIndexedBitmapAddTransparency(MCImageIndexedBitmap *p_bitmap)
 	p_bitmap->palette[p_bitmap->transparent_index].red = 0xFFFF;
 	p_bitmap->palette[p_bitmap->transparent_index].green = 0xFFFF;
 	p_bitmap->palette[p_bitmap->transparent_index].blue = 0xFFFF;
-	p_bitmap->palette[p_bitmap->transparent_index].pixel = MCGPixelPackNative(255, 255, 255, 0);
 
 	return true;
 }
@@ -682,7 +677,6 @@ bool MCImageConvertBitmapToIndexed(MCImageBitmap *p_bitmap, bool p_ignore_transp
 						if (t_success)
 						{
 							hashentry->pixel = t_pixel;
-							t_indexed->palette[t_indexed->palette_size].pixel = t_pixel;
 
 							uint16_t t_component;
 							t_component = t_r;
@@ -777,7 +771,6 @@ bool MCImageForceBitmapToIndexed(MCImageBitmap *p_bitmap, bool p_dither, MCImage
 {
 	bool t_success = true;
 
-	MCImageIndexedBitmap *t_indexed = nil;
 	if (MCImageConvertBitmapToIndexed(p_bitmap, false, r_indexed))
 		return true;
 
@@ -808,33 +801,32 @@ void MCImageBitmapExtractMask(MCImageBitmap *p_bitmap, void *p_mask, uint32_t p_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCImageDataIsJPEG(const MCString& data)
+bool MCImageDataIsJPEG(MCDataRef p_input)
 {
-	const unsigned char *t_data;
-	t_data = (const unsigned char *)data . getstring();
+	const byte_t *t_data;
+	t_data = MCDataGetBytePtr(p_input);
     
 	uint4 t_length;
-	t_length = data . getlength();
+	t_length = MCDataGetLength(p_input);
     
 	if (t_length < 9)
 		return false;
     
-	if (t_data[0] != 0xFF || t_data[1] != 0xE0)
-		return false;
-    
-	if (memcmp(t_data + 4, "JFIF", 5) != 0)
-		return false;
+	if (t_data[0] != 0xFF || t_data[1] != 0xD8 || t_data[2] != 0xFF)
+        return false;
+    if (t_data[3] != 0xDB && t_data[3] != 0xE0)
+        return false;
     
 	return true;
 }
 
-bool MCImageDataIsPNG(const MCString& data)
+bool MCImageDataIsPNG(MCDataRef p_input)
 {
-	const unsigned char *t_data;
-	t_data = (const unsigned char *)data . getstring();
-    
+	const byte_t *t_data;
+	t_data = MCDataGetBytePtr(p_input);
+	
 	uint4 t_length;
-	t_length = data . getlength();
+	t_length = MCDataGetLength(p_input);
     
 	if (t_length < 8)
 		return false;
@@ -842,18 +834,79 @@ bool MCImageDataIsPNG(const MCString& data)
 	return memcmp(t_data, "\x89PNG\x0d\x0a\x1a\x0a", 8) == 0;
 }
 
-bool MCImageDataIsGIF(const MCString& data)
+bool MCImageDataIsGIF(MCDataRef p_input)
 {
-	const unsigned char *t_data;
-	t_data = (const unsigned char *)data . getstring();
-    
+    const byte_t *t_data;
+	t_data = MCDataGetBytePtr(p_input);
+	
 	uint4 t_length;
-	t_length = data . getlength();
+	t_length = MCDataGetLength(p_input);
     
 	if (t_length < 6)
 		return false;
     
 	return memcmp(t_data, "GIF87a", 6) == 0 || memcmp(t_data, "GIF89a", 6) == 0;
+}
+
+bool MCImageDataIsBMP(MCDataRef p_input)
+{
+	const byte_t* t_data = MCDataGetBytePtr(p_input);
+	uindex_t t_length = MCDataGetLength(p_input);
+
+	// This only recognises Win32-format BMPs (all other formats are obsolete)
+	if (t_length < 2)
+		return false;
+
+	return memcmp(t_data, "BM", 2) == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MCGRaster MCImageBitmapGetMCGRaster(MCImageBitmap *p_bitmap, bool p_is_premultiplied)
+{
+	MCGRaster t_raster;
+	t_raster.width = p_bitmap->width;
+	t_raster.height = p_bitmap->height;
+	t_raster.stride = p_bitmap->stride;
+	t_raster.pixels = p_bitmap->data;
+	t_raster.format = MCImageBitmapHasTransparency(p_bitmap) ? (p_is_premultiplied ? kMCGRasterFormat_ARGB : kMCGRasterFormat_U_ARGB) : kMCGRasterFormat_xRGB;
+	
+	return t_raster;
+}
+
+MCImageBitmap MCImageBitmapFromMCGRaster(const MCGRaster &p_raster)
+{
+	MCImageBitmap t_bitmap;
+	t_bitmap.width = p_raster.width;
+	t_bitmap.height = p_raster.height;
+	t_bitmap.stride = p_raster.stride;
+	t_bitmap.data = (uint32_t*)p_raster.pixels;
+	t_bitmap.has_alpha = t_bitmap.has_transparency = p_raster.format != kMCGRasterFormat_xRGB;
+	
+	return t_bitmap;
+}
+
+bool MCImageBitmapCopyAsMCGImage(MCImageBitmap *p_bitmap, bool p_is_premultiplied, MCGImageRef &r_image)
+{
+	return MCGImageCreateWithRaster(MCImageBitmapGetMCGRaster(p_bitmap, p_is_premultiplied), r_image);
+}
+
+bool MCImageBitmapCopyAsMCGImageAndRelease(MCImageBitmap *&x_bitmap, bool p_is_premultiplied, MCGImageRef &r_image)
+{
+	MCGRaster t_raster;
+	t_raster = MCImageBitmapGetMCGRaster(x_bitmap, p_is_premultiplied);
+
+	bool t_success;
+	t_success = MCGImageCreateWithRasterAndRelease(t_raster, r_image);
+
+	if (t_success)
+	{
+		x_bitmap->data = nil;
+		MCImageFreeBitmap(x_bitmap);
+		x_bitmap = nil;
+	}
+
+	return t_success;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

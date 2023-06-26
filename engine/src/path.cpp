@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -20,12 +20,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
-#include "execpt.h"
+
 
 #include "dispatch.h"
 #include "image.h"
 #include "stack.h"
 #include "util.h"
+#include "variable.h"
 
 #include "globals.h"
 
@@ -144,9 +145,6 @@ static inline void __path_append_arc(uint1*& pr_commands, int4*& pr_data, int4 c
 
 void MCPath::release(void)
 {
-	if (this == NULL)
-		return;
-
 	f_references -= 1;
 	if (f_references == 0)
 		free(this);
@@ -154,9 +152,6 @@ void MCPath::release(void)
 
 void MCPath::retain(void)
 {
-	if (this == NULL)
-		return;
-
 	f_references += 1;
 }
 
@@ -242,7 +237,7 @@ MCPath *MCPath::create_polyline(MCPoint *points, uint2 count, bool adjust)
 	return t_path;
 }
 
-MCPath *MCPath::create_polypolyline(MCSegment *segments, uint2 count, bool adjust)
+MCPath *MCPath::create_polypolyline(MCLineSegment *segments, uint2 count, bool adjust)
 {
 	MCPath *t_path;
 	uint2 t_count;
@@ -595,45 +590,6 @@ MCPath *MCPath::create_empty(void)
 	return s_empty_cache;
 }
 
-#ifndef TARGET_SUBPLATFORM_ANDROID
-
-void MCPath::fill(MCCombiner *p_combiner, const MCRectangle& clip, bool p_even_odd)
-{
-	if (this == NULL)
-		return;
-
-	fill(f_commands, f_data, p_combiner, clip, p_even_odd);
-}
-
-void MCPath::stroke(MCCombiner *p_combiner, const MCRectangle& clip, MCStrokeStyle *p_stroke)
-{
-	if (this == NULL)
-		return;
-
-	uint2 t_width = p_stroke->width;
-	p_stroke->width *= 256;
-	stroke(f_commands, f_data, p_combiner, clip, p_stroke);
-	p_stroke->width = t_width;
-}
-
-void MCPath::fill(uint1 *p_commands, int4 *p_data, MCCombiner *p_combiner, const MCRectangle& p_viewport, bool p_even_odd)
-{
-	polygon_t t_filled_path;
-	if (::fill(p_commands, p_data, t_filled_path))
-		return;
-	antialias(p_combiner, p_viewport, t_filled_path, p_even_odd);
-}
-
-void MCPath::stroke(uint1 *p_commands, int4 *p_data, MCCombiner *p_combiner, const MCRectangle& p_viewport, MCStrokeStyle *p_stroke)
-{
-	polygon_t t_stroked_path;
-	if (::stroke(p_commands, p_data, p_stroke, t_stroked_path))
-		return;
-	antialias(p_combiner, p_viewport, t_stroked_path, false);
-}
-
-#endif
-
 void MCPath::get_lengths(uint4 &r_commands, uint4 &r_points)
 {
 	r_commands = 1;
@@ -662,17 +618,17 @@ void MCPath::get_lengths(uint4 &r_commands, uint4 &r_points)
 
 MCPath *MCPath::copy_scaled(int4 p_scale)
 {
-	MCPath *t_path = new MCPath;
+	MCPath *t_path = new (nothrow) MCPath;
 	t_path->f_references = 0;
 
 	uint4 t_numpoints, t_numcommands;
 
 	get_lengths(t_numpoints, t_numcommands);
 
-	t_path->f_commands = new uint1[t_numcommands];
+	t_path->f_commands = new (nothrow) uint1[t_numcommands];
 	memcpy(t_path->f_commands, f_commands, sizeof(uint1) * t_numcommands);
 
-	t_path->f_data = new int4[t_numpoints * 2];
+	t_path->f_data = new (nothrow) int4[t_numpoints * 2];
 	for (uint4 i = 0; i < t_numpoints * 2; i++)
 		t_path->f_data[i] = f_data[i] * p_scale;
 

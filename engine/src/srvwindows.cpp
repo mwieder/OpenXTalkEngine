@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
@@ -25,7 +24,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "param.h"
 #include "mcerror.h"
-#include "execpt.h"
+
 #include "util.h"
 #include "object.h"
 #include "stack.h"
@@ -33,7 +32,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "globals.h"
 
-#include <windows.h>
 #include <sys/timeb.h>
 #include <iphlpapi.h>
 #include <shellapi.h>
@@ -45,8 +43,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include <float.h>
 #undef GetCurrentTime
 
+
 #include "system.h"
-#include "filesystem.h"
+//#include "filesystem.h"
 
 #include <fcntl.h>
 #include <crtdbg.h>
@@ -55,29 +54,29 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct MCDateTimeLocale
-{
-	const char *weekday_names[7];
-	const char *abbrev_weekday_names[7];
-	const char *month_names[12];
-	const char *abbrev_month_names[12];
-	const char *date_formats[3];
-	const char *time_formats[2];
-	const char *time24_formats[2];
-	const char *time_morning_suffix;
-	const char *time_evening_suffix;
-};
+//struct MCDateTimeLocale
+//{
+//	const char *weekday_names[7];
+//	const char *abbrev_weekday_names[7];
+//	const char *month_names[12];
+//	const char *abbrev_month_names[12];
+//	const char *date_formats[3];
+//	const char *time_formats[2];
+//	const char *time24_formats[2];
+//	const char *time_morning_suffix;
+//	const char *time_evening_suffix;
+//};
 
-struct MCDateTime
-{
-	int4 year;
-	int4 month;
-	int4 day;
-	int4 hour;
-	int4 minute;
-	int4 second;
-	int4 bias;
-};
+//struct MCDateTime
+//{
+//	int4 year;
+//	int4 month;
+//	int4 day;
+//	int4 hour;
+//	int4 minute;
+//	int4 second;
+//	int4 bias;
+//};
 
 static int inet_aton(const char *cp, struct in_addr *inp)
 {
@@ -140,6 +139,7 @@ static uint2 MCS_charsettolangid(uint1 charset)
 	return 0;
 }
 
+#ifdef LEGACY_SERVER
 class MCStdioFileHandle: public MCSystemFileHandle
 {
 public:
@@ -151,7 +151,7 @@ public:
 			return NULL;
 		
 		MCStdioFileHandle *t_handle;
-		t_handle = new MCStdioFileHandle;
+		t_handle = new (nothrow) MCStdioFileHandle;
 		t_handle -> m_stream = t_stream;
 		
 		return t_handle;
@@ -169,7 +169,7 @@ public:
 			setbuf(t_stream, NULL);
 		
 		MCStdioFileHandle *t_handle;
-		t_handle = new MCStdioFileHandle;
+		t_handle = new (nothrow) MCStdioFileHandle;
 		t_handle -> m_stream = t_stream;
 		
 		return t_handle;
@@ -238,7 +238,7 @@ public:
 		return _ftelli64(m_stream);
 	}
 	
-	virtual int64_t GetFileSize(void)
+	virtual uint64_t GetFileSize(void)
 	{
 		struct _stat64 t_info;
 		if (_fstat64(fileno(m_stream), &t_info) != 0)
@@ -290,32 +290,21 @@ struct MCWindowsSystem: public MCSystemInterface
 		return GetCurrentProcessId();
 	}
 
-	virtual char *GetVersion(void)
+	virtual bool GetVersion(MCStringRef& r_string)
 	{
-		char *buffer;
-		buffer = new char[9 + 2 * I4L];
-		sprintf(buffer, "NT %d.%d", (MCmajorosversion >> 8) & 0xFF, MCmajorosversion & 0xFF);
-		return buffer;
+		return MCStringFormat(r_string, "NT %d.%d", MCOSVersionGetMajor(MCmajorosversion), MCOSVersionGetMinor(MCmajorosversion));
 	}
 
-	virtual char *GetMachine(void)
+	virtual bool GetMachine(MCStringRef& r_string)
 	{
-		return strclone("x86");
-	}
+        return MCS_getprocessor(r_string);
+    }
 
-	virtual char *GetProcessor(void)
+	virtual void GetAddress(MCStringRef& r_address)
 	{
-		return strclone("x86");
-	}
-
-	virtual char *GetAddress(void)
-	{
-		char *buffer;
-		buffer = new char[MAXHOSTNAMELEN + strlen(MCcmd) + 2];
-		gethostname(buffer, MAXHOSTNAMELEN);
-		strcat(buffer, ":");
-		strcat(buffer, MCcmd);
-		return buffer;
+		char t_buffer[MAXHOSTNAMELEN];
+		gethostname(t_buffer, MAXHOSTNAMELEN);
+		/* UNCHECKED */ MCStringFormat(r_address, "%s:%s", t_buffer, MCStringGetCString(MCcmd));
 	}
 	
 	virtual void Alarm(real64_t p_interval)
@@ -331,63 +320,70 @@ struct MCWindowsSystem: public MCSystemInterface
 	{
 	}
 	
-	virtual void SetEnv(const char *name, const char *value)
+	virtual void SetEnv(MCStringRef p_name, MCStringRef p_value)
 	{
-		if (value == NULL)
+		const char *t_name = MCStringGetCString(p_name);
+		const char *t_value = MCStringGetCString(p_value);
+
+		if (t_value == NULL)
 		{
-			char *dptr = new char[strlen(name) + 2];
-			sprintf(dptr, "%s=", name);
+			char *dptr = new (nothrow) char[strlen(t_name) + 2];
+			sprintf(dptr, "%s=", t_name);
 			_putenv(dptr);
 			delete[] dptr;
 		}
 		else
 		{
-			char *dptr = new char[strlen(name) + strlen(value) + 2];
-			sprintf(dptr, "%s=%s", name, value);
+			char *dptr = new (nothrow) char[strlen(t_name) + strlen(t_value) + 2];
+			sprintf(dptr, "%s=%s", t_name, t_value);
 			_putenv(dptr);
 			delete[] dptr;
 		}
 	}
 
-	virtual char *GetEnv(const char *name)
+	virtual void GetEnv(MCStringRef p_name, MCStringRef& r_value)
 	{
-		return getenv(name);
+		if (!getenv(MCStringGetCString(p_name)))
+			/* UNCHECKED */ MCStringCreateWithCString(getenv(MCStringGetCString(p_name)), r_value);
+		else
+			return;
+	}
+
+	
+	virtual bool CreateFolder(MCStringRef p_path)
+	{
+		return _mkdir(MCStringGetCString(p_path)) == 0;
 	}
 	
-	virtual bool CreateFolder(const char *p_path)
+	virtual bool DeleteFolder(MCStringRef p_path)
 	{
-		return _mkdir(p_path) == 0;
+		return _rmdir(MCStringGetCString(p_path)) == 0;
 	}
 	
-	virtual bool DeleteFolder(const char *p_path)
+	virtual bool DeleteFile(MCStringRef p_path)
 	{
-		return _rmdir(p_path) == 0;
+		return unlink(MCStringGetCString(p_path)) == 0;
 	}
 	
-	virtual bool DeleteFile(const char *p_path)
+	virtual bool RenameFileOrFolder(MCStringRef p_old_name, MCStringRef p_new_name)
 	{
-		return unlink(p_path) == 0;
+		return rename(MCStringGetCString(p_old_name), MCStringGetCString(p_new_name)) == 0;
 	}
 	
-	virtual bool RenameFileOrFolder(const char *p_old_name, const char *p_new_name)
+	virtual bool BackupFile(MCStringRef p_old_name, MCStringRef p_new_name)
 	{
-		return rename(p_old_name, p_new_name) == 0;
+		return rename(MCStringGetCString(p_old_name), MCStringGetCString(p_new_name)) == 0;
 	}
 	
-	virtual bool BackupFile(const char *p_old_name, const char *p_new_name)
+	virtual bool UnbackupFile(MCStringRef p_old_name, MCStringRef p_new_name)
 	{
-		return rename(p_old_name, p_new_name) == 0;
+		return rename(MCStringGetCString(p_old_name), MCStringGetCString(p_new_name)) == 0;
 	}
 	
-	virtual bool UnbackupFile(const char *p_old_name, const char *p_new_name)
+	virtual bool CreateAlias(MCStringRef p_in_source, MCStringRef p_dest)
 	{
-		return rename(p_old_name, p_new_name) == 0;
-	}
-	
-	virtual bool CreateAlias(const char *in_source, const char *dest)
-	{
-		char *source;
-		source = strdup(in_source);
+		char *t_source;
+		t_source = strdup(MCStringGetCString(p_in_source));
 		HRESULT err;
 		IShellLinkA *ISHLNKvar1;
 		err = CoCreateInstance(CLSID_ShellLink, NULL,
@@ -396,45 +392,50 @@ struct MCWindowsSystem: public MCSystemInterface
 		if (SUCCEEDED(err))
 		{
 			IPersistFile *IPFILEvar1;
-			if (source[1] != ':' && source[0] != '/')
+			if (t_source[1] != ':' && t_source[0] != '/')
 			{
-				char *tpath = MCS_getcurdir(); //prepend the current dir
+				MCAutoStringRef tpath_string;
+				MCS_getcurdir(&tpath_string); //prepend the current dir
+				char *tpath;
+				if (*tpath_string != nil)
+					MCCStringClone(MCStringGetCString(*tpath_string), tpath);
+
 				strcat(tpath, "/");
-				strcat(tpath, source);
-				delete source;
+				strcat(tpath, t_source);
+				delete t_source;
 				MCU_path2native(tpath);
-				source = tpath;
+				t_source = tpath;
 			}
-			ISHLNKvar1->SetPath(source);
-			char *buffer = strrchr(source, '\\' );
+			ISHLNKvar1->SetPath(t_source);
+			char *buffer = strrchr(t_source, '\\' );
 			if (buffer != NULL)
 			{
 				*(buffer+1) = '\0';
-				ISHLNKvar1->SetWorkingDirectory(source);
+				ISHLNKvar1->SetWorkingDirectory(t_source);
 			}
 			err = ISHLNKvar1->QueryInterface(IID_IPersistFile, (void **)&IPFILEvar1);
 			if (SUCCEEDED(err))
 			{
 				WORD DWbuffer[PATH_MAX];
-				MultiByteToWideChar(CP_ACP, 0, dest, -1,
+				MultiByteToWideChar(CP_ACP, 0, MCStringGetCString(p_dest), -1,
 									(LPWSTR)DWbuffer, PATH_MAX);
 				err = IPFILEvar1->Save((LPCOLESTR)DWbuffer, TRUE);
 				IPFILEvar1->Release();
 			}
 			ISHLNKvar1->Release();
 		}
-		free(source);
+		free(t_source);
 		return SUCCEEDED(err);
 	}
 	
-	virtual char *ResolveAlias(const char *source)
+	virtual void ResolveAlias(MCStringRef p_source, MCStringRef& r_dest)
 	{
-		char *dest = new char[PATH_MAX];
+		char *t_dest = new (nothrow) char[PATH_MAX];
 		HRESULT hres;
 		IShellLinkA* psl;
 		char szGotPath[PATH_MAX];
 		WIN32_FIND_DATA wfd;
-		*dest = 0;
+		*t_dest = 0;
 		hres = CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
 								IID_IShellLinkA, (LPVOID *) &psl);
 		if (SUCCEEDED(hres))
@@ -444,7 +445,7 @@ struct MCWindowsSystem: public MCSystemInterface
 			if (SUCCEEDED(hres))
 			{
 				WORD wsz[PATH_MAX];
-				MultiByteToWideChar(CP_ACP, 0, source, -1, (LPWSTR)wsz, PATH_MAX);
+				MultiByteToWideChar(CP_ACP, 0, MCStringGetCString(p_source), -1, (LPWSTR)wsz, PATH_MAX);
 				hres = ppf->Load((LPCOLESTR)wsz, STGM_READ);
 				if (SUCCEEDED(hres))
 				{
@@ -453,7 +454,7 @@ struct MCWindowsSystem: public MCSystemInterface
 					{
 						hres = psl->GetPath(szGotPath, PATH_MAX, (WIN32_FIND_DATAA *)&wfd,
 											SLGP_SHORTPATH);
-						lstrcpyA(dest, szGotPath);
+						lstrcpyA(t_dest, szGotPath);
 					}
 				}
 				ppf->Release();
@@ -462,26 +463,34 @@ struct MCWindowsSystem: public MCSystemInterface
 		}
 		if (SUCCEEDED(hres))
 		{
-			MCU_path2std(dest);
+			MCU_path2std(t_dest);
 		}
 		else
 		{
-			delete dest;
-			dest = NULL;
+			delete t_dest;
+			t_dest = NULL;
 		}
-		return dest;
+
+		/* UNCHECKED */ MCStringCreateWithCString(t_dest, r_dest);
+		
 	}
 	
-	virtual char *GetCurrentFolder(void)
+	virtual bool GetCurrentFolder(MCStringRef& r_path)
 	{
-		char *dptr = new char[PATH_MAX + 2];
-		GetCurrentDirectoryA(PATH_MAX +1, (LPSTR)dptr);
-		return dptr;
+		MCAutoNativeCharArray t_buffer;
+		DWORD t_path_len = GetCurrentDirectoryA(0, NULL);
+		if (t_path_len == 0 || !t_buffer.New(t_path_len))
+			return false;
+		if (t_path_len - 1 != GetCurrentDirectoryA(t_path_len, (LPSTR)t_buffer.Chars()))
+			return false;
+
+		t_buffer.Shrink(t_path_len - 1);
+		return t_buffer.CreateStringAndRelease(r_path);
 	}
 	
-	virtual bool SetCurrentFolder(const char *p_path)
+	virtual bool SetCurrentFolder(MCStringRef p_path)
 	{
-		BOOL done = SetCurrentDirectoryA((LPCSTR)p_path);
+		BOOL done = SetCurrentDirectoryA((LPCSTR) MCStringGetCString(p_path));
 		return done == TRUE;
 	}
 	
@@ -554,9 +563,14 @@ struct MCWindowsSystem: public MCSystemInterface
 		{
 			MCU_path2std(t_path);
 
+			MCAutoStringRef t_path_string;
+			/* UNCHECKED */ MCStringCreateWithCString(t_path, &t_path_string);
+
 			char *t_long_path;
-			t_long_path = LongFilePath(t_path);
-			if (t_long_path == nil)
+			MCAutoStringRef t_long_path_string;
+			if (LongFilePath(*t_path_string, &t_long_path_string))
+				t_long_path = strdup(MCStringGetCString(*t_long_path_string));
+			else
 				t_long_path = strdup(t_path);
 
 			return t_long_path;
@@ -577,7 +591,7 @@ struct MCWindowsSystem: public MCSystemInterface
 		{
 			// newpath is of form "<driveletter>:"
 			char *t_modified_path;
-			t_modified_path = new char[strlen(path) + 2];
+			t_modified_path = new (nothrow) char[strlen(path) + 2];
 			strcpy(t_modified_path, path);
 			strcat(t_modified_path, "\\");
 			newpath = t_modified_path;
@@ -611,21 +625,22 @@ struct MCWindowsSystem: public MCSystemInterface
 		return Exists(p_path, False);
 	}
 	
-	virtual bool FileNotAccessible(const char *path)
+	virtual bool FileNotAccessible(MCStringRef p_path)
 	{
+
 		struct stat buf;
-		if (stat(path, &buf))
+		if (stat(MCStringGetCString(p_path), &buf))
 			return False;
-		if (buf.st_mode & S_IFDIR)
+		if (S_ISDIR(buf.st_mode))
 			return True;
 		if (!(buf.st_mode & _S_IWRITE))
 			return True;
 		return False;
 	}
 	
-	virtual bool ChangePermissions(const char *p_path, uint2 p_mask)
+	virtual bool ChangePermissions(MCStringRef p_path, uint2 p_mask)
 	{
-		return chmod(p_path, p_mask) == 0;
+		return chmod(MCStringGetCString(p_path), p_mask) == 0;
 	}
 	
 	virtual uint2 UMask(uint2 mask)
@@ -633,14 +648,14 @@ struct MCWindowsSystem: public MCSystemInterface
 		return _umask(mask);
 	}
 	
-	virtual MCSystemFileHandle *OpenFile(const char *p_path, uint32_t p_mode, bool p_map)
+	virtual MCSystemFileHandle *OpenFile(MCStringRef p_path, uint32_t p_mode, bool p_map)
 	{
 		static const char *s_modes[] = { "rb", "wb", "rb+", "ab" };
 
 		MCSystemFileHandle *t_handle;
-		t_handle = MCStdioFileHandle::Open(p_path, s_modes[p_mode & 0xff]);
-		if (t_handle == NULL && p_mode == kMCSystemFileModeUpdate)
-			t_handle = MCStdioFileHandle::Open(p_path, "wb+");
+		t_handle = MCStdioFileHandle::Open(MCStringGetCString(p_path), s_modes[p_mode & 0xff]);
+		if (t_handle == NULL && p_mode == kMCOpenFileModeUpdate)
+			t_handle = MCStdioFileHandle::Open(MCStringGetCString(p_path), "wb+");
 		
 		return t_handle;
 	}
@@ -652,7 +667,7 @@ struct MCWindowsSystem: public MCSystemInterface
 		return MCStdioFileHandle::OpenFd(i, s_modes[i]);
 	}
 	
-	virtual MCSystemFileHandle *OpenDevice(const char *p_path, uint32_t p_mode, const char *p_control_string)
+	virtual MCSystemFileHandle *OpenDevice(MCStringRef p_path, uint32_t p_mode, MCStringRef p_control_string)
 	{
 		return NULL;
 	}
@@ -663,9 +678,9 @@ struct MCWindowsSystem: public MCSystemInterface
 
 		// MW-2008-06-19: Make sure fname is stored in a static to keep the (rather
 		//   unpleasant) current semantics of the call.
-		static char *fname;
-		if (fname != NULL)
-			delete fname;
+		// SN-2015-07-15: [[ ServerCrash ]] t_file in MCS_tmpnam will delete fname
+		//  outside of this function - we don't keep it as static here.
+		char *fname = NULL;
 
 		// TS-2008-06-18: [[ Bug 6403 ]] - specialFolderPath() returns 8.3 paths
 		fname = _tempnam("\\tmp", "tmp");
@@ -676,16 +691,19 @@ struct MCWindowsSystem: public MCSystemInterface
 		
 		MCU_path2std(fname);
 
-		char *t_long_fname;
-		t_long_fname = LongFilePath(fname);
-		if (t_long_fname == nil)
+		MCAutoStringRef t_fname_string;
+		/* UNCHECKED */ MCStringCreateWithCString(fname, &t_fname_string);
+
+		MCAutoStringRef t_long_fname_string;
+		if (!LongFilePath(*t_fname_string, &t_long_fname_string))
 			ep . setsvalue(fname);
 		else
-		{
-			delete fname;
-			fname = t_long_fname;
+        {
+			fname = strdup(MCStringGetCString(*t_long_fname_string));
 			ep . setsvalue(fname);
-		}
+        }
+        
+        ep . grabsvalue();
 		
 		if (t_ptr != NULL)
 			ep.appendstringf("/%s", ++t_ptr);
@@ -693,6 +711,7 @@ struct MCWindowsSystem: public MCSystemInterface
 		// MW-2008-06-19: Make sure we delete this version of fname, since we don't
 		//   need it anymore.
 		delete fname;
+		delete t_long_fname;
 
 		// MW-2008-06-19: Use ep . getsvalue() . clone() to make sure we get a copy
 		//   of the ExecPoint's string as a NUL-terminated (C-string) string.
@@ -700,38 +719,16 @@ struct MCWindowsSystem: public MCSystemInterface
 
 		return fname;
 	}
-	
-	//////////
-	
-	virtual void *LoadModule(const char *p_path)
-	{
-		char *t_native_path;
-		t_native_path = ResolvePath(p_path);
 
-		HMODULE t_handle;
-		t_handle = LoadLibraryExA(t_native_path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
-		
-		free(t_native_path);
-
-		return t_handle;
-	}
-	
-	virtual void *ResolveModuleSymbol(void *p_module, const char *p_symbol)
-	{
-		return GetProcAddress((HMODULE)p_module, p_symbol);
-	}
-	
-	virtual void UnloadModule(void *p_module)
-	{
-		FreeLibrary((HMODULE)p_module);
-	}
-	
 	////
 	
-	char *LongFilePath(const char *p_path)
+	bool LongFilePath(MCStringRef p_path, MCStringRef& r_long_path)
 	{
-		char *shortpath = MCS_resolvepath(p_path);
-		char *longpath = new char[PATH_MAX];
+		MCAutoStringRef t_newpath_string;
+		MCS_resolvepath(p_path, &t_newpath_string);
+
+		char *shortpath = strdup(MCStringGetCString(*t_newpath_string));
+		char *longpath = new (nothrow) char[PATH_MAX];
 		char *p, *pStart;
 		char buff[PATH_MAX];
 		WIN32_FIND_DATAA wfd;
@@ -773,7 +770,7 @@ struct MCWindowsSystem: public MCSystemInterface
 					{
 						delete longpath;
 						delete shortpath;
-						return nil;
+						return false;
 					}
 					strcat(longpath, wfd.cFileName);
 					FindClose(handle);
@@ -793,67 +790,84 @@ struct MCWindowsSystem: public MCSystemInterface
 		}
 		MCU_path2std(longpath);
 		delete shortpath;
-		return longpath;
+		/* UNCHECKED */ MCStringCreateWithCString(longpath, r_long_path);
+		return false;
 	}
+
+	/* WRAPPER */
+	/*bool LongFilePath(MCStringRef p_path, MCStringRef& r_long_path)
+	{
+		MCAutoStringRef t_path;
+		MCAutoPointer<char> t_long_path;
+		t_long_path = LongFilePath(MCStringGetCString(p_path));
+		return *t_long_path != nil && MCStringCreateWithCString(*t_long_path, r_long_path);
+	}*/
 
 	char *ShortFilePath(const char *p_path)
 	{
-		char *shortpath = new char[PATH_MAX];
-		char *newpath = MCS_resolvepath(p_path);
-		if (!GetShortPathNameA(newpath, shortpath, PATH_MAX))
+		char *shortpath = new (nothrow) char[PATH_MAX];
+		MCAutoStringRef t_newpath_string;
+		MCAutoStringRef t_path_string;
+		/* UNCHECKED */ MCStringCreateWithCString(p_path, &t_path_string);
+
+
+		MCS_resolvepath(&t_path_string, &t_newpath_string);
+		if (!GetShortPathNameA(MCStringGetCString(*t_newpath_string), shortpath, PATH_MAX))
 		{
 			delete shortpath;
 			shortpath = nil;
 		}
 		else
 			MCU_path2std(shortpath);
-		delete newpath;
+		
 		return shortpath;
+	}
+
+	/* WRAPPER */
+	bool ShortFilePath(MCStringRef p_path, MCStringRef& r_short_path)
+	{
+		MCAutoStringRef t_path;
+		MCAutoPointer<char> t_short_path;
+		t_short_path = ShortFilePath(MCStringGetCString(p_path));
+		return *t_short_path != nil && MCStringCreateWithCString(*t_short_path, r_short_path);
 	}
 
 	////
 
-	char *PathToNative(const char *p_path)
+	bool PathToNative(MCStringRef p_path, MCStringRef& r_native)
 	{
-		char *t_path;
-		t_path = strdup(p_path);
-		MCU_path2native(t_path);
-		return t_path;
+		return MCU_path2native(p_path, r_native);
 	}
 	
-	char *PathFromNative(const char *p_path)
+	bool PathFromNative(MCStringRef p_native, MCStringRef& r_path)
 	{
-		char *t_path;
-		t_path = strdup(p_path);
-		MCU_path2std(t_path);
-		return t_path;
+		return MCU_path2std(p_native, r_path);
+	}
+
+	bool ResolvePath(MCStringRef p_path, MCStringRef& r_resolved)
+	{
+		return ResolveNativePath(p_path, r_resolved);
 	}
 	
-	char *ResolvePath(const char *p_path)
+	bool ResolveNativePath(MCStringRef p_path, MCStringRef& r_resolved)
 	{
-		return ResolveNativePath(p_path);
-	}
-	
-	char *ResolveNativePath(const char *path)
-	{
-		if (path == NULL)
-		{
-			char *tpath = GetCurrentFolder();
-			return tpath;
-		}
+		if (MCStringGetLength(p_path) == 0)
+			return GetCurrentFolder(r_resolved);
 
 		DWORD t_count;
-		t_count = GetFullPathNameA(path, 0, NULL, NULL);
+		t_count = GetFullPathNameA(MCStringGetCString(p_path), 0, NULL, NULL);
 
-		char *t_path;
-		t_path = new char[t_count];
-		GetFullPathNameA(path, t_count, t_path, NULL);
+		MCAutoNativeCharArray t_path;
+		if (!t_path.New(t_count))
+			return false;
 
-		return t_path;
+		GetFullPathNameA(MCStringGetCString(p_path), t_count, (LPSTR)t_path.Chars(), NULL);
+
+		return t_path.CreateStringAndRelease(r_resolved);
 	}
 	
 	
-	bool ListFolderEntries(MCSystemListFolderEntriesCallback p_callback, void *p_context)
+	bool ListFolderEntries(MCStringRef p_folder, MCSystemListFolderEntriesCallback p_callback, void *p_context)
 	{
 		MCSystemFolderEntry t_entry;
 		memset(&t_entry, 0, sizeof(MCSystemFolderEntry));
@@ -863,13 +877,19 @@ struct MCWindowsSystem: public MCSystemInterface
 		uint4 t_entry_count;
 		t_entry_count = 0;
 		Boolean ok = False;
-		char *tpath = GetCurrentFolder();
-		char *spath = new char [strlen(tpath) + 5];//path to be searched
+
+		MCAutoStringRef tpath_ref;
+		if (p_folder == nil)
+			/* UNCHECKED */ GetCurrentFolder(&tpath_ref);
+		else
+			&tpath_ref = MCValueRetain (p_folder);
+
+		char *tpath = strdup(MCStringGetCString(*tpath_ref));
+		char *spath = new (nothrow) char [strlen(tpath) + 5];//path to be searched
 		strcpy(spath, tpath);
 		if (tpath[strlen(tpath) - 1] != '\\')
 			strcat(spath, "\\");
 		strcat(spath, "*.*");
-		delete tpath;
 		/*
 		* Now open the directory for reading and iterate over the contents.
 		*/
@@ -880,14 +900,32 @@ struct MCWindowsSystem: public MCSystemInterface
 			return true;
 		}
 
+		/* For each directory entry, we need to construct a path that can
+		 * be passed to stat(2).  Allocate a buffer large enough for the
+		 * path, a path separator character, and any possible filename. */
+		size_t t_path_len = strlen(tpath);
+		size_t t_entry_path_len = t_path_len + 1 + MAX_PATH;
+		char *t_entry_path = new (nothrow) char[t_entry_path_len + 1];
+		strcpy (t_entry_path, tpath);
+		if (tpath[t_path_len - 1] != '\\')
+		{
+			strcat (t_entry_path, "\\");
+			++t_path_len;
+		}
+		delete tpath;
+
 		bool t_success;
 		t_success = true;
 		while(t_success)
 		{
 			if (!strequal(data.cFileName, "."))
 			{
+				/* Truncate and append entry name */
+				t_entry_path[t_path_len] = 0;
+				strcat (t_entry_path, data.cFilename);
+
 				struct _stati64 t_stat;
-				_stati64(data.cFileName, &t_stat);
+				_stati64(t_entry_path, &t_stat);
 
 				t_entry . name = data . cFileName;
 				t_entry . data_size = t_stat . st_size;
@@ -906,12 +944,14 @@ struct MCWindowsSystem: public MCSystemInterface
 		}
 		FindClose(ffh);
 		delete spath;
+		delete t_entry_path;
 
 		return t_success;
 	}
 	
-	bool Shell(const char *p_cmd, uint32_t p_cmd_length, void*& r_data, uint32_t& r_data_length, int& r_retcode)
+	bool Shell(MCStringRef p_cmd, MCDataRef& r_data, int& r_retcode)
 	{
+		
 		bool t_success;
 		t_success = true;
 
@@ -920,7 +960,7 @@ struct MCWindowsSystem: public MCSystemInterface
 		char *t_command;
 		t_command = nil;
 		if (t_success)
-			t_success = MCCStringFormat(t_command, "cmd.exe /C %.*s", p_cmd_length, p_cmd);
+			t_success = MCCStringFormat(t_command, "cmd.exe /C %.*s", MCStringGetLength(p_cmd), p_cmd);
 
 		// The pipe handles need to be inherited by the shell process, this is
 		// indicated via the security attributes.
@@ -1015,8 +1055,8 @@ struct MCWindowsSystem: public MCSystemInterface
 
 		if (t_success)
 		{
-			r_data = t_data;
-			r_data_length = t_data_length;
+			r_data = (MCDataRef) t_data;
+			//r_data_length = t_data_length;
 		}
 		else
 			MCMemoryDeallocate(t_data);
@@ -1037,10 +1077,10 @@ struct MCWindowsSystem: public MCSystemInterface
 		return strdup(t_hostname);
 	}
 	
-	bool HostNameToAddress(const char *p_hostname, MCSystemHostResolveCallback p_callback, void *p_context)
+	bool HostNameToAddress(MCStringRef p_hostname, MCSystemHostResolveCallback p_callback, void *p_context)
 	{
 		struct hostent *he;
-		he = gethostbyname(p_hostname);
+		he = gethostbyname(MCStringGetCString(p_hostname));
 		if (he == NULL)
 			return false;
 		
@@ -1048,16 +1088,22 @@ struct MCWindowsSystem: public MCSystemInterface
 		ptr = (struct in_addr **)he -> h_addr_list;
 		
 		for(uint32_t i = 0; ptr[i] != NULL; i++)
-			if (!p_callback(p_context, inet_ntoa(*ptr[i])))
+		{
+			MCAutoStringRef t_address;
+			char *t_addr_str = inet_ntoa(*ptr[i]);
+			if (!MCStringCreateWithNativeChars((char_t*)t_addr_str, MCCStringLength(t_addr_str), &t_address))
 				return false;
+			if (!p_callback(p_context, *t_address))
+				return false;
+		}
 		
 		return true;
 	}
-	
-	bool AddressToHostName(const char *p_address, MCSystemHostResolveCallback p_callback, void *p_context)
+
+	bool AddressToHostName(MCStringRef p_address, MCSystemHostResolveCallback p_callback, void *p_context)
 	{
 		struct in_addr addr;
-		if (!inet_aton(p_address, &addr))
+		if (!inet_aton(MCStringGetCString(p_address), &addr))
 			return false;
 			
 		struct hostent *he;
@@ -1065,7 +1111,9 @@ struct MCWindowsSystem: public MCSystemInterface
 		if (he == NULL)
 			return false;
 		
-		return p_callback(p_context, he -> h_name);
+		MCAutoStringRef t_name;
+		return MCStringCreateWithNativeChars((char_t*)he->h_name, MCCStringLength(he->h_name), &t_name) &&
+			p_callback(p_context, *t_name);
 	}
 	
 	//////////////////
@@ -1095,7 +1143,7 @@ struct MCWindowsSystem: public MCSystemInterface
 		t_ulength = TextConvert(p_string, p_string_length, NULL, 0, p_from_charset, LCH_UNICODE);
 
 		char *t_ubuffer;
-		t_ubuffer = new char[t_ulength];
+		t_ubuffer = new (nothrow) char[t_ulength];
 		TextConvert(p_string, p_string_length, t_ubuffer, t_ulength, p_from_charset, LCH_UNICODE);
 
 		uint32_t t_used;
@@ -1171,38 +1219,40 @@ bool MCS_isnan(double v)
 {
 	return _isnan(v) != 0;
 }
+#endif /* LEGACY_SERVER */
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCS_get_temporary_folder(char *&r_temp_folder)
+bool MCS_get_temporary_folder(MCStringRef &r_temp_folder)
 {
+	// MCS_get_temporay_folder is supposed to return an existing folder
+	// which is not the case with MCsystem -> GetTemporaryFilename
+//	  return MCsystem -> GetTemporaryFilename(r_temp_folder);
 	WCHAR t_tmpdir[MAX_PATH];
 	int32_t t_tmpdir_len = 0;
-	t_tmpdir_len = GetTempPath(MAX_PATH, t_tmpdir);
+	t_tmpdir_len = GetTempPathW(MAX_PATH, t_tmpdir);
 
-	return MCFileSystemPathFromNative(t_tmpdir, r_temp_folder);
+	MCAutoStringRef t_native_tmp, t_short_tmp;
+
+	return (MCStringCreateWithWString(t_tmpdir, &t_native_tmp)
+			&& MCsystem->PathFromNative(*t_native_tmp, &t_short_tmp)
+			&& MCS_longfilepath(*t_short_tmp, r_temp_folder));
 }
 
-bool MCS_create_temporary_file(const char *p_path, const char *p_prefix, IO_handle &r_file, char *&r_name)
+bool MCS_create_temporary_file(MCStringRef p_path_string, MCStringRef p_prefix_string, IO_handle &r_file, MCStringRef &r_name_string)
 {
 	bool t_success = true;
-	bool t_have_file = false;
 	
-	char *t_temp_file = NULL;
 	GUID t_guid;
 	WCHAR *t_guid_utf16 = NULL;
 	
-	HANDLE t_temp_handle = NULL;
+	IO_handle t_temp_handle = NULL;
 	
-	while (t_success && !t_have_file)
+	MCAutoStringRef t_temp_file;
+	while (t_success && t_temp_handle == NULL)
 	{
 		CoCreateGuid(&t_guid);
 		
-		if (t_temp_file != NULL)
-		{
-			MCCStringFree(t_temp_file);
-			t_temp_file = NULL;
-		}
 		if (t_guid_utf16 != NULL)
 		{
 			CoTaskMemFree(t_guid_utf16);
@@ -1217,26 +1267,22 @@ bool MCS_create_temporary_file(const char *p_path, const char *p_prefix, IO_hand
 			for (i = 0; t_guid_utf16[i] != '\0'; i++)
 				t_guid_string[i] = t_guid_utf16[i] & 0xFF;
 			t_guid_string[i] = '\0';
-			t_success = MCCStringFormat(t_temp_file, "%s/%s%s", p_path, p_prefix, t_guid_string);
+			t_success = MCStringFormat(&t_temp_file, "%@/%@%s", p_path_string, p_prefix_string, t_guid_string);
 		}
 		
 		if (t_success)
 		{
-			t_temp_handle = CreateFileA(t_temp_file, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (t_temp_handle != INVALID_HANDLE_VALUE)
-				t_have_file = true;
-			else
+			t_temp_handle = MCsystem->OpenFile(*t_temp_file, (intenum_t)kMCOpenFileModeCreate, false);
+			if (t_temp_handle == NULL)
 				t_success = GetLastError() == ERROR_FILE_EXISTS;
 		}
 	}
 	
 	if (t_success)
 	{
-		r_file = new IO_header(MCStdioFileHandle :: OpenFd(_open_osfhandle((intptr_t)t_temp_handle, _O_RDWR), "w+"), 0);
-		r_name = t_temp_file;
+		r_file = t_temp_handle;
+		r_name_string = t_temp_file.Take();
 	}
-	else
-		MCCStringFree(t_temp_file);
 	
 	CoTaskMemFree(t_guid_utf16);
 	return t_success;
@@ -1244,9 +1290,8 @@ bool MCS_create_temporary_file(const char *p_path, const char *p_prefix, IO_hand
 
 bool MCSystemLockFile(MCSystemFileHandle *p_file, bool p_shared, bool p_wait)
 {
-	int t_fd = fileno(((MCStdioFileHandle*)p_file)->GetStream());
-	
-	HANDLE t_fhandle = (HANDLE)_get_osfhandle(t_fd);
+	HANDLE t_fhandle;
+	t_fhandle = p_file->GetFilePointer();
 
 	bool t_success = true;
 

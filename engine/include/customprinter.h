@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -35,12 +35,18 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 struct MCCustomPrinterDocument
 {
+    MCCustomPrinterDocument()
+    : title(nullptr), filename(nullptr),
+        option_count(0),
+        option_keys(nullptr), option_values(nullptr)
+    {}
+
 	const char *title;
 	const char *filename;
 
 	uint32_t option_count;
-	const char * const *option_keys;
-	const char * const *option_values;
+	char * const *option_keys;
+	char * const *option_values;
 };
 
 struct MCCustomPrinterPage
@@ -111,6 +117,12 @@ enum MCCustomPrinterImageType
 	// PNG image data
 	kMCCustomPrinterImagePNG
 };
+
+#ifdef __LITTLE_ENDIAN__
+#define kMCCustomPrinterImagePixelFormat kMCGPixelFormatBGRA
+#else
+#define kMCCustomPrinterImagePixelFormat kMCGPixelFormatARGB
+#endif
 
 struct MCCustomPrinterImage
 {
@@ -331,7 +343,7 @@ public:
 
 	// Return the error string describing the reason for 'false' being returned
 	// from one of the action methods. 'nil' should be returned if no error
-	// has occured.
+	// has occurred.
 	virtual const char *GetError(void) = 0;
 
 	// Start a new document with the given details as present in the
@@ -339,7 +351,7 @@ public:
 	virtual bool BeginDocument(const MCCustomPrinterDocument& document) = 0;
 
 	// Cancel the current document - this should have the same effect as if
-	// an error occured, but obviously no error should be set.
+	// an error occurred, but obviously no error should be set.
 	virtual void AbortDocument(void) = 0;
 
 	// Mark the end of a document.
@@ -383,7 +395,7 @@ public:
 	// should be considered to map to the text 'in one piece'. The clusters
 	// array maps each byte of the text to the index of the first glyph in
 	// its cluster.
-	virtual bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip) = 0;
+	virtual bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text_bytes, uint32_t text_byte_count, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip) = 0;
 
 	// Make an anchor with the given name at the specified position - the name must
 	// not have the form of a URI.

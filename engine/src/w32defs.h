@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -32,7 +32,7 @@ typedef struct
 {
 	int2 x1, y1, x2, y2;
 }
-MCSegment;
+MCLineSegment;
 
 typedef struct
 {

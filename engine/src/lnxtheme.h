@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -38,7 +38,6 @@ public:
 	Boolean load();
 	uint2 getthemeid();
 	uint2 getthemefamilyid();
-	const char *getname();
 	Boolean iswidgetsupported(Widget_Type wtype);
 	virtual int4 getmetric(Widget_Metric wmetric);
 	int4 getwidgetmetric(const MCWidgetInfo &winfo,Widget_Metric wmetric);

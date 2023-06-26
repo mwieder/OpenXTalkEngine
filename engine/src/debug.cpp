@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
+
 #include "hndlrlst.h"
 #include "handler.h"
 #include "param.h"
@@ -40,21 +40,22 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "globals.h"
 #include "mode.h"
+#include "exec.h"
+#include "system.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
-MCExecPoint *MCEPptr;
-MCStack *MCtracestackptr;
+MCExecContext *MCECptr;
+MCStackHandle MCtracestackptr;
 Window MCtracewindow;
 Boolean MCtrace;
 Boolean MCtraceabort;
-MCObject *MCtracedobject;
+MCObjectHandle MCtracedobject;
 Boolean MCtracereturn = True;
 uint4 MCtraceuntil = MAXUINT2;
 uint2 MCtracedelay = 500;
 
-// MW-2004-11-17: Added to allow deletion of Message Box
-MCStack *MCmbstackptr = NULL;
+MCStackHandle MCmbstackptr = nil;
 
 Breakpoint *MCbreakpoints = nil;
 uint2 MCnbreakpoints = 0;
@@ -62,12 +63,11 @@ uint2 MCnbreakpoints = 0;
 Watchvar *MCwatchedvars = nil;
 uint2 MCnwatchedvars = 0;
 
-MCExecPoint *MCexecutioncontexts[MAX_CONTEXTS];
+MCExecContext *MCexecutioncontexts[MAX_CONTEXTS];
 uint2 MCnexecutioncontexts = 0;
 uint2 MCdebugcontext = MAXUINT2;
 Boolean MCmessagemessages = False;
-
-static int2 depth;
+MCNameRef MClogmessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,25 +75,25 @@ static int2 depth;
 
 #include "srvdebug.h"
 
-void MCB_setmsg(MCExecPoint& ep)
+void MCB_setmsg(MCExecContext& ctxt, MCStringRef p_string)
 {
 	// At some point we will add the ability to manipulate/look at the 'message box' in a
 	// remote debugging session.
 }
 
-void MCB_trace(MCExecPoint &ep, uint2 line, uint2 pos)
+void MCB_trace(MCExecContext &ctxt, uint2 line, uint2 pos)
 {
-	MCServerDebugTrace(ep, line, pos);
+	MCServerDebugTrace(ctxt, line, pos);
 }
 
-void MCB_break(MCExecPoint &ep, uint2 line, uint2 pos)
+void MCB_break(MCExecContext &ctxt, uint2 line, uint2 pos)
 {
-	MCServerDebugBreak(ep, line, pos);
+	MCServerDebugBreak(ctxt, line, pos);
 }
 
-bool MCB_error(MCExecPoint &ep, uint2 line, uint2 pos, uint2 id)
+bool MCB_error(MCExecContext &ctxt, uint2 line, uint2 pos, uint2 id)
 {
-	MCServerDebugError(ep, line, pos, id);
+	MCServerDebugError(ctxt, line, pos, id);
 	
 	// Increasing the error lock means that more MCB_error invocations won't occur as
 	// we step back up the (script) call stack.
@@ -102,74 +102,116 @@ bool MCB_error(MCExecPoint &ep, uint2 line, uint2 pos, uint2 id)
 	return true;
 }
 
-void MCB_done(MCExecPoint &ep)
+void MCB_done(MCExecContext &ctxt)
 {
 }
 
-void MCB_setvar(MCExecPoint &ep, MCNameRef name)
+void MCB_setvar(MCExecContext &ctxt, MCValueRef p_value, MCNameRef name)
 {
-	MCServerDebugVariableChanged(ep, name);
+	MCServerDebugVariableChanged(ctxt, name);
+}
+
+
+
+void MCB_setvalue(MCExecContext &ctxt, MCExecValue p_value, MCNameRef name)
+{
+    if (!MCExecTypeIsValueRef(p_value . type))
+    {
+        MCAutoValueRef t_value;
+        MCExecTypeConvertAndReleaseAlways(ctxt, p_value . type, &p_value, kMCExecValueTypeValueRef, &(&t_value));
+        MCB_setvar(ctxt, *t_value, name);
+    }
+    else
+    {
+        MCB_setvar(ctxt, p_value . valueref_value, name);
+    }
 }
 
 #else
 
-void MCB_setmsg(MCExecPoint &ep)
+void MCB_setmsg(MCExecContext &ctxt, MCStringRef p_string)
 {
-	if (MCnoui)
-	{
-		MCS_write(ep.getsvalue().getstring(), sizeof(char),
-		          ep.getsvalue().getlength(), IO_stdout);
-		uint4 length = ep.getsvalue().getlength();
-		if (length && ep.getsvalue().getstring()[length - 1] != '\n')
-			MCS_write("\n", sizeof(char), 1, IO_stdout);
-		return;
-	}
-	ep.grabsvalue();  // in case source variable changes while opening MB
-	
-	if (!MCModeHandleMessageBoxChanged(ep))
-	{
-		// MW-2004-11-17: Now use global 'MCmbstackptr' instead
-		if (MCmbstackptr == NULL)
-			MCmbstackptr = MCdispatcher->findstackname(MCmessagenamestring);
-			
-		if (MCmbstackptr != NULL)
-		{
-			Window_mode newmode = MCmbstackptr->userlevel() == 0 ? WM_MODELESS
-														: (Window_mode)(MCmbstackptr->userlevel() + WM_TOP_LEVEL_LOCKED);
-			
-			// MW-2011-07-05: [[ Bug 9608 ]] The 'ep' that is passed through to us does
-			//   not necessarily have an attached object any more. Given that the 'rel'
-			//   parameter of the open stack call is unused, computing it from that
-			//   context is redundent.
-			if (MCmbstackptr->getmode() != newmode)
-				MCmbstackptr->openrect(MCmbstackptr -> getrect(), newmode, NULL, WP_DEFAULT,OP_NONE);
-			else
-				MCmbstackptr->raise();
-			MCCard *cptr = MCmbstackptr->getchild(CT_THIS, MCnullmcstring, CT_CARD);
-			MCField *fptr = (MCField *)cptr->getchild(CT_FIRST, MCnullmcstring,
-											CT_FIELD, CT_CARD);
-			if (fptr != NULL)
-				fptr->settext(0, ep.getsvalue(), False);
-		}
-	}
+    Exec_stat t_stat = ES_NOT_HANDLED;
+    
+    MCObject *t_target = nil;
+    if (ctxt.GetObject() != nil)
+        t_target = ctxt.GetObject();
+    else if (MCdefaultstackptr . IsValid())
+        t_target = MCdefaultstackptr;
+    
+    if (t_target != nil)
+    {
+		Boolean oldlock = MClockmessages;
+		MClockmessages = False;
+
+        MCAutoStringRef t_handler;
+        t_handler = MCNameGetString(ctxt.GetHandler()->getname());
+        MCParameter t_handler_parameter;
+        t_handler_parameter.setvalueref_argument(*t_handler);
+        
+        MCAutoNumberRef t_line;
+        MCParameter t_line_parameter;
+        if (MCNumberCreateWithUnsignedInteger(ctxt.GetLine(), &t_line))
+        {
+            t_line_parameter.setvalueref_argument(*t_line);
+            t_handler_parameter.setnext(&t_line_parameter);
+        }
+        
+        bool t_added = false;
+        if (MCnexecutioncontexts < MAX_CONTEXTS && ctxt.GetObject() != nil)
+        {
+            MCexecutioncontexts[MCnexecutioncontexts++] = &ctxt;
+            t_added = true;
+        }
+        
+        t_stat = t_target -> message(MCM_msgchanged, &t_handler_parameter, True, True, False);
+        
+        if (t_added)
+            MCnexecutioncontexts--;
+
+		MClockmessages = oldlock;
+    }
+    
+    if (t_stat == ES_NOT_HANDLED || t_stat == ES_PASS)
+    {
+        if (MCnoui)
+        {
+            MCAutoStringRefAsCString t_output;
+            /* UNCHECKED */ t_output . Lock(p_string);
+            MCS_write(*t_output, sizeof(char), strlen(*t_output), IO_stdout);
+            uint4 length = MCStringGetLength(p_string);
+            if (length && MCStringGetCharAtIndex(p_string, length - 1) != '\n')
+                MCS_write("\n", sizeof(char), 1, IO_stdout);
+            return;
+        }
+        else
+        {
+            MCsystem -> Debug(p_string);
+        }
+    }
+    
 }
 
-void MCB_message(MCExecPoint &ep, MCNameRef mess, MCParameter *p)
+Exec_stat MCB_message(MCExecContext &ctxt, MCNameRef mess, MCParameter *p)
 {
+	Exec_stat t_stat = ES_NOT_HANDLED;
+
 	Boolean exitall = MCexitall;
 	MCSaveprops sp;
 	MCU_saveprops(sp);
 	MCU_resetprops(True);
 
 	MCtrace = False;
-	if (MCtracestackptr != NULL)
+	if (MCtracestackptr)
 		MCtracewindow = MCtracestackptr->getw();
 	else
-		MCtracewindow = ep.getobj()->getw();
+		MCtracewindow = ctxt.GetObject()->getw();
 	MCVariable *oldresult = MCresult;
-	/* UNCHECKED */ MCVariable::createwithname_cstring("MCdebugresult", MCresult);
+	/* UNCHECKED */ MCVariable::createwithname(MCNAME("MCdebugresult"), MCresult);
 	MCtracereturn = False;
 	MCtraceabort = False;
+
+	MCExecResultMode t_oldresultmode = MCresultmode;
 
 	Boolean oldcheck;
 	oldcheck = MCcheckstack;
@@ -180,47 +222,54 @@ void MCB_message(MCExecPoint &ep, MCNameRef mess, MCParameter *p)
 
 	// OK-2008-11-28: [[Bug 7491]] - It seems that using the "send" parameter causes problems with the MetaCard debugger
 	// So instead of doing that, I've added a new optional parameter to MCObject::send, called p_force, and used this instead.
-	if (ep . getobj() -> message(mess, p, True, False, True) == ES_NORMAL)
+
+	t_stat = ctxt.GetObject() -> message(mess, p, True, False, True);
+	if (t_stat == ES_NORMAL)
 	{
 		MCcheckstack = oldcheck;
-		//  if (depth++ > 1)
-		//   fprintf(stderr, "Debug depth %d\n", depth);
-		 while (!MCtracereturn)
+		
+		while (!MCtracereturn)
 		{
 			MCU_resetprops(True);
 			MCscreen->wait(REFRESH_INTERVAL, True, True);
 		}
-		//  depth--;
-		if (MCtracedobject == NULL)
-			MCtracedobject = ep.getobj();
+		
+		if (!MCtracedobject)
+			MCtracedobject = ctxt.GetObject();
+
 		if (MCtraceabort)
 		{
 			MCtraceabort = False;
 			exitall = True;
 		}
 		else
-			if (MCtracestackptr != NULL)
+			if (MCtracestackptr)
 				MCtrace = True;
-	 }
-	 MCcheckstack = oldcheck;
-	 MCtracewindow = NULL;
-	 delete MCresult;
-	 MCresult = oldresult;
-	 MCU_restoreprops(sp);
-	 MCexitall = exitall;
+	}
+	MCcheckstack = oldcheck;
+	MCtracewindow = NULL;
+	delete MCresult;
+	MCresult = oldresult;
+	MCU_restoreprops(sp);
+	MCexitall = exitall;
+	MCresultmode = t_oldresultmode;
+
+	return t_stat;
 }
 
-void MCB_prepmessage(MCExecPoint &ep, MCNameRef mess, uint2 line, uint2 pos, uint2 id, const char *info)
+Exec_stat MCB_prepmessage(MCExecContext &ctxt, MCNameRef mess, uint2 line, uint2 pos, uint2 id, MCStringRef p_info)
 {
+	Exec_stat t_stat = ES_NOT_HANDLED;
+
 	Boolean added = False;
 	if (MCnexecutioncontexts < MAX_CONTEXTS)
 	{
-		ep.setline(line);
-		MCexecutioncontexts[MCnexecutioncontexts++] = &ep;
+		ctxt.SetLineAndPos(line, pos);
+		MCexecutioncontexts[MCnexecutioncontexts++] = &ctxt;
 		added = True;
 	}
 	MCParameter p1, p2, p3, p4;
-	p1.setnameref_unsafe_argument(ep.gethandler()->getname());
+	p1.setvalueref_argument(ctxt.GetHandler()->getname());
 	p1.setnext(&p2);
 	p2.setn_argument((real8)line);
 	p2.setnext(&p3);
@@ -230,30 +279,45 @@ void MCB_prepmessage(MCExecPoint &ep, MCNameRef mess, uint2 line, uint2 pos, uin
 		p3.setnext(&p4);
 		MCeerror->add(id, line, pos);
 
-		ep.getobj()->getprop(0, P_LONG_ID, ep, False);
-		MCeerror->add(EE_OBJECT_NAME, 0, 0, ep.getsvalue());
-		p4.sets_argument(MCeerror->getsvalue());
+		MCAutoValueRef t_val;
+		ctxt.GetObject()->names(P_LONG_ID, &t_val);
+		MCeerror->add(EE_OBJECT_NAME, 0, 0, *t_val);
+
+		MCAutoStringRef t_error;
+		MCeerror -> copyasstringref(&t_error);
+		p4.setvalueref_argument(*t_error);
 	}
-	else if (info != NULL)
+	else if (!MCStringIsEmpty(p_info))
 	{
 		p3.setnext(&p4);
-		p4.sets_argument(info);
+		p4.setvalueref_argument(p_info);
 	}
-	MCB_message(ep, mess, &p1);
+
+	MCDeletedObjectsFreezePool();
+	t_stat = MCB_message(ctxt, mess, &p1);
+	MCDeletedObjectsThawPool();
+
 	if (id != 0)
 		MCeerror->clear();
 	if (added)
 		MCnexecutioncontexts--;
+
+	return t_stat;
 }
 
-void MCB_trace(MCExecPoint &ep, uint2 line, uint2 pos)
+void MCB_trace(MCExecContext &ctxt, uint2 line, uint2 pos)
 {
 	uint2 i;
-
-	if (MCtrace && (MCtraceuntil == MAXUINT2 || MCnexecutioncontexts == MCtraceuntil))
+    
+    // MW-2015-03-03: [[ Bug 13110 ]] If this is an internal handler as a result of do
+    //   then *don't* debug it.
+    if (ctxt . GetHandler() -> getname() == MCM_message)
+        return;
+	
+    if (MCtrace && (MCtraceuntil == MAXUINT2 || MCnexecutioncontexts == MCtraceuntil))
 	{
 		MCtraceuntil = MAXUINT2;
-		MCB_prepmessage(ep, MCM_trace, line, pos, 0);
+		MCB_prepmessage(ctxt, MCM_trace, line, pos, 0);
 	}
 	else
 	{
@@ -264,56 +328,90 @@ void MCB_trace(MCExecPoint &ep, uint2 line, uint2 pos)
 			if (MCbreakpoints[i].line == line)
 			{
 				MCParentScriptUse *t_parentscript;
-				t_parentscript = ep . getparentscript();
-				if (t_parentscript == NULL && MCbreakpoints[i].object == ep.getobj() ||
-					t_parentscript != NULL && MCbreakpoints[i].object == t_parentscript -> GetParent() -> GetObject())
-				MCB_prepmessage(ep, MCM_trace_break, line, pos, 0, MCbreakpoints[i].info);
+				t_parentscript = ctxt . GetParentScript();
+				if ((t_parentscript == NULL && MCbreakpoints[i].object == ctxt.GetObject()) ||
+					(t_parentscript != NULL && MCbreakpoints[i].object == t_parentscript -> GetParent() -> GetObject()))
+                    MCB_prepmessage(ctxt, MCM_trace_break, line, pos, 0, *MCbreakpoints[i].info);
 			}
 	}
 }
 
-void MCB_break(MCExecPoint &ep, uint2 line, uint2 pos)
+void MCB_break(MCExecContext &ctxt, uint2 line, uint2 pos)
 {
-	MCB_prepmessage(ep, MCM_trace_break, line, pos, 0);
+    // We hit a breakpoint - end all modal loops
+    MCscreen->breakModalLoops();
+    
+    MCB_prepmessage(ctxt, MCM_trace_break, line, pos, 0);
 }
 
 bool s_in_trace_error = false;
 
-bool MCB_error(MCExecPoint &ep, uint2 line, uint2 pos, uint2 id)
+bool MCB_error(MCExecContext &ctxt, uint2 line, uint2 pos, uint2 id)
 {
+	// An unhandled error has been thrown - end all modal loops
+	MCscreen->breakModalLoops();
+
 	// OK-2009-03-25: [[Bug 7517]] - The crash described in this bug report is probably caused by a stack overflow. This overflow is due to
 	// errors being thrown in the IDE (or in this case GLX2) component of the debugger. This should prevent traceError from recursing.
 	if (s_in_trace_error)
 		return false;
-	
+
+
+	// MCB_error should not be called again if 'traceError' was not handled
+	bool t_handled;
 	s_in_trace_error = true;
-	MCB_prepmessage(ep, MCM_trace_error, line, pos, id);
-	MCerrorlock++; // suppress errors as stack unwinds
+	t_handled = MCB_prepmessage(ctxt, MCM_trace_error, line, pos, id) == ES_NORMAL;
 	s_in_trace_error = false;
+	MCerrorlock++; // suppress errors as stack unwinds
 
-	return true;
+	return t_handled;
 }
 
-void MCB_done(MCExecPoint &ep)
+void MCB_done(MCExecContext &ctxt)
 {
-	MCB_message(ep, MCM_trace_done, NULL);
+	MCB_message(ctxt, MCM_trace_done, NULL);
 }
 
-void MCB_setvar(MCExecPoint &ep, MCNameRef name)
+void MCB_setvar(MCExecContext &ctxt, MCValueRef p_value, MCNameRef name)
 {
 	Boolean added = False;
 	if (MCnexecutioncontexts < MAX_CONTEXTS)
 	{
-		MCexecutioncontexts[MCnexecutioncontexts++] = &ep;
+		MCexecutioncontexts[MCnexecutioncontexts++] = &ctxt;
 		added = True;
 	}
+
 	MCParameter p1, p2, p3;
-	p1.setn_argument(ep.getline());
+    p1.setn_argument(ctxt . GetLine());
 	p1.setnext(&p2);
-	p2.setnameref_unsafe_argument(name);
+	p2.setvalueref_argument(name);
 	p2.setnext(&p3);
-	p3.sets_argument(ep.getsvalue());
-	MCB_message(ep, MCM_update_var, &p1);
+	p3.setvalueref_argument(p_value);
+	MCB_message(ctxt, MCM_update_var, &p1);
+
+	if (added)
+		MCnexecutioncontexts--;
+}
+
+void MCB_setvalue(MCExecContext &ctxt, MCExecValue p_value, MCNameRef name)
+{
+	Boolean added = False;
+	if (MCnexecutioncontexts < MAX_CONTEXTS)
+	{
+		MCexecutioncontexts[MCnexecutioncontexts++] = &ctxt;
+		added = True;
+	}
+    
+	MCParameter p1, p2, p3;
+    MCExecValue t_copy;
+    p1.setn_argument(ctxt . GetLine());
+	p1.setnext(&p2);
+	p2.setvalueref_argument(name);
+	p2.setnext(&p3);
+    MCExecTypeCopy(p_value, t_copy);
+	p3.give_exec_argument(t_copy);
+	MCB_message(ctxt, MCM_update_var, &p1);
+    
 	if (added)
 		MCnexecutioncontexts--;
 }
@@ -324,228 +422,319 @@ void MCB_setvar(MCExecPoint &ep, MCNameRef name)
 
 void MCB_clearbreaks(MCObject *p_for_object)
 {
-	for(unsigned int n = 0; n < MCnbreakpoints; ++n)
-		if (p_for_object == NULL || MCbreakpoints[n] . object == p_for_object)
+	for(size_t n = 0; n < MCnbreakpoints; ++n)
+    {
+		if (p_for_object == nil || !MCbreakpoints[n].object || MCbreakpoints[n].object == p_for_object)
 		{
-			MCbreakpoints[n] . object = NULL;
-			delete MCbreakpoints[n] . info;
-			MCbreakpoints[n] . info = NULL;
+			MCbreakpoints[n].Clear();
 		}
+    }
 	
-	if (p_for_object == NULL)
+	if (p_for_object == nil && MCbreakpoints != nil)
 	{
 		MCnbreakpoints = 0;
-		free(MCbreakpoints);
+		MCMemoryDestroy(MCbreakpoints);
 		MCbreakpoints = nil;
-}
-}
-
-void MCB_unparsebreaks(MCExecPoint& ep)
-{
-	ep.clear();
-	
-	// MW-2005-06-26: Fix breakpoint crash issue - ignore any breakpoints with NULL object
-	for (uint32_t i = 0 ; i < MCnbreakpoints ; i++)
-		if (MCbreakpoints[i] . object != NULL)
-		{
-			MCExecPoint ep2(ep);
-			MCbreakpoints[i].object->getprop(0, P_LONG_ID, ep2, False);
-			ep.concatmcstring(ep2.getsvalue(), EC_RETURN, i == 0);
-			ep.concatuint(MCbreakpoints[i] . line, EC_COMMA, false);
-			if (MCbreakpoints[i].info != NULL)
-				ep.concatcstring(MCbreakpoints[i].info, EC_COMMA, false);
-		}
-}
-
-static MCObject *getobj(MCExecPoint& ep)
-{
-	MCObject *objptr = NULL;
-	MCChunk *tchunk = new MCChunk(False);
-	MCerrorlock++;
-	MCScriptPoint sp(ep);
-	if (tchunk->parse(sp, False) == PS_NORMAL)
-	{
-		uint4 parid;
-		tchunk->getobj(ep, objptr, parid, True);
 	}
-	MCerrorlock--;
-	delete tchunk;
-	return objptr;
 }
 
-void MCB_parsebreaks(MCExecPoint& ep)
+bool MCB_unparsebreaks(MCStringRef& r_value)
+{
+	bool t_success;
+	t_success = true;
+
+	MCAutoListRef t_breakpoint_list;
+	if (t_success)
+		t_success = MCListCreateMutable('\n', &t_breakpoint_list);
+
+	if (t_success)
+	{
+		// MW-2005-06-26: Fix breakpoint crash issue - ignore any breakpoints with NULL object
+		for (uint32_t i = 0 ; i < MCnbreakpoints ; i++)
+		{
+			if (MCbreakpoints[i].object)
+			{
+				MCAutoListRef t_breakpoint;
+				t_success = MCListCreateMutable(',', &t_breakpoint);
+				
+				if (t_success)
+				{
+					MCAutoValueRef t_breakpoint_id;
+					t_success = MCbreakpoints[i] . object -> names(P_LONG_ID, &t_breakpoint_id) &&
+								MCListAppend(*t_breakpoint, *t_breakpoint_id);
+				}
+							
+				if (t_success)
+				{
+					MCAutoStringRef t_line;
+					t_success = MCStringFormat(&t_line, "%d", MCbreakpoints[i] . line) &&
+								MCListAppend(*t_breakpoint, *t_line);
+				}
+				
+				if (t_success && !MCStringIsEmpty(*MCbreakpoints[i].info))
+				{
+					t_success = MCListAppend(*t_breakpoint, *MCbreakpoints[i].info);
+				}
+
+				if (t_success)
+					t_success = MCListAppend(*t_breakpoint_list, *t_breakpoint);
+			}
+		}
+	}
+	if (t_success)
+		t_success = MCListCopyAsString(*t_breakpoint_list, r_value);
+
+	return t_success;
+}
+
+void MCB_parsebreaks(MCExecContext& ctxt, MCStringRef p_input)
 {
 	MCB_clearbreaks(NULL);
+
+	uindex_t t_return_offset = 0;
+	uindex_t t_last_offset = 0;
+	uindex_t t_input_length;
+
+	t_input_length = MCStringGetLength(p_input);
 	
-	char *buffer = ep.getsvalue().clone();
-	char *eptr = buffer;
+	bool t_found;
+	t_found = true;
+	
+	bool t_success;
+	t_success = true;
 
-	while ((eptr = strtok(eptr, "\n")) != NULL)
+	while (t_found && t_success)
 	{
-		bool t_in_quote;
-		t_in_quote = false;
-		
-		// Find the end of the long id
-		char *line_ptr;
-		line_ptr = eptr;
-		while(*line_ptr != '\0')
+		uindex_t t_length;
+		MCAutoStringRef t_break;
+		t_found = MCStringFirstIndexOfChar(p_input, '\n', t_last_offset, kMCCompareExact, t_return_offset);
+
+		if (!t_found) //last line
+			t_length = t_input_length - t_last_offset;
+		else
+			t_length = t_return_offset - t_last_offset;
+
+		t_success = MCStringCopySubstring(p_input, MCRangeMake(t_last_offset, t_length), &t_break);
+
+		bool t_in_quotes;
+		t_in_quotes = false;
+		uindex_t t_offset;
+
+		if (t_success)
 		{
-			if (t_in_quote)
+			for (t_offset = 0; t_offset < t_length; t_offset++)
 			{
-				if (*line_ptr == '"')
-					t_in_quote = false;
-			}
-			else
-			{
-				if (*line_ptr == '"')
-					t_in_quote = true;
-				else if (*line_ptr == ',')
+				if (!t_in_quotes && MCStringGetCharAtIndex(*t_break, t_offset) == ',')
 					break;
+
+				if (MCStringGetCharAtIndex(*t_break, t_offset) == '"')
+					t_in_quotes = !t_in_quotes;
 			}
-			line_ptr++;
 		}
 
-		*line_ptr++ = '\0';
-		
-		char *info_ptr;
-		info_ptr = strchr(line_ptr, ',');
-		if (info_ptr != NULL)
-			*info_ptr++;
-			
-		MCObject *t_object;
-		ep.setsvalue(eptr);
-		t_object = getobj(ep);
-		
-		uint32_t t_line;
-		t_line = strtoul(line_ptr, NULL, 10);
-		
-		if (t_object != nil && t_line != 0)
+		if (t_success && t_offset < t_length)
 		{
-			Breakpoint *t_new_breakpoints;
-			t_new_breakpoints = (Breakpoint *)realloc(MCbreakpoints, sizeof(Breakpoint) * (MCnbreakpoints + 1));
-			if (t_new_breakpoints != nil)
+			MCAutoStringRef t_head;
+			MCAutoStringRef t_tail;
+			MCObjectPtr t_object;		
+
+			if (t_success)
+				t_success = MCStringDivideAtIndex(*t_break, t_offset, &t_head, &t_tail);
+
+			MCAutoStringRef t_line_string;
+			MCAutoStringRef t_info;
+
+			if (t_success)
+				t_success = MCStringDivideAtChar(*t_tail, ',', kMCCompareExact, &t_line_string, &t_info);
+			
+            // AL-2015-07-31: [[ Bug 15822 ]] Don't abort parsing if a given line is not correctly formatted
+            bool t_valid_break;
+            t_valid_break = t_success;
+            
+            if (t_valid_break)
+                t_valid_break = MCInterfaceTryToResolveObject(ctxt, *t_head, t_object);
+            
+			int32_t t_line;
+            t_line = 0;
+            
+			if (t_valid_break)
+                t_valid_break = MCU_strtol(*t_line_string, t_line) && t_line > 0;
+            
+            if (t_valid_break)
 			{
-				MCbreakpoints = t_new_breakpoints;
-				MCbreakpoints[MCnbreakpoints] . object = t_object;
-				MCbreakpoints[MCnbreakpoints] . line = t_line;
-				if (info_ptr != nil)
-					MCbreakpoints[MCnbreakpoints] . info = strdup(info_ptr);
-				else
-					MCbreakpoints[MCnbreakpoints] . info = NULL;
-				MCnbreakpoints++;
+				Breakpoint *t_new_breakpoints;
+                if (!MCMemoryReallocate(MCbreakpoints, sizeof(Breakpoint) * (MCnbreakpoints + 1), t_new_breakpoints))
+                    break;
+                
+                MCbreakpoints = t_new_breakpoints;
+                new (&MCbreakpoints[MCnbreakpoints]) Breakpoint(t_object.object->GetHandle(), t_line, *t_info);
+                MCnbreakpoints++;
 			}
 		}
-		
-		eptr = NULL;
+		t_last_offset = t_return_offset + 1;
 	}
-	delete buffer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void MCB_clearwatches(void)
 {
-	while (MCnwatchedvars--)
+	for (size_t i = 0; i < MCnwatchedvars; i++)
 	{
-		MCNameDelete(MCwatchedvars[MCnwatchedvars].handlername);
-		MCNameDelete(MCwatchedvars[MCnwatchedvars].varname);
-		delete MCwatchedvars[MCnwatchedvars].expression;
+		MCwatchedvars[i].Clear();
 	}
-	MCnwatchedvars = 0;
 
-	free(MCwatchedvars);
-	MCwatchedvars = nil;
+    if (MCwatchedvars != nil)
+    {
+        MCnwatchedvars = 0;
+        MCMemoryDestroy(MCwatchedvars);
+        MCwatchedvars = nil;
+    }
 }
 
-Exec_stat MCB_parsewatches(MCExecPoint& ep)
+void MCB_parsewatches(MCExecContext& ctxt, MCStringRef p_input)
 {
 	MCB_clearwatches();
 
-	char *buffer = ep.getsvalue().clone();
-	char *eptr = buffer;
-	while ((eptr = strtok(eptr, "\n")) != NULL)
-	{
-		char *expressptr, *vnameptr, *hnameptr;
-		MCObject *objptr;
+	uindex_t t_return_offset = 0;
+	uindex_t t_last_offset = 0;
+	uindex_t t_input_length;
 
-		objptr = nil;
-		vnameptr = nil;
-		hnameptr = nil;
-		expressptr = strrchr(eptr, ',');
-		
-		if (expressptr != NULL)
-		{
-			*expressptr++ = '\0';
-			vnameptr = strrchr(eptr, ',');
-		}
-
-		if (vnameptr != NULL)
-		{
-			*vnameptr++ = '\0';
-			hnameptr = strrchr(eptr, ',');
-		}
-
-		if (hnameptr != NULL)
-		{
-			*hnameptr++ = '\0';
-			ep.setsvalue(eptr);
-			objptr = getobj(ep);
-		}
+	t_input_length = MCStringGetLength(p_input);
 	
-		// OK-2010-01-14: [[Bug 6506]] - Allow globals in watchedVariables
-		//   If the object and handler are empty we assume its a global, otherwise
-		//   do the previous behavior.
-		// MW-2010-01-19: Just tidying up a bit - notice that strclone returns nil
-		//   if the input is nil, so we don't need two separate clauses.
-		if (strcmp(eptr, "") == 0 && strcmp(hnameptr, "") == 0 ||
-			objptr != nil)
-		{
-			Watchvar *t_new_watches;
-			t_new_watches = (Watchvar *)realloc(MCwatchedvars, sizeof(Watchvar) * (MCnwatchedvars + 1));
-			if (t_new_watches != nil)
+	if (t_input_length == 0)
+		return;
+	
+	bool t_found;
+	t_found = true;
+
+	bool t_success;
+	t_success = true;
+
+	while (t_found && t_success)
+	{
+		uindex_t t_length;
+		MCAutoStringRef t_watch;
+		t_found = MCStringFirstIndexOfChar(p_input, '\n', t_last_offset, kMCCompareExact, t_return_offset);
+
+		if (!t_found) //last line
+			t_length = t_input_length - t_last_offset;
+		else
+			t_length = t_return_offset - t_last_offset;
+
+		t_success = MCStringCopySubstring(p_input, MCRangeMake(t_last_offset, t_length), &t_watch);
+
+		MCAutoStringRef t_obj;
+		MCAutoStringRef t_obj_tail;
+
+		if (t_success)
+			t_success = MCStringDivideAtChar(*t_watch, ',', kMCCompareExact, &t_obj, &t_obj_tail);
+
+        // SN-2014-09-18: [[ Bug 13453 ]] The input is object, handler, variable, condition
+		MCAutoStringRef t_hname;
+		MCAutoStringRef t_hname_tail;
+
+		if (t_success)
+			t_success = MCStringDivideAtChar(*t_obj_tail, ',', kMCCompareExact, &t_hname, &t_hname_tail);
+
+		MCAutoStringRef t_vname;
+		MCAutoStringRef t_express;
+
+		if (t_success)
+			t_success = MCStringDivideAtChar(*t_hname_tail, ',', kMCCompareExact, &t_vname, &t_express);
+
+        MCObjectPtr t_object;
+		bool t_resolved_object;
+		if (t_success)
+			t_resolved_object = MCInterfaceTryToResolveObject(ctxt, *t_obj, t_object);
+        
+        if (t_success)
+        {
+			// OK-2010-01-14: [[Bug 6506]] - Allow globals in watchedVariables
+			//   If the object and handler are empty we assume its a global, otherwise
+			//   do the previous behavior.
+
+			if ((MCStringIsEmpty(*t_obj) && MCStringIsEmpty(*t_hname)) ||
+				t_object . object != nil)
 			{
-				MCwatchedvars = t_new_watches;
-				MCwatchedvars[MCnwatchedvars] . object = objptr;
-				if (strcmp(hnameptr, "") != 0)
-					/* UNCHECKED */ MCNameCreateWithCString(hnameptr, MCwatchedvars[MCnwatchedvars] . handlername);
-				else
-					MCwatchedvars[MCnwatchedvars] . handlername = nil;
-				/* UNCHECKED */ MCNameCreateWithCString(vnameptr, MCwatchedvars[MCnwatchedvars] . varname);
-				MCwatchedvars[MCnwatchedvars] . expression = strclone(expressptr);
-				MCnwatchedvars++;
+				Watchvar *t_new_watches;
+                if (!MCMemoryReallocate(MCwatchedvars, sizeof(Watchvar) * (MCnwatchedvars + 1), t_new_watches))
+                {
+                    t_success = false;
+                    break;
+                }
+                
+                MCObjectHandle t_objecthandle;
+                MCNewAutoNameRef t_handlername;
+                MCNewAutoNameRef t_varname;
+                
+                if (t_resolved_object)
+                    t_objecthandle = t_object.object;
+                
+                /* UNCHECKED */ MCNameCreate(*t_hname, &t_handlername);
+                /* UNCHECKED */ MCNameCreate(*t_vname, &t_varname);
+                
+                MCwatchedvars = t_new_watches;
+                new (&MCwatchedvars[MCnwatchedvars]) Watchvar(t_objecthandle, *t_handlername, *t_varname, *t_express);
+                MCnwatchedvars++;
 			}
 		}
-
-		eptr = NULL;
+		t_last_offset = t_return_offset + 1;
 	}
-
-	delete buffer;
-
-	return ES_NORMAL;
 }
 
-void MCB_unparsewatches(MCExecPoint& ep)
+bool MCB_unparsewatches(MCStringRef &r_watches)
 {
-	ep.clear();
-	for (uint32_t i = 0 ; i < MCnwatchedvars ; i++)
+	bool t_success;
+	t_success = true;
+
+	MCAutoListRef t_watches_list;
+	if (t_success)
+		t_success = MCListCreateMutable('\n', &t_watches_list);
+
+	if (t_success)
 	{
-		MCExecPoint ep2(ep);
-		ep2 . clear();
+		for (uint32_t i = 0 ; i < MCnwatchedvars ; i++)
+		{		
+			MCAutoListRef t_watched_var;
+			t_success = MCListCreateMutable(',', &t_watched_var);
+			
+			if (t_success)
+			{
+				if (MCwatchedvars[i].object)
+				{
+					MCAutoValueRef t_var_id;
+					t_success = MCwatchedvars[i] . object -> names(P_LONG_ID, &t_var_id) &&
+							MCListAppend(*t_watched_var, *t_var_id);
+				}
+				else
+					t_success = MCListAppend(*t_watched_var, kMCEmptyString);
+			}
+						
+			if (t_success)
+			{
+				if (!MCwatchedvars[i].handlername.IsSet())
+					t_success = MCListAppend(*t_watched_var, kMCEmptyString);
+				else
+					t_success = MCListAppend(*t_watched_var, *MCwatchedvars[i].handlername);
+			}
+			
+			if (t_success)
+				t_success = MCListAppend(*t_watched_var, *MCwatchedvars[i].varname);
 
-		// OK-2010-01-14: [[Bug 6506]] - WatchedVariables support for globals
-		if (MCwatchedvars[i] . object != NULL)
-			MCwatchedvars[i].object->getprop(0, P_LONG_ID, ep2, False);
-		
-		ep.concatmcstring(ep2.getsvalue(), EC_RETURN, i == 0);
+			// SN-2014-09-18: [[ Bug 13453 ]] A watched variable's expression is never nil
+			if (t_success)
+				t_success = MCListAppend(*t_watched_var, *MCwatchedvars[i].expression);
 
-		if (MCwatchedvars[i] . handlername == NULL)
-			ep . concatcstring("", EC_COMMA, false);
-		else
-			ep . concatnameref(MCwatchedvars[i].handlername, EC_COMMA, false);
-
-		ep.concatnameref(MCwatchedvars[i].varname, EC_COMMA, false);
-		if (MCwatchedvars[i].expression != NULL)
-			ep.concatcstring(MCwatchedvars[i].expression, EC_COMMA, false);
+			if (t_success)
+				t_success = MCListAppend(*t_watches_list, *t_watched_var);
+		}
 	}
+
+	if (t_success)
+		t_success = MCListCopyAsString(*t_watches_list, r_watches);
+
+	return t_success;
+	
 }
 

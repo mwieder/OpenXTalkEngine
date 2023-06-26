@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -67,6 +67,12 @@ enum MCIPhoneApplicationStatus
 	kMCIPhoneApplicationStatusShutdown,
 };
 
+enum MCIPhoneKeyboardDisplayMode
+{
+    kMCIPhoneKeyboardDisplayModeOver,
+    kMCIPhoneKeyboardDisplayModePan,
+};
+
 @interface MCIPhoneApplication : NSObject <UIApplicationDelegate>
 {
 	// The actual application object (remember this object is only a delegate!).
@@ -83,6 +89,7 @@ enum MCIPhoneApplicationStatus
 	// the app wants.
 	UIStatusBarStyle m_status_bar_style;
 	BOOL m_status_bar_hidden;
+    BOOL m_status_bar_solid;
 	
 	// The startup controller is that which is displayed on startup. This is
 	// presented as a modal over the main controller until the app starts
@@ -112,21 +119,29 @@ enum MCIPhoneApplicationStatus
 	bool m_keyboard_activation_pending : 1;
 	// An orientation changed request was received, but not yet acted on.
 	bool m_orientation_changed_pending : 1;
+    
+    bool m_keyboard_is_visible : 1;
+
+    bool m_is_remote_notification :1;
 
     // We store the payload from a pending local notification here until the stack has become active and is ready to receive the message with the data.
     NSString *m_pending_local_notification;
     // We store the payload from a pending push notification here until the stack has become active and is ready to receive the message with the data.
     NSString *m_pending_push_notification;
     // We store the device token for push notification here
-    MCString m_device_token;
+    MCStringRef m_device_token;
     // We store the wakeup token for custom URL schemes here
-    MCString m_launch_url;
+    MCStringRef m_launch_url;
     // HSC-2012-03-13 [[ Bug 10076 ]] Prevent Push Notification crashing when applicationDidBecomeActive is called multiple times
     // We need to know if there is a pending launch url that was received.
     // We do not want to send a URL message again, should the app become active again.
     bool m_pending_launch_url;
     // We need to know if the application is active before we can send a message
     bool m_did_become_active;
+
+    MCIPhoneKeyboardDisplayMode m_keyboard_display;
+    UIKeyboardType m_keyboard_type;
+    UIReturnKeyType m_return_key_type;
 }
 
 //////////
@@ -139,6 +154,11 @@ enum MCIPhoneApplicationStatus
 - (void)dealloc;
 
 //////////
+
+// MM-2014-09-30: [[ iOS 8 Support ]] Method called after successully registering (push) notification settings.
+#ifdef __IPHONE_8_0
+- (void)application: (UIApplication *)application didRegisterUserNotificationSettings: (UIUserNotificationSettings *)notificationSettings;
+#endif
 
 //- (void)applicationDidFinishLaunching:(UIApplication *)application;
 - (BOOL)application:(UIApplication *)p_application didFinishLaunchingWithOptions:(NSDictionary *)p_launchOptions;
@@ -155,6 +175,8 @@ enum MCIPhoneApplicationStatus
 - (void)orientationChanged:(NSNotification *)notification;
 - (void)keyboardWillActivate:(NSNotification *)notification;
 - (void)keyboardWillDeactivate:(NSNotification *)notification;
+- (void)keyboardDidActivate:(NSNotification *)notification;
+- (void)keyboardDidDeactivate:(NSNotification *)notification;
 
 //////////
 
@@ -173,6 +195,8 @@ enum MCIPhoneApplicationStatus
 - (void)switchToStatusBarStyle: (UIStatusBarStyle)newStyle;
 // Switch the visibility of the status bar to 'newVisible'.
 - (void)switchToStatusBarVisibility: (BOOL)newVisibile;
+// If statusbarstyle=solid, we move stack down to 20pixels
+- (void)setStatusBarSolid: (BOOL)p_is_solid;
 
 // Returns the current screen bounds in logical units - taking into account the
 // current orientation.
@@ -191,10 +215,12 @@ enum MCIPhoneApplicationStatus
 - (MCIPhoneDisplayView *)fetchDisplayView;
 // Returns the main view controller.
 - (UIViewController *)fetchMainViewController;
+// MM-2014-10-15: [[ Bug 13665 ]] Returns the currently active view controller.
+- (UIViewController *)fetchCurrentViewController;
 // Returns the device token that is used for push notificaiton.
-- (const char *)fetchDeviceToken;
+- (MCStringRef)fetchDeviceToken;
 // Returns the URL from which the device was launched.
-- (const char *)fetchLaunchUrl;
+- (MCStringRef)fetchLaunchUrl;
 
 // Start an autorotation operation
 - (void)beginAutorotation;
@@ -211,6 +237,8 @@ enum MCIPhoneApplicationStatus
 - (void)configureKeyboardType: (UIKeyboardType)newKeyboardType;
 // Configure the type of return key.
 - (void)configureReturnKeyType: (UIReturnKeyType)newReturnKeyType;
+// Configure the keyboard display.
+- (void)configureKeyboardDisplay: (MCIPhoneKeyboardDisplayMode)p_mode;
 
 // Get the set of allowed orientations.
 - (uint32_t)allowedOrientations;
@@ -268,8 +296,6 @@ enum MCIPhoneApplicationStatus
 {
 	// The orientation of the current image view.
 	UIInterfaceOrientation m_image_orientation;
-	// The image view currently being displayed.
-	UIImageView *m_image_view;
 }
 
 - (id)init;
@@ -278,8 +304,6 @@ enum MCIPhoneApplicationStatus
 - (BOOL)shouldAutorotate;
 - (NSUInteger)supportedInterfaceOrientations;
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation;
-
-- (void)loadView;
 
 - (void)viewDidLoad;
 - (void)viewDidUnload;
@@ -292,8 +316,6 @@ enum MCIPhoneApplicationStatus
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration;
 - (void)willAnimateRotationToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation duration:(NSTimeInterval)duration;
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation;
-
-- (void)switchImageToOrientation: (UIInterfaceOrientation)orientation;
 
 @end
 
@@ -360,6 +382,7 @@ void MCIPhoneHandlePerformRedraw(void);
 ////////////////////////////////////////////////////////////////////////////////
 
 MCIPhoneApplication *MCIPhoneGetApplication(void);
+NSString* MCIPhoneGetDeviceModelName(void);
 
 UIViewController *MCIPhoneGetViewController(void);
 UIView *MCIPhoneGetView(void);
@@ -369,12 +392,14 @@ CGRect MCIPhoneGetViewBounds(void);
 CGRect MCIPhoneGetScreenBounds(void);
 void MCIPhoneActivateKeyboard(void);
 void MCIPhoneDeactivateKeyboard(void);
+bool MCIPhoneIsKeyboardVisible(void);
 void MCIPhoneConfigureContentScale(int32_t scale);
 void MCIPhoneSwitchViewToUIKit(void);
 void MCIPhoneSwitchViewToOpenGL(void);
 UIKeyboardType MCIPhoneGetKeyboardType(void);
 void MCIPhoneSetKeyboardType(UIKeyboardType type);
 void MCIPhoneSetReturnKeyType(UIReturnKeyType type);
+void MCIPhoneSetKeyboardDisplay(MCIPhoneKeyboardDisplayMode p_mode);
 UIInterfaceOrientation MCIPhoneGetOrientation(void);
 bool MCIPhoneIsEmbedded(void);
 void MCIPhoneBreakWait(void);
@@ -389,6 +414,7 @@ void MCIPhoneCallSelectorOnMainFiber(id object, SEL selector);
 void MCIPhoneCallSelectorOnMainFiberWithObject(id object, SEL selector, id arg);
 void MCIPhoneRunOnScriptFiber(void (*)(void *), void *);
 void MCIPhoneRunOnMainFiber(void (*)(void *), void *);
+void MCIPhoneRunBlockOnScriptFiber(void (^)(void));
 void MCIPhoneRunBlockOnMainFiber(void (^)(void));
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -38,7 +38,7 @@ void MCAndroidBreakWait();
 //   's' : const char * in native encoding -> String object type
 //   'S' : const MCString * in native encoding -> String object type
 //   'U' : const MCString * in unicode encoding -> String object type
-//   'd' : const MCString * containing binary data -> byte[] object type
+//   'd' : MCDataRef containing binary data -> byte[] object type
 //   'i' : int32_t -> int type
 //   'j' : int64_t -> int type
 //   'b' : bool -> boolean type
@@ -62,7 +62,13 @@ void MCAndroidEngineRemoteCall(const char *method, const char *signature, void *
 void MCAndroidObjectCall(jobject p_object, const char *p_method, const char *p_signature, void *p_return_value, ...);
 void MCAndroidObjectRemoteCall(jobject p_object, const char *p_method, const char *p_signature, void *p_return_value, ...);
 
-bool MCAndroidGetBuildInfo(const char *t_key, char *&r_value);
+bool MCAndroidGetBuildInfo(MCStringRef t_key, MCStringRef &r_value);
+extern "C" MC_DLLEXPORT
+bool MCAndroidCheckRuntimePermission(MCStringRef p_permission);
+extern "C" MC_DLLEXPORT
+bool MCAndroidCheckPermissionExists(MCStringRef p_permission);
+extern "C" MC_DLLEXPORT
+bool MCAndroidHasPermission(MCStringRef p_permission);
 
 typedef struct _android_device_configuration
 {

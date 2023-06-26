@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -460,6 +460,29 @@ bool CXMLElement::MoveElement(CXMLElement* p_element, bool p_sibling, bool p_bef
 	return true;
 }
 
+// MW-2014-06-12: [[ Bug 12628 ]] Use Remote operation to copy the root out of the new document.
+bool CXMLElement::MoveRemoteElement(CXMLElement *p_element, bool p_sibling, bool p_before)
+{
+    // DOMWrapAdoptNode only allows you to move a node to under a parent, so first
+    // we compute the parent node. In non-sibling mode, this is the parent node. In sibling
+    // mode the parent of this is the parent node.
+    xmlNodePtr t_parent;
+    t_parent = element;
+    if (p_sibling)
+        t_parent = t_parent -> parent;
+    
+    // If this has no parent then badness.
+    if (t_parent == NULL)
+        return false;
+    
+    // Now make our doc tree adopt the source node.
+    if (xmlDOMWrapAdoptNode(NULL, p_element -> element -> doc, p_element -> element, element -> doc, t_parent, 0) != 0)
+        return false;
+    
+    // Now that p_element is in this's xmlTree we can use MoveElement to place it appropriately.
+    return MoveElement(p_element, p_sibling, p_before);
+}
+
 /*GetContent - return value of element
 isbuffered - if true returns copy of element data 
 - must be disposed by caller.
@@ -592,16 +615,14 @@ return True if element found
 Bool CXMLElement::GoChildByPath(char *tpath)
 {
 	if (!isinited()) return False;
-	char *sptr = tpath;
-	char *childpointer = NULL;
+	const char *sptr = tpath;
 	CXMLElement telement;
 	telement.CopyElement(this);
 	if (*sptr == '/') sptr++; //skip first slash
-	Bool foundmatch = False;
-	char *endptr = sptr + strlen(sptr);
+	const char *endptr = sptr + strlen(sptr);
 	while (sptr < endptr)
 	{
-		char *namestart,*nameend,*nextname,*numpointer;
+		const char *namestart,*nameend,*nextname,*numpointer;
 		nextname = strchr(sptr, '/' );
 		if (!nextname) nextname = endptr;
 		namestart = sptr;
@@ -804,11 +825,11 @@ char *CXMLElement::GetAttributeValue(char *attname, Bool isbuffered)
 		CXMLAttribute tattribute;
 		if (GetFirstAttribute(&tattribute))
 		{
-			int attributecount = 1;
 			do 
 			{
 				if (!attname || util_strnicmp(tattribute.GetName(), attname, strlen(attname)) == 0)
-					return tattribute.GetContent();
+                // AL-2015-09-02: [[ Bug 15848 ]] if isbuffered is true, returned string is freed by the caller
+					return strdup(tattribute.GetContent());
 			} while (tattribute.GoNext());
 		}
 	}

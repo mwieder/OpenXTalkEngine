@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -20,14 +20,26 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef	VIDEOCLIP_H
 #define	VIDEOCLIP_H
 
-#include "control.h"
+#include "mccontrol.h"
 
-class MCVideoClip : public MCObject
+typedef MCObjectProxy<MCVideoClip>::Handle MCVideoClipHandle;
+
+class MCVideoClip : public MCObject, public MCMixinObjectHandle<MCVideoClip>
 {
+public:
+    
+    enum { kObjectType = CT_VIDEO_CLIP };
+    using MCMixinObjectHandle<MCVideoClip>::GetHandle;
+    
+private:
+    
 	real8 scale;
 	uint2 framerate;
 	uint1 *frames;
 	uint4 size;
+
+	static MCPropertyInfo kProperties[];
+	static MCObjectPropertyTable kPropertyTable;
 public:
 	MCVideoClip();
 	MCVideoClip(const MCVideoClip &sref);
@@ -35,22 +47,26 @@ public:
 	virtual ~MCVideoClip();
 	virtual Chunk_term gettype() const;
 	virtual const char *gettypestring();
-	virtual Exec_stat getprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
-	virtual Exec_stat setprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
-	virtual Boolean del();
+
+	virtual Boolean del(bool p_check_flag);
 	virtual void paste(void);
+
+	virtual const MCObjectPropertyTable *getpropertytable(void) const { return &kPropertyTable; }
+    
+    virtual bool visit_self(MCObjectVisitor *p_visitor);
+    
 	MCVideoClip *clone();
-	char *getfile();
+	bool getfile(MCStringRef& r_file);
 	real8 getscale()
 	{
 		return scale;
 	}
-	Boolean import(const char *fname, IO_handle stream);
+	Boolean import(MCStringRef fname, IO_handle stream);
 	
-	IO_stat load(IO_handle stream, const char *version);
-	IO_stat extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length);
-	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext);
-	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part);
+	IO_stat load(IO_handle stream, uint32_t version);
+	IO_stat extendedload(MCObjectInputStream& p_stream, uint32_t version, uint4 p_length);
+	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version);
+	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version);
 
 	MCVideoClip *next()
 	{
@@ -86,5 +102,18 @@ public:
 		return (MCVideoClip *)MCDLlist::remove
 			       ((MCDLlist *&)list);
 	}
+	
+	////////// PROPERTY ACCESSORS
+
+	void GetDontRefresh(MCExecContext& ctxt, bool& r_setting);
+	void SetDontRefresh(MCExecContext& ctxt, bool setting);
+	void GetFrameRate(MCExecContext& ctxt, integer_t*& r_rate);
+	void SetFrameRate(MCExecContext& ctxt, integer_t* p_rate);
+	void GetScale(MCExecContext& ctxt, double& r_scale);
+	void SetScale(MCExecContext& ctxt, double p_scale);
+	void GetSize(MCExecContext& ctxt, integer_t& r_size);
+	void GetText(MCExecContext& ctxt, MCStringRef& r_text);
+	void SetText(MCExecContext& ctxt, MCStringRef p_text);
+
 };
 #endif

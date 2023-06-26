@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -25,14 +25,14 @@ void MCStackSecurityInit(void);
 
 //////////
 
-bool MCStackSecurityEncryptString(const char *p_string, uint32_t p_length, char *&r_enc);
+bool MCStackSecurityEncryptString(MCStringRef p_string, MCStringRef &r_enc);
 
 //////////
 
 bool MCStackSecurityCreateStack(MCStack *&r_stack);
 bool MCStackSecurityCopyStack(const MCStack *p_stack, MCStack *&r_copy);
 
-bool MCStackSecurityCreateObjectInputStream(IO_handle p_stream, uint32_t p_length, MCObjectInputStream *&r_object_stream);
+bool MCStackSecurityCreateObjectInputStream(IO_handle p_stream, uint32_t p_length, bool p_new_format, MCObjectInputStream *&r_object_stream);
 bool MCStackSecurityCreateObjectOutputStream(IO_handle p_stream, MCObjectOutputStream *&r_object_stream);
 
 //////////
@@ -45,10 +45,17 @@ void MCStackSecuritySetIOEncryptionEnabled(bool p_encrypted);
 
 IO_stat MCStackSecurityWrite(const char *p_string, uint32_t p_length, IO_handle p_stream);
 IO_stat MCStackSecurityRead(char *r_string, uint32_t p_length, IO_handle p_stream);
+IO_stat MCStackSecurityReadUTF8StringRef(MCStringRef& r_string, uint32_t p_length, IO_handle p_stream);
 
 //////////
 
 void MCStackSecurityProcessCapsule(void *p_start, void *p_finish);
+
+//////////
+
+struct MCDeployParameters;
+bool MCStackSecurityPreDeploy(uint32_t p_platform, MCDeployParameters& p_params);
+void MCStackSecurityExecutionTimeout(void);
 
 ////////////////////////////////////////////////////////////////////////////////
 

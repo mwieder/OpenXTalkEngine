@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "parsedef.h"
 #include "filedefs.h"
 
-#include "execpt.h"
+
 #include "handler.h"
 #include "scriptpt.h"
 #include "variable.h"
@@ -34,8 +34,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "md5.h"
 #include "mode.h"
 #include "license.h"
-
-#include "core.h"
 
 #include "deploysecurity.h"
 
@@ -185,6 +183,13 @@ bool MCDeployCapsuleDefine(MCDeployCapsuleRef self, MCCapsuleSectionType p_type,
 	return t_success;
 }
 
+bool MCDeployCapsuleDefineString(MCDeployCapsuleRef self, MCCapsuleSectionType p_type, MCStringRef p_string)
+{
+    MCAutoStringRefAsCString t_auto_cstring;
+    /* UNCHECKED */ t_auto_cstring . Lock(p_string);
+    return MCDeployCapsuleDefine(self, p_type, *t_auto_cstring, strlen(*t_auto_cstring) + 1);
+}
+
 bool MCDeployCapsuleDefineFromFile(MCDeployCapsuleRef self, MCCapsuleSectionType p_type, MCDeployFileRef p_file)
 {
 	MCAssert(self != nil);
@@ -322,7 +327,7 @@ static bool MCDeployCapsuleFilterStart(MCDeployCapsuleFilterState& self, MCDeplo
 	self . stream . avail_out = self . output_capacity;
 	t_result = deflateInit2(&self . stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8,Z_DEFAULT_STRATEGY);
 	if (t_result != Z_OK)
-		return MCThrow(kMCDeployErrorBadCompress);
+		return MCDeployThrow(kMCDeployErrorBadCompress);
 
 	return true;
 }
@@ -375,7 +380,7 @@ static bool MCDeployCapsuleFilterFlush(MCDeployCapsuleFilterState& self)
 	int t_result;
 	t_result = deflate(&self . stream, Z_NO_FLUSH);
 	if (t_result == Z_STREAM_ERROR)
-		return MCThrow(kMCDeployErrorBadCompress);
+		return MCDeployThrow(kMCDeployErrorBadCompress);
 
 	// First ensure we maximum space in the input buffer
 	if (self . stream . next_in != self . input)
@@ -384,7 +389,7 @@ static bool MCDeployCapsuleFilterFlush(MCDeployCapsuleFilterState& self)
 		self . stream . next_in = self . input;
 	}
 
-	// If a buf error occured, we either need more space, or more input
+	// If a buf error occurred, we either need more space, or more input
 	if (t_result == Z_BUF_ERROR)
 	{
 		// If the input buffer is not maxed out, return as we need more input
@@ -395,7 +400,7 @@ static bool MCDeployCapsuleFilterFlush(MCDeployCapsuleFilterState& self)
 		uint8_t *t_new_input;
 		t_new_input = (uint8_t *)realloc(self . input, self . input_capacity * 2);
 		if (t_new_input == NULL)
-			return MCThrow(kMCDeployErrorNoMemory);
+			return MCDeployThrow(kMCDeployErrorNoMemory);
 
 		// Update the stream input pointer
 		self . stream . next_in = t_new_input + (self . stream . next_in - self . input);
@@ -473,7 +478,7 @@ static bool MCDeployCapsuleFilterWriteFile(MCDeployCapsuleFilterState& self, MCD
 static bool MCDeployCapsuleFilterFinish(MCDeployCapsuleFilterState& self, uint32_t& r_offset, md5_byte_t r_digest[16])
 {
 	if (deflate(&self . stream, Z_FINISH) != Z_STREAM_END)
-		return MCThrow(kMCDeployErrorBadCompress);
+		return MCDeployThrow(kMCDeployErrorBadCompress);
 
 	// Write out any remaining data
 	if (!MCDeployCapsuleFilterOutput(self, true))
@@ -535,7 +540,7 @@ bool MCDeployCapsuleGenerate(MCDeployCapsuleRef self, MCDeployFileRef p_file, MC
 			
 			// This is a section for which data has been supplied so first write
 			// out the header.
-			if (t_section -> length >= 1 << 24 || t_section -> type >= 128)
+			if (t_section -> length >= 1 << 24 || (integer_t)t_section -> type >= 128)
 			{
 				// MW-2009-07-14: Probably best to make sure we fill the *right* indices in the
 				//   header array :o)

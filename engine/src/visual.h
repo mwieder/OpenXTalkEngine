@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -51,22 +51,22 @@ public:
 	}
 	virtual ~MCVisualEffect();
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &);
+    virtual void exec_ctxt(MCExecContext &ctxt);
 };
 
 struct MCEffectArgument
 {
 	MCEffectArgument *next;
-	char *key;
-	char *value;
+	MCStringRef key;
+	MCStringRef value;
 };
 
 class MCEffectList
 {
 public:
 	MCEffectList *next;
-	char *name;
-	char *sound;
+	MCStringRef name;
+	MCStringRef sound;
 	MCEffectArgument *arguments;
 	
 	Visual_effects type;

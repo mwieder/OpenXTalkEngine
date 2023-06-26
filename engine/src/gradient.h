@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -87,21 +87,21 @@ struct MCGradientFill
 #define GRADIENT_AA_SCALE (2)
 
 class MCString;
-class MCExecPoint;
 struct MCGradientCombiner;
 
 void MCGradientFillInit(MCGradientFill *&r_gradient, MCRectangle p_rect);
 void MCGradientFillFree(MCGradientFill *gradient);
 MCGradientFill *MCGradientFillCopy(const MCGradientFill *p_gradient);
 
-Exec_stat MCGradientFillGetProperty(MCGradientFill* p_gradient, MCExecPoint &ep, MCNameRef prop);
-Exec_stat MCGradientFillSetProperty(MCGradientFill* &p_gradient, MCExecPoint &ep, MCNameRef prop, Boolean &dirty, MCRectangle rect);
+bool MCGradientFillGetProperties(MCExecContext& ctxt, MCGradientFill* p_gradient, MCExecValue& r_array);
+bool MCGradientFillSetProperties(MCExecContext& ctxt, MCGradientFill* &x_gradient, MCRectangle rect, MCExecValue p_array, bool& r_dirty);
+bool MCGradientFillGetElement(MCExecContext& ctxt, MCGradientFill* p_gradient, MCNameRef p_prop, MCExecValue& r_value);
+bool MCGradientFillSetElement(MCExecContext& ctxt, MCGradientFill* &x_gradient, MCNameRef p_prop, MCRectangle rect, MCExecValue p_value, bool& r_dirty);
 
-Boolean MCGradientFillRampParse(MCGradientFillStop* &r_stops, uint1 &r_stop_count, const MCString &r_data);
-void MCGradientFillRampUnparse(MCGradientFillStop* p_stops, uint1 p_stop_count, MCExecPoint &p_ep);
+Boolean MCGradientFillRampParse(MCGradientFillStop* &r_stops, uint1 &r_stop_count, MCStringRef p_data);
+bool MCGradientFillRampUnparse(MCGradientFillStop* p_stops, uint1 p_stop_count, MCStringRef &r_data);
 
 MCGradientCombiner *MCGradientFillCreateCombiner(MCGradientFill *p_gradient, MCRectangle &p_clip);
-uint1 *MCGradientFillSerialize(MCGradientFill *p_gradient, uint4 &r_length);
 void MCGradientFillUnserialize(MCGradientFill *p_gradient, uint1 *p_data, uint4 &r_length);
 
 IO_stat MCGradientFillSerialize(MCGradientFill *p_gradient, MCObjectOutputStream& p_stream);

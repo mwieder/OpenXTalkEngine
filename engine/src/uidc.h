@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -20,20 +20,23 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef	UIDC_H
 #define	UIDC_H
 
-#ifndef DLLST_H
 #include "dllst.h"
-#endif
-
-#ifndef FILEDEFS_H
 #include "filedefs.h"
-#endif
-
-#ifndef __MC_TRANSFER__
-#include "transfer.h"
-#endif
-
 #include "graphics.h"
 #include "imagebitmap.h"
+#include "object.h"
+
+enum
+{
+    DRAG_ACTION_MOVE_BIT = 0,
+    DRAG_ACTION_COPY_BIT,
+    DRAG_ACTION_LINK_BIT,
+    
+    DRAG_ACTION_NONE = 0,
+    DRAG_ACTION_MOVE = 1 << DRAG_ACTION_MOVE_BIT,
+    DRAG_ACTION_COPY = 1 << DRAG_ACTION_COPY_BIT,
+    DRAG_ACTION_LINK = 1 << DRAG_ACTION_LINK_BIT,
+};
 
 enum Flush_events {
     FE_ALL,
@@ -53,6 +56,7 @@ enum Window_position
 { //Will use in the future for allowing scripter to specify position
     //of window when opening
     WP_DEFAULT,
+    WP_ASRECT,
     WP_CENTERMAINSCREEN,
     WP_CENTERPARENT,
     WP_CENTERPARENTSCREEN,
@@ -100,15 +104,83 @@ enum Transfer_mode {
     TRM_DRAGDROP
 };
 
-typedef struct
+// Converts a keysym to its lower-case equivalent
+KeySym MCKeySymToLower(KeySym p_key);
+
+class MCPendingMessage
 {
-	MCObject *object;
-	MCNameRef message;
-	real8 time;
-	MCParameter *params;
-	uint4 id;
-}
-MCMessageList;
+public:
+    
+    MCObjectHandle      m_object;
+    MCNewAutoNameRef    m_message;
+    real64_t            m_time = 0;
+    MCParameter*        m_params = nullptr;
+    uint32_t            m_id = 0;
+
+    constexpr MCPendingMessage() = default;
+
+    MCPendingMessage(const MCPendingMessage& other) = default;
+
+    // [[ C++11 ]] Replace with `MCPendingMessage(MCObject*, MCNameRef, real64_t, MCParameter*, uint32_t) = default;`
+    MCPendingMessage(MCObject* p_object, MCNameRef p_message, real64_t p_time, MCParameter* p_params, uint32_t p_id) :
+      m_object(p_object),
+      m_message(p_message),
+      m_time(p_time),
+      m_params(p_params),
+      m_id(p_id)
+    {
+    }
+
+    MCPendingMessage& operator= (const MCPendingMessage& other)
+    {
+        m_object = other.m_object;
+        m_message.Reset(*other.m_message);
+        m_time = other.m_time;
+        m_params = other.m_params;
+        m_id = other.m_id;
+        
+        return *this;
+    }
+    
+    void DeleteParameters();
+};
+
+// [[ C++ ]] This should probably be a std::vector
+class MCPendingMessagesList
+{
+public:
+    
+    MCPendingMessagesList() :
+      m_array(nil),
+      m_capacity(0),
+      m_count(0)
+    {
+    }
+    
+    ~MCPendingMessagesList();
+    
+    const MCPendingMessage& operator[] (size_t offset) const
+    {
+        MCAssert(offset < m_count);
+        return m_array[offset];
+    }
+    
+    bool InsertMessageAtIndex(size_t index, const MCPendingMessage&);
+    void DeleteMessage(size_t index, bool delete_params);
+    void ShiftMessageTo(size_t to, size_t from, real64_t newtime);
+    
+    size_t GetCount() const
+    {
+        return m_count;
+    }
+    
+private:
+    
+    MCPendingMessage*   m_array;
+    
+    size_t m_capacity;
+    size_t m_count;
+};
 
 // IM-2014-01-23: [[ HiDPI ]] Add screen pixelScale field to display info
 // IM-2014-01-23: [[ HiDPI ]] Remove device-coordinate versions of viewport & workarea rects
@@ -170,7 +242,7 @@ typedef void *MCColorTransformRef;
 class MCMovingList : public MCDLlist
 {
 public:
-	MCObject *object;
+	MCObjectHandle object;
 	MCPoint *pts;
 	uint2 lastpt;
 	uint2 curpt;
@@ -207,6 +279,19 @@ struct MCImageBuffer;
 
 //
 
+// IM-2014-03-06: [[ revBrowserCEF ]] Actions to call during the runloop
+typedef void (*MCRunloopActionCallback)(void *context);
+
+typedef struct _MCRunloopAction
+{
+	MCRunloopActionCallback callback;
+	void *context;
+	
+	uint32_t references;
+
+	_MCRunloopAction *next;
+} MCRunloopAction, *MCRunloopActionRef;
+
 enum
 {
 	kMCAnswerDialogButtonOk,
@@ -238,16 +323,33 @@ enum MCPlatformFeature
 	PLATFORM_FEATURE_TRANSIENT_SELECTION
 };
 
+enum MCSystemAppearance
+{
+	kMCSystemAppearanceLight = 0,
+	kMCSystemAppearanceDark = 1,
+};
+
 class MCUIDC
 {
+public:
+    
+    typedef void (*modal_break_callback_fn)(void *);
+    struct modal_loop
+    {
+        modal_break_callback_fn break_function;
+        void* context;
+        modal_loop* chain;
+        bool broken;
+    };
+    
 protected:
-	MCMessageList *messages;
+	MCPendingMessagesList m_messages;
 	MCMovingList *moving;
+	Boolean lockmoves;
+	real8 locktime;
 	uint4 messageid;
-	uint2 nmessages;
-	uint2 maxmessages;
 	MCColor *colors;
-	char **colornames;
+	MCStringRef *colornames;
 	int2 *allocs;
 	int2 ncolors;
 	Boolean modalclosed;
@@ -260,10 +362,15 @@ protected:
 	uint2 bluebits;
 	const char *  m_sound_internal ;
 	
+    modal_loop* m_modal_loops;
+    
 	// IM-2014-01-24: [[ HiDPI ]] Cache displays array returned from platform-specific methods
 	static MCDisplay *s_displays;
 	static uint4 s_display_count;
 	static bool s_display_info_effective;
+
+	// IM-2014-03-06: [[ revBrowserCEF ]] List of actions to run during the runloop
+	MCRunloopAction *m_runloop_actions;
 	
 public:
 	MCColor white_pixel;
@@ -274,17 +381,17 @@ public:
 	MCUIDC();
 	virtual ~MCUIDC();
 	
-	virtual bool setbeepsound ( const char * p_internal) ;
-	virtual const char * getbeepsound ( void );
+	virtual bool setbeepsound ( MCStringRef p_beep_sound) ;
+	virtual bool getbeepsound ( MCStringRef& r_beep_sound );
 
 	virtual bool hasfeature(MCPlatformFeature p_feature);
 
-	virtual void setstatus(const char *status);
+	virtual void setstatus(MCStringRef status);
 
 	virtual Boolean open();
 	virtual Boolean close(Boolean force);
 
-	virtual const char *getdisplayname();
+	virtual MCNameRef getdisplayname();
 	
 	virtual void resetcursors();
 	virtual void setcursor(Window w, MCCursorRef c);
@@ -312,13 +419,20 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 	
+	// IM-2014-01-28: [[ HiDPI ]] Convenience methods to convert logical to screen coords and back
+	// IM-2014-07-09: [[ Bug 12602 ]] Move screen coord conversion methods into MCUIDC
+	virtual MCPoint logicaltoscreenpoint(const MCPoint &p_point);
+	virtual MCPoint screentologicalpoint(const MCPoint &p_point);
+	virtual MCRectangle logicaltoscreenrect(const MCRectangle &p_rect);
+	virtual MCRectangle screentologicalrect(const MCRectangle &p_rect);
+
 	// IM-2013-07-31: [[ ResIndependence ]] refactor logical coordinate based methods
 	uint2 getwidth();
 	uint2 getheight();
 	
 	uint4 getdisplays(MCDisplay const *& p_displays, bool effective);
 	
-	// IM-2014-01-28: [[ HiDPI ]] Update the currently held display info, returning whether or not an changes have occured
+	// IM-2014-01-28: [[ HiDPI ]] Update the currently held display info, returning whether or not an changes have occurred
 	void updatedisplayinfo(bool &r_changed);
 
 	// IM-2014-01-24: [[ HiDPI ]] Clear the currently held display information. Should be called
@@ -335,7 +449,7 @@ public:
 	
 	const MCDisplay *getnearestdisplay(const MCRectangle& p_rectangle);
 	Boolean getwindowgeometry(Window w, MCRectangle &drect);
-	void boundrect(MCRectangle &rect, Boolean title, Window_mode m);
+	void boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable);
 	void querymouse(int2 &x, int2 &y);
 	void setmouse(int2 x, int2 y);
 
@@ -350,11 +464,13 @@ public:
 	virtual uint16_t platform_getheight(void);
 	virtual bool platform_getdisplays(bool p_effective, MCDisplay *&r_displays, uint32_t &r_count);
 	virtual bool platform_getwindowgeometry(Window w, MCRectangle &drect);
-	virtual void platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m);
+	virtual void platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable);
 	virtual void platform_querymouse(int16_t &r_x, int16_t &r_y);
 	virtual void platform_setmouse(int16_t p_x, int16_t p_y);
 
 	virtual MCStack *platform_getstackatpoint(int32_t x, int32_t y);
+	
+	virtual bool platform_get_display_handle(void *&r_display);
 	
 ////////////////////////////////////////////////////////////////////////////////
 	
@@ -374,7 +490,7 @@ public:
 	virtual void uniconifywindow(Window window);
 
 	// Set the name of 'window' to the UTF-8 string 'newname'
-	virtual void setname(Window window, const char *newname);
+	virtual void setname(Window window, MCStringRef newname);
 	virtual void setcmap(MCStack *sptr);
 
 	virtual void sync(Window w);
@@ -397,15 +513,18 @@ public:
 	virtual MCCursorRef createcursor(MCImageBitmap *image, int2 xhot, int2 yhot);
 	virtual void freecursor(MCCursorRef c);
 
-	virtual uint4 dtouint4(Drawable d);
-	virtual Boolean uint4towindow(uint4, Window &w);
+	virtual uintptr_t dtouint(Drawable d);
+	virtual Boolean uinttowindow(uintptr_t, Window &w);
+	
+	virtual void *GetNativeWindowHandle(Window p_window);
 
-	virtual void getbeep(uint4 property, MCExecPoint &ep);
+	virtual void getbeep(uint4 property, int4& r_value);
 	virtual void setbeep(uint4 property, int4 beep);
-	virtual void getvendorstring(MCExecPoint &ep);
+	virtual MCNameRef getvendorname(void);
 	virtual uint2 getpad();
 	virtual Window getroot();
-	virtual MCImageBitmap *snapshot(MCRectangle &r, uint4 window, const char *displayname, MCPoint *size);
+
+	virtual MCImageBitmap *snapshot(MCRectangle &r, uint4 window, MCStringRef displayname, MCPoint *size);
 
 	virtual void enablebackdrop(bool p_hard = false);
 	virtual void disablebackdrop(bool p_hard = false);
@@ -426,42 +545,68 @@ public:
 	virtual void waitfocus();
 	virtual uint2 querymods();
 	virtual Boolean getmouse(uint2 button, Boolean& r_abort);
-	virtual Boolean getmouseclick(uint2 button, Boolean& r_abort);
-	virtual void addmessage(MCObject *optr, MCNameRef name, real8 time, MCParameter *params);
+    virtual Boolean getmouseclick(uint2 button, Boolean& r_abort);
+    virtual void addmessage(MCObject *optr, MCNameRef name, real8 time, MCParameter *params);
+    virtual void delaymessage(MCObject *optr, MCNameRef name, MCStringRef p1 = nil, MCStringRef p2 = nil);
 	
+    // When called, all modal loops should be exited and control should return
+    // to the main event loop. The intended use of this method is to prevent UI
+    // lockups when a script error occurs during a modal loop (e.g during
+    // the drag-and-drop loop)
+    void breakModalLoops();
+    
+    // Indicates that a modal event loop is being entered. A callback function
+    // should be passed in order to allow the breaking of the loop.
+    void modalLoopStart(modal_loop& info);
+    
+    // Indicates that the innermost modal loop is being exited
+    void modalLoopEnd();
+    
 	// Wait for at most 'duration' seconds. If 'dispatch' is true then event
 	// dispatch will occur. If 'anyevent' is true then the call will return
 	// as soon as something notable happens. If an abort/quit occurs while the
 	// wait is occuring, True will be returned.
 	virtual Boolean wait(real8 duration, Boolean dispatch, Boolean anyevent);
-	// Notify any current wait loop that something has occured that it might
+	// Notify any current wait loop that something has occurred that it might
 	// not be aware of. This will cause any OS loop to be exited and events
 	// and such to be processed. If the wait was called with 'anyevent' True
 	// then it will cause termination of the wait.
 	virtual void pingwait(void);
 
+	bool FindRunloopAction(MCRunloopActionCallback p_callback, void *p_context, MCRunloopActionRef &r_action);
+	// IM-2014-03-06: [[ revBrowserCEF ]] Add action to runloop
+	bool AddRunloopAction(MCRunloopActionCallback p_callback, void *p_context, MCRunloopActionRef &r_action);
+	// IM-2014-03-06: [[ revBrowserCEF ]] Remove action from runloop
+	void RemoveRunloopAction(MCRunloopActionRef p_action);
+	// IM-2014-03-06: [[ revBrowserCEF ]] Perform runloop actions
+	void DoRunloopActions(void);
+	
+	// IM-2014-06-25: [[ Bug 12671 ]] Return if any runloop actions are registered.
+	bool HasRunloopActions(void);
+
 	virtual void flushevents(uint2 e);
 	virtual void updatemenubar(Boolean force);
 	virtual Boolean istripleclick();
-	virtual void getkeysdown(MCExecPoint &ep);
+	virtual bool getkeysdown(MCListRef& r_list);
 	
-	virtual uint1 fontnametocharset(const char *oldfontname);
-	virtual char *charsettofontname(uint1 charset, const char *oldfontname);
+	virtual uint1 fontnametocharset(MCStringRef p_fontname);
+//	virtual char *charsettofontname(uint1 charset, const char *oldfontname);
 	
 	virtual void clearIME(Window w);
+    virtual void configureIME(int32_t x, int32_t y);
 	virtual void openIME();
 	virtual void activateIME(Boolean activate);
 	virtual void closeIME();
 
 	virtual void seticon(uint4 p_icon);
-	virtual void seticonmenu(const char *p_menu);
-	virtual void configurestatusicon(uint32_t icon_id, const char *menu, const char *tooltip);
+	virtual void seticonmenu(MCStringRef p_menu);
+	virtual void configurestatusicon(uint32_t icon_id, MCStringRef menu, MCStringRef tooltip);
 	virtual void enactraisewindows(void);
 
 	//
 
 	virtual MCPrinter *createprinter(void);
-	virtual void listprinters(MCExecPoint& ep);
+	virtual bool listprinters(MCStringRef& r_printers);
 
 	//
 
@@ -471,63 +616,6 @@ public:
 	virtual void stopplayingsound(void);
 
 	//
-
-	// Returns true if this application currently owns the transient selection.
-	//
-	virtual bool ownsselection(void);
-
-	// Attempt to grab the transient selection with the given list of data types.
-	// Upon success, true should be returned.
-	//
-	// If p_pasteboard is NULL, then the selection is ungrabbed if this application
-	// is the current owner.
-	//
-	// The pasteboard object is passed with get semantics, the callee must retain
-	// the object if it wishes to keep a reference.
-	//
-	virtual bool setselection(MCPasteboard *p_pasteboard);
-
-	// Return an object allowing access to the current transient selection. See
-	// the definition of MCPasteboard for more information.
-	//
-	// The pasteboard object is returned with copy semantics - the caller must
-	// release the object when it is finished with it.
-	//
-	virtual MCPasteboard *getselection(void);
-
-	//
-
-	// Flush the contents of the current clipboard to the OS if we are the current
-	// owner. This method is called before final shutdown to ensure that the
-	// clipboard isn't lost when a Revolution application quits.
-	virtual void flushclipboard(void);
-
-	// Returns true if this application currently owns the clipboard.
-	//
-	virtual bool ownsclipboard(void);
-
-	// Attempt to grab the clipboard and place the given list of data types
-	// upon it.
-	//
-	// If p_pasteboard is NULL and this application is the current owner of the
-	// clipboard, ownersup should be relinquished.
-	// 
-	// The pasteboard object is passed with get semantics, the callee must retain
-	// the object if it wishes to keep a reference.
-	//
-	virtual bool setclipboard(MCPasteboard *p_pasteboard);
-
-	// Return an object allowing access to the current clipboard. See
-	// the definition of MCPasteboard for more information.
-	//
-	// The returned object has copy semantics, the caller should release it when
-	// it is finished with it.
-	//
-	// Note that the system clipboard should be considered locked by this method
-	// and will remain so until the object is released. Therefore, the object 
-	// should not be held for 'too long'.
-	//
-	virtual MCPasteboard *getclipboard(void);
 
 	// Begin a drag-drop operation with this application as source and with the
 	// given list of data-types.
@@ -541,58 +629,83 @@ public:
 	// with the data.
 	//
 	// The method returns the actual result of the drag-drop operation - DRAG_ACTION_NONE meaning
-	// that no drop occured.
+	// that no drop occurred.
 	//
-	virtual MCDragAction dodragdrop(MCPasteboard *p_pasteboard, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint *p_image_offset);
+	virtual MCDragAction dodragdrop(Window w, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint *p_image_offset);
 	
 	//
 
-	virtual MCScriptEnvironment *createscriptenvironment(const char *p_language);
+	virtual MCScriptEnvironment *createscriptenvironment(MCStringRef p_language);
 
 	//
-
-	virtual int32_t popupanswerdialog(const char **p_buttons, uint32_t p_button_count, uint32_t p_type, const char *p_title, const char *p_message);
-	virtual char *popupaskdialog(uint32_t p_type, const char *p_title, const char *p_message, const char *p_initial, bool p_hint);
+    
+    // Show an answer dialog using the native APIs. If 'blocking' is true
+    // then messages will not be dispatched until the dialog is closed.
+	virtual int32_t popupanswerdialog(MCStringRef *p_buttons, uint32_t p_button_count, uint32_t p_type, MCStringRef p_title, MCStringRef p_message, bool p_blocking);
+	virtual bool popupaskdialog(uint32_t p_type, MCStringRef p_title, MCStringRef p_message, MCStringRef p_initial, bool p_hint, MCStringRef& r_result);
 	
 	//
     
     // TD-2013-05-29: [[ DynamicFonts ]]
-	virtual bool loadfont(const char *p_path, bool p_globally, void*& r_loaded_font_handle);
-    virtual bool unloadfont(const char *p_path, bool p_globally, void *r_loaded_font_handle);
+	virtual bool loadfont(MCStringRef p_path, bool p_globally, void*& r_loaded_font_handle);
+    virtual bool unloadfont(MCStringRef p_path, bool p_globally, void *r_loaded_font_handle);
+    
+    //
+	
+	virtual void controlgainedfocus(MCStack *s, uint32_t id);
+	virtual void controllostfocus(MCStack *s, uint32_t id);
+	
+	//
+    
+    // MW-2014-04-26: [[ Bug 5545 ]] Hides the cursor until the mouse moves on platforms which
+    //   require this action.
+    virtual void hidecursoruntilmousemoves(void);
+	
+	virtual void getsystemappearance(MCSystemAppearance &r_appearance);
     
     //
 
 	void addtimer(MCObject *optr, MCNameRef name, uint4 delay);
-	void cancelmessageindex(uint2 i, Boolean dodelete);
+	void cancelmessageindex(size_t i, bool dodelete);
 	void cancelmessageid(uint4 id);
-	void cancelmessageobject(MCObject *optr, MCNameRef name);
-	void delaymessage(MCObject *optr, MCNameRef name, char *p1 = NULL, char *p2 = NULL);
-    void doaddmessage(MCObject *optr, MCNameRef name, real8 time, uint4 id, MCParameter *params);
-    int doshiftmessage(int index, real8 newtime);
+	void cancelmessageobject(MCObject *optr, MCNameRef name, MCValueRef param = nil);
+    bool listmessages(MCExecContext& ctxt, MCListRef& r_list);
+    void doaddmessage(MCObject *optr, MCNameRef name, real8 time, uint4 id, MCParameter *params = nil);
+    size_t doshiftmessage(size_t index, real8 newtime);
     
-	void listmessages(MCExecPoint &ep);
+    void addsubtimer(MCObject *target, MCValueRef subtarget, MCNameRef name, uint4 delay);
+    void cancelsubtimer(MCObject *target, MCNameRef name, MCValueRef subtarget);
+
+    // MW-2014-05-28: [[ Bug 12463 ]] This is used by 'send in time' - separating user sent messages from
+    //   engine sent messages. The former are subject to a limit to stop pending message queue overflow.
+    bool addusermessage(MCObject *optr, MCNameRef name, real8 time, MCParameter *params);
+    
+    // Returns true if there are any pending messages to dispatch right now.
+    bool hasmessagestodispatch(void);
+    
 	Boolean handlepending(real8 &curtime, real8 &eventtime, Boolean dispatch);
+	Boolean getlockmoves() const;
+	void setlockmoves(Boolean b);
 	void addmove(MCObject *optr, MCPoint *pts, uint2 npts,
 	             real8 &duration, Boolean waiting);
-	void listmoves(MCExecPoint &ep);
+	bool listmoves(MCExecContext& ctxt, MCListRef& r_list);
 	void stopmove(MCObject *optr, Boolean finish);
 	void handlemoves(real8 &curtime, real8 &eventtime);
 	void siguser();
-	Boolean lookupcolor(const MCString &s, MCColor *color);
+	Boolean lookupcolor(MCStringRef s, MCColor *color);
 	void dropper(Window w, int2 mx, int2 my, MCColor *cptr);
-	Boolean parsecolor(const MCString &s, MCColor *color, char **cname);
+	bool parsecolor(MCStringRef p_string, MCColor& r_color);
+	Boolean parsecolor(MCStringRef s, MCColor& r_color, MCStringRef *cname);
 	Boolean parsecolors(const MCString &values, MCColor *colors,
 	                    char *cnames[], uint2 ncolors);
-	void alloccolor(MCColor &color);
-	void querycolor(MCColor &color);
-	Boolean getcolors(MCExecPoint &);
 	Boolean setcolors(const MCString &);
-	void getcolornames(MCExecPoint &);
+	bool getcolornames(MCStringRef&);
 	void getpaletteentry(uint4 n, MCColor &c);
 
+    
 	Boolean hasmessages()
 	{
-		return nmessages != 0;
+		return m_messages.GetCount() != 0;
 	}
 	void closemodal()
 	{
@@ -622,6 +735,28 @@ public:
 	{
 		return gray_pixel;
 	}
+    
+    const MCColor& getbg(void) const
+    {
+        return background_pixel;
+    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// MCColor Utility functions
+static inline uint32_t MCColorGetPixel(const MCColor &p_color, MCGPixelFormat p_format = kMCGPixelFormatNative)
+{
+	return MCGPixelPack(p_format, p_color.red >> 8, p_color.green >> 8, p_color.blue >> 8, 0xFF);
+}
+
+static inline void MCColorSetPixel(MCColor &x_color, uint32_t p_pixel, MCGPixelFormat p_format = kMCGPixelFormatNative)
+{
+	uint8_t r, g, b, a;
+	MCGPixelUnpack(p_format, p_pixel, r, g, b, a);
+	x_color.red = (uint16_t)((r << 8) | r);
+	x_color.green = (uint16_t)((g << 8) | g);
+	x_color.blue = (uint16_t)((b << 8) | b);
+}
 
 #endif

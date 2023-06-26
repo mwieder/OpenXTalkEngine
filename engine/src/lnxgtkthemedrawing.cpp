@@ -127,26 +127,6 @@ moz_gtk_container_paint(GdkDrawable * drawable, GdkRectangle * rect,
 
 
 
-
-bool moz_gtk_handle_event(const XEvent &ev)
-{
-	bool ret = true;
-	
-	GdkEvent *gev = gdk_event_get();
-	if (gev && gev->type == GDK_SETTING)
-	{
-		gtk_main_do_event(gev);
-	}
-	else
-	{
-		ret = false;
-	}
-
-	return ret;
-}
-
-
-
 gint moz_gtk_enable_style_props(style_prop_t styleGetProp)
 {
 	style_prop_func = styleGetProp;
@@ -171,10 +151,14 @@ static gint setup_widget_prototype(GtkWidget * widget)
 			screendepth = ((MCScreenDC*)MCscreen)->getdepth();
 		else 
 			screendepth = 24;
-		
-		gtk_widget_set_colormap ( GTK_WIDGET(gProtoWindow), gdk_colormap_new ( gdk_visual_get_best_with_depth (screendepth), False ) );
-		gtk_widget_set_colormap ( GTK_WIDGET(widget), gdk_colormap_new ( gdk_visual_get_best_with_depth (screendepth), False ) );
-		
+        
+        GdkVisual * t_vis = gdk_visual_get_best_with_depth (screendepth);
+		if (t_vis != NULL)
+        {
+            gtk_widget_set_colormap ( GTK_WIDGET(gProtoWindow), gdk_colormap_new (t_vis, False ));
+            gtk_widget_set_colormap ( GTK_WIDGET(widget), gdk_colormap_new (t_vis, False ));
+        }
+                                 
         gtk_widget_realize(gProtoWindow);
 		gtk_widget_set_name(widget, "MozillaGtkWidget");
 
@@ -616,13 +600,13 @@ moz_gtk_checkbox_get_metrics(gint * indicator_size, gint * indicator_spacing)
 
 	if (indicator_size)
 	{
-		gtk_widget_style_get_ptr(gCheckboxWidget, "indicator_size",
+		gtk_widget_style_get_ptr(gCheckboxWidget, "indicator-size",
 		                       indicator_size, NULL);
 	}
 
 	if (indicator_spacing)
 	{
-		gtk_widget_style_get_ptr(gCheckboxWidget, "indicator_spacing",
+		gtk_widget_style_get_ptr(gCheckboxWidget, "indicator-spacing",
 		                       indicator_spacing, NULL);
 	}
 
@@ -636,13 +620,13 @@ gint moz_gtk_radiobutton_get_metrics(gint * indicator_size,
 
 	if (indicator_size)
 	{
-		gtk_widget_style_get_ptr(gRadiobuttonWidget, "indicator_size",
+		gtk_widget_style_get_ptr(gRadiobuttonWidget, "indicator-size",
 		                       indicator_size, NULL);
 	}
 
 	if (indicator_spacing)
 	{
-		gtk_widget_style_get_ptr(gRadiobuttonWidget, "indicator_spacing",
+		gtk_widget_style_get_ptr(gRadiobuttonWidget, "indicator-spacing",
 		                       indicator_spacing, NULL);
 	}
 
@@ -674,7 +658,7 @@ GtkStateType state_type = ConvertGtkState(state);
      * vertically center in the box, since XUL sometimes ignores our
      * GetMinimumWidgetSize in the vertical dimension
      */
-    x = rect->x;
+    x = rect->x + indicator_spacing;
     y = rect->y + (rect->height - indicator_size) / 2;
     width = indicator_size;
     height = indicator_size;
@@ -1219,14 +1203,11 @@ moz_gtk_listbox_paint(GdkDrawable * drawable, GdkRectangle * rect,
 void spinbutton_get_rects(GtkArrowType type, GdkRectangle *rect,
                           GdkRectangle &buttonrect, GdkRectangle &arrowrect)
 {
-	GdkRectangle *ret;
 	gint arrow_size;
 	int x, y, width, height;
 	int h, w;
 
 	ensure_spinbutton_widget();
-
-	ret = new GdkRectangle;
 
 	arrow_size = rect->width - (2 * XTHICKNESS(gSpinbuttonWidget->style));
 
@@ -1315,16 +1296,6 @@ moz_gtk_scale_track_paint(GtkThemeWidgetType type,
                           gint flags)
 {
 	ensure_scale_widget();
-	GtkWidget *widget;
-
-	if(type == MOZ_GTK_SCALE_TRACK_VERTICAL)
-	{
-		widget = gVScaleWidget;
-	}
-	else
-	{
-		widget = gHScaleWidget;
-	}
 
 	GtkStyle *style;
 	GtkScale *scale;

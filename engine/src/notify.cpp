@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,37 +16,68 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "notify.h"
+
+#if !defined(FEATURE_NOTIFY)
+#	error MCNotify API not supported on this platform
+#endif
 
 #if defined(_MAC_DESKTOP)
 #include "osxprefix.h"
 #include <pthread.h>
-#elif defined(_LINUX_DESKTOP)
+#define USE_PTHREADS
+#define USE_PINGORPIPE
+#define PING_FUNC MCMacBreakWait
+#elif defined(_MAC_SERVER)
+#include <unistd.h>
+#include <pthread.h>
+#define USE_PTHREADS
+#define USE_PIPE
+#elif defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
 #include <pthread.h>
 #include <unistd.h>
-#elif defined(_WINDOWS_DESKTOP)
-#include "w32prefix.h"
-#elif defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#define USE_PTHREADS
+#define USE_PIPE
+#elif defined(_WINDOWS_DESKTOP) || defined(_WINDOWS_SERVER)
+#define USE_WINTHREADS
+#elif defined(_IOS_MOBILE)
 #include <pthread.h>
+#define USE_PTHREADS
+#define USE_PING
+#define PING_FUNC MCIPhoneBreakWait
+#elif defined(_ANDROID_MOBILE)
+#include <pthread.h>
+#define USE_PTHREADS
+#define USE_PING
+#define PING_FUNC MCAndroidBreakWait
 #endif
+
+extern Boolean MCnoui;
 
 struct MCNotifySyncEvent
 {
 	MCNotifySyncEvent *next;
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	HANDLE object;
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
-	pthread_mutex_t mutex;
+#elif defined(USE_PTHREADS)
+    pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	bool triggered;
+#else
+#error Threading API not specified
 #endif
 };
 
 struct MCNotification
 {
 	MCNotification *next;
-	void (*callback)(void *);
+    // MW-2014-10-23: [[ Bug 13721 ]] Required field indicates signature of callback.
+    bool required;
+    union
+    {
+        void (*callback)(void *);
+        void (*required_callback)(void *, int);
+    };
 	void *state;
 	MCNotifySyncEvent *notify;
 };
@@ -66,23 +97,19 @@ static bool s_shutting_down = false;
 
 // MW-2013-06-25: [[ DesktopPingWait ]] Added main thread ids for all platforms
 //   so that MCNotifyPush can work correctly regardless of thread.
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 HANDLE g_notify_wakeup = NULL;
 static CRITICAL_SECTION s_notify_lock;
 static DWORD s_main_thread_id = 0;
-#elif defined(_MACOSX)
+#elif defined(USE_PTHREADS)
 static bool s_notify_sent = false;
 static pthread_mutex_t s_notify_lock;
 static pthread_t s_main_thread;
-#elif defined(_LINUX)
-static bool s_notify_sent = false;
+#if defined(USE_PIPE) || defined(USE_PINGORPIPE)
 int g_notify_pipe[2] = {-1, -1};
-static pthread_mutex_t s_notify_lock;
-static pthread_t s_main_thread;
-#elif defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
-static bool s_notify_sent = false;
-static pthread_mutex_t s_notify_lock;
-static pthread_t s_main_thread;
+#endif
+#else
+#error Threading API not specified
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,15 +120,17 @@ static MCNotifySyncEvent *MCNotifySyncEventCreate(void)
 		return MCListPopFront(s_sync_events);
 
 	MCNotifySyncEvent *t_event;
-	t_event = new MCNotifySyncEvent;
+	t_event = new (nothrow) MCNotifySyncEvent;
 	t_event -> next = NULL;
 
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	t_event -> object = CreateEvent(NULL, FALSE, FALSE, NULL);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_mutex_init(&t_event -> mutex, 0);
 	pthread_cond_init(&t_event -> cond, 0);
 	t_event -> triggered = false;
+#else
+#error Threading API not specified
 #endif
 
 	return t_event;
@@ -115,12 +144,14 @@ static void MCNotifySyncEventDestroy(MCNotifySyncEvent *self, bool p_force)
 		s_sync_events = self;
 		return;
 	}
-
-#if defined(_WINDOWS)
+    
+#if defined(USE_WINTHREADS)
 	CloseHandle(self -> object);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_cond_destroy(&self -> cond);
 	pthread_mutex_destroy(&self -> mutex);
+#else
+#error Threading API not specified
 #endif
 
 	delete self;
@@ -128,36 +159,42 @@ static void MCNotifySyncEventDestroy(MCNotifySyncEvent *self, bool p_force)
 
 static void MCNotifySyncEventTrigger(MCNotifySyncEvent *self)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	SetEvent(self -> object);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_mutex_lock(&self -> mutex);
 	self -> triggered = true;
 	pthread_cond_signal(&self -> cond);
 	pthread_mutex_unlock(&self -> mutex);
+#else
+#error Threading API not specified
 #endif
 }
 
 static void MCNotifySyncEventReset(MCNotifySyncEvent *self)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	ResetEvent(self -> object);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_mutex_lock(&self -> mutex);
 	self -> triggered = false;
 	pthread_mutex_unlock(&self -> mutex);
+#else
+#error Threading API not specified
 #endif
 }
 
 static void MCNotifySyncEventWait(MCNotifySyncEvent *self)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	WaitForSingleObject(self -> object, INFINITE);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_mutex_lock(&self -> mutex);
 	while(!self -> triggered)
 		pthread_cond_wait(&self -> cond, &self -> mutex);
 	pthread_mutex_unlock(&self -> mutex);
+#else
+#error Threading API not specified
 #endif
 }
 
@@ -165,19 +202,23 @@ static void MCNotifySyncEventWait(MCNotifySyncEvent *self)
 
 static void MCNotifyLock(void)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	EnterCriticalSection(&s_notify_lock);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_mutex_lock(&s_notify_lock);
+#else
+#error Threading API not specified
 #endif
 }
 
 static void MCNotifyUnlock(void)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	LeaveCriticalSection(&s_notify_lock);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 	pthread_mutex_unlock(&s_notify_lock);
+#else
+#error Threading API not specified
 #endif
 }
 
@@ -187,25 +228,16 @@ static void MCNotifyUnlock(void)
 //   the main thread, returning 'true' if it so.
 static bool MCNotifyIsMainThread(void)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	return GetCurrentThreadId() == s_main_thread_id;
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
-	return pthread_self() == s_main_thread;
+#elif defined(USE_PTHREADS)
+	return pthread_equal(pthread_self(), s_main_thread);
 #else
-	// TODO: Implement for other platforms (inc. _WINDOWS_SERVER)
-	return true;
+#error Threading API not specified
 #endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#if defined(_MACOSX)
-extern bool g_osx_dispatch_event;
-static OSStatus MCNotifyEventHandler(EventHandlerCallRef p_ref, EventRef p_event, void *p_data)
-{
-	MCNotifyDispatch(g_osx_dispatch_event);
-}
-#endif
 
 bool MCNotifyInitialize(void)
 {
@@ -220,22 +252,21 @@ bool MCNotifyInitialize(void)
 
 	// MW-2013-06-25: [[ DesktopPingWait ]] Initialize the main thread references
 	//   needed by 'MCNotifyIsMainThread()'.
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	g_notify_wakeup = CreateEvent(NULL, FALSE, FALSE, NULL);
 	InitializeCriticalSection(&s_notify_lock);
 	s_main_thread_id = GetCurrentThreadId();
-#elif defined(_MACOSX)
-	static EventTypeSpec t_events[] = { 'revo', 'wkup' };
-	::InstallApplicationEventHandler(MCNotifyEventHandler, 1, t_events, NULL, NULL);
+#elif defined(USE_PTHREADS)
 	pthread_mutex_init(&s_notify_lock, NULL);
 	s_main_thread = pthread_self();
-#elif defined(_LINUX)
-	pthread_mutex_init(&s_notify_lock, NULL);
+#if defined(USE_PIPE)
 	pipe(g_notify_pipe);
-	s_main_thread = pthread_self();
-#elif defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
-	pthread_mutex_init(&s_notify_lock, NULL);
-	s_main_thread = pthread_self();
+#elif defined(USE_PINGORPIPE)
+    if (MCnoui)
+        pipe(g_notify_pipe);
+#endif
+#else
+#error Threading API not specified
 #endif
 	
 	return true;
@@ -247,7 +278,12 @@ static void MCNotifyFinalizeList(MCNotification*& p_list)
 	{
 		MCNotification *t_notify;
 		t_notify = MCListPopFront(p_list);
-
+        
+        // MW-2014-10-23: [[ Bug 13721 ]] If the callback is required, then invoke it with 1 as the
+        //   flags. This tells it not to take action, but just to free up state.
+        if (t_notify -> required)
+            t_notify -> required_callback(t_notify -> state, 1);
+        
 		// Make sure we release any pending threads.
 		if (t_notify -> notify != NULL)
 		{
@@ -289,20 +325,31 @@ void MCNotifyFinalize(void)
 		
 		MCNotifySyncEventDestroy(t_event, true);
 	}
-
-#if defined(_WINDOWS)
+    
+#if defined(USE_WINTHREADS)
 	DeleteCriticalSection(&s_notify_lock);
 	CloseHandle(g_notify_wakeup);
-#elif defined(_MACOSX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
-	pthread_mutex_destroy(&s_notify_lock);
-#elif defined(_LINUX)
-	pthread_mutex_destroy(&s_notify_lock);
+#elif defined(USE_PTHREADS)
+#if defined(USE_PIPE)
 	close(g_notify_pipe[0]);
 	close(g_notify_pipe[1]);
+#elif defined(USE_PINGORPIPE)
+    if (MCnoui)
+    {
+        close(g_notify_pipe[0]);
+        close(g_notify_pipe[1]);
+    }
+#endif
+	pthread_mutex_destroy(&s_notify_lock);
+#else
+#error Threading API not specified
 #endif
 }
 
-bool MCNotifyPush(void (*p_callback)(void *), void *p_state, bool p_block, bool p_safe)
+// MW-2014-10-23: [[ Bug 13721 ]] Added 'required' parameter. Indicates whether the callback should always
+//   be invoked. If in action context, then with 0, otherwise in finalize context with 1 (should free up state
+//  but not do anything else.
+bool MCNotifyPush(void (*p_callback)(void *), void *p_state, bool p_block, bool p_safe, bool p_required)
 {
 	bool t_success;
 	t_success = true;
@@ -311,7 +358,12 @@ bool MCNotifyPush(void (*p_callback)(void *), void *p_state, bool p_block, bool 
 	// on the main thread should just invoke the callback.
 	if (p_block && !p_safe && MCNotifyIsMainThread())
 	{
-		p_callback(p_state);
+        // MW-2014-10-23: [[ Bug 13721 ]] If the callback is required, then it expects a 0 second
+        //   argument if it should take action (otherwise 1 to free up, but not take action).
+        if (p_required)
+            ((void(*)(void *, int))p_callback)(p_state, 0);
+        else
+            p_callback(p_state);
 		return true;
 	}
 	
@@ -324,18 +376,17 @@ bool MCNotifyPush(void (*p_callback)(void *), void *p_state, bool p_block, bool 
 	MCNotification *t_notification;
 	t_notification = NULL;
 	if (t_success)
-		t_notification = new MCNotification;
+		t_notification = new (nothrow) MCNotification;
 
 	// Fill it in.
 	if (t_success)
 	{
+        // MW-2014-10-23: [[ Bug 13721 ]] Add the required field (indicates callback sig).
 		t_notification -> next = NULL;
+        t_notification -> required = p_required;
 		t_notification -> callback = p_callback;
 		t_notification -> state = p_state;
 		t_notification -> notify = NULL;
-
-		// Enter the critical region
-		MCNotifyLock();
 
 		// If we are shutting down, then we have failed.
 		if (s_shutting_down)
@@ -344,16 +395,26 @@ bool MCNotifyPush(void (*p_callback)(void *), void *p_state, bool p_block, bool 
 		{
 			// Assign a sync event if we want to block
 			if (p_block)
+            {
+                MCNotifyLock();
 				t_notification -> notify = MCNotifySyncEventCreate();
+                MCNotifyUnlock();
+            }
 
 			if (!p_block || t_notification -> notify != NULL)
 			{
+                // Enter the critical region
+                MCNotifyLock();
+                
 				// Add the notification to the queue
 				if (p_safe)
 					MCListPushBack(s_safe_notifications, t_notification);
 				else
 					MCListPushBack(s_notifications, t_notification);
 
+                // MM-2015-06-12: [[ Bug ]] Make sure we unlock before calling ping. Not doing so can cause deadlock.
+                MCNotifyUnlock();
+                
 				// MW-2013-06-25: [[ DesktopPingWait ]] Moved to MCNotifyPing().
 				// Ping the main thread to make sure it knows to check for a shiny new
 				// thing.
@@ -362,9 +423,6 @@ bool MCNotifyPush(void (*p_callback)(void *), void *p_state, bool p_block, bool 
 			else
 				t_success = false;
 		}
-
-		// Unlock
-		MCNotifyUnlock();
 	}
 
 	if (t_success)
@@ -405,16 +463,22 @@ static bool MCNotifyDispatchList(MCNotification*& p_list)
 			MCNotification *t_notify;
 
 			MCNotifyLock();
-#ifdef _WINDOWS
+#if defined(USE_WINTHREADS)
 			ResetEvent(g_notify_wakeup);
-#elif defined(_MACOSX) || defined(_LINUX) || defined(_IOS_MOBILE) || defined(_ANDROID_MOBILE)
+#elif defined(USE_PTHREADS)
 			s_notify_sent = false;
+#else
+#error Threading API not specified
 #endif
 			t_notify = MCListPopFront(p_list);
 			MCNotifyUnlock();
-
-			// Invoke the callback
-			t_notify -> callback(t_notify -> state);
+            
+			// MW-2014-10-23: [[ Bug 13721 ]] If the callback is required then use a different
+            //   signature.
+            if (t_notify -> required)
+                t_notify -> required_callback(t_notify -> state, 0);
+            else
+                t_notify -> callback(t_notify -> state);
 
 			// Notify the blocking thread which will destroy the event
 			if (t_notify -> notify != NULL)
@@ -443,31 +507,48 @@ bool MCNotifyDispatch(bool p_safe)
 }
 
 // MW-2013-06-25: [[ DesktopPingWait ]] Wake up the event loop.
+// MM-2015-06-12: [[ Bug ]] Make sure we lock around s_notify_sent.
 void MCNotifyPing(bool p_high_priority)
 {
-#if defined(_WINDOWS)
+#if defined(USE_WINTHREADS)
 	SetEvent(g_notify_wakeup);
-#elif defined(_MACOSX)
-	if (!s_notify_sent)
-	{
-		s_notify_sent = true;
-		EventRef t_event;
-		::CreateEvent(NULL, 'revo', 'wkup', 0, kEventAttributeNone, &t_event);
-		::PostEventToQueue(::GetMainEventQueue(), t_event, p_high_priority ? kEventPriorityHigh : kEventPriorityStandard);
-		::ReleaseEvent(t_event);
-	}
-#elif defined(_LINUX)
-	if (!s_notify_sent)
-	{
-		s_notify_sent = true;
-		char t_notify_char = 1;
-		write(g_notify_pipe[1], &t_notify_char, 1);
-	}
-#elif defined(_IOS_MOBILE)
-	extern void MCIPhoneBreakWait(void);
-	MCIPhoneBreakWait();
-#elif defined(_ANDROID_MOBILE)
-	extern void MCAndroidBreakWait(void);
-	MCAndroidBreakWait();
+#elif defined(USE_PTHREADS)
+    if (!s_notify_sent)
+    {
+        MCNotifyLock();
+        if (!s_notify_sent)
+        {
+            s_notify_sent = true;
+            MCNotifyUnlock();
+
+#if defined(USE_PING)
+            extern void PING_FUNC(void);
+            PING_FUNC();
+#elif defined(USE_PIPE)
+            char t_notify_char = 1;
+            write(g_notify_pipe[1], &t_notify_char, 1);
+#elif defined(USE_PINGORPIPE)
+            if (!MCnoui)
+            {
+                extern void PING_FUNC(void);
+                PING_FUNC();
+            }
+            else
+            {
+                char t_notify_char = 1;
+                write(g_notify_pipe[1], &t_notify_char, 1);
+            }
 #endif
+        }
+        else
+            MCNotifyUnlock();
+    }
+#else
+#error Threading API not specified
+#endif
+}
+
+bool MCNotifyPending(void)
+{
+	return s_notifications != nil || s_safe_notifications != nil;
 }

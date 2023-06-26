@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,32 +18,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "revspeech.h"
 
-#include "w32sapi4speech.h"
 #include "w32sapi5speech.h"
 
 INarrator *InstantiateNarrator(NarratorProvider p_provider)
 {
-	if (p_provider == kNarratorProviderDefault)
-	{
-		INarrator *t_narrator;
-		t_narrator = new WindowsSAPI5Narrator();
-		if (!t_narrator -> Initialize())
-		{
-			delete t_narrator;
-
-			t_narrator = new WindowsSAPI4Narrator();
-			if (!t_narrator -> Initialize())
-			{
-				delete t_narrator;
-				t_narrator = NULL;
-			}
-		}
-
-		return t_narrator;
-	}
-	else if (p_provider == kNarratorProviderSAPI4)
-		return new WindowsSAPI4Narrator();
-	
 	return new WindowsSAPI5Narrator();
 }
 

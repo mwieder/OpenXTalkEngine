@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -39,7 +39,7 @@ OSXSpeechNarrator::OSXSpeechNarrator(void)
 {
 	spchannel = NULL;
 	strcpy(speechvoice, "empty");
-	speechbuffer = NULL;
+	speechtext = NULL;
 	speechspeed = 0;
 	speechpitch = 0;
 }
@@ -64,24 +64,17 @@ bool OSXSpeechNarrator::Finalize(void)
 	return false;
 }
 
-bool OSXSpeechNarrator::Start(const char* p_string)
+bool OSXSpeechNarrator::Start(const char* p_string, bool p_is_utf8)
 {
 	if (SpeechStart(true) == false)
 	{
 		return false;
 	}
-        
-	if (speechbuffer != nil)
-	{
-		if (spchannel != nil)
-			StopSpeech(spchannel);
-			
-		free(speechbuffer);
-        speechbuffer = nil;
-    }
-	
-	speechbuffer = strdup(p_string);
-	SpeakText(spchannel, speechbuffer, strlen(speechbuffer) + 1);
+    
+    if (speechtext != nil)
+        CFRelease(speechtext);
+    speechtext = CFStringCreateWithCString(kCFAllocatorDefault, p_string, p_is_utf8 ? kCFStringEncodingUTF8 : kCFStringEncodingMacRoman);
+	SpeakCFString(spchannel, speechtext, nil);
 	return true;
 }
 
@@ -96,8 +89,7 @@ bool OSXSpeechNarrator::Stop(void)
 
 bool OSXSpeechNarrator::Busy(void)
 {
-	char *result = NULL;
-    if (spchannel != nil)
+	if (spchannel != nil)
 	 {
         if (SpeechBusy())
 		{
@@ -141,8 +133,10 @@ bool OSXSpeechNarrator::ListVoices(NarratorGender p_gender, NarratorListVoicesCa
             &&(GetVoiceDescription(&tVoice, &myInfo, sizeof(myInfo)) == noErr))
         {
             if ((t_gender != -1) && (myInfo.gender != t_gender)) continue;
-            char cvoice[255];
-            CopyPascalStringToC(myInfo.name, cvoice);
+            char cvoice[256];
+            strncpy(cvoice, (const char*)&myInfo.name[1], myInfo.name[0]);
+			// PM-2016-02-15: [[ Bug 16929 ]] Make sure the copied strings are null-terminated
+			cvoice[myInfo.name[0]]='\0';
 			p_callback(p_context, p_gender, cvoice);
 		}
 	}
@@ -263,18 +257,25 @@ bool OSXSpeechNarrator::SpeechStop(bool ReleaseInit)
 	StopSpeech(spchannel);
 	do
 	{
-		EventRecord t_record;
-		WaitNextEvent(0, &t_record, 1, NULL);
+        // Run an inner main loop until the speech has finished processing
+        EventRef t_event;
+        OSStatus t_status = ReceiveNextEvent(0, NULL, 1, true, &t_event);
+        if (t_status == noErr)
+        {
+            SendEventToEventTarget(t_event, GetEventDispatcherTarget());
+            ReleaseEvent(t_event);
+        }
 	}
 	while(SpeechBusy() > 0);
 	
-       DisposeSpeechChannel(spchannel);
-       spchannel = nil;
-       if (speechbuffer != nil)
-	{
-           free(speechbuffer);
-           speechbuffer = nil;
-	}
+    DisposeSpeechChannel(spchannel);
+    spchannel = nil;
+    if (speechtext != nil)
+    {
+        CFRelease(speechtext);
+        speechtext = nil;
+    }
+    
    	return true;
 }
 
@@ -282,7 +283,7 @@ void OSXSpeechNarrator::FindAndSelect()
 {
     VoiceSpec *FoundVoice = nil;
     VoiceSpec tVoice;
-    char cvoice[255];
+    char cvoice[256];
     short NumVoices;
     if (CountVoices(&NumVoices) == noErr) {
         for (short count = 1;count<=NumVoices;count++)
@@ -291,7 +292,9 @@ void OSXSpeechNarrator::FindAndSelect()
             {
                 VoiceDescription myInfo;
                 if (GetVoiceDescription(&tVoice, &myInfo, sizeof(myInfo)) == noErr) {
-                    CopyPascalStringToC(myInfo.name,cvoice);
+                    strncpy(cvoice, (const char*)&myInfo.name[1], myInfo.name[0]);
+					// PM-2016-02-15: [[ Bug 16929 ]] Make sure the copied strings are null-terminated
+					cvoice[myInfo.name[0]]='\0';
                     if (strcmp(cvoice,speechvoice) == 0)
                     {
                         FoundVoice = &tVoice;

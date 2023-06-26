@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -20,6 +20,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef	PARSEDEFS_H
 #define	PARSEDEFS_H
 
+#include "mcutility.h"
+#include "sysdefs.h"
+
 typedef struct _constant
 {
 	MCString name;
@@ -30,8 +33,10 @@ constant;
 #define ELEMENTS(table) (sizeof(table) / sizeof(table[0]))
 
 enum Accept_constants {
-    AC_UNDEFINED,
-    AC_DATAGRAM,
+    AC_CONNECTIONS,
+	AC_ON,
+	AC_PORT,
+	AC_DATAGRAM,
     AC_SECURE
 };
 
@@ -73,78 +78,12 @@ enum Ask_type {
 	AT_HINT,
 };
 
-// Chunks, containers and ordinals (and dest for Go command)
-enum Chunk_term {
-    CT_UNDEFINED,
-    CT_START,
-    CT_BACKWARD,
-    CT_FORWARD,
-    CT_FINISH,
-    CT_HOME,
-	// MW-2009-03-03: The chunk type of the invisible 'script' object that
-	//   holds the SERVER mode state.
-	CT_SERVER_SCRIPT,
-    CT_HELP,
-    CT_DIRECT,
-    CT_RECENT,
-    CT_THIS,
-    CT_FIRST,
-    CT_SECOND,
-    CT_THIRD,
-    CT_FOURTH,
-    CT_FIFTH,
-    CT_SIXTH,
-    CT_SEVENTH,
-    CT_EIGHTH,
-    CT_NINTH,
-    CT_TENTH,
-    CT_LAST,
-    CT_NEXT,
-    CT_PREV,
-    CT_MIDDLE,
-    CT_ANY,
-    CT_ORDINAL,
-    CT_ID,
-    CT_EXPRESSION,
-    CT_RANGE,
-    CT_URL,
-    CT_URL_HEADER,
-    CT_ALIAS,
-	CT_DOCUMENT,
-    CT_TOP_LEVEL,
-    CT_MODELESS,
-    CT_PALETTE,
-    CT_MODAL,
-    CT_PULLDOWN,
-    CT_POPUP,
-    CT_OPTION,
-
-    CT_STACK,
-    CT_AUDIO_CLIP,
-    CT_VIDEO_CLIP,
-    CT_BACKGROUND,
-    CT_CARD,
-    CT_MARKED,
-    CT_GROUP,
-    CT_LAYER,
-    CT_BUTTON,
-    CT_MENU,
-    CT_SCROLLBAR,
-    CT_PLAYER,
-    CT_IMAGE,
-    CT_GRAPHIC,
-    CT_EPS,
-    CT_MAGNIFY,
-    CT_COLOR_PALETTE,
-    CT_FIELD,
-	CT_ELEMENT,
-    CT_LINE,
-    CT_ITEM,
-    CT_WORD,
-    CT_TOKEN,
-    CT_CHARACTER,
-    CT_TYPES,
-	CT_KEY
+enum Assert_type {
+    ASSERT_TYPE_NONE,
+    ASSERT_TYPE_TRUE,
+    ASSERT_TYPE_FALSE,
+    ASSERT_TYPE_SUCCESS,
+    ASSERT_TYPE_FAILURE,
 };
 
 inline Chunk_term ct_class(Chunk_term src)
@@ -192,7 +131,8 @@ enum Dest_type {
     DT_ME,
     DT_MENU_OBJECT,
     DT_TARGET,
-    DT_BUTTON,
+	DT_FIRST_OBJECT,
+    DT_BUTTON = DT_FIRST_OBJECT,
     DT_CARD,
     DT_FIELD,
     DT_GROUP,
@@ -204,6 +144,7 @@ enum Dest_type {
     DT_VIDEO_CLIP,
     DT_PLAYER,
     DT_STACK,
+	DT_LAST_OBJECT,
     DT_SELECTED,
     DT_ERROR,
     DT_TOP_STACK,
@@ -217,7 +158,6 @@ enum Dest_type {
 	// MW-2013-08-05: [[ ThisMe ]] Access to the behavior object (this me).
 	DT_THIS_ME,
 };
-
 
 enum Encryption_constants
 {
@@ -298,6 +238,7 @@ enum Export_format {
 	EX_RAW_GRAY,
 	EX_RAW_INDEXED,
 	EX_BMP,
+    EX_OBJECT,
 };
 
 enum Factor_rank {
@@ -320,17 +261,23 @@ enum Factor_rank {
 
 enum File_unit {
     FU_UNDEFINED,
+    FU_BYTE,
     FU_CHARACTER,
+    FU_CODEPOINT,
+    FU_CODEUNIT,
     FU_INT1,
     FU_INT2,
     FU_INT4,
     FU_INT8,
     FU_ITEM,
     FU_LINE,
+    FU_PARAGRAPH,
     FU_REAL4,
     FU_REAL8,
     FU_TOKEN,
+    FU_SENTENCE,
     FU_WORD,
+    FU_TRUEWORD,
     FU_UINT1,
     FU_UINT2,
     FU_UINT4,
@@ -373,12 +320,17 @@ enum Functions {
     F_BASE_CONVERT,
     F_BASE64_DECODE,
     F_BASE64_ENCODE,
+    // AL-2014-10-17: [[ BiDi ]] Returns the result of applying the bi-directional algorithm to text
+    F_BIDI_DIRECTION,
     F_BINARY_DECODE,
     F_BINARY_ENCODE,
     F_BUILD_NUMBER,
+    F_BYTE_OFFSET,
     F_CACHED_URLS,
     F_CAPS_LOCK_KEY,
 	F_BYTE_TO_NUM,
+	// MDW-2014-08-23 : [[ feature_floor ]]
+	F_CEIL,
     F_CHAR_TO_NUM,
     F_CIPHER_NAMES,
     F_CLICK_CHAR,
@@ -392,8 +344,12 @@ enum Functions {
     F_CLICK_TEXT,
     F_CLICK_V,
     F_CLIPBOARD,
+    F_CODEPOINT_OFFSET,
+    F_CODEUNIT_OFFSET,
     F_COLOR_NAMES,
+    F_COMMAND_ARGUMENTS,
     F_COMMAND_KEY,
+    F_COMMAND_NAME,
     F_COMMAND_NAMES,
     F_COMPOUND,
     F_COMPRESS,
@@ -423,6 +379,8 @@ enum Functions {
     F_EXTENTS,
     F_FILES,
     F_FLUSH_EVENTS,
+	// MDW-2014-08-23 : [[ feature_floor ]]
+	F_FLOOR,
     F_FOCUSED_OBJECT,
     F_FONT_LANGUAGE,
     F_FONT_NAMES,
@@ -499,7 +457,10 @@ enum Functions {
     F_MOUSE_V,
     F_MOVIE,
     F_MOVING_CONTROLS,
+    F_NATIVE_CHAR_TO_NUM,
     F_NUM_TO_CHAR,
+    F_NUM_TO_NATIVE_CHAR,
+    F_NUM_TO_UNICODE_CHAR,
 	F_NUM_TO_BYTE,
     F_OFFSET,
     F_OPEN_FILES,
@@ -512,6 +473,7 @@ enum Functions {
 	//   tag.
 	F_OWNER,
     F_PA,
+    F_PARAGRAPH_OFFSET,
     F_PARAM,
     F_PARAMS,
     F_PARAM_COUNT,
@@ -529,6 +491,7 @@ enum Functions {
     F_QUERY_REGISTRY,
     F_RANDOM,
     F_RECORD_COMPRESSION_TYPES,
+    F_RECORD_FORMATS,
     F_RECORD_LOUDNESS,
     F_REPLACE_TEXT,
     F_RESULT,
@@ -552,6 +515,7 @@ enum Functions {
     F_SELECTED_LOC,
     F_SELECTED_TEXT,
     F_SELECTED_OBJECT,
+    F_SENTENCE_OFFSET,
     F_SET_REGISTRY,
     F_SET_RESOURCE,
     F_SHELL,
@@ -586,14 +550,19 @@ enum Functions {
     F_TEMPLATE_VIDEO_CLIP,
     F_TEMPLATE_PLAYER,
     F_TEMPLATE_STACK,
+    F_TEXT_DECODE,
+    F_TEXT_ENCODE,
     F_TEXT_HEIGHT_SUM,
     F_TICKS,
     F_TIME,
     F_TO_LOWER,
     F_TO_UPPER,
+    F_TOKEN_OFFSET,
     F_TOP_STACK,
     F_TRANSPOSE,
+    F_TRUEWORD_OFFSET,
     F_TRUNC,
+    F_UNICODE_CHAR_TO_NUM,
     F_UNI_DECODE,
     F_UNI_ENCODE,
     F_URL_DECODE,
@@ -614,6 +583,7 @@ enum Functions {
 	F_ARRAY_DECODE,
 	F_RANDOM_BYTES,
 	F_SHA1_DIGEST,
+    F_MESSAGE_DIGEST,
 	
 	// MW-2012-10-08: [[ HitTest ]] New functions for returning control at a point.
 	F_CONTROL_AT_LOC,
@@ -625,11 +595,30 @@ enum Functions {
     // MERG-2013-08-14: [[ MeasureText ]] Measure text relative to the effective font on an object
     F_MEASURE_TEXT,
     F_MEASURE_UNICODE_TEXT,
+    
+    F_NORMALIZE_TEXT,
+    
+    F_CODEPOINT_PROPERTY,
+    
+    F_VECTOR_DOT_PRODUCT,
+    
+    F_EVENT_CAPSLOCK_KEY,
+    F_EVENT_COMMAND_KEY,
+    F_EVENT_CONTROL_KEY,
+    F_EVENT_OPTION_KEY,
+    F_EVENT_SHIFT_KEY,
 };
 
+/* The HT_MIN and HT_MAX elements of the enum delimit the range of the handler
+ * arrays in MCHandlerlst so iteration over the type should be
+ * HT_MIN <= i <= HT_MAX */
 enum Handler_type {
-    HT_UNDEFINED,
-    HT_MESSAGE,
+    
+    HT_UNDEFINED = 0,
+
+    HT_MIN,
+    
+    HT_MESSAGE = HT_MIN,
     HT_FUNCTION,
     HT_GETPROP,
     HT_SETPROP,
@@ -639,7 +628,9 @@ enum Handler_type {
 	HT_BEFORE,
 	HT_AFTER,
 
-	HT_PRIVATE
+    HT_PRIVATE,
+
+    HT_MAX = HT_PRIVATE
 };
 
 enum If_format {
@@ -681,6 +672,16 @@ enum Is_type {
 	IT_NOT_AMONG_THE_DRAG_DATA,
 	IT_AMONG_THE_CLIPBOARD_DATA,
 	IT_NOT_AMONG_THE_CLIPBOARD_DATA,
+    IT_AMONG_THE_RAW_CLIPBOARD_DATA,
+    IT_NOT_AMONG_THE_RAW_CLIPBOARD_DATA,
+    IT_AMONG_THE_RAW_DRAGBOARD_DATA,
+    IT_NOT_AMONG_THE_RAW_DRAGBOARD_DATA,
+    IT_AMONG_THE_FULL_CLIPBOARD_DATA,
+    IT_NOT_AMONG_THE_FULL_CLIPBOARD_DATA,
+    IT_AMONG_THE_FULL_DRAGBOARD_DATA,
+    IT_NOT_AMONG_THE_FULL_DRAGBOARD_DATA,
+    IT_STRICTLY,
+    IT_NOT_STRICTLY,
 };
 
 enum Is_validation {
@@ -696,6 +697,10 @@ enum Is_validation {
 	IV_ARRAY,
 	// MERG-2013-06-24: [[ IsAnAsciiString ]] Tag for 'ascii'.
     IV_ASCII,
+    
+    IV_STRING,
+    IV_BINARY_STRING,
+    IV_REAL,
 };
 
 enum Lock_constants {
@@ -709,6 +714,7 @@ enum Lock_constants {
     LC_RECENT,
     LC_SCREEN,
 	LC_SCREEN_FOR_EFFECT,
+    LC_CLIPBOARD,
 };
 
 enum Mark_constants {
@@ -724,7 +730,8 @@ enum Mark_constants {
 enum Match_mode {
     MA_UNDEFINED,
     MA_WILDCARD,
-    MA_REGEX
+    MA_REGEX,
+    MA_EXPRESSION
 };
 
 enum Move_mode {
@@ -847,7 +854,9 @@ enum Record_params {
     RC_BEST,
     RC_BETTER,
     RC_GOOD,
+    RC_PAUSE,
     RC_QUALITY,
+    RC_RESUME,
     RC_SOUND
 };
 
@@ -873,6 +882,7 @@ enum Preposition_type {
 	PT_MARKUP,
 	PT_BINARY,
 	PT_COOKIE,
+	PT_NEWEST,
 };
 
 enum Print_mode {
@@ -903,6 +913,7 @@ enum Properties {
 	P_WORKING,
     // local properties
     P_CASE_SENSITIVE,
+    P_FORM_SENSITIVE,
     P_CENTURY_CUTOFF,
     P_CONVERT_OCTALS,
     P_ITEM_DELIMITER,
@@ -942,6 +953,8 @@ enum Properties {
     P_PRIVATE_COLORS,
     P_IDLE_RATE,
     P_IDLE_TICKS,
+    // MERG-2014-06-02: [[ IgnoreMouseEvents ]] Property tag for 'the ignoreMouseEvents' of stacks.
+    P_IGNORE_MOUSE_EVENTS,
     P_BLINK_RATE,
     P_RECURSION_LIMIT,
     P_REPEAT_RATE,
@@ -1047,6 +1060,7 @@ enum Properties {
     P_FILE_TYPE,
     P_STACK_FILE_TYPE,
 		P_STACK_FILE_VERSION,
+    P_MIN_STACK_FILE_VERSION,
     P_SECURE_MODE,
     P_SERIAL_CONTROL_STRING,
     P_TOOL,
@@ -1092,6 +1106,7 @@ enum Properties {
     P_EXECUTION_CONTEXTS,
     P_MESSAGE_MESSAGES,
     P_WATCHED_VARIABLES,
+    P_LOG_MESSAGE,
     P_ALLOW_INLINE_INPUT,
     P_SSL_CERTIFICATES,
 	P_HIDE_BACKDROP,
@@ -1226,6 +1241,8 @@ enum Properties {
 	P_FULLSCREENMODE,
 	// IM-2014-01-07: [[ StackScale ]] Property tag for the scalefactor
 	P_SCALE_FACTOR,
+    // MERG-2015-08-31: [[ ScriptOnly ]] Property tag for scriptOnly
+    P_SCRIPT_ONLY,
     P_FILE_NAME,
     P_SAVE_COMPRESSED,
     P_USER_LEVEL,
@@ -1334,6 +1351,7 @@ enum Properties {
     P_CURRENT_TIME,
     P_DURATION,
     P_LOOPING,
+    P_MIRRORED,
     P_PLAY_RATE,
     P_SHOW_BADGE,
     P_SHOW_CONTROLLER,
@@ -1345,7 +1363,9 @@ enum Properties {
     P_PLAY_SELECTION,
     P_SHOW_SELECTION,
     P_PAUSED,
+    P_STATUS,
     P_MOVIE_CONTROLLER_ID,
+    P_MOVIE_LOADED_TIME,
     P_TRACK_COUNT,
     P_TRACKS,
     P_ENABLED_TRACKS,
@@ -1357,6 +1377,9 @@ enum Properties {
     P_PAN,
     P_CONSTRAINTS,
     P_HOT_SPOTS,
+    P_LEFT_BALANCE,
+    P_RIGHT_BALANCE,
+    P_AUDIO_PAN,
     // EPS properties
     P_POSTSCRIPT,
     P_ANGLE,
@@ -1550,12 +1573,11 @@ enum Properties {
     // color palette properties
     P_SELECTED_COLOR,
 
-    P_REV_LICENSE_LIMITS, // DEVELOPMENT only
+    P_REV_LICENSE_LIMITS,
 	P_REV_CRASH_REPORT_SETTINGS, // DEVELOPMENT only
 	P_REV_AVAILABLE_HANDLERS, // DEVELOPMENT only
-	P_REV_MESSAGE_BOX_LAST_OBJECT, // DEVELOPMENT only
-	P_REV_MESSAGE_BOX_REDIRECT, // DEVELOPMENT only
-	P_REV_LICENSE_INFO, // DEVELOPMENT only
+	P_MESSAGE_BOX_LAST_OBJECT,
+	P_REV_LICENSE_INFO,
 
 	P_REV_RUNTIME_BEHAVIOUR,
 	
@@ -1580,7 +1602,7 @@ enum Properties {
 	// MW-2011-11-24: [[ UpdateScreen ]] Property controlling whether stack updates should
 	//   occur after every command.
 	P_DEFER_SCREEN_UPDATES,
-	
+
 	// MM-2012-09-05: [[ Property Listener ]] Property listing all the currently active object property listeners.
 	P_REV_OBJECT_LISTENERS, // DEVELOPMENT only
 	P_REV_PROPERTY_LISTENER_THROTTLE_TIME, // DEVELOPMENT only
@@ -1605,7 +1627,25 @@ enum Properties {
 	P_SCREEN_PIXEL_SCALE,
 	P_SCREEN_PIXEL_SCALES,
 	
-	// ARRAY STYLE PROPERTIES
+    // RTL/Bidirectional properties
+    P_CURSORMOVEMENT,
+    P_TEXTDIRECTION,
+    
+    // MW-2014-06-19: [[ ImageCenterRect ]] Tag for the centerRect property.
+    P_CENTER_RECTANGLE,
+    // MW-2014-06-19: [[ IconGravity ]] Tag for the button iconGravity property.
+    P_ICON_GRAVITY,
+    
+    // MERG-2013-08-12: [[ ClipsToRect ]] If true group clips to the set rect rather than the rect of children
+    P_CLIPS_TO_RECT,
+
+    // MW-2014-08-12: [[ EditionType ]] Returns whether the engine is commercial or community
+    P_EDITION_TYPE,
+    
+    // MERG-2015-10-11: [[ DocumentFilename ]] Property tag for documentFilename
+    P_DOCUMENT_FILENAME,
+    
+    // ARRAY STYLE PROPERTIES
 	P_FIRST_ARRAY_PROP,
     P_CUSTOM_KEYS = P_FIRST_ARRAY_PROP,
     P_CUSTOM_PROPERTIES,
@@ -1618,6 +1658,110 @@ enum Properties {
 	P_BITMAP_EFFECT_INNER_GLOW,
 	P_BITMAP_EFFECT_COLOR_OVERLAY,
     P_TEXT_STYLE,
+    
+    // NATIVE CONTROL PROPERTIES
+    P_URL,
+    P_CAN_BOUNCE,
+    P_SCROLLING_ENABLED,
+    P_CAN_ADVANCE,
+    P_CAN_RETREAT,
+    P_ALPHA,
+    P_BACKGROUND_COLOR,
+    // SN-2014-12-11: [[ Merge-6.7.1-rc-4 ]]
+    P_IGNORE_VOICE_OVER_SENSITIVITY,
+    P_MULTI_LINE,
+    P_TEXT_COLOR,
+    P_FONT_SIZE,
+    P_FONT_NAME,
+    P_EDITABLE,
+    P_EDITING,
+    P_AUTO_CAPITALIZATION_TYPE,
+    P_AUTOCORRECTION_TYPE,
+    P_KEYBOARD_TYPE,
+    P_KEYBOARD_STYLE,
+    P_RETURN_KEY_TYPE,
+    P_CONTENT,
+    P_CONTENT_TYPE,
+    P_DATA_DETECTOR_TYPES,
+    P_SELECTED_RANGE,
+    P_NATURAL_SIZE,
+    P_CONTENT_RECT,
+    P_SHOW_HORIZONTAL_INDICATOR,
+    P_SHOW_VERTICAL_INDICATOR,
+    P_TRACKING,
+    P_DRAGGING,
+    P_AUTO_FIT,
+    P_DELAY_REQUESTS,
+    P_ALLOWS_INLINE_MEDIA_PLAYBACK,
+    P_MEDIA_PLAYBACK_REQUIRES_USER_ACTION,
+    P_MANAGE_RETURN_KEY,
+    P_MINIMUM_FONT_SIZE,
+    P_MAXIMUM_TEXT_LENGTH,
+    P_AUTO_CLEAR,
+    P_CLEAR_BUTTON_MODE,
+    P_BORDER_STYLE,
+    P_VERTICAL_TEXT_ALIGN,
+    P_CAN_SCROLL_TO_TOP,
+    P_CAN_CANCEL_TOUCHES,
+    P_DELAY_TOUCHES,
+    P_PAGING_ENABLED,
+    P_DECELERATION_RATE,
+    P_INDICATOR_STYLE,
+    P_INDICATOR_INSETS,
+    P_LOCK_DIRECTION,
+    P_DECELERATING,
+    P_PRESERVE_ASPECT,
+    P_USE_APPLICATION_AUDIO_SESSION,
+    P_SHOULD_AUTOPLAY,
+    P_ALLOWS_AIR_PLAY,
+    P_PLAYABLE_DURATION,
+    P_IS_PREPARED_TO_PLAY,
+    P_LOAD_STATE,
+    P_PLAYBACK_STATE,
+    // SN-2015-09-04: [[ Bug 9744 ]] readyForDisplay property added for players
+    P_READY_FOR_DISPLAY,
+    
+    // MOBILE STORE PROPERTIES
+    P_PRODUCT_IDENTIFIER,
+    P_PURCHASE_QUANTITY,
+    P_PURCHASE_DATE,
+    P_TRANSACTION_IDENTIFIER,
+    P_RECEIPT,
+    P_ORIGINAL_PURCHASE_DATE,
+    P_ORIGINAL_TRANSACTION_IDENTIFIER,
+    P_ORIGINAL_RECEIPT,
+    P_DEVELOPER_PAYLOAD,
+    P_SIGNED_DATA,
+    P_SIGNATURE,
+    P_LOCALIZED_TITLE,
+    P_LOCALIZED_DESCRIPTION,
+    P_LOCALIZED_PRICE,
+    P_KIND,
+
+    // MW-2014-12-10: [[ Extensions ]] 'loadedExtensions' global property
+    P_LOADED_EXTENSIONS,
+    
+    P_RAW_CLIPBOARD_DATA,
+    P_RAW_DRAGBOARD_DATA,
+    P_FULL_CLIPBOARD_DATA,
+    P_FULL_DRAGBOARD_DATA,
+    
+    P_THEME,
+    P_THEME_CONTROL_TYPE,
+    
+    P_SCRIPT_STATUS,
+    
+    P_LONG_NAME_NO_FILENAME,
+    P_REV_SCRIPT_DESCRIPTION,
+    P_REV_BEHAVIOR_USES,
+    
+    P_REV_LIBRARY_MAPPING,
+    
+    P_LAYER_CLIP_RECT,
+	
+	P_SYSTEM_APPEARANCE,
+    
+    __P_LAST,
 };
 
 enum Look_and_feel {
@@ -1632,6 +1776,15 @@ enum Look_and_feel {
     LF_NATIVEGTK
 };
 
+enum Relayer_relation
+{
+	RR_NONE,
+	RR_BEFORE,
+	RR_AFTER,
+	RR_FRONT,
+	RR_BACK
+};
+
 enum Repeat_form {
     RF_UNDEFINED,
     RF_EACH,
@@ -1640,7 +1793,9 @@ enum Repeat_form {
     RF_STEP,
     RF_UNTIL,
     RF_WHILE,
-    RF_WITH
+    RF_WITH,
+    // SN-2015-06-18: [[ Bug 15509 ]] Parse 'times' in 'repeat for x times'
+    RF_TIMES
 };
 
 enum Reset_type {
@@ -1734,7 +1889,7 @@ enum Show_object {
 };
 
 enum Sort_type {
-    ST_UNDEFINED,
+    ST_UNDEF,
     ST_OF,
     ST_BY,
     ST_LINES,
@@ -1742,6 +1897,7 @@ enum Sort_type {
     ST_MARKED,
     ST_CARDS,
     ST_TEXT,
+    ST_BINARY,
     ST_NUMERIC,
     ST_INTERNATIONAL,
     ST_DATETIME,
@@ -1818,6 +1974,30 @@ enum Sugar_constants {
 	SG_FALSE,
 	SG_SUCCESS,
 	SG_FAILURE,
+    
+    // MW-2014-09-30: [[ ScriptOnlyStack ]] Tag for 'only' keyword in create command.
+    SG_ONLY,
+	
+    // MM-2014-06-13: [[ Bug 12567 ]] Added host. Used in 'with verification for host <host>'
+	SG_HOST,
+    
+    SG_EXTENSION,
+	SG_RESOURCE,
+	SG_PATH,
+    
+    // AL-2015-06-11: [[ Load Extension From Var ]] Add 'data' syntactic sugar
+    SG_DATA,
+    
+    SG_STRICTLY,
+    SG_REAL,
+	
+	SG_REPLACING,
+	SG_PRESERVING,
+	SG_STYLES,
+    
+    SG_URL_RESULT,
+    SG_ERROR,
+    SG_VALUE,
 };
 
 enum Statements {
@@ -1849,6 +2029,7 @@ enum Statements {
     S_DECRYPT,
     S_DEFINE,
     S_DELETE,
+    S_DIFFERENCE,
     S_DISABLE,
 	// MW-2008-11-05: [[ Dispatch Command ]] This is the 'dispatch' token's tag
 	S_DISPATCH,
@@ -1886,6 +2067,7 @@ enum Statements {
     S_LOCAL,
     S_LOAD,
     S_LOCK,
+    S_LOG,
     S_MARK,
     S_MODAL,
     S_MODELESS,
@@ -1942,6 +2124,7 @@ enum Statements {
     S_START,
     S_STOP,
     S_SUBTRACT,
+    S_SYMMETRIC,
     S_SWITCH,
     S_THROW,
     S_TOP_LEVEL,
@@ -1968,6 +2151,7 @@ enum Statements {
 //   a uint32_t since as a independent var, it makes more sense for it to be that).
 typedef uint32_t Symbol_type;
 enum {
+    ST_UNDEFINED,
     ST_ERR,
     ST_EOF,
     ST_EOL,
@@ -1985,7 +2169,9 @@ enum {
     ST_ID,
     ST_ESC,
     ST_LIT,
-	
+	ST_LC,
+    ST_RC,
+    
 	// MW-2009-03-03: The ST_DATA symbol type is a string that shoudl be treated
 	//   as an echoed literal - it represents the data between <?rev ?> blocks in
 	//   SERVER mode. ST_TAG is the type of '?' so we can identify '?>'.
@@ -2147,6 +2333,13 @@ enum Server_keywords
 	SK_UNICODE,
 	SK_SECURE,
 	SK_HTTPONLY,
+};
+
+enum MCExecResultMode
+{
+    kMCExecResultModeReturn,
+    kMCExecResultModeReturnValue,
+    kMCExecResultModeReturnError,
 };
 
 #include "parseerrors.h"

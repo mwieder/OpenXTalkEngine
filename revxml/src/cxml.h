@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -50,8 +50,8 @@ class CXMLAttribute;
 //xmldoc.cpp
 int util_strnicmp(const char *s1, const char *s2, int n);
 int util_strncmp(const char *s1, const char *s2, int n);
-void util_concatstring(char *s, int slen, char *&d, int &dlen, int &dalloc);
-char *util_strchr(char *sptr, char target, int l);
+void util_concatstring(const char *s, int slen, char *&d, int &dlen, int &dalloc);
+const char *util_strchr(const char *sptr, char target, int l);
 
 extern void CB_startDocument();
 extern void CB_endDocument();
@@ -64,8 +64,8 @@ class CXMLDocument
 public:
 CXMLDocument() {Init();}
 // MDW-2013-09-03: [[ RevXmlXslt ]] new constructors
-CXMLDocument(xmlXPathContextPtr id) {Init(); xpathContext = id;}
-CXMLDocument(xsltStylesheetPtr id) {Init(); xsltID = id;}
+CXMLDocument(xmlXPathContextPtr p_id) {Init(); xpathContext = p_id;}
+CXMLDocument(xsltStylesheetPtr p_id) {Init(); xsltID = p_id;}
 ~CXMLDocument() {Free();}
 inline Bool isinited() {return doc != NULL;}
 Bool Read(char *data, unsigned long tlength, Bool wellformed);
@@ -139,6 +139,8 @@ int ChildCount(char *childname, int maxdepth);
 void CopyElement(CXMLElement *telement,Bool truecopy = False);
 void AddElement(CXMLElement *telement);
 bool MoveElement(CXMLElement *tsrcelement, bool p_sibling, bool p_before);
+// MW-2014-06-12: [[ Bug 12628 ]] Uses appropriate libxml calls to move srclement from another document
+bool MoveRemoteElement(CXMLElement *tsrcelement, bool p_sibling, bool p_before);
 char *GetContent(Bool isbuffered = True);
 void SetContent(char *tdata);
 Bool GoChild(char *ename, bool inc_text = false);

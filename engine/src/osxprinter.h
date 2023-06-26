@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -46,7 +46,7 @@ public:
 private:
 	MCPrinterResult BeginPage(void);
 
-	MCPrinterResult HandleError(OSErr p_error, const char *p_message);
+	MCPrinterResult HandleError(OSStatus p_error, const char *p_message);
 
 	PMPrintSession m_session;
 	PMPrintSettings m_settings;
@@ -66,8 +66,8 @@ protected:
 	void DoInitialize(void);
 	void DoFinalize(void);
 
-	bool DoReset(const char *p_name);
-	bool DoResetSettings(const MCString& p_settings);
+	bool DoReset(MCStringRef p_name);
+	bool DoResetSettings(MCDataRef p_settings);
 
 	void DoFetchSettings(void*& r_buffer, uint4& r_length);
 	const char *DoFetchName(void);
@@ -77,11 +77,11 @@ protected:
 	MCPrinterDialogResult DoPrinterSetup(bool p_window_modal, Window p_owner);
 	MCPrinterDialogResult DoPageSetup(bool p_window_modal, Window p_owner);
 
-	MCPrinterResult DoBeginPrint(const char *p_document_name, MCPrinterDevice*& r_device);
+	MCPrinterResult DoBeginPrint(MCStringRef p_document, MCPrinterDevice*& r_device);
 	MCPrinterResult DoEndPrint(MCPrinterDevice* p_device);
 
 private:
-	bool Reset(const char *p_name, PMPrintSettings p_settings, PMPageFormat p_page_format);
+	bool Reset(MCStringRef p_name, PMPrintSettings p_settings, PMPageFormat p_page_format);
 
 	void ResetSession(void);
 
@@ -102,13 +102,6 @@ private:
 	PMPrintSettings m_settings;
 	PMPageFormat m_page_format;
 	PMPrintSession m_session;
-
-	//
-
-	static bool c_sheet_pending;
-	static bool c_sheet_accepted;
-
-	static void SheetDoneCallback(PMPrintSession printSession, WindowRef documentWindow, Boolean accepted);
 };
 
 #endif

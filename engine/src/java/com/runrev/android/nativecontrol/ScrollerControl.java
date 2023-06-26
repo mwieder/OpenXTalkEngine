@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -80,6 +80,12 @@ class ScrollerControl extends NativeControl
                     ScrollerControl.this.updateScroll(m_dispatching ? m_new_left : m_left, t);
                 super.onScrollChanged(l, t, oldl, oldt);
             }
+            
+            @Override
+            public boolean onInterceptTouchEvent (MotionEvent ev)
+            {
+                return true;
+            }
         };
         m_hscroll = new HorizontalScrollView(p_context) {
             @Override
@@ -88,6 +94,12 @@ class ScrollerControl extends NativeControl
                 if (l != oldl)
                     ScrollerControl.this.updateScroll(l, m_dispatching ? m_new_top : m_top);
                 super.onScrollChanged(l, t, oldl, oldt);
+            }
+            
+            @Override
+            public boolean onInterceptTouchEvent (MotionEvent ev)
+            {
+                return true;
             }
         };
         
@@ -127,7 +139,10 @@ class ScrollerControl extends NativeControl
             {
                 // handle dispatching of touch events so we can send them to both scrollviews
                 if (!m_scrolling_enabled)
+                {
+                    NativeControlModule.getEngine().onTouchEvent(e);
                     return false;
+                }
                 
                 m_dispatching = true;
                 m_touch_canceled = false;
@@ -249,12 +264,16 @@ class ScrollerControl extends NativeControl
     public void setHScroll(int h)
     {
         //Log.i(TAG, String.format("setHScroll(%d)", h));
+		// PM-2015-09-23: [[ Bug 11709 ]] Make sure the hscroll is actually set
+		m_left = h;
         m_hscroll.scrollTo(h, m_top);
     }
     
     public void setVScroll(int v)
     {
         //Log.i(TAG, String.format("setVScroll(%d)", v));
+		// PM-2015-09-23: [[ Bug 11709 ]] Make sure the vscroll is actually set
+		m_top = v;
         m_vscroll.scrollTo(m_left, v);
     }
     

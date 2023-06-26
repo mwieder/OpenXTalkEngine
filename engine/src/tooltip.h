@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,15 +22,26 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "object.h"
 
-class MCTooltip : public MCStack
+typedef MCObjectProxy<MCTooltip>::Handle MCTooltipHandle;
+
+class MCTooltip : public MCStack, public MCMixinObjectHandle<MCTooltip>
 {
-	const char *tooltip;
+public:
+    
+    enum { kMCObjectType = CT_TOOLTIP };
+    using MCMixinObjectHandle<MCTooltip>::GetHandle;
+    
+private:
+    
+	MCStringRef tip;
 	int2 mx;
 	int2 my;
 	MCCard *card;
 
 	MCFontRef m_font;
+    
 public:
+    
 	MCTooltip();
 	virtual ~MCTooltip();
 	virtual void close(void);
@@ -41,10 +52,15 @@ public:
 	void clearmatch(MCCard *c);
 	void opentip();
 	void closetip();
-	void settip(const char *tip);
-	const char *gettip()
+	void cleartip();
+	void settip(MCStringRef p_tip);
+	MCStringRef gettip()
 	{
-		return tooltip;
+		return tip;
 	}
+    
+protected:
+    
+    virtual MCPlatformControlType getcontroltype();
 };
 #endif

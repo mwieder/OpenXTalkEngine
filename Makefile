@@ -1,190 +1,290 @@
-###############################################################################
-# Engine Targets
+# Copyright (C) 2015 LiveCode Ltd.
+#
+# This file is part of LiveCode.
+#
+# LiveCode is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License v3 as published by the Free
+# Software Foundation.
+#
+# LiveCode is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+# for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with LiveCode.  If not see <http://www.gnu.org/licenses/>.
 
-.PHONY: libopenssl liburlcache libstubs
-.PHONY: libexternal libexternalv1 libz libjpeg libpcre libpng libplugin libcore libgraphics libskia
-.PHONY: revsecurity libgif
-.PHONY: kernel development standalone webruntime webplugin webplayer server
-.PHONY: kernel-standalone kernel-development kernel-server
-.PHONY: libireviam onrev-server
+# Usually, you'll just want to type "make all".
 
-libexternal:
-	$(MAKE) -C ./libexternal libexternal
+################################################################
 
-libexternalv1:
-	$(MAKE) -C ./libexternalv1 libexternalv1
+# Tools that Make calls
+XCODEBUILD ?= xcodebuild
+WINE ?= wine
+EMMAKE ?= emmake
 
-libz: 
-	$(MAKE) -C ./thirdparty/libz libz
+# Some magic to control which versions of iOS we try to build.  N.b. you may
+# also need to modify the buildbot configuration
+IPHONEOS_VERSIONS ?= 11.2 12.1 13.2 14.4 14.5
+IPHONESIMULATOR_VERSIONS ?= 11.2 12.1 13.2 14.4 14.5
+SKIP_IPHONEOS_VERSIONS ?= 9.2 10.2
+SKIP_IPHONESIMULATOR_VERSIONS ?= 6.1 7.1 8.2 9.2 10.2
+
+
+IOS_SDKS ?= \
+	$(addprefix iphoneos,$(IPHONEOS_VERSIONS)) \
+	$(addprefix iphonesimulator,$(IPHONESIMULATOR_VERSIONS))
+
+# Choose the correct build type
+MODE ?= debug
+
+# Where to run the build command depends on community vs commercial
+ifeq ($(BUILD_EDITION),commercial)
+  BUILD_SUBDIR :=
+  BUILD_PROJECT := livecode-commercial
+else
+  BUILD_SUBDIR := /livecode
+  BUILD_PROJECT := livecode
+endif
+
+# Prettifying output for CI builds
+XCODEBUILD_FILTER ?=
+
+include Makefile.common
+
+################################################################
+
+.DEFAULT: all
+
+all: all-$(guess_platform)
+check: check-$(guess_platform)
+
+# [[ MDW-2017-05-09 ]] feature_clean_target
+clean-linux:
+	rm -rf linux-*-bin
+	rm -rf build-linux-*
+	rm -rf prebuilt/fetched
+	rm -rf prebuilt/include
+	rm -rf prebuilt/lib
+	find . -name \*.lcb | xargs touch
+
+check-common-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:testengine"
+	@echo "TEST Engine"
+endif
+	$(MAKE) -C tests bin_dir=../$*-bin
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testengine"
+	@echo "travis_fold:start:testide"
+	@echo "TEST IDE"
+endif
+	$(MAKE) -C ide/tests bin_dir=../../$*-bin
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testide"
+	@echo "travis_fold:start:testextensions"
+	@echo "TEST Extensions"
+endif
+	$(MAKE) -C extensions bin_dir=../$*-bin
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testextensions"
+endif
+################################################################
+# Linux rules
+################################################################
+
+LINUX_ARCHS = x86_64 x86 armv6hf armv7
+
+config-linux-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:config"
+	@echo "CONFIGURE"
+endif
+	./config.sh --platform linux-$*
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:config"
+endif
 	
-libjpeg:
-	$(MAKE) -C ./thirdparty/libjpeg libjpeg
+compile-linux-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:compile"
+	@echo "COMPILE"
+endif
+	$(MAKE) -C build-linux-$*/livecode default
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:compile"
+endif
 	
-libpcre:
-	$(MAKE) -C ./thirdparty/libpcre libpcre
+check-linux-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:testcpp"
+	@echo "TEST C++"
+endif
+	$(MAKE) -C build-linux-$*/livecode check
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testcpp"
+endif
+	$(MAKE) check-common-linux-$*
 
-libpng:
-	$(MAKE) -C ./thirdparty/libpng libpng
+all-linux-%:
+	$(MAKE) config-linux-$*
+	$(MAKE) compile-linux-$*
 
-libgif:
-	$(MAKE) -C ./thirdparty/libgif libgif
+$(addsuffix -linux,all config compile check): %: %-$(guess_linux_arch)
 
-libopenssl:
-	$(MAKE) -C ./thirdparty/libopenssl libopenssl
+################################################################
+# Android rules
+################################################################
 
-libskia:
-	$(MAKE) -C ./thirdparty/libskia libskia
+ANDROID_ARCHS = armv6 armv7 arm64 x86 x86_64
 
-libcore:
-	$(MAKE) -C ./libcore libcore
+config-android-%:
+	./config.sh --platform android-$*
 
-revsecurity:
-	$(MAKE) -C ./thirdparty/libopenssl -f Makefile.revsecurity revsecurity
+compile-android-%:
+	$(MAKE) -C build-android-$*/livecode default
+
+check-android-%:
+	$(MAKE) -C build-android-$*/livecode check
+
+all-android-%:
+	$(MAKE) config-android-$*
+	$(MAKE) compile-android-$*
+
+$(addsuffix -android,all config compile check): %: %-armv6
+
+################################################################
+# Mac rules
+################################################################
+
+config-mac:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:config"
+	@echo "CONFIGURE"
+endif
+	./config.sh --platform mac
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:config"
+endif
 	
-libgraphics: libskia
-	$(MAKE) -C ./libgraphics libgraphics
+compile-mac:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:compile"
+	@echo "COMPILE"
+endif
+	$(XCODEBUILD) -project "build-mac$(BUILD_SUBDIR)/$(BUILD_PROJECT).xcodeproj" -configuration $(BUILDTYPE) -target default \
+	  $(XCODEBUILD_FILTER)
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:compile"
+endif
+	  
+check-mac:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:testcpp"
+	@echo "TEST C++"
+endif
+	$(XCODEBUILD) -project "build-mac$(BUILD_SUBDIR)/$(BUILD_PROJECT).xcodeproj" -configuration $(BUILDTYPE) -target check \
+	  $(XCODEBUILD_FILTER)
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testcpp"
+endif
+	$(MAKE) check-common-mac
 
-kernel: libz libgif libjpeg libpcre libpng libopenssl libexternal libcore libgraphics
-	$(MAKE) -C ./engine -f Makefile.kernel libkernel
 
-kernel-standalone: kernel
-	$(MAKE) -C ./engine -f Makefile.kernel-standalone libkernel-standalone
+all-mac:
+	$(MAKE) config-mac
+	$(MAKE) compile-mac
 
-kernel-development: kernel
-	$(MAKE) -C ./engine -f Makefile.kernel-development libkernel-development
+################################################################
+# iOS rules
+################################################################
 
-kernel-server: libz libgif libjpeg libpcre libpng libopenssl libexternal libcore libgraphics
-	$(MAKE) -C ./engine -f Makefile.kernel-server libkernel-server
+all-ios-%:
+	$(MAKE) config-ios-$*
+	$(MAKE) compile-ios-$*
 
-development: libz libgif libjpeg libpcre libpng libopenssl libexternal libcore kernel kernel-development revsecurity
-	$(MAKE) -C ./engine -f Makefile.development engine-community
+config-ios-%:
+	./config.sh --platform ios --generator-output build-ios-$*/livecode -Dtarget_sdk=$*
 
-standalone: libz libgif libjpeg libpcre libpng libopenssl libcore kernel revsecurity kernel-standalone revsecurity
-	$(MAKE) -C ./engine -f Makefile.standalone standalone-community
+compile-ios-%:
+	$(XCODEBUILD) -project "build-ios-$*$(BUILD_SUBDIR)/$(BUILD_PROJECT).xcodeproj" -configuration $(BUILDTYPE) -target default
 
-installer: libz libgif libjpeg libpcre libpng libopenssl libexternal libcore kernel revsecurity
-	$(MAKE) -C ./engine -f Makefile.installer installer
+check-ios-%:
+	$(XCODEBUILD) -project "build-ios-$*$(BUILD_SUBDIR)/$(BUILD_PROJECT).xcodeproj" -configuration $(BUILDTYPE) -target check
 
-server: libz libgif libjpeg libpcre libpng libopenssl libexternal libcore libgraphics kernel-server revsecurity
-	$(MAKE) -C ./engine -f Makefile.server server-community
+# Dummy targets to prevent our build system from building old iOS simulators+devices
+$(addprefix config-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
+	@echo "Skipping $@ (no longer supported)"
+$(addprefix compile-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
+	@echo "Skipping $@ (no longer supported)"
+$(addprefix check-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
+	@echo "Skipping $@ (no longer supported)"
+	
+$(addprefix config-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
+	@echo "Skipping $@ (no longer supported)"
+$(addprefix compile-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
+	@echo "Skipping $@ (no longer supported)"
+$(addprefix check-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
+	@echo "Skipping $@ (no longer supported)"
 
-###############################################################################
-# revPDFPrinter Targets
+# Provide some synonyms for "latest iOS SDK"
+$(addsuffix -ios-iphoneos,all config compile check): %: %$(lastword $(IPHONEOS_VERSIONS))
+	@true
+$(addsuffix -ios-iphonesimulator,all config compile check): %: %$(lastword ($IPHONESIMULATOR_VERSIONS))
+	@true
 
-.PHONY: libcairopdf revpdfprinter
+all_ios_subplatforms = iphoneos iphonesimulator $(IOS_SDKS)
 
-libcairopdf:
-	$(MAKE) -C ./thirdparty/libcairo libcairopdf
+all-ios: $(addprefix all-ios-,$(IOS_SDKS))
+config-ios: $(addprefix config-ios-,$(IOS_SDKS))
+compile-ios: $(addprefix compile-ios-,$(IOS_SDKS))
+check-ios: $(addprefix check-ios-,$(IOS_SDKS))
 
-revpdfprinter: libcairopdf libcore
-	$(MAKE) -C ./revpdfprinter revpdfprinter
+################################################################
+# Windows rules
+################################################################
 
-###############################################################################
-# revDB Targets
+config-win-%:
+	./config.sh --platform win-$*
 
-.PHONY: libpq libmysql libsqlite libiodbc
+compile-win-%:
+	# windows builds occur under Wine
+	cd build-win-$* && $(WINE) /K ../make.cmd
 
-libpq:
-	$(MAKE) -C ./thirdparty/libpq libpq
+check-win-%:
+	# windows builds occur under Wine
+	cd build-win-$* && $(WINE) /K ../make.cmd check
+	$(MAKE) check-common-win-$*
 
-libmysql:
-	$(MAKE) -C ./thirdparty/libmysql libmysql
+all-win-%:
+	$(MAKE) config-win-$*
+	$(MAKE) compile-win-$*
 
-libsqlite:
-	$(MAKE) -C ./thirdparty/libsqlite libsqlite
+$(addsuffix -win,all config compile): %: %-x86
 
-libiodbc:
-	$(MAKE) -C ./thirdparty/libiodbc libiodbc
+# Dummy rules for Windows x86-64 builds
+# TODO Replace with real rules
+config-win-x86_64:
+	mkdir -p build-win-x86_64
+compile-win-x86_64:
+	mkdir -p win-x86_64-bin
+all-win-x86_64:
+	$(MAKE) config-win-x86_64
+	$(MAKE) compile-win-x86_64
 
-#####
+################################################################
+# Emscripten rules
+################################################################
 
-.PHONY: dbpostgresql dbmysql dbsqlite dbodbc server-dbpostgresql server-dbmysql server-dbodbc server-dbsqlite
+config-emscripten:
+	$(EMMAKE) ./config.sh --platform emscripten
 
-dbpostgresql: libpq
-	$(MAKE) -C ./revdb dbpostgresql
+compile-emscripten:
+	$(EMMAKE) $(MAKE) -C build-emscripten/livecode default
 
-dbmysql: libmysql libz libopenssl
-	$(MAKE) -C ./revdb dbmysql
+check-emscripten:
+	$(EMMAKE) $(MAKE) -C build-emscripten/livecode check
 
-dbsqlite: libsqlite libexternal
-	$(MAKE) -C ./revdb dbsqlite
-
-dbodbc: libiodbc libexternal
-	$(MAKE) -C ./revdb dbodbc
-
-server-dbpostgresql: libpq
-	$(MAKE) -C ./revdb server-dbpostgresql
-
-server-dbmysql: libmysql libz
-	$(MAKE) -C ./revdb server-dbmysql
-
-server-dbsqlite: libsqlite libexternal
-	$(MAKE) -C ./revdb server-dbsqlite
-
-server-dbodbc: libiodbc libexternal
-	$(MAKE) -C ./revdb server-dbodbc
-
-####
-
-.PHONY: revdb server-revdb
-
-revdb: libexternal
-	$(MAKE) -C ./revdb revdb
-
-server-revdb: libexternal
-	$(MAKE) -C ./revdb server-revdb
-
-###############################################################################
-# revXML Targets
-
-.PHONY: libxml libxslt revxml server-revxml
-
-libxml:
-	$(MAKE) -C ./thirdparty/libxml libxml
-
-libxslt:
-	$(MAKE) -C ./thirdparty/libxslt libxslt
-
-revxml: libxml libxslt libexternal
-	$(MAKE) -C ./revxml revxml
-
-server-revxml: libxml libxslt libexternal
-	$(MAKE) -C ./revxml server-revxml
-
-###############################################################################
-# revZip Targets
-
-.PHONY: libzip revzip server-revzip
-
-libzip:
-	$(MAKE) -C ./thirdparty/libzip libzip
-
-revzip: libzip libz libexternal
-	$(MAKE) -C ./revzip revzip
-
-server-revzip: libzip libz libexternal
-	$(MAKE) -C ./revzip server-revzip
-
-###############################################################################
-# revAndroid Targets
-
-.PHONY: revandroid
-
-revandroid: libexternalv1
-	$(MAKE) -C ./revmobile revandroid
-
-###############################################################################
-# All Targets
-
-.PHONY: all clean
-.DEFAULT_GOAL := all
-
-all: revzip server-revzip
-all: revxml server-revxml
-all: revpdfprinter revandroid
-all: revdb dbodbc dbsqlite dbmysql dbpostgresql
-all: server-revdb server-dbodbc server-dbsqlite server-dbmysql server-dbpostgresql
-all: development standalone installer server
-
-clean:
-	@rm -r _build/linux _cache/linux
+all-emscripten:
+	$(MAKE) config-emscripten
+	$(MAKE) compile-emscripten

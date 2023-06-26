@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,14 +16,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 
 #include "mcerror.h"
-#include "execpt.h"
+
 #include "printer.h"
 #include "globals.h"
 #include "dispatch.h"
@@ -32,8 +31,40 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "player.h"
 #include "param.h"
 #include "eventqueue.h"
+#include "exec.h"
 
 #include "mblcontrol.h"
+
+////////////////////////////////////////////////////////////////////////////////
+
+MCPropertyInfo MCNativeControl::kProperties[] =
+{
+    DEFINE_RW_CTRL_PROPERTY(P_NAME, OptionalString, MCNativeControl, Name)
+    DEFINE_RO_CTRL_PROPERTY(P_ID, UInt32, MCNativeControl, Id)
+};
+
+MCObjectPropertyTable MCNativeControl::kPropertyTable =
+{
+	nil,
+	sizeof(kProperties) / sizeof(kProperties[0]),
+	&kProperties[0],
+};
+
+MCNativeControlActionInfo MCNativeControl::kActions[] =
+{
+};
+
+MCNativeControlActionTable MCNativeControl::kActionTable =
+{
+/*
+	&MCNativeControl::kActionTable,
+	sizeof(kActions) / sizeof(kActions[0]),
+	&kActions[0],
+ */
+    nil,
+    0,
+    nil,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,28 +92,21 @@ void MCNativeControlFinalize(void)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-MCNativeControl::MCNativeControl(void)
+MCNativeControl::MCNativeControl(void) :
+  m_references(1),
+  m_id(++s_last_native_control_id),
+  m_name(MCValueRetain(kMCEmptyString)),
+  m_object(nil),
+  m_next(nil),
+  m_deleted(false)
 {
-	m_references = 1;
-	m_id = ++s_last_native_control_id;
-	m_name = nil;
-	m_object = nil;
-	m_next = nil;
-    m_deleted = false;
 }
 
 MCNativeControl::~MCNativeControl(void)
 {
-	if (m_object != nil)
+	if (!MCStringIsEmpty(m_name))
 	{
-		m_object -> Release();
-		m_object = nil;
-	}
-	
-	if (m_name != nil)
-	{
-		MCCStringFree(m_name);
-		m_name = nil;
+		MCValueRelease(m_name);
 	}
     
 	if (s_native_controls == this)
@@ -119,33 +143,31 @@ uint32_t MCNativeControl::GetId(void)
 	return m_id;
 }
 
-const char *MCNativeControl::GetName(void)
+void MCNativeControl::GetName(MCStringRef &r_name)
 {
-	return m_name;
+        r_name = MCValueRetain(m_name);
 }
 
 MCObject *MCNativeControl::GetOwner(void)
 {
-	return m_object != nil ? m_object -> Get() : nil;
+	return m_object.IsValid() ? m_object.Get() : nil;
 }
 
 void MCNativeControl::SetOwner(MCObject *p_owner)
 {
-	if (m_object != nil)
-		m_object -> Release();
-	m_object = p_owner -> gethandle();
+	m_object = p_owner->GetHandle();
 }
 
-bool MCNativeControl::SetName(const char *p_name)
+bool MCNativeControl::SetName(MCStringRef p_name)
 {
-	if (m_name != nil)
+	if (!MCStringIsEmpty(m_name))
 	{
-		MCCStringFree(m_name);
-		m_name = nil;
+		MCValueRelease(m_name);
+		m_name = MCValueRetain(kMCEmptyString);
 	}
 	
 	if (p_name != nil)
-		return MCCStringClone(p_name, m_name);
+		MCValueAssign(m_name, p_name);
 	
 	return true;
 }
@@ -165,7 +187,7 @@ MCNativeControl *MCNativeControl::CurrentTarget(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static struct {const char *name; MCNativeControlType type;} s_native_control_types[] =
+static const struct {const char *name; MCNativeControlType type;} s_native_control_types[] =
 {
 	{"browser", kMCNativeControlTypeBrowser},
 	{"scroller", kMCNativeControlTypeScroller},
@@ -175,103 +197,109 @@ static struct {const char *name; MCNativeControlType type;} s_native_control_typ
 	{nil, kMCNativeControlTypeUnknown}
 };
 
-static struct {const char *name; MCNativeControlProperty property;} s_native_control_properties[] =
+static const struct {const char *name; Properties property;} s_native_control_properties[] =
 {
-	{"id", kMCNativeControlPropertyId},
-	{"name", kMCNativeControlPropertyName},
+	{"id", P_ID},
+	{"name", P_NAME},
 	
-	{"rect", kMCNativeControlPropertyRectangle},
-	{"rectangle", kMCNativeControlPropertyRectangle},
-	{"visible", kMCNativeControlPropertyVisible},
-	{"opaque", kMCNativeControlPropertyOpaque},
-	{"alpha", kMCNativeControlPropertyAlpha},
-	{"backgroundColor", kMCNativeControlPropertyBackgroundColor},
+	{"rect", P_RECTANGLE},
+	{"rectangle", P_RECTANGLE},
+	{"visible", P_VISIBLE},
+	{"opaque", P_OPAQUE},
+	{"alpha", P_ALPHA},
+	{"backgroundColor", P_BACKGROUND_COLOR},
+    // PM-2014-12-08: [[ Bug 13659 ]] New property of iOS native controls to allow them interact with Voice Over
+    {"ignoreVoiceOverSensitivity", P_IGNORE_VOICE_OVER_SENSITIVITY},
 	
-	{"dataDetectorTypes", kMCNativeControlPropertyDataDetectorTypes},
+	{"dataDetectorTypes", P_DATA_DETECTOR_TYPES},
 	
-	{"url", kMCNativeControlPropertyUrl},
-	{"canadvance", kMCNativeControlPropertyCanAdvance},
-	{"canretreat", kMCNativeControlPropertyCanRetreat},
-	{"autofit", kMCNativeControlPropertyAutoFit},
-	{"delayrequests", kMCNativeControlPropertyDelayRequests},
-	{"allowsInlineMediaPlayback", kMCNativeControlPropertyAllowsInlineMediaPlayback},
-	{"mediaPlaybackRequiresUserAction", kMCNativeControlPropertyMediaPlaybackRequiresUserAction},
+	{"url", P_URL},
+	{"canadvance", P_CAN_ADVANCE},
+	{"canretreat", P_CAN_RETREAT},
+	{"autofit", P_AUTO_FIT},
+	{"delayrequests", P_DELAY_REQUESTS},
+	{"allowsInlineMediaPlayback", P_ALLOWS_INLINE_MEDIA_PLAYBACK},
+	{"mediaPlaybackRequiresUserAction", P_MEDIA_PLAYBACK_REQUIRES_USER_ACTION},
 	
-	{"contentrect", kMCNativeControlPropertyContentRectangle},
-	{"contentrectangle", kMCNativeControlPropertyContentRectangle},
-	{"canbounce", kMCNativeControlPropertyCanBounce},
-	{"vscroll", kMCNativeControlPropertyVScroll},
-	{"hscroll", kMCNativeControlPropertyHScroll},
-	{"canscrolltotop", kMCNativeControlPropertyCanScrollToTop},
-	{"cancanceltouches", kMCNativeControlPropertyCanCancelTouches},
-	{"delaytouches", kMCNativeControlPropertyDelayTouches},
-	{"decelerationrate", kMCNativeControlPropertyDecelerationRate},
-	{"indicatorstyle", kMCNativeControlPropertyIndicatorStyle},
-	{"indicatorinsets", kMCNativeControlPropertyIndicatorInsets},
-	{"pagingenabled", kMCNativeControlPropertyPagingEnabled},
-	{"scrollingenabled", kMCNativeControlPropertyScrollingEnabled},
-	{"hIndicator", kMCNativeControlPropertyShowHorizontalIndicator},
-	{"vIndicator", kMCNativeControlPropertyShowVerticalIndicator},
-	{"lockdirection", kMCNativeControlPropertyLockDirection},
-	{"tracking", kMCNativeControlPropertyTracking},
-	{"dragging", kMCNativeControlPropertyDragging},
-	{"decelerating", kMCNativeControlPropertyDecelerating},
+	{"contentrect", P_CONTENT_RECT},
+	{"contentrectangle", P_CONTENT_RECT},
+	{"canbounce", P_CAN_BOUNCE},
+	{"vscroll", P_VSCROLL},
+	{"hscroll", P_HSCROLL},
+	{"canscrolltotop", P_CAN_SCROLL_TO_TOP},
+	{"cancanceltouches", P_CAN_CANCEL_TOUCHES},
+	{"delaytouches", P_DELAY_TOUCHES},
+	{"decelerationrate", P_DECELERATION_RATE},
+	{"indicatorstyle", P_INDICATOR_STYLE},
+	{"indicatorinsets", P_INDICATOR_INSETS},
+	{"pagingenabled", P_PAGING_ENABLED},
+	{"scrollingenabled", P_SCROLLING_ENABLED},
+	{"hIndicator", P_SHOW_HORIZONTAL_INDICATOR},
+	{"vIndicator", P_SHOW_VERTICAL_INDICATOR},
+	{"lockdirection", P_LOCK_DIRECTION},
+	{"tracking", P_TRACKING},
+	{"dragging", P_DRAGGING},
+	{"decelerating", P_DECELERATING},
 	
-	{"filename", kMCNativeControlPropertyContent},
-	{"naturalsize", kMCNativeControlPropertyNaturalSize},
-	{"fullscreen", kMCNativeControlPropertyFullscreen},
-	{"preserveaspect", kMCNativeControlPropertyPreserveAspect},
-	{"showcontroller", kMCNativeControlPropertyShowController},
-	{"duration", kMCNativeControlPropertyDuration},
-	{"playableduration", kMCNativeControlPropertyPlayableDuration},
-	{"starttime", kMCNativeControlPropertyStartTime},
-	{"endtime", kMCNativeControlPropertyEndTime},
-	{"currenttime", kMCNativeControlPropertyCurrentTime},
-	{"autoplay", kMCNativeControlPropertyShouldAutoplay},
-	{"looping", kMCNativeControlPropertyLooping},
+	{"filename", P_CONTENT},
+	{"naturalsize", P_NATURAL_SIZE},
+	{"fullscreen", P_FULLSCREEN},
+	{"preserveaspect", P_PRESERVE_ASPECT},
+	{"showcontroller", P_SHOW_CONTROLLER},
+	{"duration", P_DURATION},
+	{"playableduration", P_PLAYABLE_DURATION},
+	{"starttime", P_START_TIME},
+	{"endtime", P_END_TIME},
+	{"currenttime", P_CURRENT_TIME},
+	{"autoplay", P_SHOULD_AUTOPLAY},
+	{"looping", P_LOOPING},
 	
-	{"playbackstate", kMCNativeControlPropertyPlaybackState},
+    {"playbackstate", P_PLAYBACK_STATE},
     
     // MM-2013-02-21: [[ Bug 10632 ]] Added playRate property for native player.
-    {"playrate", kMCNativeControlPropertyPlayRate},
+    {"playrate", P_PLAY_RATE},
     
-	{"loadstate", kMCNativeControlPropertyLoadState},
-	{"useapplicationaudiosession", kMCNativeControlPropertyUseApplicationAudioSession},
-	{"allowsairplay", kMCNativeControlPropertyAllowsAirPlay},
+	{"loadstate", P_LOAD_STATE},
+    {"useapplicationaudiosession", P_USE_APPLICATION_AUDIO_SESSION},
+    // PM-2015-07-09: [[ Bug 9744 ]] Added readyForDisplay property for native player
+    {"readyForDisplay", P_READY_FOR_DISPLAY},
+	{"allowsairplay", P_ALLOWS_AIR_PLAY},
 	
-	{"enabled", kMCNativeControlPropertyEnabled},
+	{"enabled", P_ENABLED},
 	
-	{"text", kMCNativeControlPropertyText},
-	{"unicodetext", kMCNativeControlPropertyUnicodeText},
-	{"textcolor", kMCNativeControlPropertyTextColor},
-	{"textalign", kMCNativeControlPropertyTextAlign},
-	{"fontname", kMCNativeControlPropertyFontName},
-	{"fontsize", kMCNativeControlPropertyFontSize},
-	{"editing", kMCNativeControlPropertyEditing},
+	{"text", P_TEXT},
+	{"unicodetext", P_UNICODE_TEXT},
+	{"textcolor", P_TEXT_COLOR},
+	{"textalign", P_TEXT_ALIGN},
+	{"fontname", P_FONT_NAME},
+	{"fontsize", P_FONT_SIZE},
+	{"editing", P_EDITING},
     
-	{"minimumfontsize", kMCNativeControlPropertyMinimumFontSize},
-	{"autoclear", kMCNativeControlPropertyAutoClear},
-	{"clearbuttonmode", kMCNativeControlPropertyClearButtonMode},
-	{"borderstyle", kMCNativeControlPropertyBorderStyle},
-	{"verticaltextalign", kMCNativeControlPropertyVerticalTextAlign},
+	{"minimumfontsize", P_MINIMUM_FONT_SIZE},
+    {"maximumtextlength", P_MAXIMUM_TEXT_LENGTH},
+
+	{"autoclear", P_AUTO_CLEAR},
+	{"clearbuttonmode", P_CLEAR_BUTTON_MODE},
+	{"borderstyle", P_BORDER_STYLE},
+	{"verticaltextalign", P_VERTICAL_TEXT_ALIGN},
 	
-	{"editable", kMCNativeControlPropertyEditable},
-	{"selectedrange", kMCNativeControlPropertySelectedRange},
+	{"editable", P_EDITABLE},
+	{"selectedrange", P_SELECTED_RANGE},
 	
-	{"autocapitalizationtype", kMCNativeControlPropertyAutoCapitalizationType},
-	{"autocorrectiontype", kMCNativeControlPropertyAutoCorrectionType},
-	{"managereturnkey", kMCNativeControlPropertyManageReturnKey},
-	{"keyboardtype", kMCNativeControlPropertyKeyboardType},
-	{"keyboardstyle", kMCNativeControlPropertyKeyboardStyle},
-	{"returnkeytype", kMCNativeControlPropertyReturnKeyType},
-	{"contenttype", kMCNativeControlPropertyContentType},
+	{"autocapitalizationtype", P_AUTO_CAPITALIZATION_TYPE},
+	{"autocorrectiontype", P_AUTOCORRECTION_TYPE},
+	{"managereturnkey", P_MANAGE_RETURN_KEY},
+	{"keyboardtype", P_KEYBOARD_TYPE},
+	{"keyboardstyle", P_KEYBOARD_STYLE},
+	{"returnkeytype", P_RETURN_KEY_TYPE},
+	{"contenttype", P_CONTENT_TYPE},
 	
-    {"multiline", kMCNativeControlPropertyMultiLine},
+    {"multiline", P_MULTI_LINE},
     
-	{nil, kMCNativeControlPropertyUnknown}
+	{nil, P_UNDEFINED}
 };
 
-static struct {const char *name; MCNativeControlAction action;} s_native_control_actions[] =
+static const struct {const char *name; MCNativeControlAction action;} s_native_control_actions[] =
 {
 	{"advance", kMCNativeControlActionAdvance},
 	{"retreat", kMCNativeControlActionRetreat},
@@ -298,10 +326,10 @@ static struct {const char *name; MCNativeControlAction action;} s_native_control
 	{nil, kMCNativeControlActionUnknown}
 };
 
-bool MCNativeControl::LookupProperty(const char *p_property, MCNativeControlProperty& r_prop)
+bool MCNativeControl::LookupProperty(MCStringRef p_property, Properties& r_prop)
 {
 	for(uint32_t i = 0; s_native_control_properties[i] . name != nil; i++)
-		if (MCCStringEqualCaseless(p_property, s_native_control_properties[i] . name))
+		if (MCStringIsEqualToCString(p_property, s_native_control_properties[i] . name, kMCCompareCaseless))
 		{
 			r_prop = s_native_control_properties[i] . property;
 			return true;
@@ -310,10 +338,10 @@ bool MCNativeControl::LookupProperty(const char *p_property, MCNativeControlProp
 	return false;
 }
 
-bool MCNativeControl::LookupAction(const char *p_action, MCNativeControlAction& r_action)
+bool MCNativeControl::LookupAction(MCStringRef p_action, MCNativeControlAction& r_action)
 {
 	for(uint32_t i = 0; s_native_control_actions[i] . name != nil; i++)
-		if (MCCStringEqualCaseless(p_action, s_native_control_actions[i] . name))
+		if (MCStringIsEqualToCString(p_action, s_native_control_actions[i] . name, kMCCompareCaseless))
 		{
 			r_action = s_native_control_actions[i] . action;
 			return true;
@@ -321,10 +349,10 @@ bool MCNativeControl::LookupAction(const char *p_action, MCNativeControlAction& 
 	return false;
 }
 
-bool MCNativeControl::LookupType(const char *p_type, MCNativeControlType& r_type)
+bool MCNativeControl::LookupType(MCStringRef p_type, MCNativeControlType& r_type)
 {
 	for(uint32_t i = 0; s_native_control_types[i] . name != nil; i++)
-		if (MCCStringEqualCaseless(p_type, s_native_control_types[i] . name))
+		if (MCStringIsEqualToCString(p_type, s_native_control_types[i] . name, kMCCompareCaseless))
 		{
 			r_type = s_native_control_types[i] . type;
 			return true;
@@ -332,20 +360,22 @@ bool MCNativeControl::LookupType(const char *p_type, MCNativeControlType& r_type
 	return false;
 }
 
-bool MCNativeControl::FindByNameOrId(const char *p_name, MCNativeControl*& r_control)
+bool MCNativeControl::FindByNameOrId(MCStringRef p_name, MCNativeControl*& r_control)
 {
-	char *t_id_end;
-	uint32_t t_id;
-	t_id = strtoul(p_name, &t_id_end, 10);
-	if (t_id_end != p_name)
+	integer_t t_id;
+	if (/* CTXT */ MCStringToInteger(p_name, t_id))
 		return FindById(t_id, r_control);
 	
 	for(MCNativeControl *t_control = s_native_controls; t_control != nil; t_control = t_control -> m_next)
-		if (!t_control -> m_deleted && t_control -> GetName() != nil && MCCStringEqualCaseless(t_control -> GetName(), p_name))
+    {
+        MCAutoStringRef t_name;
+        t_control -> GetName(&t_name);
+		if (!t_control -> m_deleted && !MCStringIsEmpty(*t_name) && MCStringIsEqualTo(p_name, *t_name, kMCCompareCaseless))
 		{
 			r_control = t_control;
 			return true;
 		}
+    }
 	
 	return false;
 }
@@ -387,6 +417,33 @@ bool MCNativeControl::List(MCNativeControlListCallback p_callback, void *p_conte
 	return true;
 }
 
+bool MCNativeControl::GetControlList(MCStringRef& r_list)
+{
+    bool t_success;
+    t_success = true;
+    
+    MCAutoListRef t_list;
+    MCListCreateMutable('\n', &t_list);
+	for(MCNativeControl *t_control = s_native_controls; t_success && t_control != nil; t_control = t_control -> m_next)
+    {
+        MCAutoStringRef t_name, t_control_string;
+        t_control -> GetName(&t_name);
+        if (!MCStringIsEmpty(*t_name))
+            t_control_string = MCValueRetain(*t_name);
+        else
+            t_success = MCStringFormat(&t_control_string, "%u");
+        
+        if (t_success)
+            t_success = MCListAppend(*t_list, *t_control_string);
+    }
+    
+    if (t_success)
+        t_success = MCListCopyAsString(*t_list, r_list);
+    
+    return t_success;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern bool MCNativeBrowserControlCreate(MCNativeControl*& r_control);
@@ -395,32 +452,47 @@ extern bool MCNativePlayerControlCreate(MCNativeControl *&r_control);
 extern bool MCNativeInputControlCreate(MCNativeControl *&r_control);
 extern bool MCNativeMultiLineInputControlCreate(MCNativeControl *&r_control);
 
+bool MCNativeControlCreate(MCNativeControlType p_type, MCNativeControl*& r_control)
+{
+    bool t_success = true;
+    MCNativeControl *t_control = nil;
+    switch(p_type)
+    {
+        case kMCNativeControlTypeBrowser:
+            t_success = MCNativeBrowserControlCreate(t_control);
+            break;
+        case kMCNativeControlTypeScroller:
+            t_success = MCNativeScrollerControlCreate(t_control);
+            break;
+        case kMCNativeControlTypePlayer:
+            t_success = MCNativePlayerControlCreate(t_control);
+            break;
+        case kMCNativeControlTypeInput:
+            t_success = MCNativeInputControlCreate(t_control);
+            break;
+        case kMCNativeControlTypeMultiLineInput:
+            t_success = MCNativeMultiLineInputControlCreate(t_control);
+            break;
+            
+        default:
+            t_success = false;
+            break;
+    }
+    
+    if (!t_success)
+        return false;
+    
+    r_control = t_control;
+    return true;
+}
+
 bool MCNativeControl::CreateWithType(MCNativeControlType p_type, MCNativeControl*& r_control)
 {
     bool t_success = true;
     MCNativeControl *t_control = nil;
-	switch(p_type)
-	{
-		case kMCNativeControlTypeBrowser:
-			t_success = MCNativeBrowserControlCreate(t_control);
-            break;
-		case kMCNativeControlTypeScroller:
-			t_success = MCNativeScrollerControlCreate(t_control);
-            break;
-		case kMCNativeControlTypePlayer:
-			t_success = MCNativePlayerControlCreate(t_control);
-            break;
-		case kMCNativeControlTypeInput:
-			t_success = MCNativeInputControlCreate(t_control);
-            break;
-		case kMCNativeControlTypeMultiLineInput:
-			t_success = MCNativeMultiLineInputControlCreate(t_control);
-			break;
-            
-		default:
-            t_success = false;
-			break;
-	}
+    
+    if (t_success)
+        t_success = MCCreateNativeControl(p_type, (void*&)t_control);
     
     if (t_success)
         t_success = t_control->Create();
@@ -440,539 +512,31 @@ bool MCNativeControl::CreateWithType(MCNativeControlType p_type, MCNativeControl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCExecPointSetRect(MCExecPoint &ep, int2 p_left, int2 p_top, int2 p_right, int2 p_bottom)
+void MCNativeControl::GetId(MCExecContext& ctxt, uinteger_t& r_id)
 {
-	char *t_buffer = nil;
-	if (!MCCStringFormat(t_buffer, "%d,%d,%d,%d", p_left, p_top, p_right, p_bottom))
-		return false;
-	
-	ep.grabbuffer(t_buffer, MCCStringLength(t_buffer));
-	return true;
+    r_id = m_id;
 }
 
-static bool MCParseRGBA(const MCString &p_data, bool p_require_alpha, uint1 &r_red, uint1 &r_green, uint1 &r_blue, uint1 &r_alpha)
+void MCNativeControl::GetName(MCExecContext& ctxt, MCStringRef& r_name)
 {
-	bool t_success = true;
-	Boolean t_parsed;
-	uint2 r, g, b, a;
-	const char *t_data = p_data.getstring();
-	uint32_t l = p_data.getlength();
-	if (t_success)
+    if (!MCStringIsEmpty(m_name))
+        r_name = MCValueRetain(m_name);
+      
+    return;  
+}
+
+void MCNativeControl::SetName(MCExecContext& ctxt, MCStringRef p_name)
+{
+    if (!MCStringIsEmpty(m_name))
 	{
-		r = MCU_max(0, MCU_min(255, MCU_strtol(t_data, l, ',', t_parsed)));
-		t_success = t_parsed;
-	}
-	if (t_success)
-	{
-		g = MCU_max(0, MCU_min(255, MCU_strtol(t_data, l, ',', t_parsed)));
-		t_success = t_parsed;
-	}
-	if (t_success)
-	{
-		b = MCU_max(0, MCU_min(255, MCU_strtol(t_data, l, ',', t_parsed)));
-		t_success = t_parsed;
-	}
-	if (t_success)
-	{
-		a = MCU_max(0, MCU_min(255, MCU_strtol(t_data, l, ',', t_parsed)));
-		if (!t_parsed)
-		{
-			if (p_require_alpha)
-				t_success = false;
-			else
-				a = 255;
-		}
+		MCValueRelease(m_name);
+		m_name = MCValueRetain(kMCEmptyString);
 	}
 	
-	if (t_success)
-	{
-		r_red = r;
-		r_green = g;
-		r_blue = b;
-		r_alpha = a;
-	}
-	return t_success;
-}
+	if (p_name != nil)
+		m_name = MCValueRetain(p_name);
 
-bool MCNativeControl::ParseColor(MCExecPoint &ep, uint16_t &r_red, uint16_t &r_green, uint16_t &r_blue, uint16_t &r_alpha)
-{
-    uint8_t t_r8, t_g8, t_b8, t_a8;
-    MCColor t_color;
-    char *t_name = nil;
-    if (MCParseRGBA(ep.getsvalue(), false, t_r8, t_g8, t_b8, t_a8))
-    {
-        r_red = (t_r8 << 8) | t_r8;
-        r_green = (t_g8 << 8) | t_g8;
-        r_blue = (t_b8 << 8) | t_b8;
-        r_alpha = (t_a8 << 8) | t_a8;
-        return true;
-    }
-    else if (MCscreen->parsecolor(ep.getsvalue(), &t_color, &t_name))
-    {
-        delete t_name;
-        r_red = t_color.red;
-        r_green = t_color.green;
-        r_blue = t_color.blue;
-        r_alpha = 0xFFFF;
-        return true;
-    }
-    else
-        return false;
-}
-
-bool MCNativeControl::FormatColor(MCExecPoint& ep, uint16_t p_red, uint16_t p_green, uint16_t p_blue, uint16_t p_alpha)
-{
-    char *t_colorstring = nil;
-
-    p_red >>= 8;
-    p_green >>= 8;
-    p_blue >>= 8;
-    p_alpha >>= 8;
-    
-    if (p_alpha != 255)
-        MCCStringFormat(t_colorstring, "%u,%u,%u,%u", p_red, p_green, p_blue, p_alpha);
-    else
-        MCCStringFormat(t_colorstring, "%u,%u,%u", p_red, p_green, p_blue);
-    ep.grabbuffer(t_colorstring, MCCStringLength(t_colorstring));
-	
-	return true;
-}
-
-bool MCNativeControl::ParseBoolean(MCExecPoint& ep, bool& r_value)
-{
-	Boolean t_bool;
-	if (!MCU_stob(ep.getsvalue(), t_bool))
-	{
-		MCeerror->add(EE_OBJECT_NAB, 0, 0, ep.getsvalue());
-		return false;
-	}
-	r_value = t_bool == True;
-	return true;
-}
-
-bool MCNativeControl::FormatBoolean(MCExecPoint& ep, bool p_value)
-{
-	ep . setsvalue(MCU_btos(p_value));
-	return true;
-}
-
-bool MCNativeControl::ParseInteger(MCExecPoint& ep, int32_t& r_value)
-{
-	if (!MCU_stoi4(ep . getsvalue(), r_value))
-	{
-		MCeerror->add(EE_OBJECT_NAN, 0, 0, ep.getsvalue());
-		return false;
-	}
-	return true;
-}
-
-bool MCNativeControl::FormatInteger(MCExecPoint& ep, int32_t p_value)
-{
-	ep . setnvalue(p_value);
-	return true;
-}
-
-bool MCNativeControl::ParseUnsignedInteger(MCExecPoint& ep, uint32_t& r_value)
-{
-	if (!MCU_stoui4(ep . getsvalue(), r_value))
-	{
-		MCeerror->add(EE_OBJECT_NAN, 0, 0, ep.getsvalue());
-		return false;
-	}
-	return true;
-}
-
-bool MCNativeControl::ParseReal(MCExecPoint& ep, double& r_value)
-{
-	if (!MCU_stor8(ep . getsvalue(), r_value))
-	{
-		MCeerror->add(EE_OBJECT_NAN, 0, 0, ep.getsvalue());
-		return false;
-	}
-	return true;
-}
-
-bool MCNativeControl::FormatReal(MCExecPoint& ep, double p_value)
-{
-	ep . setnvalue(p_value);
-	return true;
-}
-
-bool MCNativeControl::ParseEnum(MCExecPoint& ep, MCNativeControlEnumEntry *p_entries, int32_t& r_value)
-{
-	for(uint32_t i = 0; p_entries[i] . key != nil; i++)
-		if (MCCStringEqualCaseless(p_entries[i] . key, ep . getcstring()))
-		{
-			r_value = p_entries[i] . value;
-			return true;
-		}
-	
-	MCeerror->add(EE_OBJECT_BADSTYLE, 0, 0, ep.getsvalue());
-	return false;
-}
-
-bool MCNativeControl::FormatEnum(MCExecPoint& ep, MCNativeControlEnumEntry *p_entries, int32_t p_value)
-{
-	for(uint32_t i = 0; p_entries[i] . key != nil; i++)
-		if (p_entries[i] . value == p_value)
-		{
-			ep . setsvalue(p_entries[i] . key);
-			return true;
-		}
-	
-	ep . clear();
-	return true;
-}
-
-bool MCNativeControl::ParseSet(MCExecPoint& ep, MCNativeControlEnumEntry *p_entries, int32_t& r_value)
-{
-    bool t_success = true;
-    
-	char **t_members_array;
-	uint32_t t_members_count;
-	t_members_array = nil;
-	t_members_count = 0;
-	if (t_success)
-		t_success = MCCStringSplit(ep.getcstring(), ',', t_members_array, t_members_count);
-	
-	int32_t t_members_set;
-	t_members_set = 0;
-	if (t_success)
-		for(uint32_t i = 0; t_success && i < t_members_count; i++)
-        {
-            bool t_found = false;
-			for(uint32_t j = 0; !t_found && p_entries[j].key != nil; j++)
-            {
-				if (MCCStringEqualCaseless(t_members_array[i], p_entries[j].key))
-                {
-					t_members_set |= p_entries[j].value;
-                    t_found = true;
-                }
-            }
-            if (!t_found)
-                t_success = false;
-        }
-	
-	for(uint32_t i = 0; i < t_members_count; i++)
-		MCCStringFree(t_members_array[i]);
-	MCMemoryDeleteArray(t_members_array);
-    
-    if (t_success)
-        r_value = t_members_set;
-    
-	return t_success;
-}
-
-bool MCNativeControl::FormatSet(MCExecPoint& ep, MCNativeControlEnumEntry *p_entries, int32_t p_value)
-{
-	bool t_first;
-	t_first = true;
-	
-	ep . clear();
-	
-	for(uint32_t i = 0; p_entries[i] . key != nil; i++)
-		if ((p_value & p_entries[i] . value) != 0)
-		{
-			ep . concatcstring(p_entries[i] . key, EC_COMMA, t_first);
-			t_first = false;
-		}
-	
-	return true;
-}
-
-bool MCNativeControl::ParseRectangle(MCExecPoint& ep, MCRectangle& r_rect)
-{
-	int16_t t_left, t_top, t_right, t_bottom;
-	if (!MCU_stoi2x4(ep . getsvalue(), t_left, t_top, t_right, t_bottom))
-	{
-		MCeerror->add(EE_OBJECT_NAR, 0, 0, ep.getsvalue());
-		return false;
-	}
-	
-	MCU_set_rect(r_rect, t_left, t_top, t_right - t_left, t_bottom - t_top);
-	return true;
-}
-
-bool MCNativeControl::ParseRectangle32(MCExecPoint& ep, MCRectangle32& r_rect)
-{
-	int32_t t_left, t_top, t_right, t_bottom;
-	if (!MCU_stoi4x4(ep . getsvalue(), t_left, t_top, t_right, t_bottom))
-	{
-		MCeerror->add(EE_OBJECT_NAR, 0, 0, ep.getsvalue());
-		return false;
-	}
-	
-	MCU_set_rect(r_rect, t_left, t_top, t_right - t_left, t_bottom - t_top);
-	return true;
-}
-
-bool MCNativeControl::ParseRange(MCExecPoint &ep, uint32_t &r_start, uint32_t &r_length)
-{
-	const char *sptr = ep.getsvalue().getstring();
-	uint4 l = ep.getsvalue().getlength();
-	uint32_t d1, d2;
-	Boolean done;
-	d1 = MCU_strtol(sptr, l, ',', done, True, False);
-	if (!done || l == 0)
-		return false;
-	d2 = MCU_strtol(sptr, l, '\0', done, True, False);
-	if (!done || l != 0)
-		return false;
-    
-    r_start = d1;
-    r_length = d2;
-    
-    return true;
-}
-
-bool MCNativeControl::FormatRange(MCExecPoint &ep, uint32_t p_start, uint32_t p_length)
-{
-    ep.setnvalue(p_start);
-	ep.concatint(p_length, EC_COMMA, false);
-    
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool MCParseParameters(MCParameter*& p_parameters, const char *p_format, ...);
-
-Exec_stat MCHandleControlCreate(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlCreate */ LEGACY_EXEC
-	bool t_success;
-	t_success = true;
-	
-	char *t_type_name;
-	t_type_name = nil;
-	if (t_success)
-		t_success = MCParseParameters(p_parameters, "s", &t_type_name);
-	
-	char *t_control_name;
-	t_control_name = nil;
-	if (t_success && p_parameters != nil)
-		t_success = MCParseParameters(p_parameters, "s", &t_control_name);
-	
-	// Make sure the name is valid.
-	if (t_success && t_control_name != nil)
-	{
-		if (MCCStringIsEmpty(t_control_name))
-		{
-			delete t_control_name;
-			t_control_name = nil;
-		}
-		else
-			t_success = !MCCStringIsInteger(t_control_name);
-	}
-	
-	// Make sure a control does not already exist with the name
-	if (t_success && t_control_name != nil)
-	{
-		MCNativeControl *t_control;
-		t_success = !MCNativeControl::FindByNameOrId(t_control_name, t_control);
-	}
-	
-	MCNativeControlType t_type;
-	if (t_success)
-		t_success = MCNativeControl::LookupType(t_type_name, t_type);
-	
-	MCNativeControl *t_control;
-	t_control = nil;
-	if (t_success)
-		t_success = MCNativeControl::CreateWithType(t_type, t_control);
-	
-	if (t_success)
-	{
-		extern MCExecPoint *MCEPptr;
-		t_control -> SetOwner(MCEPptr -> getobj());
-		t_control -> SetName(t_control_name);
-		MCresult -> setnvalue(t_control -> GetId());
-	}
-	else
-	{
-		if (t_control != nil)
-			t_control -> Delete();
-		
-		MCresult -> clear();
-	}
-	
-	delete t_control_name;
-	delete t_type_name;
-	
-	return ES_NORMAL;
-#endif /* MCHandleControlCreate */
-}
-
-Exec_stat MCHandleControlDelete(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlDelete */ LEGACY_EXEC
-	bool t_success;
-	t_success = true;
-	
-	char *t_control_name;
-	t_control_name = nil;
-	if (t_success)
-		t_success = MCParseParameters(p_parameters, "s", &t_control_name);
-	
-	MCNativeControl *t_control;
-	if (t_success)
-		t_success = MCNativeControl::FindByNameOrId(t_control_name, t_control);
-	
-	if (t_success)
-	{
-		t_control -> Delete();
-		t_control -> Release();
-	}
-	
-	delete t_control_name;
-	
-	return ES_NORMAL;
-#endif /* MCHandleControlDelete */
-}
-
-Exec_stat MCHandleControlSet(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlSet */ LEGACY_EXEC
-	bool t_success;
-	t_success = true;
-	
-	char *t_control_name;
-	char *t_prop_name;
-	t_control_name = nil;
-	t_prop_name = nil;
-	if (t_success)
-		t_success = MCParseParameters(p_parameters, "ss", &t_control_name, &t_prop_name);
-	
-	MCNativeControl *t_control;
-	MCNativeControlProperty t_property;
-	if (t_success)
-		t_success =
-		MCNativeControl::FindByNameOrId(t_control_name, t_control) &&
-		MCNativeControl::LookupProperty(t_prop_name, t_property);
-	
-	MCExecPoint ep(nil, nil, nil);
-	if (t_success && p_parameters != nil)
-		t_success = p_parameters -> eval(ep);
-	
-	if (t_success)
-		t_success = t_control -> Set(t_property, ep) == ES_NORMAL;
-	
-	delete t_prop_name;
-	delete t_control_name;
-	
-	return ES_NORMAL;
-#endif /* MCHandleControlSet */
-}
-
-Exec_stat MCHandleControlGet(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlGet */ LEGACY_EXEC
-	bool t_success;
-	t_success = true;
-	
-	char *t_control_name;
-	char *t_prop_name;
-	t_control_name = nil;
-	t_prop_name = nil;
-	if (t_success)
-		t_success = MCParseParameters(p_parameters, "ss", &t_control_name, &t_prop_name);
-	
-	MCNativeControl *t_control;
-	MCNativeControlProperty t_property;
-	if (t_success)
-		t_success =
-		MCNativeControl::FindByNameOrId(t_control_name, t_control) &&
-		MCNativeControl::LookupProperty(t_prop_name, t_property);
-	
-	MCExecPoint ep(nil, nil, nil);
-	if (t_success)
-		t_success = t_control -> Get(t_property, ep) == ES_NORMAL;
-	
-	if (t_success)
-		MCresult -> store(ep, True);
-	else
-		MCresult -> clear();
-	
-	delete t_prop_name;
-	delete t_control_name;
-	
-	return ES_NORMAL;
-	
-#endif /* MCHandleControlGet */
-}
-
-Exec_stat MCHandleControlDo(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlDo */ LEGACY_EXEC
-	bool t_success;
-	t_success = true;
-	
-	char *t_control_name;
-	char *t_action_name;
-	t_control_name = nil;
-	t_action_name = nil;
-	if (t_success)
-		t_success = MCParseParameters(p_parameters, "ss", &t_control_name, &t_action_name);
-	
-	MCNativeControl *t_control;
-	MCNativeControlAction t_action;
-	if (t_success)
-		t_success =
-		MCNativeControl::FindByNameOrId(t_control_name, t_control) &&
-		MCNativeControl::LookupAction(t_action_name, t_action);
-	
-	if (t_success)
-		t_success = t_control -> Do(t_action, p_parameters) == ES_NORMAL;
-	
-	delete t_action_name;
-	delete t_control_name;
-	
-	return ES_NORMAL;
-#endif /* MCHandleControlDo */
-}
-
-Exec_stat MCHandleControlTarget(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlTarget */ LEGACY_EXEC
-	MCNativeControl *t_target;
-	t_target = MCNativeControl::CurrentTarget();
-	if (t_target != nil)
-	{
-		if (t_target -> GetName() != nil)
-			MCresult -> copysvalue(t_target -> GetName());
-		else
-			MCresult -> setnvalue(t_target -> GetId());
-	}
-	else
-		MCresult -> clear();
-	
-	return ES_NORMAL;
-#endif /* MCHandleControlTarget */
-}
-
-bool list_native_controls(void *context, MCNativeControl* p_control)
-{
-#ifdef /* list_native_controls */ LEGACY_EXEC
-	MCExecPoint *ep;
-	ep = (MCExecPoint *)context;
-	
-	if (p_control -> GetName() != nil)
-		ep -> concatcstring(p_control -> GetName(), EC_RETURN, ep -> isempty());
-	else
-		ep -> concatuint(p_control -> GetId(), EC_RETURN, ep -> isempty());
-	
-	return true;
-#endif /* list_native_controls */
-}
-
-Exec_stat MCHandleControlList(void *context, MCParameter *p_parameters)
-{
-#ifdef /* MCHandleControlList */ LEGACY_EXEC
-	MCExecPoint ep(nil, nil, nil);
-	MCNativeControl::List(list_native_controls, &ep);
-	MCresult -> store(ep, False);
-	return ES_NORMAL;
-#endif /* MCHandleControlList */
+    return;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

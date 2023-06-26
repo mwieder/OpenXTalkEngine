@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,38 +21,38 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "dllst.h"
 #endif
 
-class MCFontnode: public MCDLlist
+class MCFontnode : public MCDLlist
 {
-	char *reqname;
+	MCNewAutoNameRef reqname;
 	uint2 reqsize;
 	uint2 reqstyle;
 	MCFontStruct *font;
 public:
-	MCFontnode(const MCString &, uint2 &size, uint2 style);
+	MCFontnode(MCNameRef fname, uint2 &size, uint2 style);
+#ifdef TARGET_SUBPLATFORM_IPHONE
+    MCFontnode(MCSysFontHandle, MCNameRef name);
+#endif
 	~MCFontnode();
-	
-	MCFontStruct *getfont(const MCString &fname, uint2 size, uint2 style);
-	
+
+	MCFontStruct *getfont(MCNameRef fname, uint2 size, uint2 style);
+
 	MCFontStruct *getfontstruct()
 	{
 		return font;
 	}
-	
-	char *getname()
+
+	MCNameRef getname()
 	{
-		return reqname;
+		return *reqname;
 	}
-	
 	uint2 getsize()
 	{
 		return reqsize;
 	}
-	
 	uint2 getstyle()
 	{
 		return reqstyle;
 	}
-	
 	MCFontnode *next()
 	{
 		return (MCFontnode *)MCDLlist::next();
@@ -81,9 +81,11 @@ public:
 	{
 		MCDLlist::splitat((MCDLlist *)node) ;
 	}
-	MCFontnode *remove(MCFontnode *&list)
+	MCFontnode *remove
+	(MCFontnode *&list)
 	{
-		return (MCFontnode *)MCDLlist::remove((MCDLlist *&)list);
+		return (MCFontnode *)MCDLlist::remove
+        ((MCDLlist *&)list);
 	}
 };
 
@@ -95,12 +97,16 @@ public:
 	MCFontlist();
 	~MCFontlist();
 
-	MCFontStruct *getfont(const MCString &fname, uint2 &size, uint2 style, Boolean printer);
+	MCFontStruct *getfont(MCNameRef fname, uint2 &size, uint2 style, Boolean printer);
 
-	void getfontnames(MCExecPoint &ep, char *type);
-	void getfontsizes(const char *fname, MCExecPoint &ep);
-	void getfontstyles(const char *fname, uint2 fsize, MCExecPoint &ep);
-	bool getfontstructinfo(const char *&r_name, uint2 &r_size, uint2 &r_style, Boolean &r_printer, MCFontStruct *p_font);
+	bool getfontnames(MCStringRef p_type, MCListRef& r_names);
+	bool getfontsizes(MCStringRef p_fname, MCListRef& r_sizes);
+	bool getfontstyles(MCStringRef p_fname, uint2 fsize, MCListRef& r_styles);
+	bool getfontstructinfo(MCNameRef& r_name, uint2 &r_size, uint2 &r_style, Boolean &r_printer, MCFontStruct *p_font);
+    
+#ifdef TARGET_SUBPLATFORM_IPHONE
+    MCFontStruct *getfontbyhandle(MCSysFontHandle, MCNameRef name);
+#endif
 };
 
 

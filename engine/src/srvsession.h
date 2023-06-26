@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -32,11 +32,11 @@ typedef struct
 	char *		data;
 } MCSession, *MCSessionRef;
 
-bool MCSessionStart(const char *p_session_id, MCSessionRef &r_session);
+bool MCSessionStart(MCStringRef p_session_id, MCSessionRef &r_session);
 
 bool MCSessionCommit(MCSessionRef p_session);
 void MCSessionDiscard(MCSessionRef p_session);
-bool MCSessionExpire(const char *p_id);
+bool MCSessionExpire(MCStringRef p_id);
 
 bool MCSessionCleanup(void);
 

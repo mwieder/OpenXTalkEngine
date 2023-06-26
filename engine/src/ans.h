@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -39,13 +39,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 //     MCA_OPTION_PLURAL - allow multiple files to be selected (not ASK)
 //
 // On exit:
-//   ep should be a return-delimited list of revolution paths to the selected files
+//   ep should be a return-delimited list of LiveCode paths to the selected files
 //   or empty if the dialog was cancelled
 //
-// The Revolution sytax that uses this call is deprecated.
+// The LiveCode syntax that uses this call is deprecated.
 //
-extern int MCA_file(MCExecPoint& ep, const char *p_title, const char *p_prompt, const char *p_filter, const char *p_initial, unsigned int p_options);
-extern int MCA_ask_file(MCExecPoint& ep, const char *p_title, const char *p_prompt, const char *p_filter, const char *p_initial, unsigned int p_options); //const char *prompt, char *fn, MCExecPoint& ep, Boolean sheet);
+extern int MCA_file(MCStringRef p_title, MCStringRef p_prompt, MCStringRef p_filter, MCStringRef p_initial, unsigned int p_options, MCStringRef &r_value, MCStringRef &r_result);
+extern int MCA_ask_file(MCStringRef p_title, MCStringRef p_prompt, MCStringRef p_filter, MCStringRef p_initial, unsigned int p_options, MCStringRef &r_value, MCStringRef &r_result); //const char *prompt, char *fn, MCExecPoint& ep, Boolean sheet);
 
 // Display a system file open dialog with a list of file types.
 //   p_title - this string should appear in the titlebar
@@ -62,13 +62,13 @@ extern int MCA_ask_file(MCExecPoint& ep, const char *p_title, const char *p_prom
 //     MCA_OPTION_RETURN_FILTER - return the label of the type selected in MCresult
 //
 // On exit:
-//   ep should be a return-delimited list of revolution paths to the selected files
+//   ep should be a return-delimited list of LiveCode paths to the selected files
 //   or empty if the dialog was cancelled
 //   If MCA_OPTION_RETURN_FILTER is specified MCresult should contain the label of the
 //   filetype in effect when the dialog was closed (but not cancelled).
 //
-extern int MCA_file_with_types(MCExecPoint& ep, const char *p_title, const char *p_prompt, char * const p_types[], uint4 p_type_count, const char *p_initial, unsigned int p_options);
-extern int MCA_ask_file_with_types(MCExecPoint& ep, const char *p_title, const char *p_prompt, char * const p_types[], uint4 p_type_count, const char *p_initial, unsigned int p_options);
+extern int MCA_file_with_types(MCStringRef p_title, MCStringRef p_prompt, MCStringRef *p_types, uint4 p_type_count, MCStringRef p_initial, unsigned int p_options, MCStringRef &r_value, MCStringRef &r_result);
+extern int MCA_ask_file_with_types(MCStringRef p_title, MCStringRef p_prompt, MCStringRef *p_types, uint4 p_type_count, MCStringRef p_initial, unsigned int p_options, MCStringRef &r_value, MCStringRef &r_result);
 
 // Display a system folder selection dialog.
 //   p_title - this string should appear in the titlebar
@@ -79,10 +79,10 @@ extern int MCA_ask_file_with_types(MCExecPoint& ep, const char *p_title, const c
 //     MCA_OPTION_SHEET (Mac OS X only) - display the dialog as a sheet
 //
 // On exit:
-//   ep should contain the revolution path of the folder selected, or empty if the
+//   ep should contain the LiveCode path of the folder selected, or empty if the
 //   dialog was cancelled.
 //
-extern int MCA_folder(MCExecPoint& ep, const char *p_title, const char *p_prompt, const char *p_initial, unsigned int p_options);
+extern int MCA_folder(MCStringRef p_title, MCStringRef p_prompt, MCStringRef p_initial, unsigned int p_options, MCStringRef &r_value, MCStringRef &r_result);
 
 // Display a system color selection dialog.
 //   p_title - this string should appear in the titlebar
@@ -97,10 +97,12 @@ extern int MCA_folder(MCExecPoint& ep, const char *p_title, const char *p_prompt
 //   if p_initial is empty, take the value of MCpencolor.
 //   otherwise parse p_initial using MCscreen -> parsecolor
 //
-extern int MCA_color(MCExecPoint &ep, const char *p_title, const char *p_initial, Boolean sheet);
+extern bool MCA_color(MCStringRef title, MCColor initial_color, bool as_sheet, bool& r_chosen, MCColor& r_chosen_color);
 
-extern void MCA_getcolordialogcolors(MCExecPoint &ep);
+extern void MCA_getcolordialogcolors(MCColor*& r_list, uindex_t& r_count);
 
-extern void MCA_setcolordialogcolors(MCExecPoint &ep);
+extern void MCA_setcolordialogcolors(MCColor* p_list, uindex_t p_count);
+
+extern void MCA_record(MCExecPoint &ep);
 
 #endif

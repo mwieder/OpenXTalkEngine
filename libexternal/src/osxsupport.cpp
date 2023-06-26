@@ -1,3 +1,19 @@
+/* Copyright (C) 2003-2015 LiveCode Ltd.
+
+This file is part of LiveCode.
+
+LiveCode is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License v3 as published by the Free
+Software Foundation.
+
+LiveCode is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+for more details.
+
+You should have received a copy of the GNU General Public License
+along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -82,20 +98,14 @@ char *string_from_utf16(const unsigned short *p_utf16_string, int p_length)
 		                                  &s_unicode_converter);
 	}
 	
-	UniChar *s;
-	s = (UniChar *)p_utf16_string;
-
-	int len;
-	len = p_length * 2;
-
-	char *d;
-	d = (char *)malloc(p_length);
-
-	int destlen;
-	destlen = 0;
-
+	UniChar *s = (UniChar *)p_utf16_string;
+	int len = p_length * 2;
+	char *d = (char *)malloc(p_length);
+	int destlen = 0;
 	ByteCount processedbytes, outlength;
-
+    
+    // Use separate pointer to d string so that we can return the original d
+    char *dptr = d;
 	while(len > 1)
 	{
 		ConvertFromUnicodeToText(s_unicode_converter, len, (UniChar *)s,
@@ -103,10 +113,10 @@ char *string_from_utf16(const unsigned short *p_utf16_string, int p_length)
 								 | kUnicodeStringUnterminatedBit
 								 | kUnicodeUseFallbacksBit, 0, NULL, 0, NULL,
 								 p_length - destlen, &processedbytes,
-								 &outlength, (LogicalAddress)d);
+								 &outlength, (LogicalAddress)dptr);
 		if (processedbytes == 0)
 		{
-			*d = '?';
+			*dptr = '?';
 			processedbytes = 2;
 			outlength = 1;
 		}
@@ -114,7 +124,7 @@ char *string_from_utf16(const unsigned short *p_utf16_string, int p_length)
 		len -= processedbytes;
 		destlen += outlength;
 		s += processedbytes;
-		d += outlength;
+		dptr += outlength;
 	}
 
 	return d;

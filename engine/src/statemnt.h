@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define	STATEMENT_H
 
 class MCScriptPoint;
-class MCExecPoint;
 class MCParameter;
 class MCChunk;
 class MCExpression;
@@ -36,10 +35,13 @@ protected:
 	MCStatement *next;
 public:
 	MCStatement();
+	
 	virtual ~MCStatement();
 	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &);
+	virtual void exec_ctxt(MCExecContext&);
+	
 	virtual uint4 linecount();
+	
 	void setnext(MCStatement *n)
 	{
 		next = n;
@@ -56,7 +58,6 @@ public:
 	Parse_stat getmods(MCScriptPoint &, uint2 &mstate);
 	Parse_stat gettime(MCScriptPoint &sp, MCExpression **in, Functions &units);
 	void initpoint(MCScriptPoint &);
-	void getit(MCScriptPoint &sp, MCVarref *&it);
 	uint2 getline()
 	{
 		return line;
@@ -67,16 +68,4 @@ public:
 	}
 };
 
-class MCComref : public MCStatement
-{
-	MCNameRef name;
-		MCHandler *handler;
-	MCParameter *params;
-	bool resolved : 1;
-public:
-	MCComref(MCNameRef n);
-	virtual ~MCComref();
-	virtual Parse_stat parse(MCScriptPoint &);
-	virtual Exec_stat exec(MCExecPoint &);
-};
 #endif

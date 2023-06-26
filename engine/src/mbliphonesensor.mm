@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,23 +16,33 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 
-#include "execpt.h"
+
 #include "globals.h"
 
 #include "exec.h"
 #include "mblsyntax.h"
 #include "mblsensor.h"
+#include "mbliphoneapp.h"
 
 #include <Foundation/NSOperation.h>
 
+#ifdef __IPHONE_8_0
+#include <UIKit/UIAlertController.h>
+#endif
+
 #import <CoreLocation/CoreLocation.h>
 #import <CoreMotion/CoreMotion.h>
+
+#include "mbldc.h"
+
+////////////////////////////////////////////////////////////////////////////////
+
+static MCSensorLocationReading *s_location_reading = nil;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,10 +50,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 //  Only really needed for Android.
 void MCSystemSensorInitialize(void)
 {
+    s_location_reading = nil;
 }
 
 void MCSystemSensorFinalize(void)
 {
+    MCMemoryDelete(s_location_reading);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,20 +94,21 @@ static void initialize_core_motion(void)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-@interface MCIPhoneLocationDelegate : NSObject <CLLocationManagerDelegate>
+@interface com_runrev_livecode_MCIPhoneLocationDelegate : NSObject <CLLocationManagerDelegate>
 {
 	NSTimer *m_calibration_timer;
+    bool m_ready;
 }
 @end
 
 static CLLocationManager *s_location_manager = nil;
-static MCIPhoneLocationDelegate *s_location_delegate = nil;
+static com_runrev_livecode_MCIPhoneLocationDelegate *s_location_delegate = nil;
 static bool s_location_enabled = false;
 static bool s_heading_enabled = false;
 static bool s_tracking_heading_loosely = false;
 static int32_t s_location_calibration_timeout = 0;
 
-@implementation MCIPhoneLocationDelegate 
+@implementation com_runrev_livecode_MCIPhoneLocationDelegate
 
 - (void)dealloc
 {
@@ -108,19 +121,84 @@ static int32_t s_location_calibration_timeout = 0;
 	[super dealloc];
 }
 
+- (void)setReady:(BOOL)ready
+{
+    m_ready = ready;
+}
+
+- (BOOL)isReady
+{
+    return m_ready;
+}
+
+#ifdef __IPHONE_8_0
+- (void)locationManager:(CLLocationManager *)manager didChangeAuthorizationStatus:(CLAuthorizationStatus)status
+{
+    if (status == kCLAuthorizationStatusAuthorizedAlways || status == kCLAuthorizationStatusAuthorizedWhenInUse || status == kCLAuthorizationStatusDenied)
+    {
+        [s_location_delegate setReady:True];
+        MCscreen -> pingwait();
+    }
+}
+#endif
+
 // TODO: Determine difference between location and heading error properly
 - (void)locationManager: (CLLocationManager *)manager didFailWithError: (NSError *)error
 {
 	if (s_location_enabled)
-		MCSensorPostErrorMessage(kMCSensorTypeLocation, [[error localizedDescription] cStringUsingEncoding: NSMacOSRomanStringEncoding]);
+	{
+		MCAutoStringRef t_error;
+		/* UNCHECKED */ MCStringCreateWithCFStringRef((CFStringRef)[error localizedDescription], &t_error);
+		MCSensorPostErrorMessage(kMCSensorTypeLocation, *t_error);
+	}
 	else if (s_heading_enabled)
-        MCSensorPostErrorMessage(kMCSensorTypeHeading, [[error localizedDescription] cStringUsingEncoding: NSMacOSRomanStringEncoding]);
+	{
+        MCAutoStringRef t_error;
+		/* UNCHECKED */ MCStringCreateWithCFStringRef((CFStringRef)[error localizedDescription], &t_error);
+		MCSensorPostErrorMessage(kMCSensorTypeHeading, *t_error);
+	}
 }
 
 - (void)locationManager: (CLLocationManager *)manager didUpdateToLocation: (CLLocation *)newLocation fromLocation: (CLLocation *)oldLocation
 {
-    if (s_location_enabled)
-        MCSensorPostChangeMessage(kMCSensorTypeLocation);
+    if (!s_location_enabled)
+        return;
+    
+    if (s_location_reading == nil)
+        if (!MCMemoryNew(s_location_reading))
+            return;
+    
+    CLLocation *t_location = newLocation;
+    
+    if ([t_location horizontalAccuracy] >= 0.0)
+    {
+        s_location_reading->latitude = [t_location coordinate].latitude;
+        s_location_reading->longitude = [t_location coordinate].longitude;
+        s_location_reading->horizontal_accuracy = [t_location horizontalAccuracy];
+    }
+    else
+    {
+        s_location_reading->latitude = s_location_reading->longitude = NAN;
+    }
+    
+    if ([t_location verticalAccuracy] >= 0.0)
+    {
+        s_location_reading->altitude = [t_location altitude];
+        s_location_reading->vertical_accuracy = [t_location verticalAccuracy];
+    }
+    else
+    {
+        s_location_reading->altitude = NAN;
+    }
+    
+    // MM-2013-02-21: Added speed and course to the detailed readings.
+    s_location_reading->timestamp = [[t_location timestamp] timeIntervalSince1970];
+    s_location_reading->speed = [t_location speed];
+    s_location_reading->course = [t_location course];
+    
+    MCSensorAddLocationSample(*s_location_reading);
+    
+    MCSensorPostChangeMessage(kMCSensorTypeLocation);
 }
 
 - (void)locationManager: (CLLocationManager *)manager didUpdateHeading: (CLHeading *)newHeading
@@ -160,6 +238,41 @@ static int32_t s_location_calibration_timeout = 0;
 	[m_calibration_timer release];
 	m_calibration_timer = nil;
 }
+
+static void requestAlwaysAuthorization(void)
+{
+#ifdef __IPHONE_8_0
+    CLAuthorizationStatus t_status = [CLLocationManager authorizationStatus];
+    
+    if (t_status == kCLAuthorizationStatusNotDetermined)
+    {
+        // PM-2014-10-20: [[ Bug 13590 ]] Read the plist to decide which type of authorization the user has chosen
+        NSDictionary *t_info_dict;
+        t_info_dict = [[NSBundle mainBundle] infoDictionary];
+        
+        NSString *t_location_authorization_always;
+        t_location_authorization_always = [t_info_dict objectForKey: @"NSLocationAlwaysUsageDescription"];
+        
+        NSString *t_location_authorization_when_in_use;
+        t_location_authorization_when_in_use = [t_info_dict objectForKey: @"NSLocationWhenInUseUsageDescription"];
+
+        if (t_location_authorization_always)
+        {
+            [s_location_manager requestAlwaysAuthorization];
+        }
+        else if (t_location_authorization_when_in_use)
+        {
+            [s_location_manager requestWhenInUseAuthorization];
+        }
+        else
+            return;
+        
+        while (![s_location_delegate isReady])
+            MCscreen -> wait(1.0, False, True);
+    }
+#endif
+}
+
 @end
 
 static void initialize_core_location(void)
@@ -167,9 +280,12 @@ static void initialize_core_location(void)
 	if (s_location_manager != nil)
 		return;
 	
-	s_location_manager = [[CLLocationManager alloc] init];
-	s_location_delegate = [[MCIPhoneLocationDelegate alloc] init];
-	[s_location_manager setDelegate: s_location_delegate];
+    // PM-2014-10-07: [[ Bug 13590 ]] Configuration of the location manager object must always occur on a thread with an active run loop
+    MCIPhoneRunBlockOnMainFiber(^(void) {s_location_manager = [[CLLocationManager alloc] init];});
+	s_location_delegate = [[com_runrev_livecode_MCIPhoneLocationDelegate alloc] init];
+    [s_location_delegate setReady: False];
+    
+   	[s_location_manager setDelegate: s_location_delegate];
 	
 	s_location_enabled = false;
 	s_heading_enabled = false;
@@ -177,6 +293,27 @@ static void initialize_core_location(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void MCSystemAllowBackgroundLocationUpdates(bool p_allow)
+{
+    NSDictionary *t_info_dict;
+    t_info_dict = [[NSBundle mainBundle] infoDictionary];
+    
+    NSArray *t_background_modes_array;
+    t_background_modes_array = [t_info_dict objectForKey: @"UIBackgroundModes"];
+    
+    BOOL t_plist_can_allow_background_location_updates = [t_background_modes_array containsObject: @"location"];
+    
+    if (t_plist_can_allow_background_location_updates)
+    {
+        initialize_core_location();
+        
+        if (p_allow)
+            s_location_manager.allowsBackgroundLocationUpdates = YES;
+        else
+            s_location_manager.allowsBackgroundLocationUpdates = NO;
+    }    
+}
 
 bool MCSystemGetSensorAvailable(MCSensorType p_sensor, bool& r_available)
 {    
@@ -226,17 +363,75 @@ double MCSystemGetSensorDispatchThreshold(MCSensorType p_sensor)
     return 0.0;
 }
 
+bool MCSystemGetLocationAuthorizationStatus(MCStringRef& r_status)
+{    
+    MCAutoStringRef t_status_string;
+	
+#ifdef __IPHONE_8_0
+	if (MCmajorosversion >= MCOSVersionMake(8,0,0))
+	{
+		CLAuthorizationStatus t_status = [CLLocationManager authorizationStatus];
+		switch (t_status)
+		{
+			case kCLAuthorizationStatusNotDetermined:
+                t_status_string = MCSTR("notDetermined");
+				break;
+				
+				// This application is not authorized to use location services.  Due
+				// to active restrictions on location services, the user cannot change
+				// this status, and may not have personally denied authorization
+			case kCLAuthorizationStatusRestricted:
+                t_status_string = MCSTR("restricted");
+				break;
+				
+				// User has explicitly denied authorization for this application, or
+				// location services are disabled in Settings.
+			case kCLAuthorizationStatusDenied:
+                t_status_string = MCSTR("denied");
+				break;
+				
+				// User has granted authorization to use their location at any time,
+				// including monitoring for regions, visits, or significant location changes.
+			case kCLAuthorizationStatusAuthorizedAlways:
+                t_status_string = MCSTR("authorizedAlways");
+				break;
+				
+				// User has granted authorization to use their location only when your app
+				// is visible to them (it will be made visible to them if you continue to
+				// receive location updates while in the background).  Authorization to use
+				// launch APIs has not been granted.
+			case kCLAuthorizationStatusAuthorizedWhenInUse:
+                t_status_string = MCSTR("authorizedWhenInUse");
+				break;
+				
+			default:
+                t_status_string = kMCEmptyString;
+				break;
+		}
+	}
+#else
+    t_status_string = kMCEmptyString;
+#endif
+    
+    return MCStringCopy(*t_status_string, r_status);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // LOCATION SENSEOR
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool start_tracking_location(bool p_loosely)
+bool MCSystemStartTrackingLocation(bool p_loosely)
 {
     if ([CLLocationManager locationServicesEnabled] == YES)
     {
         if (!s_location_enabled)
         {
             initialize_core_location();
+            
+            // PM-2014-10-06: [[ Bug 13590 ]] Make sure on iOS 8 we explicitly request permission to use location services
+            if (MCmajorosversion >= MCOSVersionMake(8,0,0))
+                requestAlwaysAuthorization();
+            
             [s_location_manager startUpdatingLocation];
             s_location_enabled = true;
         }
@@ -249,7 +444,7 @@ static bool start_tracking_location(bool p_loosely)
     return false;
 }
 
-static bool stop_tracking_location()
+bool MCSystemStopTrackingLocation()
 {
     if (s_location_enabled)
     {
@@ -262,39 +457,11 @@ static bool stop_tracking_location()
 
 bool MCSystemGetLocationReading(MCSensorLocationReading &r_reading, bool p_detailed)
 {
-	if (s_location_enabled)
-	{
-		CLLocation *t_location;
-		t_location = [s_location_manager location];        
-        if(t_location == nil)
-            return false;
-		
-		if ([t_location horizontalAccuracy] >= 0.0)
-		{
-            r_reading.latitude = [t_location coordinate].latitude;
-            r_reading.longitude = [t_location coordinate].longitude;            
-            if (p_detailed)
-                r_reading.horizontal_accuracy = [t_location horizontalAccuracy];
-		}
-		
-		if ([t_location verticalAccuracy] >= 0.0)
-		{
-            r_reading.altitude = [t_location altitude];
-            if (p_detailed)
-                r_reading.vertical_accuracy = [t_location verticalAccuracy];
-		}
-		
-        // MM-2013-02-21: Added speed and course to the detailed readings.
-        if (p_detailed)
-        {
-            r_reading.timestamp = [[t_location timestamp] timeIntervalSince1970];
-            r_reading.speed = [t_location speed];
-            r_reading.course = [t_location course];
-        }
-        
-        return true;
-	}
-    return false;
+    if (s_location_reading == nil)
+        return false;
+    
+    MCMemoryCopy(&r_reading, s_location_reading, sizeof(MCSensorLocationReading));
+    return true;
 }
 
 // MM-2012-02-11: Added iPhoneGet/SetCalibrationTimeout
@@ -314,7 +481,7 @@ bool MCSystemGetLocationCalibrationTimeout(int32_t& r_timeout)
 // HEADING SENSEOR
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool start_tracking_heading(bool p_loosely)
+bool MCSystemStartTrackingHeading(bool p_loosely)
 {
     if ([CLLocationManager headingAvailable] == YES)
     {
@@ -335,7 +502,7 @@ static bool start_tracking_heading(bool p_loosely)
     return false;
 }
 
-static bool stop_tracking_heading()
+bool MCSystemStopTrackingHeading()
 {
     if (s_heading_enabled)
     {
@@ -390,11 +557,15 @@ static void (^acceleration_update)(CMAccelerometerData *, NSError *) = ^(CMAccel
 		if (error == nil)
 			MCSensorPostChangeMessage(kMCSensorTypeAcceleration);
 		else
-			MCSensorPostErrorMessage(kMCSensorTypeAcceleration, [[error localizedDescription] cStringUsingEncoding: NSMacOSRomanStringEncoding]);		
+		{
+			MCAutoStringRef t_error;
+			/* UNCHECKED */ MCStringCreateWithCFStringRef((CFStringRef)[error localizedDescription], &t_error);
+			MCSensorPostErrorMessage(kMCSensorTypeAcceleration, *t_error);
+		}
 	}
 };
 
-static bool start_tracking_acceleration(bool p_loosely)
+bool MCSystemStartTrackingAcceleration(bool p_loosely)
 {    
     initialize_core_motion();
     if ([s_motion_manager isAccelerometerAvailable] == YES)
@@ -410,7 +581,7 @@ static bool start_tracking_acceleration(bool p_loosely)
     return false;
 }
 
-static bool stop_tracking_acceleration()
+bool MCSystemStopTrackingAcceleration()
 {
     if (s_acceleration_enabled)
     {
@@ -452,11 +623,15 @@ static void (^rotation_rate_update)(CMGyroData *, NSError *) = ^(CMGyroData *gyr
 		if (error == nil)
             MCSensorPostChangeMessage(kMCSensorTypeRotationRate);
 		else
-			MCSensorPostErrorMessage(kMCSensorTypeRotationRate, [[error localizedDescription] cStringUsingEncoding: NSMacOSRomanStringEncoding]);
+		{
+			MCAutoStringRef t_error;
+			/* UNCHECKED */ MCStringCreateWithCFStringRef((CFStringRef)[error localizedDescription], &t_error);
+			MCSensorPostErrorMessage(kMCSensorTypeRotationRate, *t_error);
+		}
 	}
 };
 
-static bool start_tracking_rotation_rate(bool p_loosely)
+bool MCSystemStartTrackingRotationRate(bool p_loosely)
 {    
     initialize_core_motion();
     if ([s_motion_manager isGyroAvailable] == YES)
@@ -472,7 +647,7 @@ static bool start_tracking_rotation_rate(bool p_loosely)
     return false;
 }
 
-static bool stop_tracking_rotation_rate()
+bool MCSystemStopTrackingRotationRate()
 {
     if (s_rotation_rate_enabled)
     {
@@ -504,7 +679,7 @@ bool MCSystemGetRotationRateReading(MCSensorRotationRateReading &r_reading, bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 bool MCSystemStartTrackingSensor(MCSensorType p_sensor, bool p_loosely)
 {
     switch (p_sensor)
@@ -536,5 +711,5 @@ bool MCSystemStopTrackingSensor(MCSensorType p_sensor)
     }
     return false;
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////

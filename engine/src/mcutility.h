@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -17,9 +17,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef __MCUTILITY_H
 #define __MCUTILITY_H
 
-#ifndef _STRING_H
+#include <ctype.h>
 #include <string.h>
-#endif
+
+#include "foundation-unicode.h"
+#include "typedefs.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +43,12 @@ Boolean MCU_strchr(const char *&sptr, uint4 &l, char target, Boolean isunicode);
 inline char *MCU_empty()
 {
 	return strclone("");
+}
+
+inline void MCU_skip_spaces(MCStringRef p_input, uindex_t& x_offset)
+{
+    while (MCUnicodeIsWhitespace(MCStringGetCharAtIndex(p_input, x_offset)))
+        x_offset++;
 }
 
 inline void MCU_skip_spaces(const char *&sptr, uint4 &l)
@@ -75,29 +84,6 @@ inline Boolean MCU_comparechar(const char *sptr, char target, Boolean isunicode)
 inline uint1 MCU_charsize(Boolean isunicode)
 {
 	return isunicode ? 2 : 1;
-}
-
-inline void MCU_copychar(uint2 source, char *dest, Boolean isunicode)
-{
-	if (!isunicode)
-		*dest = (uint1)source;
-	else
-	{
-		uint2 *d = (uint2 *)dest;
-		*d = source;
-	}
-}
-
-inline void MCU_copychar(const char *source, char *dest, Boolean isunicode)
-{
-	if (!isunicode)
-		*dest = *source;
-	else
-	{
-		uint2 *s = (uint2 *)source;
-		uint2 *d = (uint2 *)dest;
-		*d = *s;
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,7 +172,7 @@ public:
 	MCDictionary(void);
 	~MCDictionary(void);
 
-	void Set(uint4 p_id, const MCString& p_value);
+	void Set(uint4 p_id, MCString p_value);
 	bool Get(uint4 p_id, MCString& r_value);
 
 	bool Unpickle(const void *p_buffer, uint4 p_length);
@@ -218,7 +204,7 @@ inline const MCString &MCU_btos(uint4 condition)
 
 inline uint4 MCU_abs(int4 source)
 {
-	return source > 0 ? source : -source;
+	return uint4(source > 0 ? source : -source);
 }
 
 inline int4 MCU_min(int4 one, int4 two) {return one > two ? two : one;}
@@ -226,6 +212,12 @@ inline uint4 MCU_min(uint4 one, uint4 two) {return one > two ? two : one;}
 
 inline int4 MCU_max(int4 one, int4 two) {return one > two ? one : two;}
 inline uint4 MCU_max(uint4 one, uint4 two) {return one > two ? one : two;}
+
+inline float32_t MCU_max(float32_t one, float32_t two) {return one > two ? one : two;}
+inline float32_t MCU_min(float32_t one, float32_t two) {return one > two ? two : one;}
+
+inline float64_t MCU_max(float64_t one, float64_t two) {return one > two ? one : two;}
+inline float64_t MCU_min(float64_t one, float64_t two) {return one > two ? two : one;}
 
 inline int4 MCU_clamp(int4 v, int4 lower, int4 upper) {return v < lower ? lower : (v > upper ? upper : v);}
 
@@ -245,13 +237,7 @@ inline uint4 swap_uint4(uint4 *dest)
 {
 	if (MCswapbytes)
 	{
-		uint1 *tptr = (uint1 *)dest;
-		uint1 tmp = tptr[0];
-		tptr[0] = tptr[3];
-		tptr[3] = tmp;
-		tmp = tptr[1];
-		tptr[1] = tptr[2];
-		tptr[2] = tmp;
+        *dest = MCSwapInt32(*dest);
 	}
 	return *dest;
 }
@@ -260,13 +246,7 @@ inline int4 swap_int4(int4 *dest)
 {
 	if (MCswapbytes)
 	{
-		uint1 *tptr = (uint1 *)dest;
-		uint1 tmp = tptr[0];
-		tptr[0] = tptr[3];
-		tptr[3] = tmp;
-		tmp = tptr[1];
-		tptr[1] = tptr[2];
-		tptr[2] = tmp;
+        *dest = int4(MCSwapInt32(uint32_t(*dest)));
 	}
 	return *dest;
 }
@@ -275,10 +255,7 @@ inline uint2 swap_uint2(uint2 *dest)
 {
 	if (MCswapbytes)
 	{
-		uint1 *tptr = (uint1 *)dest;
-		uint1 tmp = tptr[0];
-		tptr[0] = tptr[1];
-		tptr[1] = tmp;
+        *dest = MCSwapInt16(*dest);
 	}
 	return *dest;
 }
@@ -287,10 +264,7 @@ inline int2 swap_int2(int2 *dest)
 {
 	if (MCswapbytes)
 	{
-		uint1 *tptr = (uint1 *)dest;
-		uint1 tmp = tptr[0];
-		tptr[0] = tptr[1];
-		tptr[1] = tmp;
+        *dest = int2(MCSwapInt16(uint16_t(*dest)));
 	}
 	return *dest;
 }
@@ -298,35 +272,29 @@ inline int2 swap_int2(int2 *dest)
 inline uint2 get_uint2(char *source)
 {
 	uint2 result;
-	uint1 *tptr = (uint1 *)&result;
-	*tptr++ = *source++;
-	*tptr = *source;
-	return swap_uint2(&result);
+    MCMemoryCopy(&result, source, sizeof(result));
+    return swap_uint2(&result);
 }
 
 inline uint4 get_uint4(char *source)
 {
 	uint4 result;
-	uint1 *tptr = (uint1 *)&result;
-	*tptr++ = *source++;
-	*tptr++ = *source++;
-	*tptr++ = *source++;
-	*tptr = *source;
-	return swap_uint4(&result);
+    MCMemoryCopy(&result, source, sizeof(result));
+    return swap_uint4(&result);
 }
 
 inline int2 swap_int2(int2 x)
 {
 	if (MCswapbytes)
-		return (int2)((x << 8) | ((uint2)x >> 8));
+		return int2(MCSwapInt16(uint16_t(x)));
 	return x;
 }
 
 inline int2 swap_int2(uint2 x)
 {
 	if (MCswapbytes)
-		return (x << 8) | (x >> 8);
-	return x;
+        return int2(MCSwapInt16(x));
+	return int2(x);
 }
 
 inline char *MC_strchr(const char *s, int c) // HACK for bug in GCC 2.5.x

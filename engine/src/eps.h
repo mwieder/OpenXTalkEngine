@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -20,10 +20,20 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef	MCEPS_H
 #define	MCEPS_H
 
-#include "control.h"
+#include "mccontrol.h"
 
-class MCEPS : public MCControl
+class MCEPS;
+typedef MCObjectProxy<MCEPS>::Handle MCEPSHandle;
+
+class MCEPS : public MCControl, public MCMixinObjectHandle<MCEPS>
 {
+public:
+    
+    enum { kObjectType = CT_EPS };
+    using MCMixinObjectHandle<MCEPS>::GetHandle;
+    
+private:
+    
 	uint4 size;
 	char *postscript;
 	char *prolog;
@@ -48,16 +58,18 @@ public:
 	virtual ~MCEPS();
 	virtual Chunk_term gettype() const;
 	virtual const char *gettypestring();
+    
+    virtual bool visit_self(MCObjectVisitor *p_visitor);
+    
 	virtual Boolean mdown(uint2 which);
-	virtual Boolean mup(uint2 which);
-	virtual void setrect(const MCRectangle &nrect);
-	virtual Exec_stat getprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
-	virtual Exec_stat setprop(uint4 parid, Properties which, MCExecPoint &, Boolean effective);
+	virtual Boolean mup(uint2 which, bool p_release);
+	virtual void applyrect(const MCRectangle &nrect);
+
 	// virtual functions from MCControl
-	IO_stat load(IO_handle stream, const char *version);
-	IO_stat extendedload(MCObjectInputStream& p_stream, const char *p_version, uint4 p_length);
-	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext);
-	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part);
+	IO_stat load(IO_handle stream, uint32_t version);
+	IO_stat extendedload(MCObjectInputStream& p_stream, uint32_t version, uint4 p_length);
+	IO_stat save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t p_version);
+	IO_stat extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint32_t p_version);
 
 	virtual MCControl *clone(Boolean attach, Object_pos p, bool invisible);
 
@@ -67,6 +79,6 @@ public:
 	// Eps functions
 	void setextents();
 	void resetscale();
-	Boolean import(char *fname, IO_handle stream);
+	Boolean import(MCStringRef fname, IO_handle stream);
 };
 #endif

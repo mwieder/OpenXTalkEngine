@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "core.h"
+#include "prefix.h"
 #include "bsdiff.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,8 @@ static bool bspatchmain(MCBsDiffInputStream *p_patch_stream, MCBsDiffInputStream
 
 	// Read in the sizes of all the data arrays
 
-	int32_t t_control_byte_size, t_diff_size, t_extra_size, t_new_size;
+	int32_t t_control_byte_size, t_diff_size, t_extra_size;
+	int32_t t_new_size = 0;
 	if (t_success)
 		t_success =
 			p_patch_stream -> ReadInt32(t_control_byte_size) &&

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
@@ -24,123 +23,173 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "mcio.h"
 #include "context.h"
 #include "securemode.h"
+#include "globals.h"
 
-#include "execpt.h"
+#include "exec.h"
 #include "util.h"
 #include "stack.h"
 
 #include "image.h"
 
+#include "imageloader.h"
+
 ////////////////////////////////////////////////////////////////////////////////
+
+// IM-2014-11-25: [[ ImageRep ]] Reworked encoded image rep to keep image loader until the image frames have been loaded.
+
+MCEncodedImageRep::MCEncodedImageRep()
+{
+	m_compression = F_RLE;
+	m_have_compression = false;
+	m_loader = nil;
+	m_stream = nil;
+}
 
 MCEncodedImageRep::~MCEncodedImageRep()
 {
+	ClearImageLoader();
 }
 
-bool MCEncodedImageRep::LoadImageFrames(MCImageFrame *&r_frames, uindex_t &r_frame_count, bool &r_frames_premultiplied)
+extern bool MCImageLoaderFormatToCompression(MCImageLoaderFormat p_format, uint32_t &r_compression);
+bool MCEncodedImageRep::SetupImageLoader()
 {
-	bool t_success = true;
-
-	// IM-2013-02-18 - switching this back to using MCImageImport as we need to
-	// determine the compression type for m_compression
-
-	IO_handle t_stream = nil;
-	IO_handle t_mask_stream = nil;
-
-	MCImageCompressedBitmap *t_compressed = nil;
-	MCImageBitmap *t_bitmap = nil;
-
-	MCPoint t_hotspot = {1, 1};
-	char *t_name = nil;
-
-	t_success = GetDataStream(t_stream) &&
-		MCImageImport(t_stream, t_mask_stream, t_hotspot, t_name, t_compressed, t_bitmap);
-
-	if (t_stream != nil)
-		MCS_close(t_stream);
-
-	MCImageFrame *t_frames;
-	t_frames = nil;
+	if (m_loader != nil)
+		return true;
 	
-	uindex_t t_frame_count;
-	t_frame_count = 0;
+	bool t_success;
+	t_success = true;
+	
+	IO_handle t_stream;
+	t_stream = nil;
+	
+	MCImageLoader *t_loader;
+	t_loader = nil;
+	
+	if (t_success)
+		t_success = GetDataStream(t_stream);
+	
+	if (t_success)
+		t_success = MCImageLoader::LoaderForStream(t_stream, t_loader);
 	
 	if (t_success)
 	{
-		if (t_compressed != nil)
-			t_success = MCImageDecompress(t_compressed, t_frames, t_frame_count);
-		else
-		{
-			t_success = MCMemoryNewArray(1, t_frames);
-			if (t_success)
-			{
-				t_frames[0].image = t_bitmap;
-				t_frames[0].density = 1.0;
-				t_bitmap = nil;
-				t_frame_count = 1;
-			}
-		}
-	}
-
-	if (t_success)
-	{
-
-		m_width = t_frames[0].image->width;
-		m_height = t_frames[0].image->height;
-
-		if (t_compressed != nil)
-			m_compression = t_compressed->compression;
-
-		m_have_geometry = true;
+		m_stream = t_stream;
+		m_loader = t_loader;
 		
-		r_frames = t_frames;
-		r_frame_count = t_frame_count;
-		r_frames_premultiplied = false;
+		m_have_compression = MCImageLoaderFormatToCompression(m_loader->GetFormat(), m_compression);
 	}
-
-	MCCStringFree(t_name);
+	else
+	{
+		if (t_loader != nil)
+			delete t_loader;
+		
+		// PM-2015-10-20: [[ Bug 15256 ]] Prevent crash when loading a remote image and there is no internet connection
+		if (t_stream != nil)
+			MCS_close(t_stream);
+	}
 	
-	MCImageFreeBitmap(t_bitmap);
-	MCImageFreeCompressedBitmap(t_compressed);
-
 	return t_success;
 }
 
-bool MCEncodedImageRep::CalculateGeometry(uindex_t &r_width, uindex_t &r_height)
+void MCEncodedImageRep::ClearImageLoader()
 {
-	MCImageFrame *t_frame = nil;
-	if (!LockImageFrame(0, m_premultiplied, 1.0, t_frame))
-		return false;
-
-	r_width = t_frame->image->width;
-	r_height = t_frame->image->height;
-
-	UnlockImageFrame(0, t_frame);
-
-	return true;
+	if (m_loader != nil)
+	{
+		delete m_loader;
+		m_loader = nil;
+	}
+	if (m_stream != nil)
+	{
+		MCS_close(m_stream);
+		m_stream = nil;
+	}
 }
 
+bool MCEncodedImageRep::LoadHeader(uindex_t &r_width, uindex_t &r_height, uint32_t &r_frame_count)
+{
+	bool t_success;
+	t_success = true;
+	
+	uindex_t t_width, t_height;
+	uint32_t t_frame_count;
+	
+	if (t_success)
+		t_success = SetupImageLoader();
+	
+	if (t_success)
+		t_success = m_loader->GetGeometry(t_width, t_height);
+	
+	if (t_success)
+		t_success = m_loader->GetFrameCount(t_frame_count);
+	
+	if (t_success)
+	{
+		// keep image loader until the frames have been loaded
+		r_width = t_width;
+		r_height = t_height;
+		r_frame_count = t_frame_count;
+	}
+    
+    if (t_success)
+    {
+		t_success = m_loader->GetMetadata(m_metadata);
+		ClearImageLoader();
+    }
+	
+	return t_success;
+}
+
+// IM-2014-07-31: [[ ImageLoader ]] Use image loader class to read image frames
+bool MCEncodedImageRep::LoadImageFrames(MCBitmapFrame *&r_frames, uindex_t &r_frame_count, bool &r_frames_premultiplied)
+{
+	bool t_success = true;
+
+	if (t_success)
+		t_success = SetupImageLoader();
+	
+	if (t_success)
+		t_success = m_loader->TakeFrames(r_frames, r_frame_count);
+	
+	// Should be done with the image loader now
+	ClearImageLoader();
+
+	if (t_success)
+	{
+		if (r_frame_count == 1)
+			r_frames[0].x_scale = r_frames[0].y_scale = 1.0;
+
+		r_frames_premultiplied = false;
+	}
+
+	return t_success;
+}
+	
+// IM-2014-07-31: [[ ImageLoader ]] Use image loader method to identify stream format
 uint32_t MCEncodedImageRep::GetDataCompression()
 {
-	/* OVERHAUL - REVISIT - need to refactor image import code so we can detect
-	image compression & geometry without reading whole file */
-
-	if (m_have_geometry)
+	if (m_have_compression)
 		return m_compression;
 
-	MCImageFrame *t_frame = nil;
-	if (LockImageFrame(0, m_premultiplied, 1.0, t_frame))
-		UnlockImageFrame(0, t_frame);
+	IO_handle t_stream;
+	t_stream = nil;
+	
+	MCImageLoaderFormat t_format;
+	
+	if (GetDataStream(t_stream) && MCImageLoader::IdentifyFormat(t_stream, t_format))
+		/* UNCHECKED */ MCImageLoaderFormatToCompression(t_format, m_compression);
+
+	if (t_stream != nil)
+		MCS_close(t_stream);
 
 	return m_compression;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-MCReferencedImageRep::MCReferencedImageRep(const char *p_file_name, const char *p_search_key)
+MCReferencedImageRep::MCReferencedImageRep(MCStringRef p_file_name, MCStringRef p_search_key)
 {
-	/* UNCHECKED */ MCCStringClone(p_file_name, m_file_name);
-	/* UNCHECKED */ MCCStringClone(p_search_key, m_search_key);
+	m_file_name = MCValueRetain(p_file_name);
+	m_search_key = MCValueRetain(p_search_key);
 	m_url_data = nil;
 	
 	// MW-2013-09-25: [[ Bug 10983 ]] No load has yet been attempted.
@@ -149,9 +198,9 @@ MCReferencedImageRep::MCReferencedImageRep(const char *p_file_name, const char *
 
 MCReferencedImageRep::~MCReferencedImageRep()
 {
-	MCCStringFree(m_file_name);
-	MCCStringFree(m_search_key);
-	
+	MCValueRelease(m_file_name);
+	MCValueRelease(m_search_key);
+
 	MCMemoryDeallocate(m_url_data);
 }
 
@@ -159,26 +208,31 @@ bool MCReferencedImageRep::GetDataStream(IO_handle &r_stream)
 {
 	IO_handle t_stream = nil;
 	if (MCSecureModeCanAccessDisk())
-		t_stream = MCS_open(m_file_name, IO_READ_MODE, false, false, 0);
+		t_stream = MCS_open(m_file_name, kMCOpenFileModeRead, false, false, 0);
 	
-	// MW-2013-09-25: [[ Bug 10983 ]] Only ever try to load the rep as a url once.
-	if (t_stream == nil && !m_url_load_attempted)
-	{
-		// MW-2013-09-25: [[ Bug 10983 ]] Mark the rep has having attempted url load.
-		m_url_load_attempted = true;
-		
-		MCExecPoint ep(MCdefaultstackptr, nil, nil);
-		ep.setsvalue(m_file_name);
-		
-		MCU_geturl(ep);
-		
-		if (ep.getsvalue().getlength() == 0)
-			return false;
+	if (t_stream == nil)
+    {
+        // MW-2013-09-25: [[ Bug 10983 ]] Only ever try to load the rep as a url once.
+        if (!m_url_load_attempted)
+        {
+            // MW-2013-09-25: [[ Bug 10983 ]] Mark the rep has having attempted url load.
+            m_url_load_attempted = true;
 
-		/* UNCHECKED */ MCMemoryAllocateCopy(ep.getsvalue().getstring(), ep.getsvalue().getlength(), m_url_data);
-		m_url_data_size = ep.getsvalue().getlength();
+            MCExecContext ctxt(MCdefaultstackptr, nil, nil);
+            MCAutoValueRef t_data;
+            MCU_geturl(ctxt, m_file_name, &t_data);
+            if (ctxt.HasError() || MCValueIsEmpty(*t_data))
+                return false;
+            MCAutoDataRef t_dataref;
+            /* UNCHECKED */ ctxt . ConvertToData(*t_data, &t_dataref);
 
-		t_stream = MCS_fakeopen(MCString((char*)m_url_data, m_url_data_size));
+            /* UNCHECKED */ MCMemoryAllocateCopy(MCDataGetBytePtr(*t_dataref), MCDataGetLength(*t_dataref), m_url_data);
+            m_url_data_size = MCDataGetLength(*t_dataref);
+        }
+
+        // IM-2014-09-30: [[ Bug 13501 ]] If we already have the url data then make sure we use it.
+        if (m_url_data != nil)
+            t_stream =  MCS_fakeopen((const char *)m_url_data, m_url_data_size);
 	}
 
 	if (t_stream != nil)
@@ -202,7 +256,7 @@ MCResidentImageRep::~MCResidentImageRep()
 
 bool MCResidentImageRep::GetDataStream(IO_handle &r_stream)
 {
-	r_stream = MCS_fakeopen(MCString((char*)m_data, m_size));
+    r_stream = MCS_fakeopen((const char *)m_data, m_size);
 	return r_stream != nil;
 }
 
@@ -219,13 +273,7 @@ MCVectorImageRep::~MCVectorImageRep()
 	MCMemoryDeallocate(m_data);
 }
 
-bool MCVectorImageRep::Render(MCDC *p_context, bool p_embed, MCRectangle &p_image_rect, MCRectangle &p_clip_rect)
-{
-	p_context->drawpict((uint8_t*)m_data, m_size, p_embed, p_image_rect, p_clip_rect);
-	return true;
-}
-
-bool MCVectorImageRep::LoadImageFrames(MCImageFrame *&r_frames, uindex_t &r_frame_count, bool &r_frames_premultiplied)
+bool MCVectorImageRep::LoadImageFrames(MCBitmapFrame *&r_frames, uindex_t &r_frame_count, bool &r_frames_premultiplied)
 {
 	/* OVERHAUL - REVISIT - should be able to render into an image context
 	but we need to know the size of image required first */
@@ -233,16 +281,21 @@ bool MCVectorImageRep::LoadImageFrames(MCImageFrame *&r_frames, uindex_t &r_fram
 	return false;
 }
 
-bool MCVectorImageRep::CalculateGeometry(uindex_t &r_width, uindex_t &r_height)
+bool MCVectorImageRep::LoadHeader(uindex_t &r_width, uindex_t &r_height, uint32_t &r_frame_count)
 {
 	bool t_success = true;
+    MCAutoDataRef t_data;
 
 	IO_handle t_stream = nil;
-	t_success = nil != (t_stream = MCS_fakeopen(MCString((char*)m_data, m_size)));
+    if (t_success)
+        t_success = nil != (t_stream = MCS_fakeopen((const char *)m_data, m_size));
 
 	if (t_success)
 		t_success = MCImageGetMetafileGeometry(t_stream, r_width, r_height);
 
+	if (t_success)
+		r_frame_count = 1;
+	
 	if (t_stream != nil)
 		MCS_close(t_stream);
 
@@ -267,18 +320,18 @@ MCCompressedImageRep::~MCCompressedImageRep()
 	MCImageFreeCompressedBitmap(m_compressed);
 }
 
-bool MCCompressedImageRep::LoadImageFrames(MCImageFrame *&r_frames, uindex_t &r_frame_count, bool &r_frames_premultiplied)
+bool MCCompressedImageRep::LoadImageFrames(MCBitmapFrame *&r_frames, uindex_t &r_frame_count, bool &r_frames_premultiplied)
 {
 	bool t_success = true;
 
-	MCImageFrame *t_frame = nil;
+	MCBitmapFrame *t_frame = nil;
 	t_success = MCMemoryNewArray(1, t_frame);
 	if (t_success)
 		t_success = MCImageDecompressRLE(m_compressed, t_frame->image);
 
 	if (t_success)
 	{
-		t_frame->density = 1.0;
+		t_frame->x_scale = t_frame->y_scale = 1.0;
 		
 		r_frames = t_frame;
 		r_frame_count = 1;
@@ -290,10 +343,11 @@ bool MCCompressedImageRep::LoadImageFrames(MCImageFrame *&r_frames, uindex_t &r_
 	return t_success;
 }
 
-bool MCCompressedImageRep::CalculateGeometry(uindex_t &r_width, uindex_t &r_height)
+bool MCCompressedImageRep::LoadHeader(uindex_t &r_width, uindex_t &r_height, uint32_t &r_frame_count)
 {
 	r_width = m_compressed->width;
 	r_height = m_compressed->height;
+	r_frame_count = 1;
 
 	return true;
 }

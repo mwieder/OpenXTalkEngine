@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -36,7 +36,7 @@ typedef bool (*MCTileCacheAllocateTileCallback)(void *context, int32_t size, con
 // The tile deallocation compositor callback.
 typedef void (*MCTileCacheDeallocateTileCallback)(void *context, void *tile);
 // Compositing of the current frame has begun.
-typedef bool (*MCTileCacheBeginFrameCallback)(void *context, MCStackSurface *surface, MCRegionRef dirty);
+typedef bool (*MCTileCacheBeginFrameCallback)(void *context, MCStackSurface *surface, MCGRegionRef dirty);
 // Compositing of the current frame has ended.
 typedef bool (*MCTileCacheEndFrameCallback)(void *context, MCStackSurface *surface);
 // Compositing of a layer has begun (layers are never nested).
@@ -78,6 +78,7 @@ enum MCTileCacheCompositorType
 	kMCTileCacheCompositorNone,
 	kMCTileCacheCompositorSoftware,
 	kMCTileCacheCompositorCoreGraphics,
+	kMCTileCacheCompositorOpenGL,
 	kMCTileCacheCompositorStaticOpenGL,
 	kMCTileCacheCompositorDynamicOpenGL
 };
@@ -131,7 +132,7 @@ void MCTileCacheSetCacheLimit(MCTileCacheRef self, uint32_t new_cachelimit);
 uint32_t MCTileCacheGetCacheLimit(MCTileCacheRef self);
 
 // Set the tile size of the tilecache.
-void MCTileCacheSetTileSize(MCTileCacheRef self, int32_t new_tilesize);
+void MCTileCacheSetTileSize(MCTileCacheRef self, uint32_t new_tilesize);
 // Fetch the tile size of the tilecache
 int32_t MCTileCacheGetTileSize(MCTileCacheRef self);
 
@@ -180,7 +181,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& layer);
 void MCTileCacheRenderDirectSprite(MCTileCacheRef self, MCTileCacheLayer& layer, const void *color_bits, const void *alpha_bits);
 
 // Composite the current frame onto the given surface.
-bool MCTileCacheComposite(MCTileCacheRef self, MCStackSurface *surface, MCRegionRef region);
+bool MCTileCacheComposite(MCTileCacheRef self, MCStackSurface *surface, MCGRegionRef region);
 
 // Render the current frame into an offscreen buffer.
 bool MCTileCacheSnapshot(MCTileCacheRef self, MCRectangle area, MCGImageRef& r_pixmap);

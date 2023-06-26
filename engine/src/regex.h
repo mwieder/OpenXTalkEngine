@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -31,6 +31,12 @@ typedef struct
 	void *re_pcre;
 	size_t re_nsub;
 	size_t re_erroffset;
+	// JS-2013-07-01: [[ EnhancedFilter ]] The pattern associated with the compiled
+	//   regexp (used by the cache).
+	MCStringRef re_pattern;
+	// JS-2013-07-01: [[ EnhancedFilter ]] The flags used to compile the pattern
+	//   (used to implement caseSensitive option).
+	int re_flags;
 }
 regex_t;
 
@@ -49,25 +55,18 @@ regmatch_t;
 
 typedef struct _regexp
 {
-	regex_t rexp;
-	// JS-2013-07-01: [[ EnhancedFilter ]] The pattern associated with the compiled
-	//   regexp (used by the cache).
-    char *pattern;
-	// JS-2013-07-01: [[ EnhancedFilter ]] The flags used to compile the pattern
-	//   (used to implement caseSensitive option).
-    int flags;
+	regex_t *rexp;
 	uint2 nsubs;
 	regmatch_t matchinfo[NSUBEXP];
 }
 regexp;
 
-const char *MCR_geterror();
-
 // JS-2013-07-01: [[ EnhancedFilter ]] Updated to manage case and allow case-insensitive matching.
 // MW-2013-07-01: [[ EnhancedFilter ]] Removed 'usecache' parameter as there's no reason not to use the cache.
-regexp *MCR_compile(const char *exp, Boolean casesensitive);
-int MCR_exec(regexp *prog, const char *string, uint4 len);
-void MCR_free(regexp *prog);
+regexp *MCR_compile(MCStringRef exp, bool casesensitive);
+int MCR_exec(regexp *prog, MCStringRef string, MCRange p_range);
+void MCR_copyerror(MCStringRef &r_error);
+void MCR_free(regex_t *prog);
 
 // JS-2013-07-01: [[ EnhancedFilter ]] Clear out the PCRE cache.
 void MCR_clearcache();

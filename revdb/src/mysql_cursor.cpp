@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -205,10 +205,10 @@ Output: False on error*/
 Bool DBCursor_MYSQL::getFieldsInformation()
 {
 	MYSQL_FIELD *field_prop;
-	fields = new DBField *[fieldCount];
+	fields = new (nothrow) DBField *[fieldCount];
 	for (unsigned int i=0; i< fieldCount; i++)
 	{
-		DBField *tfield = new DBField();
+		DBField *tfield = new (nothrow) DBField();
 		fields[i] = tfield;
 		field_prop = mysql_fetch_field(mysql_res);
 		if (field_prop != NULL) 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,13 +16,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "filedefs.h"
 
-#include "execpt.h"
+
+#include "exec.h"
 #include "handler.h"
 #include "scriptpt.h"
 #include "variable.h"
@@ -40,6 +40,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include <openssl/x509.h>
 #include <openssl/pkcs7.h>
 #include <openssl/asn1t.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,8 +173,8 @@ struct SpcString
 
 DECLARE_ASN1_FUNCTIONS(SpcString)
 ASN1_CHOICE(SpcString) = {
-	ASN1_IMP(SpcString, d.unicode, ASN1_BMPSTRING, 0),
-	ASN1_IMP(SpcString, d.ascii, ASN1_IA5STRING, 1)
+	ASN1_IMP_OPT(SpcString, d.unicode, ASN1_BMPSTRING, 0),
+	ASN1_IMP_OPT(SpcString, d.ascii, ASN1_IA5STRING, 1)
 } ASN1_CHOICE_END(SpcString)
 IMPLEMENT_ASN1_FUNCTIONS(SpcString)
 
@@ -219,9 +221,9 @@ struct SpcLink
 
 DECLARE_ASN1_FUNCTIONS(SpcLink)
 ASN1_CHOICE(SpcLink) = {
-	ASN1_IMP(SpcLink, d.url, ASN1_IA5STRING, 0),
-	ASN1_IMP(SpcLink, d.moniker, SpcSerializedObject, 1),
-	ASN1_EXP(SpcLink, d.file, SpcString, 2)
+	ASN1_IMP_OPT(SpcLink, d.url, ASN1_IA5STRING, 0),
+	ASN1_IMP_OPT(SpcLink, d.moniker, SpcSerializedObject, 1),
+	ASN1_EXP_OPT(SpcLink, d.file, SpcString, 2)
 } ASN1_CHOICE_END(SpcLink)
 IMPLEMENT_ASN1_FUNCTIONS(SpcLink)
 
@@ -430,10 +432,22 @@ template<typename T> static bool i2d(int (*p_i2d)(T *, unsigned char **), T *p_o
 
 // This method loads a X.509v3 certificate stored in an empty PKCS#7 SignedData
 // structure.
-static bool MCDeployCertificateLoad(const char *p_passphrase, const char *p_certificate, PKCS7*& r_chain)
+static bool MCDeployCertificateLoad(MCStringRef p_passphrase, MCStringRef p_certificate, PKCS7*& r_chain)
 {
+    // SN-2014-01-10: The certificate filename can be in unicode.
+    // As a char* is required, the conversion must be done.
+    // On Mac, UTF8 suits the filesystem encoding requirements
+    // On Windows, BIO_new_file expects a UFT-8 path
+    // On Linux, a SysString is used
+#ifdef _LINUX
+    MCAutoStringRefAsSysString t_certificate;
+#else
+    MCAutoStringRefAsUTF8String t_certificate;
+#endif
+    t_certificate . Lock(p_certificate);
+
 	BIO *t_file;
-	t_file = BIO_new_file(p_certificate, "rb");
+    t_file = BIO_new_file(*t_certificate, "rb");
 	if (t_file == nil)
 		return MCDeployThrowOpenSSL(kMCDeployErrorNoCertificate);
 
@@ -460,14 +474,14 @@ static bool MCDeployCertificateLoad(const char *p_passphrase, const char *p_cert
 
 // This method loads a private key stored in either PKCS#8 format, or in a the
 // Microsoft PVK format.
-static bool MCDeploySignLoadPVK(const char *, const char *, EVP_PKEY*&);
-static bool MCDeployPrivateKeyLoad(const char *p_passphrase, const char *p_privatekey, EVP_PKEY*& r_private_key)
+static bool MCDeploySignLoadPVK(MCStringRef, MCStringRef, EVP_PKEY*&);
+static bool MCDeployPrivateKeyLoad(MCStringRef p_passphrase, MCStringRef p_privatekey, EVP_PKEY*& r_private_key)
 {
 	return MCDeploySignLoadPVK(p_privatekey, p_passphrase, r_private_key);
 }
 
 // This method loads a PKCS#12 privatekey/certificate pair.
-static bool MCDeployCertStoreLoad(const char *p_passphrase, const char *p_store, PKCS7*& r_certificate, EVP_PKEY*& r_private_key)
+static bool MCDeployCertStoreLoad(MCStringRef p_passphrase, MCStringRef p_store, PKCS7*& r_certificate, EVP_PKEY*& r_private_key)
 {
 	return false;
 }
@@ -613,51 +627,45 @@ static bool MCDeployBuildSpcIndirectDataContent(BIO *p_hash, SpcIndirectDataCont
 	return t_success;
 }
 
+constexpr uint32_t kSecurityEntryOffset32 = 152;
+constexpr uint32_t kSecurityEntryOffset64 = 168;
+
 // This method checks to see if the input file is a valid Windows EXE (well, as
 // valid as we need it to be). It then returns the offset to the PE header if
 // successful. Additionally, we return the offset of the certificate entry, or
 // the length of the file (if no current cert).
-static bool MCDeploySignCheckWindowsExecutable(MCDeployFileRef p_input, uint32_t& r_pe_offset, uint32_t& r_cert_offset)
+static bool MCDeploySignCheckWindowsExecutable(MCDeployFileRef p_input, uint32_t& r_pe_offset, uint32_t& r_cert_offset, MCDeployArchitecture &r_architecture)
 {
 	// First get the length of the input file
 	uint32_t t_length;
 	if (!MCDeployFileMeasure(p_input, t_length))
 		return false;
 
-	// Now check the first two bytes - these should be MZ
-	char t_buffer[4];
-	if (!MCDeployFileReadAt(p_input, t_buffer, 2, 0) ||
-		!MCMemoryEqual(t_buffer, "MZ", 2))
-		return MCDeployThrow(kMCDeployErrorWindowsBadDOSSignature);
-
-	// Now read in the offset to the pe header - this resides at
-	// byte offset 60 (member e_lfanew in IMAGE_DOS_HEADER).
 	uint32_t t_offset;
-	if (t_length < 64 ||
-		!MCDeployFileReadAt(p_input, &t_offset, 4, 60))
-		return MCDeployThrow(kMCDeployErrorWindowsBadDOSHeader);
+	if (!MCDeployWindowsPEHeaderOffset(p_input, t_offset))
+		return false;
 
-	// Swap from non-network to host byte order
-	MCDeployByteSwap32(false, t_offset);
+	MCDeployArchitecture t_arch;
+	if (!MCDeployWindowsArchitecture(p_input, t_offset, t_arch))
+		return false;
 
-	// Check the NT header is big enough - here 160 is the minimum size of the
-	// NT header we need. This is:
-	//   4 byte signature
-	//   20 byte file header
-	//   28 byte standard header
-	//   68 byte optional header
-	//   40 byte data directory (i.e. up to and including SECURITY entry).
-	if (t_length < t_offset + 160)
-		return MCDeployThrow(kMCDeployErrorWindowsNoNTHeader);
+	uint32_t t_security_offset = t_offset;
+	if (t_arch == kMCDeployArchitecture_I386)
+	{
+		t_security_offset += kSecurityEntryOffset32;
+	}
+	else
+	{
+		t_security_offset += kSecurityEntryOffset64;
+	}
 
-	// Now make sure the NT Signature is correct and read in the existing cert
-	// fields. Note that the offset here is that of the 5th data directory entry
-	// (4 + 20 + 28 + 64 + 5 * 8).
+	// Now read in the existing cert fields. Note that the offset here is
+	// that of the 5th data directory entry
 	uint32_t t_cert_section[2];
-	if (!MCDeployFileReadAt(p_input, t_buffer, 4, t_offset) ||
-		!MCMemoryEqual(t_buffer, "PE\0\0", 4) ||
-		!MCDeployFileReadAt(p_input, t_cert_section, 2 * sizeof(uint32_t), t_offset + 152))
+	if (!MCDeployFileReadAt(p_input, t_cert_section, 2 * sizeof(uint32_t), t_security_offset))
+	{
 		return MCDeployThrow(kMCDeployErrorWindowsBadNTSignature);
+	}
 
 	MCDeployByteSwap32(false, t_cert_section[0]);
 	MCDeployByteSwap32(false, t_cert_section[1]);
@@ -673,6 +681,7 @@ static bool MCDeploySignCheckWindowsExecutable(MCDeployFileRef p_input, uint32_t
 		r_cert_offset = t_length;
 
 	r_pe_offset = t_offset;
+	r_architecture = t_arch;
 
 	return true;
 }
@@ -683,13 +692,13 @@ static bool MCDeploySignCopyFileAt(BIO *p_output, MCDeployFileRef p_input, uint3
 	bool t_success;
 	t_success = true;
 
-	if (!MCDeployFileSeek(p_input, p_offset, SEEK_SET))
+	if (!MCDeployFileSeekSet(p_input, p_offset))
 		return MCDeployThrow(kMCDeployErrorBadRead);
 
 	while(p_amount > 0)
 	{
 		char t_buffer[4096];
-		uint32_t t_size;
+		int t_size;
 		t_size = MCU_min(4096U, p_amount);
 		
 		if (!MCDeployFileRead(p_input, t_buffer, t_size))
@@ -706,7 +715,7 @@ static bool MCDeploySignCopyFileAt(BIO *p_output, MCDeployFileRef p_input, uint3
 
 // This method reconstructs the output executable from the input executable
 // while computing the hash of the critical parts of the file.
-static bool MCDeploySignHashWindowsExecutable(MCDeployFileRef p_input, BIO *p_output, uint32_t p_pe_offset, uint32_t p_cert_offset, BIO*& r_hash)
+static bool MCDeploySignHashWindowsExecutable(MCDeployFileRef p_input, BIO *p_output, uint32_t p_pe_offset, uint32_t p_cert_offset, MCDeployArchitecture p_architecture, BIO*& r_hash)
 {
 	bool t_success;
 	t_success = true;
@@ -728,8 +737,9 @@ static bool MCDeploySignHashWindowsExecutable(MCDeployFileRef p_input, BIO *p_ou
 	// the input executable as we go.
 
 	// The first part of the output file is everything up to the start of the
-	// 'CheckSum' field of the IMAGE_OPTIONAL_HEADER32 structure. This is at
-	// offset 88 in said structure. This part is part of the hash.
+	// 'CheckSum' field of the IMAGE_OPTIONAL_HEADER structure. This is at
+	// offset 88 in both IMAGE_OPTIONAL_HEADER32 and IMAGE_OPTIONAL_HEADER64.
+	// This part is part of the hash.
 	if (t_success)
 		t_success = MCDeploySignCopyFileAt(t_hash, p_input, 0, p_pe_offset + 88);
 
@@ -743,20 +753,30 @@ static bool MCDeploySignHashWindowsExecutable(MCDeployFileRef p_input, BIO *p_ou
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadWrite);
 	}
 
+	uint32_t t_security_offset = p_pe_offset;
+	if (p_architecture == kMCDeployArchitecture_I386)
+	{
+		t_security_offset += kSecurityEntryOffset32;
+	}
+	else
+	{
+		t_security_offset += kSecurityEntryOffset64;
+	}
+
 	// Next is the section of the header after the CheckSum field and up to
-	// the 'Security' data directory entry. This entry is at offset 152.
+	// the 'Security' data directory entry.
 	if (t_success)
-		t_success = MCDeploySignCopyFileAt(t_hash, p_input, p_pe_offset + 92, 60);
+		t_success = MCDeploySignCopyFileAt(t_hash, p_input, p_pe_offset + 92, t_security_offset - (p_pe_offset + 92));
 
 	// Now write out the (current) value of the Security data directory entry,
 	// but not into the hash.
 	if (t_success)
-		t_success = MCDeploySignCopyFileAt(p_output, p_input, p_pe_offset + 152, 8);
+		t_success = MCDeploySignCopyFileAt(p_output, p_input, t_security_offset, 8);
 
 	// After the Security data directory, everything up to the cert offset is
 	// hashed.
 	if (t_success)
-		t_success = MCDeploySignCopyFileAt(t_hash, p_input, p_pe_offset + 160, p_cert_offset - (p_pe_offset + 160));
+		t_success = MCDeploySignCopyFileAt(t_hash, p_input, t_security_offset + 8, p_cert_offset - (t_security_offset + 8));
 
 	// Finally we round the output up to the nearest 8 bytes.
 	if (t_success && (p_cert_offset % 8 != 0))
@@ -764,7 +784,7 @@ static bool MCDeploySignHashWindowsExecutable(MCDeployFileRef p_input, BIO *p_ou
 		uint8_t t_pad[8];
 		MCMemoryClear(t_pad, 8);
 
-		uint32_t t_pad_length;
+		int t_pad_length;
 		t_pad_length = 8 - (p_cert_offset % 8);
 
 		if (BIO_write(t_hash, t_pad, t_pad_length) != t_pad_length)
@@ -796,14 +816,18 @@ static bool MCDeploySignWindowsAddOpusInfo(const MCDeploySignParameters& p_param
 	}
 
 	if (t_success && p_params . description != nil)
-		t_success = MCDeployBuildSpcString(p_params . description, false, t_opus -> description);
+    {
+        MCAutoStringRefAsUTF8String t_utf8_string;
+        t_success = t_utf8_string . Lock(p_params . description)
+                && MCDeployBuildSpcString(*t_utf8_string, false, t_opus -> description);
+    }
 	
 	if (t_success && p_params . url != nil)
 	{
 		t_opus -> url = SpcLink_new();
 		if (t_opus -> url != nil)
 		{
-			if (ASN1_mbstring_copy(&t_opus -> url -> d . url, (const unsigned char *)p_params . url, strlen(p_params . url), MBSTRING_UTF8, B_ASN1_IA5STRING))
+			if (ASN1_mbstring_copy(&t_opus -> url -> d . url, MCStringGetNativeCharPtr(p_params.url), MCStringGetLength(p_params.url), MBSTRING_UTF8, B_ASN1_IA5STRING))
 				t_opus -> url -> type = 0;
 			else
 				t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadString);
@@ -863,7 +887,9 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 	PKCS7_SIGNER_INFO *t_signer_info;
 	t_signer_info = sk_PKCS7_SIGNER_INFO_value(p_signature -> d . sign -> signer_info, 0);
 
-	// Build a request to send to the time-stamp authority
+	// Build a request to send to the time-stamp authority. If there is a 'blob'
+    // field in this request, then we must reset the signature field before freeing
+    // it as that is borrowed from elsewhere.
 	SpcTimeStampRequest *t_request;
 	t_request = nil;
 	if (t_success)
@@ -894,21 +920,16 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 		t_success = i2d(i2d_SpcTimeStampRequest, t_request, t_request_data, t_request_length);
 
 	// Convert the request to base64
-	extern MCExecPoint *MCEPptr;
-	MCExecPoint ep(*MCEPptr);
-	if (t_success)
-	{
-		ep . setstaticbytes(t_request_data, t_request_length);
-		MCU_base64encode(ep);
-		ep . appendnewline();
-	}
-
+    MCAutoDataRef t_req_dataref;
+    MCAutoStringRef t_req_base64;
+    /* UNCHECKED */ MCDataCreateWithBytes(t_request_data, t_request_length, &t_req_dataref);
+    MCU_base64encode(*t_req_dataref, &t_req_base64);
+    
 	// Request the timestamp from the tsa
 	if (t_success)
 	{
 		// Set the HTTP headers appropriately to make sure no unpleasant caching goes on.
-		delete MChttpheaders;
-		MChttpheaders = strdup("Content-Type: application/octet-stream\nAccept: application/octet-stream\nUser-Agent: Transport\nCache-Control: no-cache");
+		MCValueAssign(MChttpheaders, MCSTR("Content-Type: application/octet-stream\nAccept: application/octet-stream\nUser-Agent: Transport\nCache-Control: no-cache"));
 
 		// Use libURL to do the post - we attempt this 5 times with increasing sleep
 		// periods. This is because it looks like the timestamping service is a little
@@ -922,10 +943,11 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 		while(t_retry_count > 0)
 		{
 			MCParameter t_data, t_url;
-			t_data . sets_argument(ep . getsvalue());
+			t_data . setvalueref_argument(*t_req_base64);
 			t_data . setnext(&t_url);
-			t_url . sets_argument(p_params . timestamper);
-			if (ep . getobj() -> message(MCM_post_url, &t_data, False, True) == ES_NORMAL &&
+			t_url . setvalueref_argument(p_params . timestamper);
+            extern MCExecContext *MCECptr;
+			if (MCECptr->GetObject() -> message(MCM_post_url, &t_data, False, True) == ES_NORMAL &&
 				MCresult -> isempty())
 			{
 				t_failed = false;
@@ -944,11 +966,19 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 	}
 
 	// Now convert the reply to binary.
-	if (t_success)
-	{
-		MCurlresult -> fetch(ep);
-		MCU_base64decode(ep);
-	}
+    MCAutoValueRef t_result_value;
+    MCAutoStringRef t_result_base64;
+    MCAutoDataRef t_result_data;
+    extern MCExecContext *MCECptr;
+	
+    if (t_success)
+    {
+		MCurlresult -> copyasvalueref(&t_result_value);
+        t_success = MCECptr->ConvertToString(*t_result_value, &t_result_base64);
+    }
+    
+    if (t_success)
+        MCU_base64decode(*t_result_base64, &t_result_data);
 
 	// Decode the PKCS7 structure
 	PKCS7 *t_counter_sig;
@@ -956,10 +986,9 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 	if (t_success)
 	{
 		const unsigned char *t_data;
-		t_data = (const unsigned char *)ep . getsvalue() . getstring();
-
+		t_data = (const unsigned char *)MCDataGetBytePtr(*t_result_data);
 		int t_length;
-		t_length = ep . getsvalue() . getlength();
+		t_length = MCDataGetLength(*t_result_data);
 		t_counter_sig = d2i_PKCS7(&t_counter_sig, &t_data, t_length);
 		if (t_counter_sig == nil)
 			t_success = MCDeployThrow(kMCDeployErrorBadTimestamp);
@@ -1013,12 +1042,18 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 	// the sig.
 	if (t_request != nil)
 	{
-		t_request -> blob -> signature = nil;
+        // If we have a 'blob' field then we will have potentially borrowed a
+        // signature from another data structure so must unhook that here to
+        // stop it being freed in SpcTimeStampRequest_free.
+        if (t_request -> blob != nil)
+            t_request -> blob -> signature = nil;
 		SpcTimeStampRequest_free(t_request);
 	}
 
 	return t_success;
 }
+
+static bool s_objects_created = false;
 
 bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 {
@@ -1031,14 +1066,16 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 	// First open input and output executable files
 	MCDeployFileRef t_input;
 	t_input = nil;
-	if (t_success && !MCDeployFileOpen(p_params . input, "rb", t_input))
+	if (t_success && !MCDeployFileOpen(p_params . input, kMCOpenFileModeRead, t_input))
 		t_success = MCDeployThrow(kMCDeployErrorNoEngine);
 
 	BIO *t_output;
 	t_output = nil;
 	if (t_success)
 	{
-		t_output = BIO_new_file(p_params . output, "wb");
+        MCAutoStringRefAsUTF8String t_params_output_utf8;
+        /* UNCHECKED */ t_params_output_utf8 . Lock(p_params . output);
+		t_output = BIO_new_file(*t_params_output_utf8, "wb");
 		if (t_output == nil)
 			t_success = MCDeployThrow(kMCDeployErrorNoOutput);
 	}
@@ -1049,23 +1086,30 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 	EVP_PKEY* t_privatekey;
 	t_cert_chain = nil;
 	t_privatekey = nil;
-	if (t_success && p_params . certstore != nil)
-		t_success = MCDeployCertStoreLoad(p_params . passphrase, p_params . certstore, t_cert_chain, t_privatekey);
+	if (t_success && !MCValueIsEmpty(p_params . certstore))
+        t_success = MCDeployCertStoreLoad(p_params . passphrase,
+                                          p_params . certstore,
+										  t_cert_chain, t_privatekey);
 	else if (t_success)
 		t_success =
-			MCDeployCertificateLoad(p_params . passphrase, p_params . certificate, t_cert_chain) &&
-			MCDeployPrivateKeyLoad(p_params . passphrase, p_params . privatekey, t_privatekey);
+            MCDeployCertificateLoad(p_params . passphrase,
+                                    p_params . certificate,
+									t_cert_chain) &&
+            MCDeployPrivateKeyLoad(p_params . passphrase,
+                                   p_params . privatekey,
+                                   t_privatekey);
 
 	// Next we check the input file, and compute the hash, writing out the new
 	// version of the executable as we go.
 	uint32_t t_pe_offset, t_cert_offset;
+	MCDeployArchitecture t_arch;
 	if (t_success)
-		t_success = MCDeploySignCheckWindowsExecutable(t_input, t_pe_offset, t_cert_offset);
+		t_success = MCDeploySignCheckWindowsExecutable(t_input, t_pe_offset, t_cert_offset, t_arch);
 
 	BIO *t_hash;
 	t_hash = nil;
 	if (t_success)
-		t_success = MCDeploySignHashWindowsExecutable(t_input, t_output, t_pe_offset, t_cert_offset, t_hash);
+		t_success = MCDeploySignHashWindowsExecutable(t_input, t_output, t_pe_offset, t_cert_offset, t_arch, t_hash);
 
 	// Next we create a PKCS#7 object ready for filling with the stuff we need for
 	// Authenticode.
@@ -1110,12 +1154,18 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 
 	// The various ASN.1 structures we are going to use require a number of ObjectIDs.
 	// We register them all here, to save having to check the return value of OBJ_txt2obj.
-	if (t_success)
-		if (!OBJ_create(SPC_INDIRECT_DATA_OBJID, NULL, NULL) ||
-			!OBJ_create(SPC_PE_IMAGE_DATA_OBJID, NULL, NULL) ||
-			!OBJ_create(SPC_STATEMENT_TYPE_OBJID, NULL, NULL) ||
-			!OBJ_create(SPC_SP_OPUS_INFO_OBJID, NULL, NULL))
+	if (t_success && !s_objects_created)
+	{
+		if (!OBJ_create(SPC_INDIRECT_DATA_OBJID, SPC_INDIRECT_DATA_OBJID, SPC_INDIRECT_DATA_OBJID) ||
+			!OBJ_create(SPC_PE_IMAGE_DATA_OBJID, SPC_PE_IMAGE_DATA_OBJID, SPC_PE_IMAGE_DATA_OBJID) ||
+			!OBJ_create(SPC_STATEMENT_TYPE_OBJID, SPC_STATEMENT_TYPE_OBJID, SPC_STATEMENT_TYPE_OBJID) ||
+			!OBJ_create(SPC_SP_OPUS_INFO_OBJID, SPC_SP_OPUS_INFO_OBJID, SPC_SP_OPUS_INFO_OBJID))
+		{
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadSignature);
+		}
+		
+		s_objects_created = true;
+	}
 
 	// Authenticode signatures require a single SignerInfo structure to be present.
 	// To create this we add a signature for the certificate we just located.
@@ -1185,7 +1235,7 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 		BIO *t_stream;
 		t_stream = PKCS7_dataInit(t_signature, nil);
 		if (t_stream == nil ||
-			BIO_write(t_stream, t_content_data + 2, t_content_size - 2) != t_content_size - 2 ||
+			BIO_write(t_stream, t_content_data + 2, t_content_size - 2) != int(t_content_size - 2) ||
 			!PKCS7_dataFinal(t_signature, t_stream))
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadSignature);
 
@@ -1221,7 +1271,7 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 
 	// Now we have our signature, we timestamp it - but only if we were
 	// given a timestamp authority url.
-	if (t_success && p_params . timestamper != nil)
+	if (t_success && !MCValueIsEmpty(p_params . timestamper))
 		t_success = MCDeploySignWindowsAddTimeStamp(p_params, t_signature);
 
 	// We now have a complete PKCS7 SignedData object which is now serialized.
@@ -1252,14 +1302,14 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadWrite);
 
 		// Write out the certificate data
-		if (BIO_write(t_output, t_signature_data, t_signature_size) != t_signature_size)
+		if (BIO_write(t_output, t_signature_data, t_signature_size) != int(t_signature_size))
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadWrite);
 
 		// Write out the padding
 		if (t_signature_size % 8 != 0)
 		{
 			uint8_t t_pad[8];
-			uint32_t t_pad_length;
+			int t_pad_length;
 			t_pad_length = 8 - (t_signature_size % 8);
 			MCMemoryClear(t_pad, t_pad_length);
 			if (BIO_write(t_output, t_pad, t_pad_length) != t_pad_length)
@@ -1270,6 +1320,16 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 	// ... And update the SECURITY table entry in the PE header appropraitely.
 	if (t_success)
 	{
+		uint32_t t_security_offset = t_pe_offset;
+		if (t_arch == kMCDeployArchitecture_I386)
+		{
+			t_security_offset += kSecurityEntryOffset32;
+		}
+		else
+		{
+			t_security_offset += kSecurityEntryOffset64;
+		}
+
 		uint32_t t_entry[2];
 
 		// First entry is the offset of the cert, making sure it is padded to 8
@@ -1280,7 +1340,7 @@ bool MCDeploySignWindows(const MCDeploySignParameters& p_params)
 		t_entry[1] = 8 + t_signature_size + (t_signature_size % 8 != 0 ? (8 - (t_signature_size % 8)) : 0);
 
 		MCDeployByteSwapRecord(false, "ll", t_entry, sizeof(t_entry));
-		if (BIO_seek(t_output, t_pe_offset + 152) == -1 ||
+		if (BIO_seek(t_output, t_security_offset) == -1 ||
 			BIO_write(t_output, t_entry, sizeof(t_entry)) != sizeof(t_entry))
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadWrite);
 	}
@@ -1359,17 +1419,29 @@ static bool read_le_bignum(uint8_t*& x_data, uint32_t p_bytes, BIGNUM*& r_bignum
 	return true;
 }
 
-bool MCDeploySignLoadPVK(const char *p_filename, const char *p_passphrase, EVP_PKEY*& r_key)
+bool MCDeploySignLoadPVK(MCStringRef p_filename, MCStringRef p_passphrase, EVP_PKEY*& r_key)
 {
 	bool t_success;
 	t_success = true;
+
+    // SN-2014-01-10: The private key filename can be in unicode.
+    // As a char* is required, the conversion must be done.
+    // On Mac, UTF8 suits the filesystem encoding requirements
+    // On Windows, BIO_new_file expects a UFT-8 path
+    // On Linux, a SysString is used
+#ifdef _LINUX
+    MCAutoStringRefAsSysString t_private_key;
+#else
+    MCAutoStringRefAsUTF8String t_private_key;
+#endif
+    t_success = t_private_key . Lock(p_filename);
 
 	// First try and open the input file
 	BIO *t_input;
 	t_input = nil;
 	if (t_success)
 	{
-		t_input = BIO_new_file(p_filename, "rb");
+        t_input = BIO_new_file(*t_private_key, "rb");
 		if (t_input == nil)
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorNoPrivateKey);
 	}
@@ -1391,12 +1463,12 @@ bool MCDeploySignLoadPVK(const char *p_filename, const char *p_passphrase, EVP_P
 	// Next we read the salt (if any)
 	uint8_t *t_salt;
 	t_salt = nil;
-	if (t_header . salt_length > 0)
+	if (t_success && t_header . salt_length > 0)
 	{
 		if (t_success)
 			t_success = MCMemoryNewArray(t_header . salt_length, t_salt);
 		if (t_success)
-			if (BIO_read(t_input, t_salt, t_header . salt_length) != t_header . salt_length)
+			if (BIO_read(t_input, t_salt, t_header . salt_length) != int(t_header . salt_length))
 				t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadPrivateKey);
 	}
 
@@ -1422,11 +1494,11 @@ bool MCDeploySignLoadPVK(const char *p_filename, const char *p_passphrase, EVP_P
 		t_success = MCMemoryNewArray(t_key_length, t_key_data);
 	}
 	if (t_success)
-		if (BIO_read(t_input, t_key_data, t_key_length) != t_key_length)
+		if (BIO_read(t_input, t_key_data, t_key_length) != int(t_key_length))
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorBadPrivateKey);
 
 	// We now have everything we need to attempt to decrypt the key (if necessary).
-	if (t_header . is_encrypted)
+	if (t_success && t_header . is_encrypted)
 	{
 		// First check we have a password
 		if (t_success && p_passphrase == nil)
@@ -1443,24 +1515,27 @@ bool MCDeploySignLoadPVK(const char *p_filename, const char *p_passphrase, EVP_P
 		// Compute the passkey. This is done by taking the first 16 bytes
 		// of SHA1(salt & passphrase).
 		uint8_t t_passkey[EVP_MAX_KEY_LENGTH];
-		EVP_MD_CTX t_md;
-		if (t_success && EVP_DigestInit(&t_md, EVP_sha1()))
-		{
-			EVP_DigestUpdate(&t_md, t_salt, t_header . salt_length);
-			EVP_DigestUpdate(&t_md, p_passphrase, strlen(p_passphrase));
-			EVP_DigestFinal(&t_md, t_passkey, NULL);
+        MCAutoCustomPointer<EVP_MD_CTX, EVP_MD_CTX_free> t_md = EVP_MD_CTX_new();
+		if (t_success && EVP_DigestInit(*t_md, EVP_sha1()))
+        {
+            MCAutoStringRefAsCString t_passphrase;
+            t_success = t_passphrase . Lock(p_passphrase);
+
+			EVP_DigestUpdate(*t_md, t_salt, t_header . salt_length);
+            EVP_DigestUpdate(*t_md, *t_passphrase, strlen(*t_passphrase));
+			EVP_DigestFinal(*t_md, t_passkey, NULL);
 		}
 
 		// Now, first we see if the PVK can be decrypted using the strong form
 		// of password generation - that is the first 16 bytes of the hash we
 		// just made.
-		EVP_CIPHER_CTX t_cipher;
+		MCAutoCustomPointer<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free> t_cipher = EVP_CIPHER_CTX_new();
 		int t_cipher_output;
 		t_cipher_output = 0;
-		if (t_success && EVP_DecryptInit(&t_cipher, EVP_rc4(), t_passkey, nil))
+		if (t_success && EVP_DecryptInit(*t_cipher, EVP_rc4(), t_passkey, nil))
 		{
-			EVP_DecryptUpdate(&t_cipher, t_new_key_data, &t_cipher_output, t_key_data, t_header . key_length);
-			EVP_DecryptFinal(&t_cipher, t_new_key_data + t_cipher_output, &t_cipher_output);
+			EVP_DecryptUpdate(*t_cipher, t_new_key_data, &t_cipher_output, t_key_data, t_header . key_length);
+			EVP_DecryptFinal(*t_cipher, t_new_key_data + t_cipher_output, &t_cipher_output);
 		}
 
 		// Check to see if 'RSA2' is the first four bytes of the output, and if
@@ -1470,10 +1545,10 @@ bool MCDeploySignLoadPVK(const char *p_filename, const char *p_passphrase, EVP_P
 		{
 			t_cipher_output = 0;
 			MCMemoryClear(t_passkey + 5, 11);
-			if (EVP_DecryptInit(&t_cipher, EVP_rc4(), t_passkey, nil))
+			if (EVP_DecryptInit(*t_cipher, EVP_rc4(), t_passkey, nil))
 			{
-				EVP_DecryptUpdate(&t_cipher, t_new_key_data, &t_cipher_output, t_key_data, t_header . key_length);
-				EVP_DecryptFinal(&t_cipher, t_new_key_data + t_cipher_output, &t_cipher_output);
+				EVP_DecryptUpdate(*t_cipher, t_new_key_data, &t_cipher_output, t_key_data, t_header . key_length);
+				EVP_DecryptFinal(*t_cipher, t_new_key_data + t_cipher_output, &t_cipher_output);
 			}
 		}
 
@@ -1527,24 +1602,36 @@ bool MCDeploySignLoadPVK(const char *p_filename, const char *p_passphrase, EVP_P
 	// byte sequences in little-endian order.
 
 	// The exponent is first - this is just a 32-bit number, so we deal with it explicitly.
+    typedef MCAutoCustomPointer<BIGNUM, BN_free> MCAutoBignum;
+    MCAutoBignum t_rsa_e;
 	if (t_success)
 	{
-		t_rsa -> e = BN_new();
-		if (t_rsa -> e == nil ||
-			!BN_set_word(t_rsa -> e, t_rsa_header . exponent))
+        t_rsa_e = BN_new();
+		if (!t_rsa_e || !BN_set_word(*t_rsa_e, t_rsa_header.exponent))
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorNoMemory);
 	}
 	
 	// The rest of the numbers for the RSA2 key need special processing.
+    MCAutoBignum t_rsa_n;
+    MCAutoBignum t_rsa_p;
+    MCAutoBignum t_rsa_q;
+    MCAutoBignum t_rsa_dmp1;
+    MCAutoBignum t_rsa_dmq1;
+    MCAutoBignum t_rsa_iqmp;
+    MCAutoBignum t_rsa_d;
 	if (t_success)
-		if (!read_le_bignum(t_rsa_data, t_key_byte_length, t_rsa -> n) ||
-			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, t_rsa -> p) ||
-			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, t_rsa -> q) ||
-			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, t_rsa -> dmp1) ||
-			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, t_rsa -> dmq1) ||
-			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, t_rsa -> iqmp) ||
-			!read_le_bignum(t_rsa_data, t_key_byte_length, t_rsa -> d))
+		if (!read_le_bignum(t_rsa_data, t_key_byte_length, &t_rsa_n) ||
+			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, &t_rsa_p) ||
+			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, &t_rsa_q) ||
+			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, &t_rsa_dmp1) ||
+			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, &t_rsa_dmq1) ||
+			!read_le_bignum(t_rsa_data, t_key_byte_length / 2, &t_rsa_iqmp) ||
+			!read_le_bignum(t_rsa_data, t_key_byte_length, &t_rsa_d))
 			t_success = MCDeployThrowOpenSSL(kMCDeployErrorNoMemory);
+    
+    RSA_set0_key(t_rsa, t_rsa_n.Release(), t_rsa_e.Release(), t_rsa_d.Release());
+    RSA_set0_factors(t_rsa, t_rsa_p.Release(), t_rsa_q.Release());
+    RSA_set0_crt_params(t_rsa, t_rsa_dmp1.Release(), t_rsa_dmq1.Release(), t_rsa_iqmp.Release());
 
 	// We now have the RSA key, so wrap it in an EVP_PKEY and return.
 	EVP_PKEY *t_pkey;

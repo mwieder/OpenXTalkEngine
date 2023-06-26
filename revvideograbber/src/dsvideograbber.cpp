@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,6 +18,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #undef _UNICODE
 
 #include <revolution/external.h>
+#include <core.h>
 
 #include "dsvideograbber.h"
 #include "Vfw.h"
@@ -2307,7 +2308,7 @@ BOOL CDirectXVideoGrabber::Snapshot(DWORD *pdwSize, LPBYTE *pBuff)
 	*pdwSize = lBufferSize;
 
 	//*pBuff = (LPBYTE)malloc(lBufferSize);
-	*pBuff = new BYTE[lBufferSize];
+	*pBuff = new (nothrow) BYTE[lBufferSize];
 	hr = m_pGrabber->GetCurrentBuffer(&lBufferSize, (long*)*pBuff);
 	if (FAILED(hr))	{
         Error( TEXT("Failed to GetCurrentBuffer!"), hr);
@@ -2694,7 +2695,7 @@ void CDirectXVideoGrabber::GetFormatInfo(int *fwidth, int *fheight, double *fps)
 			{
 				VIDEOINFOHEADER *pvi = (VIDEOINFOHEADER *)pmt->pbFormat;
 				
-				// OK-2007-09-26 : The frame rate should be returned to Revolution in frames per second and thus should be convert to 
+				// OK-2007-09-26 : The frame rate should be returned to LiveCode in frames per second and thus should be convert to 
 				// FPS from microseconds per frame.
 				if (fps && !m_stSetting . m_bUseFrameRate)
 					*fps = (double)(10000000.0 / double(pvi -> AvgTimePerFrame));

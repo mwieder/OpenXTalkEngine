@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -45,11 +45,8 @@ struct MCThemeDrawInfo
 		
 		struct
 		{
-			Rect bounds;
-			ThemeButtonKind kind;
-			ThemeButtonDrawInfo info;
-			CFAbsoluteTime animation_start;
-			CFAbsoluteTime animation_current;
+			HIRect bounds;
+			HIThemeButtonDrawInfo info;
 		} button;
 		
 		struct
@@ -97,7 +94,6 @@ public:
 	Boolean load();
 	uint2 getthemeid();
 	uint2 getthemefamilyid();
-	const char *getname();
 	Boolean iswidgetsupported(Widget_Type wtype);
 	virtual int4 getmetric(Widget_Metric wmetric);
 	int4 getwidgetmetric(const MCWidgetInfo &winfo,Widget_Metric wmetric);

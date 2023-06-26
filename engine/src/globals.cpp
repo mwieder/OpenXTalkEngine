@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,14 +16,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 #include "mcio.h"
 
-#include "execpt.h"
 #include "undolst.h"
 #include "sellst.h"
 #include "stacklst.h"
@@ -51,6 +49,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "external.h"
 #include "parentscript.h"
 #include "osspec.h"
+#include "variable.h"
+#include "widget.h"
 
 #include "printer.h"
 
@@ -68,19 +68,34 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "mcssl.h"
 #include "stacksecurity.h"
 #include "resolution.h"
+#include "redraw.h"
+
+#include "date.h"
+#include "stacktile.h"
+
+#include "widget-events.h"
+
+#include "stackfileformat.h"
 
 #define HOLD_SIZE1 65535
 #define HOLD_SIZE2 16384
 
 #ifdef TARGET_PLATFORM_MACOS_X
-#include <Foundation/NSAutoreleasePool.h>
+//#include <Foundation/NSAutoreleasePool.h>
 #endif
 
 #ifdef _ANDROID_MOBILE
 #include "mblad.h"
 #include "mblcontrol.h"
+#endif
+
+#ifdef _MOBILE
+#include "mblsyntax.h"
 #include "mblsensor.h"
 #endif
+
+#include "exec.h"
+#include "chunk.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,9 +104,15 @@ Bool MCquitisexplicit;
 int MCidleRate = 200;
 
 Boolean MCaqua;
-char *MCcmd;
-char *MCfiletype;
-char *MCstackfiletype;
+
+/* The path to the base folder which contains the application's code resources.
+ * This is used to resolve references to code resources. This is added as a
+ * prefix to the (relative) paths computed in MCU_library_load. */
+MCStringRef MCappcodepath = nullptr;
+
+MCStringRef MCcmd = nullptr;
+MCStringRef MCfiletype = nullptr;
+MCStringRef MCstackfiletype = nullptr;
 
 
 #ifdef TARGET_PLATFORM_LINUX
@@ -107,7 +128,7 @@ Boolean MCuseXft = True;
 Boolean MCuselibgnome = False ;
 Boolean MCuseESD = False ;
 
-char **MCstacknames = NULL;
+MCStringRef *MCstacknames = NULL;
 int2 MCnstacks = 0;
 
 Boolean MCnofiles = False;
@@ -144,7 +165,6 @@ Boolean MChidepalettes = False;
 Boolean MCdontuseNS;
 Boolean MCdontuseQT;
 Boolean MCdontuseQTeffects;
-Boolean MCfreescripts = True;
 uint4 MCeventtime;
 uint2 MCbuttonstate;
 uint2 MCmodifierstate;
@@ -177,9 +197,9 @@ Boolean MCproportionalthumbs = True;
 MCColor MCzerocolor;
 MCColor MConecolor;
 MCColor MCpencolor;
-char *MCpencolorname;
+MCStringRef MCpencolorname;
 MCColor MCbrushcolor;
-char *MCbrushcolorname;
+MCStringRef MCbrushcolorname;
 uint4 MCpenpmid = PI_PATTERNS;
 MCPatternRef MCpenpattern;
 uint4 MCbrushpmid = PI_PATTERNS;
@@ -188,24 +208,24 @@ uint4 MCbackdroppmid;
 MCPatternRef MCbackdroppattern;
 MCImageList *MCpatternlist;
 MCColor MCaccentcolor;
-char *MCaccentcolorname;
-MCColor MChilitecolor = { 0, 0, 0, 0x8080, 0, 0 };
-char *MChilitecolorname;
+MCStringRef MCaccentcolorname;
+MCColor MChilitecolor = { 0, 0, 0x8080 };
+MCStringRef MChilitecolorname;
 MCColor MCselectioncolor;
-char *MCselectioncolorname;
-Linkatts MClinkatts = { { 0, 0, 0, 0xEFBE, 0, 0 }, NULL,
-                        { 0, 0xFFFF, 0, 0, 0, 0 }, NULL,
-                        { 0, 0x5144, 0x1861, 0x8038, 0, 0 }, NULL, True };
+MCStringRef MCselectioncolorname;
+Linkatts MClinkatts = { { 0, 0, 0xEFBE }, NULL,
+                        { 0xFFFF, 0, 0 }, NULL,
+                        { 0x5144, 0x1861, 0x8038 }, NULL, True };
 Boolean MCrelayergrouped;
 Boolean MCselectgrouped;
 Boolean MCselectintersect = True;
 MCRectangle MCwbr;
 uint2 MCjpegquality = 100;
-uint2 MCpaintcompression = EX_PBM;
-uint2 MCrecordformat = EX_AIFF;
+Export_format MCpaintcompression = EX_PBM;
 uint2 MCrecordchannels = 1;
 uint2 MCrecordsamplesize = 8;
 real8 MCrecordrate = 22.050;
+intenum_t MCrecordformat;
 char MCrecordcompression[5] = "raw ";
 char MCrecordinput[5] = "dflt";
 Boolean MCuselzw;
@@ -227,45 +247,45 @@ uint2 MCnsockets;
 MCStack **MCusing;
 uint2 MCnusing;
 uint2 MCiconicstacks;
-uint2 MCwaitdepth;
+MCSemaphore MCwaitdepth;
 uint4 MCrecursionlimit = 400000; // actual max is about 480K on OSX
 
-MCClipboardData *MCclipboarddata;
-MCSelectionData *MCselectiondata;
+MCClipboard* MCclipboard;
+MCClipboard* MCselection;
+MCClipboard* MCdragboard;
+uindex_t MCclipboardlockcount;
 
-MCDragData *MCdragdata;
 MCDragAction MCdragaction;
 MCDragActionSet MCallowabledragactions;
 uint4 MCdragimageid;
 MCPoint MCdragimageoffset;
-MCObject *MCdragtargetptr;
+MCObjectHandle MCdragtargetptr;
 uint2 MCdragdelta = 4;
 
 MCUndolist *MCundos;
 MCSellist *MCselected;
 MCStacklist *MCstacks;
 MCStacklist *MCtodestroy;
-MCObject *MCtodelete;
 MCCardlist *MCrecent;
 MCCardlist *MCcstack;
 MCDispatch *MCdispatcher;
-MCStack *MCtopstackptr;
-MCStack *MCdefaultstackptr;
-MCStack *MCstaticdefaultstackptr;
-MCStack *MCmousestackptr;
-MCStack *MCclickstackptr;
-MCStack *MCfocusedstackptr;
-MCCard *MCdynamiccard;
+MCStackHandle MCtopstackptr;
+MCStackHandle MCdefaultstackptr;
+MCStackHandle MCstaticdefaultstackptr;
+MCStackHandle MCmousestackptr;
+MCStackHandle MCclickstackptr;
+MCStackHandle MCfocusedstackptr;
+MCCardHandle MCdynamiccard;
 Boolean MCdynamicpath;
-MCObject *MCerrorptr;
-MCObject *MCerrorlockptr;
-MCObject *MCtargetptr;
-MCObject *MCmenuobjectptr;
+MCObjectHandle MCerrorptr;
+MCObjectHandle MCerrorlockptr;
+MCObjectPartHandle MCtargetptr;
 MCGroup *MCsavegroupptr;
-MCGroup *MCdefaultmenubar;
-MCGroup *MCmenubar;
-MCPlayer *MCplayers;
-MCAudioClip *MCacptr;
+MCObjectHandle MCmenuobjectptr;
+MCGroupHandle MCdefaultmenubar;
+MCGroupHandle MCmenubar;
+MCPlayerHandle MCplayers;
+MCAudioClipHandle MCacptr;
 
 MCStack *MCtemplatestack;
 MCAudioClip *MCtemplateaudio;
@@ -280,24 +300,24 @@ MCPlayer *MCtemplateplayer;
 MCImage *MCtemplateimage;
 MCField *MCtemplatefield;
 
-MCImage *MCmagimage;
-MCMagnify *MCmagnifier;
-MCObject *MCdragsource;
-MCObject *MCdragdest;
-MCField *MCactivefield;
-MCField *MCclickfield;
-MCField *MCfoundfield;
-MCField *MCdropfield;
+MCImageHandle MCmagimage;
+MCMagnifyHandle MCmagnifier;
+MCObjectHandle MCdragsource;
+MCObjectHandle MCdragdest;
+MCFieldHandle MCactivefield;
+MCFieldHandle MCclickfield;
+MCFieldHandle MCfoundfield;
+MCFieldHandle MCdropfield;
 int4 MCdropchar;
-MCImage *MCactiveimage;
-MCImage *MCeditingimage;
-MCTooltip *MCtooltip;
+MCImageHandle MCactiveimage;
+MCImageHandle MCeditingimage;
+MCTooltipHandle MCtooltip;
 
 MCUIDC *MCscreen;
 MCPrinter *MCprinter;
 MCPrinter *MCsystemprinter;
 
-char *MCscriptfont;
+MCStringRef MCscriptfont;
 uint2 MCscriptsize;
 uint2 MCscrollbarwidth = DEFAULT_SB_WIDTH;
 uint2 MCfocuswidth = 2;
@@ -334,19 +354,16 @@ Boolean MCsystemCS = True;
 Boolean MCsystemPS = True;
 Boolean MChidewindows;
 Boolean MCbufferimages;
-char *MCserialcontrolsettings;
-char *MCshellcmd;
-char *MCvcplayer;
-char *MCbackdropcolor;
+MCStringRef MCserialcontrolsettings;
+MCStringRef MCshellcmd;
+MCStringRef MCvcplayer;
 
-char *MCftpproxyhost;
+MCStringRef MCftpproxyhost;
 uint2 MCftpproxyport;
 
-char *MChttpproxy;
+MCStringRef MChttpproxy;
 
-char *MClongdateformat;
-char *MCshortdateformat;
-char *MChttpheaders;
+MCStringRef MChttpheaders;
 int4 MCrandomseed;
 Boolean MCshowinvisibles;
 MCObjectList *MCbackscripts;
@@ -361,37 +378,26 @@ MCVariable *MCglobals;
 MCVariable *MCmb;
 MCVariable *MCeach;
 MCVariable *MCdialogdata;
-char *MChcstat;
-char *MCcurdir;
+MCStringRef MChcstat;
+
 MCVariable *MCresult;
+MCExecResultMode MCresultmode;
 MCVariable *MCurlresult;
 Boolean MCexitall;
 int4 MCretcode;
 Boolean MCrecording;
-
-Boolean MCantialiasedtextworkaround = False;
-
-// MW-2012-03-08: [[ StackFile5500 ]] Make stackfile version 5.5 the default.
-uint4 MCstackfileversion = 5500;
-
-#if defined(_WINDOWS)
-uint2 MClook = LF_WIN95;
-const char *MCttbgcolor = "255,255,231";
-const char *MCttfont = "MS Sans Serif";
-uint2 MCttsize = 12;
-#elif defined(_MACOSX)
-uint2 MClook = LF_MAC;
-const char *MCttbgcolor = "255,255,207";
-const char *MCttfont = "Lucida Grande";
-uint2 MCttsize = 11;
-#else
-uint2 MClook = LF_MOTIF;
-const char *MCttbgcolor = "255,255,207";
-const char *MCttfont = "Helvetica";
-uint2 MCttsize = 12;
+#ifdef FEATURE_PLATFORM_RECORDER
+MCPlatformSoundRecorderRef MCrecorder;
 #endif
-uint2 MCtrylock;
-uint2 MCerrorlock;
+
+// AL-2014-18-02: [[ UnicodeFileFormat ]] Make current stackfile version the default.
+uint4 MCstackfileversion = kMCStackFileFormatCurrentVersion;
+uint2 MClook;
+MCStringRef MCttbgcolor;
+MCStringRef MCttfont;
+uint2 MCttsize;
+MCSemaphore MCtrylock;
+MCSemaphore MCerrorlock;
 Boolean MCwatchcursor;
 Boolean MClockcursor;
 MCCursorRef MCcursor;
@@ -404,7 +410,6 @@ Boolean MClockcolormap;
 Boolean MClockerrors;
 Boolean MClockmenus;
 Boolean MClockmessages;
-Boolean MClockmoves;
 Boolean MClockrecent;
 Boolean MCtwelvetime = True;
 Boolean MCuseprivatecmap;
@@ -425,7 +430,6 @@ uint2 MCstartangle = 0;
 uint2 MCarcangle = 360;
 Boolean MCmultiple;
 uint2 MCmultispace = 1;
-uint4 MCpattern = 1;
 uint2 MCpolysides = 4;
 Boolean MCroundends;
 uint2 MCslices = 16;
@@ -443,18 +447,14 @@ MCString MCfalsemcstring;
 MCString MCnullmcstring;
 Boolean MCinlineinput = True;
 
-uint4 MCiconid = 0;
-char *MCiconmenu = NULL;
-uint4 MCstatusiconid = 0;
-char *MCstatusiconmenu = NULL;
-char *MCstatusicontooltip = NULL;
-
 uint4 MCqtidlerate = 50;
 
 Boolean MChidebackdrop = False;
 Boolean MCraisewindows = False;
 
 uint4 MCmajorosversion = 0;
+// PM-2014-12-08: [[ Bug 13659 ]] Toggle the value of ignoreVoiceOverSensitivity property of iOS native controls
+Boolean MCignorevoiceoversensitivity = False;
 
 MCTheme *MCcurtheme = NULL;
 
@@ -472,8 +472,9 @@ Boolean MCcursorcanbecolor = False;
 Boolean MCcursorbwonly = True;
 int32_t MCcursormaxsize = 32;
 
-uint32_t MCstacklimit = 1024 * 1024;
-uint32_t MCpendingstacklimit = 1024 * 1024;
+#define kMCStackLimit 8 * 1024 * 1024
+uint32_t MCstacklimit = kMCStackLimit;
+uint32_t MCpendingstacklimit = kMCStackLimit;
 
 Boolean MCappisactive = False;
 
@@ -496,14 +497,38 @@ Boolean MCmainstackschanged = False;
 //   UDP sockets.
 Boolean MCallowdatagrambroadcasts = False;
 
+char *MCsysencoding = nil;
+
+MCLocaleRef kMCBasicLocale = nil;
+MCLocaleRef kMCSystemLocale = nil;
+
+uint32_t MCactionsrequired = 0;
+
+MCArrayRef MCenvironmentvariables;
+
+// SN-2015-07-17: [[ CommandArguments ]] Add global array for the arguments.
+MCStringRef MCcommandname;
+MCArrayRef MCcommandarguments;
+
+MCHook *MChooks = nil;
+
+// The main window callback to compute the window to parent root modal dialogs to (if any)
+MCMainWindowCallback MCmainwindowcallback = nullptr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern MCUIDC *MCCreateScreenDC(void);
 extern void MCU_finalize_names();
 
+#ifdef _IOS_MOBILE
+extern void MCReachabilityEventInitialize();
+extern void MCReachabilityEventFinalize();
+#endif
+
 #ifdef _ANDROID_MOBILE
 void MCAndroidCustomFontsInitialize();
 void MCAndroidCustomFontsFinalize();
+void MCAndroidFinalizeBuildInfo();
 #endif
 	
 // Reset all global variables to their on-load defaults. This is required on
@@ -514,9 +539,10 @@ void X_clear_globals(void)
 	MCquit = False;
 	MCquitisexplicit = False;
 	MCidleRate = 200;
-	MCcmd = nil;
-	MCfiletype = nil;
-	MCstackfiletype = nil;
+	/* FRAGILE */ MCcmd = nullptr;
+    MCappcodepath = nullptr;
+	MCfiletype = MCValueRetain(kMCEmptyString);
+	MCstackfiletype = MCValueRetain(kMCEmptyString);
 	MCstacknames = nil;
 	MCnstacks = 0;
 	MCnofiles = False;
@@ -528,12 +554,17 @@ void X_clear_globals(void)
 	MCraisemenus = True;
 	MCraisepalettes = True;
 	MCsystemmodals = True;
-	MCactivatepalettes = True;
-	MChidepalettes = False;
+    MCactivatepalettes = True;
+    MCdontuseQT = True;
+    // SN-2014-10-2-: [[ Bug 13684 ]] Bugfix brought in 7.0 initialisation
+    // MW-2007-07-05: [[ Bug 2288 ]] Default for hidePalettes is not system-standard
+#ifdef _MACOSX
+	MChidepalettes = True;
+#else
+    MChidepalettes = False;
+#endif
 	MCdontuseNS = False;
-	MCdontuseQT = False;
-	MCdontuseQTeffects = False;
-	MCfreescripts = True;
+	MCdontuseQTeffects = True;
 	MCeventtime = 0;
 	MCbuttonstate = 0;
 	MCmodifierstate = 0;
@@ -551,7 +582,7 @@ void X_clear_globals(void)
 	MCmmap = True;
 	MCshmpix = False;
 	MCnoui = False;
-	MCdisplayname = nil;
+	MCdisplayname = NULL;
 	MCshmoff = False;
 	MCshmon = False;
 	MCvisualid = 0;
@@ -590,7 +621,7 @@ void X_clear_globals(void)
 	memset(&MCwbr, 0, sizeof(MCRectangle));
 	MCjpegquality = 100;
 	MCpaintcompression = EX_PBM;
-	MCrecordformat = EX_AIFF;
+	MCrecordformat = 0;
 	MCrecordchannels = 1;
 	MCrecordsamplesize = 8;
 	MCrecordrate = 22.050;
@@ -613,11 +644,12 @@ void X_clear_globals(void)
 	MCusing = nil;
 	MCnusing = 0;
 	MCiconicstacks = 0;
-	MCwaitdepth = 0;
+	MCwaitdepth = MCSemaphore("wait-depth");
 	MCrecursionlimit = 400000;
-	MCclipboarddata = nil;
-	MCselectiondata = nil;
-	MCdragdata = nil;
+	MCclipboard = NULL;
+	MCselection = NULL;
+    MCdragboard = NULL;
+    MCclipboardlockcount = 0;
 	MCdragaction = 0;
 	MCallowabledragactions = 0;
 	MCdragimageid = 0;
@@ -627,8 +659,7 @@ void X_clear_globals(void)
 	MCundos = nil;
 	MCselected = nil;
 	MCstacks = nil;
-	MCtodestroy = nil;
-	MCtodelete = nil;
+    MCtodestroy = nil;
 	MCrecent = nil;
 	MCcstack = nil;
 	MCdispatcher = nil;
@@ -642,7 +673,7 @@ void X_clear_globals(void)
 	MCdynamicpath = False;
 	MCerrorptr = nil;
 	MCerrorlockptr = nil;
-	MCtargetptr = nil;
+	MCtargetptr = nullptr;
 	MCmenuobjectptr = nil;
 	MCsavegroupptr = nil;
 	MCdefaultmenubar = nil;
@@ -676,10 +707,10 @@ void X_clear_globals(void)
 	MCscreen = nil;
 	MCsystemprinter = nil;
 	MCprinter = nil;
-	MCscriptfont = nil;
+	MCscriptfont = MCValueRetain(kMCEmptyString);
 	MCscriptsize = 0;
 	MCscrollbarwidth = DEFAULT_SB_WIDTH;
-	uint2 MCfocuswidth = 2;
+	MCfocuswidth = 2;
 	MCsizewidth = 8;
 	MCminsize = 8;
 	MCcloneoffset = 32;
@@ -713,16 +744,13 @@ void X_clear_globals(void)
 	MCsystemPS = True;
 	MChidewindows = False;
 	MCbufferimages = False;
-	MCserialcontrolsettings = nil;
-	MCshellcmd = nil;
-	MCvcplayer = nil;
-	MCbackdropcolor = nil;
-	MCftpproxyhost = nil;
+	MCserialcontrolsettings = MCValueRetain(kMCEmptyString);
+	MCshellcmd = MCValueRetain(kMCEmptyString);
+	MCvcplayer = MCValueRetain(kMCEmptyString);
+	MCftpproxyhost = MCValueRetain(kMCEmptyString);
 	MCftpproxyport = 0;
-	MChttpproxy = nil;
-	MClongdateformat = nil;
-	MCshortdateformat = nil;
-	MChttpheaders = nil;
+	MChttpproxy = MCValueRetain(kMCEmptyString);
+	MChttpheaders = MCValueRetain(kMCEmptyString);
 	MCrandomseed = 0;
 	MCshowinvisibles = False;
 	MCbackscripts = nil;
@@ -735,25 +763,30 @@ void X_clear_globals(void)
 	MCeach = nil;
 	MCdialogdata = nil;
 	MChcstat = nil;
-	MCcurdir = nil;
+	
 	MCresult = nil;
 	MCurlresult = nil;
 	MCexitall = False;
 	MCretcode = 0;
 	MCrecording = False;
-	MCantialiasedtextworkaround = False;
-	// MW-2012-03-08: [[ StackFile5500 ]] Make 5.5 stackfile version the default.
-	MCstackfileversion = 5500;
-	MClook = LF_MOTIF;
-	MCttbgcolor = "255,255,207";
-	MCttfont = "Helvetica";
-	MCttsize = 12;
-	MCtrylock = 0;
-	MCerrorlock = 0;
+#ifdef FEATURE_PLATFORM_RECORDER
+    MCrecorder = nil;
+#endif
+    
+	// AL-2014-18-02: [[ UnicodeFileFormat ]] Make current stackfile version the default.
+	MCstackfileversion = kMCStackFileFormatCurrentVersion;
+
+    MClook = LF_MOTIF;
+    MCttbgcolor = MCSTR("255,255,207");
+    MCttfont = MCSTR(DEFAULT_TEXT_FONT);
+    MCttsize = 12;
+
+    MCtrylock = MCSemaphore("try");
+    MCerrorlock = MCSemaphore("error");
 	MCwatchcursor = False;
 	MClockcursor = False;
 	MCcursor = nil;
-	MCcursorid = nil;
+	MCcursorid = 0;
 	MCdefaultcursor = nil;
 	MCdefaultcursorid = 0;
 	MCbusycount = 0;
@@ -761,7 +794,6 @@ void X_clear_globals(void)
 	MClockerrors = False;
 	MClockmenus = False;
 	MClockmessages = False;
-	MClockmoves = False;
 	MClockrecent = False;
 	MCtwelvetime = True;
 	MCuseprivatecmap = False;
@@ -782,7 +814,6 @@ void X_clear_globals(void)
 	MCarcangle = 360;
 	MCmultiple = False;
 	MCmultispace = 1;
-	MCpattern = 1;
 	MCpolysides = 4;
 	MCroundends = False;
 	MCslices = 16;
@@ -813,31 +844,232 @@ void X_clear_globals(void)
 
 	for(uint32_t i = 0; i < PI_NCURSORS; i++)
 		MCcursors[i] = nil;
-	
+    
 	// MM-2012-09-05: [[ Property Listener ]]
 	MCobjectpropertieschanged = False;
 	MCpropertylistenerthrottletime = 250;
     
 	// MW-2013-03-20: [[ MainStacksChanged ]]
 	MCmainstackschanged = False;
+    
+    MCactionsrequired = 0;
+    
+    MChooks = nil;
 
+    memset(&MClicenseparameters, 0, sizeof(MCLicenseParameters));
+    
+#if defined(MCSSL)
+    MCSocketsInitialize();
+#endif
+    
+    MCenvironmentvariables = nil;
+
+    MCcommandarguments = NULL;
+    MCcommandname = NULL;
+
+#ifdef _MOBILE
+    MCSensorInitialize();
+    MCSystemSoundInitialize();
+#endif
+    
 #ifdef _ANDROID_MOBILE
+    extern void MCAndroidMediaPickInitialize();
     // MM-2012-02-22: Initialize up any static variables as Android static vars are preserved between sessions
     MCAdInitialize();
     MCNativeControlInitialize();
-    MCSensorInitialize();
     MCAndroidCustomFontsInitialize();
+	MCAndroidMediaPickInitialize();
 #endif
+	
+#ifdef _IOS_MOBILE
+    MCReachabilityEventInitialize();
+#endif
+	
+	MCDateTimeInitialize();
+    
+    MClogmessage = MCNAME("log");
 }
 
-bool X_open(int argc, char *argv[], char *envp[])
-{
-	MCperror = new MCError();
-	MCeerror = new MCError();
-	/* UNCHECKED */ MCVariable::createwithname_cstring("MCresult", MCresult);
+/* ---------------------------------------------------------------- */
 
-	/* UNCHECKED */ MCVariable::createwithname_cstring("MCurlresult", MCurlresult);
-	/* UNCHECKED */ MCVariable::createwithname_cstring("MCdialogdata", MCdialogdata);
+/* Helper function for X_open_environment_variables() */
+static bool
+X_open_environment_variables_store(MCArrayRef x_array,
+                                   MCStringRef p_name_str,
+                                   MCStringRef p_value,
+                                   bool p_make_global)
+{
+	MCNewAutoNameRef t_name;
+	if (!MCNameCreate(p_name_str, &t_name))
+	{
+		return false;
+	}
+
+	/* Store the environment variable in the array of
+	 * environment variables.  Note that if there are
+	 * duplicates, we always use the *first* value found in
+	 * the environment.  This matches the behaviour of most
+	 * shells. See also bug 13622.
+	 *
+	 * The global array of environment variables is *case
+	 * sensitive*, because "path" and "PATH" are distinct.
+	 */
+	MCValueRef t_current_value;
+	if (MCArrayFetchValue(x_array, true, *t_name, t_current_value))
+	{
+		return true; /* We already have a value for this variable */
+	}
+
+	if (!MCArrayStoreValue(x_array, true, *t_name, p_value))
+	{
+		return false;
+	}
+
+	// SN-2014-06-12 [[ RefactorServer ]] We don't want to duplicate
+	// the environment variables on server, as they have been copied
+	// to $_SERVER
+#ifndef _SERVER
+	/* Create a global variable for the environment variable, but only
+	 * if the variable name is a valid token that doesn't start with
+	 * "#" or "0".  These rules are to match the way MCVariable
+	 * detects whether a variable proxies an environment variable. */
+	unichar_t t_first = MCStringGetCharAtIndex(p_name_str, 0);
+	if (p_make_global &&
+	    '#' != t_first &&
+	    !isdigit(t_first) &&
+	    MCU_is_token(p_name_str))
+	{
+		MCAutoStringRef t_global_str;
+		MCNewAutoNameRef t_global;
+		if (!MCStringFormat(&t_global_str, "$%@", p_name_str))
+		{
+			return false;
+		}
+		if (!MCNameCreate(*t_global_str, &t_global))
+		{
+			return false;
+		}
+
+		MCVariable *t_var;
+		MCVariable::ensureglobal(*t_global, t_var);
+		t_var->setvalueref(p_value);
+	}
+#endif
+	return true;
+}
+
+/* Parse environment variables.  All environment variables are placed
+ * into the MCenvironmentvariables global array.  Some environment
+ * variables are turned into special "$<name>" global LiveCode
+ * variables, but only if they are well-formed (i.e. in the
+ * format "name=value"). */
+static bool
+X_open_environment_variables(MCStringRef envp[])
+{
+	if (nil == envp || !MCModeHasEnvironmentVariables())
+	{
+		MCenvironmentvariables = nil;
+		return true;
+	}
+
+	/* Create the array of raw environment variables */
+	MCAutoArrayRef t_env_array;
+	if (!MCArrayCreateMutable(&t_env_array))
+	{
+		return false;
+	}
+
+	/* Create an list for degenerate environment variables (ones which
+	 * are not in the "name=value" format.  These are considered after
+	 * all other variables have been processed. */
+	/* FIXME use MCProperListRef */
+	MCAutoArrayRef t_degenerate;
+	if (!MCArrayCreateMutable(&t_degenerate))
+	{
+		return false;
+	}
+
+	for (uint32_t i = 0 ; envp[i] != nil ; i++)
+	{
+		MCStringRef t_env_var = envp[i];
+		MCAutoStringRef t_env_namestr;
+		MCNewAutoNameRef t_env_name;
+		MCAutoStringRef t_env_value;
+		uindex_t t_equal;
+
+		/* Split the environment variable into name and value.  If the
+		 * environment string doesn't contain an '=' character, treat
+		 * the whole string as a name, and delay processing. */
+		if (MCStringFirstIndexOfChar(t_env_var, '=', 0,
+		                             kMCStringOptionCompareExact, t_equal))
+		{
+			if (!MCStringCopySubstring(t_env_var, MCRangeMake(0, t_equal),
+			                           &t_env_namestr))
+			{
+				return false;
+			}
+
+			if (!MCStringCopySubstring(t_env_var,
+			                           MCRangeMake(t_equal + 1, UINDEX_MAX),
+			                           &t_env_value))
+			{
+				return false;
+			}
+
+			if (!X_open_environment_variables_store(*t_env_array,
+			                                        *t_env_namestr,
+			                                        *t_env_value,
+			                                        true))
+			{
+				return false;
+			}
+		}
+		else
+		{
+			/* Delay for processing later. */
+			if (!MCArrayStoreValueAtIndex(*t_degenerate,
+			                              MCArrayGetCount(*t_degenerate) + 1,
+			                              t_env_var))
+			{
+				return false;
+			}
+		}
+	}
+
+	/* Process degenerate environment variables */
+	for (uindex_t i = 1; i <= MCArrayGetCount(*t_degenerate); ++i)
+	{
+		MCValueRef t_env_var;
+		if (!MCArrayFetchValueAtIndex(*t_degenerate, i, t_env_var))
+		{
+			return false;
+		}
+
+		if (!X_open_environment_variables_store(*t_env_array,
+		                                        static_cast<MCStringRef>(t_env_var),
+		                                        kMCEmptyString, false))
+		{
+			return false;
+		}
+	}
+
+	return MCArrayCopy(*t_env_array, MCenvironmentvariables);
+}
+
+/* ---------------------------------------------------------------- */
+
+// Important: This function is on the emterpreter whitelist. If its
+// signature function changes, the mangled name must be updated in
+// em-whitelist.json
+bool X_open(int argc, MCStringRef argv[], MCStringRef envp[])
+{
+	MCperror = new (nothrow) MCError();
+	MCeerror = new (nothrow) MCError();
+	/* UNCHECKED */ MCVariable::createwithname(MCNAME("MCresult"), MCresult);
+    MCresultmode = kMCExecResultModeReturn;
+
+	/* UNCHECKED */ MCVariable::createwithname(MCNAME("MCurlresult"), MCurlresult);
+	/* UNCHECKED */ MCVariable::createwithname(MCNAME("MCdialogdata"), MCdialogdata);
 	
 	////
 
@@ -852,131 +1084,151 @@ bool X_open(int argc, char *argv[], char *envp[])
 	MCGraphicsInitialize();
 	
 	// MM-2014-02-14: [[ LibOpenSSL 1.0.1e ]] Initialise the openlSSL module.
+#ifdef MCSSL
 	InitialiseSSL();
+#endif
     
     ////
     
-	MCpatternlist = new MCImageList();
+#if defined(_MACOSX) && defined(FEATURE_QUICKTIME)
+    // MW-2014-07-21: Make AVFoundation the default on 10.8 and above.
+    if (MCmajorosversion < MCOSVersionMake(10,8,0))
+    {
+        MCdontuseQT = False;
+        MCdontuseQTeffects = False;
+    }
+#endif
+    
+    ////
+    
+	MCpatternlist = new (nothrow) MCImageList();
 
 	/* UNCHECKED */ MCVariable::ensureglobal(MCN_msg, MCmb);
 	MCmb -> setmsg();
 
 	/* UNCHECKED */ MCVariable::ensureglobal(MCN_each, MCeach);
 
-	if (envp != nil)
-		for (uint32_t i = 0 ; envp[i] != NULL ; i++)
+	/* Environment variables */
+	if (!X_open_environment_variables(envp))
+	{
+		return false;
+	}
+
+	/* Handle special "MCNOFILES" environment variable */
+	if (nil != MCenvironmentvariables)
+	{
+		MCValueRef t_env_value;
+		if (MCArrayFetchValue(MCenvironmentvariables, true, MCNAME("MCNOFILES"), t_env_value) &&
+		    MCStringGetCharAtIndex(static_cast<MCStringRef>(t_env_value), 0) != '0')
 		{
-			char *sptr = envp[i];
-			if (isupper((uint1)sptr[0]))
-			{
-				sptr = strchr(sptr, '=');
-				uint2 length = sptr - envp[i];
-				char *vname = new char[length + 2];
-				vname[0] = '$';
-				strncpy(&vname[1], envp[i], length);
-				vname[length + 1] = '\0';
-
-				MCVariable *tvar;
-				/* UNCHECKED */ MCVariable::ensureglobal_cstring(vname, tvar);
-				if (strequal(vname, "$MCNOFILES") && *(sptr + 1) != '0')
-				{
-					MCnofiles = True;
-					MCsecuremode = MC_SECUREMODE_ALL;
-				}
-				tvar->copysvalue(sptr + 1);
-
-				delete vname;
-			}
+			MCnofiles = True;
+			MCsecuremode = MC_SECUREMODE_ALL;
 		}
+	}
+
+    // SN-2015-07-17: [[ CommandArguments ]] Initialise the commandName and
+    //  commandArguments properties.
+    MCcommandname = NULL;
+    MCcommandarguments = NULL;
+    if (MCModeHasCommandLineArguments())
+    {
+        MCcommandname = MCValueRetain(argv[0]);
+
+        bool t_success;
+        t_success = MCArrayCreateMutable(MCcommandarguments);
+
+        // We build a 1-based numeric array.
+        for (index_t i = 1; t_success && i < argc; i++)
+            t_success = MCArrayStoreValueAtIndex(MCcommandarguments, i, argv[i]);
+
+        if (!t_success)
+            return false;
+    }
+    else
+    {
+        MCcommandname = MCValueRetain(kMCEmptyString);
+        MCcommandarguments = MCValueRetain(kMCEmptyArray);
+    }
+    
+    MCDeletedObjectsSetup();
 
 	/* UNCHECKED */ MCStackSecurityCreateStack(MCtemplatestack);
-	MCtemplateaudio = new MCAudioClip;
+	MCtemplateaudio = new (nothrow) MCAudioClip;
 	MCtemplateaudio->init();
-	MCtemplatevideo = new MCVideoClip;
-	MCtemplategroup = new MCGroup;
-	MCtemplatecard = new MCCard;
-	MCtemplatebutton = new MCButton;
-	MCtemplategraphic = new MCGraphic;
-	MCtemplatescrollbar = new MCScrollbar;
-	MCtemplateplayer = new MCPlayer;
-	MCtemplateimage = new MCImage;
-	MCtemplatefield = new MCField;
+	MCtemplatevideo = new (nothrow) MCVideoClip;
+	MCtemplategroup = new (nothrow) MCGroup;
+	MCtemplatecard = new (nothrow) MCCard;
+	MCtemplatebutton = new (nothrow) MCButton;
+	MCtemplategraphic = new (nothrow) MCGraphic;
+	MCtemplatescrollbar = new (nothrow) MCScrollbar;
+	MCtemplateplayer = new (nothrow) MCPlayer;
+	MCtemplateimage = new (nothrow) MCImage;
+	MCtemplatefield = new (nothrow) MCField;
 	
-	MCtooltip = new MCTooltip;
+	MCtooltip = new (nothrow) MCTooltip;
 
-	MCclipboarddata = new MCClipboardData;
-	MCdragdata = new MCDragData;
-	MCselectiondata = new MCSelectionData;
+    MCclipboard = MCClipboard::CreateSystemClipboard();
+    MCdragboard = MCClipboard::CreateSystemDragboard();
+    MCselection = MCClipboard::CreateSystemSelectionClipboard();
+    MCclipboardlockcount = 0;
 	
-	MCundos = new MCUndolist;
-	MCselected = new MCSellist;
-	MCstacks = new MCStacklist;
-	MCtodestroy = new MCStacklist;
-	MCrecent = new MCCardlist;
-	MCcstack = new MCCardlist;
+	MCundos = new (nothrow) MCUndolist;
+	MCselected = new (nothrow) MCSellist;
+	MCstacks = new (nothrow) MCStacklist(true);
+	// IM-2016-11-22: [[ Bug 18852 ]] Changes to MCtodestroy shouldn't affect MCtopstack
+    MCtodestroy = new (nothrow) MCStacklist(false);
+	MCrecent = new (nothrow) MCCardlist;
+	MCcstack = new (nothrow) MCCardlist;
 
 #ifdef _LINUX_DESKTOP
-	MCvcplayer = strclone("xanim");
+	MCValueAssign(MCvcplayer, MCSTR("xanim"));
 #else
-	MCvcplayer = strclone("");
+	MCValueAssign(MCvcplayer, MCSTR(""));
 #endif
 
-	MCfiletype = strclone("ttxtTEXT");
-	const char *tname = strrchr(MCcmd, PATH_SEPARATOR);
-	if (tname == NULL)
-		tname = MCcmd;
+	MCValueAssign(MCfiletype, MCSTR("ttxtTEXT"));
+    uindex_t t_last_path_separator;
+    // find the actual command to execute
+     if (!MCStringLastIndexOfChar(MCcmd, PATH_SEPARATOR, MCStringGetLength(MCcmd), kMCStringOptionCompareExact, t_last_path_separator))
+		t_last_path_separator = 0;
 	else
-		tname++;
-	if (MCU_strncasecmp(tname, "rev", 3))
-		MCstackfiletype = strclone("MCRDMSTK");
+		t_last_path_separator++;
+    
+	if (MCStringFind(MCcmd, MCRangeMake(t_last_path_separator, 3), MCSTR("rev"), kMCStringOptionCompareExact, nil))
+		MCValueAssign(MCstackfiletype, MCSTR("MCRDMSTK"));
 	else
-		MCstackfiletype = strclone("RevoRSTK");
-	MCserialcontrolsettings = strclone("baud=9600 parity=N data=8 stop=1");
+		MCValueAssign(MCstackfiletype, MCSTR("RevoRSTK"));
+	MCValueAssign(MCserialcontrolsettings, MCSTR("baud=9600 parity=N data=8 stop=1"));
 
-	MCdispatcher = new MCDispatch;
+	MCdispatcher = new (nothrow) MCDispatch;
+    MCdispatcher -> add_transient_stack(MCtooltip);
 
+	// IM-2014-08-14: [[ Bug 12372 ]] Pixel scale setup needs to happen before the
+	// creation of MCscreen to ensure screen rects are scaled/unscaled as appropriate.
+	// IM-2014-01-27: [[ HiDPI ]] Initialize pixel scale settings
+	MCResInitPixelScaling();
+	
 	if (MCnoui)
-		MCscreen = new MCUIDC;
+		MCscreen = new (nothrow) MCUIDC;
 	else
 	{
 		MCscreen = MCCreateScreenDC();
 				
 		if (!MCscreen->open())
-			return False;
-
-		MCscreen->alloccolor(MClinkatts.color);
-		MCscreen->alloccolor(MClinkatts.hilitecolor);
-		MCscreen->alloccolor(MClinkatts.visitedcolor);
+			return false;
 	}
-	
+
+    MCExecContext ctxt(nil, nil, nil);
+	MCInterfaceInitialize(ctxt);
+
 	// IM-2014-01-27: [[ HiDPI ]] Initialize pixel scale settings
 	MCResInitPixelScaling();
-	
-	// MW-2012-02-14: [[ FontRefs ]] Open the dispatcher after we have an open
-	//   screen, otherwise we don't have a root fontref!
-	// MW-2013-08-07: [[ Bug 10995 ]] Configure fonts based on platform.
-#if defined(TARGET_PLATFORM_WINDOWS)
-	if (MCmajorosversion >= 0x0600)
-	{
-		// Vista onwards
-		MCdispatcher -> setfontattrs("Segoe UI", 12, FA_DEFAULT_STYLE);
-	}
-	else
-	{
-		// Pre-Vista
-		MCdispatcher -> setfontattrs("Tahoma", 11, FA_DEFAULT_STYLE);
-	}
-#elif defined(TARGET_PLATFORM_MACOS_X)
-	MCdispatcher -> setfontattrs("Lucida Grande", 11, FA_DEFAULT_STYLE);
-#elif defined(TARGET_PLATFORM_LINUX)
-	MCdispatcher -> setfontattrs("Helvetica", 12, FA_DEFAULT_STYLE);
-#else
-	MCdispatcher -> setfontattrs(DEFAULT_TEXT_FONT, DEFAULT_TEXT_SIZE, FA_DEFAULT_STYLE);
-#endif
+    
+    // Set up fonts
 	MCdispatcher -> open();
 
 	// This is here because it relies on MCscreen being initialized.
-	MCtemplateeps = new MCEPS;
+	MCtemplateeps = new (nothrow) MCEPS;
 
 	MCsystemFS = MCscreen -> hasfeature(PLATFORM_FEATURE_OS_FILE_DIALOGS);
 	MCsystemCS = MCscreen -> hasfeature(PLATFORM_FEATURE_OS_COLOR_DIALOGS);
@@ -991,12 +1243,26 @@ bool X_open(int argc, char *argv[], char *envp[])
 			MClook = MCcurtheme->getthemefamilyid();
 		}
 		else
-			delete newtheme;
-	}
+        {
+            // Fall back to the Win95 theme if the Windows theme failed to load
+            if (newtheme->getthemefamilyid() == LF_WIN95)
+                MClook = LF_WIN95;
+            delete newtheme;
+        }
+    }
 
 	MCsystemprinter = MCprinter = MCscreen -> createprinter();
 	MCprinter -> Initialize();
 	
+    MCwidgeteventmanager = new (nothrow) MCWidgetEventManager;
+    
+    /* Now that the script engine state has been initialized, we can load all
+     * builtin extensions. */
+    if (!MCExtensionInitialize())
+    {
+        return false;
+    }
+    
 	// MW-2009-07-02: Clear the result as a startup failure will be indicated
 	//   there.
 	MCresult -> clear();
@@ -1008,6 +1274,9 @@ bool X_open(int argc, char *argv[], char *envp[])
 
 int X_close(void)
 {
+    // MW-2012-02-23: [[ FontRefs ]] Finalize the font module.
+    MCFontFinalize();
+    
 	// MW-2008-01-18: [[ Bug 5711 ]] Make sure we disable the backdrop here otherwise we
 	//   get crashiness on Windows due to hiding the backdrop calling WindowProc which
 	//   attempts to access stacks that have been deleted...
@@ -1017,43 +1286,58 @@ int X_close(void)
 		MCscreen -> disablebackdrop(true);
 	}
 
-	MCstacks->closeall();
-	MCselected->clear(False);
+    MCExecContext ctxt(nil, nil, nil);
+	MCInterfaceFinalize(ctxt);
 
+	MCstacks->closeall();
+    
+    MCscreen->DoRunloopActions();
+    
+    /* Finalize all builtin extensions */
+    MCExtensionFinalize();
+
+	MCselected->clear(False);
+    MCundos->freestate();
+    
 	MCU_play_stop();
+#ifdef FEATURE_PLATFORM_RECORDER
+    if (MCrecorder != nil)
+    {
+        MCPlatformSoundRecorderStop(MCrecorder);
+        MCPlatformSoundRecorderRelease(MCrecorder);
+    }
+#else
 	if (MCrecording)
-		MCtemplateplayer->stoprecording();
+	{
+		extern void MCQTStopRecording(void);
+		MCQTStopRecording();
+	}
+#endif
 	MClockmessages = True;
 	MCS_killall();
 
-	MCscreen -> flushclipboard();
+    // Flush all engine clipboards to the system clipboards
+    MCclipboard->FlushData();
+    MCselection->FlushData();
+    MCdragboard->FlushData();
 
-	while (MCtodelete != NULL)
-	{
-		MCObject *optr = MCtodelete->remove(MCtodelete);
-		delete optr;
-	}
-
+    MCdispatcher -> remove_transient_stack(MCtooltip);
 	delete MCtooltip;
-	MCtooltip = NULL;
+	MCtooltip = nil;
 
-	delete MChttpproxy;
-
-	delete MCbackdropcolor;
-	delete MCpencolorname;
-	delete MCbrushcolorname;
-	delete MChilitecolorname;
-	delete MCaccentcolorname;
-	delete MCselectioncolorname;
-	delete MClongdateformat;
-	delete MCshortdateformat;
+	MCValueRelease(MChttpproxy);
+	MCValueRelease(MCpencolorname);
+	MCValueRelease(MCbrushcolorname);
+	MCValueRelease(MChilitecolorname);
+	MCValueRelease(MCaccentcolorname);
+	MCValueRelease(MCselectioncolorname);
 
 	while (MCnfiles)
 		IO_closefile(MCfiles[0].name);
 	if (MCfiles != NULL)
-		delete MCfiles;
+		delete[] MCfiles; /* Allocated with new[] */
 	if (MCprocesses != NULL)
-		delete MCprocesses;
+		delete[] MCprocesses; /* Allocated with new[] */
 	if (MCnsockets)
 		while (MCnsockets)
 			delete MCsockets[--MCnsockets];
@@ -1063,6 +1347,7 @@ int X_close(void)
 	while (MCsavegroupptr != NULL)
 	{
 		MCControl *gptr = MCsavegroupptr->remove(MCsavegroupptr);
+        gptr -> removereferences();
 		delete gptr;
 	}
 
@@ -1090,25 +1375,35 @@ int X_close(void)
 	delete MCtemplateimage;
 	delete MCtemplatefield;
 	delete MCselected;
-	delete MCtodestroy;
+    delete MCtodestroy;
 	delete MCstacks;
-	delete MCcstack;
-	delete MCrecent;
-	delete IO_stdin;
-	delete IO_stdout;
-	delete IO_stderr;
+    
+    MCModeFinalize();
+    
+    MCDeletedObjectsTeardown();
+    
+    // These card lists must be deleted *after* draining the deleted
+    // objects pool, as they are used in stack destructors
+    delete MCcstack;
+    delete MCrecent;
+    
+	// Temporary workaround for a crash
+    //MCS_close(IO_stdin);
+	//MCS_close(IO_stdout);
+	//MCS_close(IO_stderr);
+
 	delete MCpatternlist;
 	delete MCresult;
 	delete MCurlresult;
 	delete MCdialogdata;
-	delete MChcstat;
-	delete MCcurdir;
-	delete MCusing;
-	delete MChttpheaders;
-	delete MCscriptfont;
-	delete MClinkatts.colorname;
-	delete MClinkatts.hilitecolorname;
-	delete MClinkatts.visitedcolorname;
+	MCValueRelease(MChcstat);
+
+	delete[] MCusing; /* Allocated with new[] */
+	MCValueRelease(MChttpheaders);
+	MCValueRelease(MCscriptfont);
+	MCValueRelease(MClinkatts . colorname);
+	MCValueRelease(MClinkatts . hilitecolorname);
+	MCValueRelease(MClinkatts . visitedcolorname);
 	MCB_clearwatches();
 	MCB_clearbreaks(nil);
 	MCU_cleaninserted();
@@ -1118,34 +1413,49 @@ int X_close(void)
 		MCglobals = MCglobals->getnext();
 		delete tvar;
 	}
+
 	// JS-2013-06-21: [[ EnhancedFilter ]] refactored regex caching mechanism
     MCR_clearcache();
+
 	delete MCperror;
 	delete MCeerror;
 
-	delete MCclipboarddata;
-	delete MCdragdata;
-	delete MCselectiondata;
+    MCclipboard->Release();
+    MCselection->Release();
+    MCdragboard->Release();
 
-	delete MCshellcmd;
-	delete MCvcplayer;
-	delete MCfiletype;
-	delete MCstackfiletype;
-	delete MCserialcontrolsettings;
+	MCValueRelease(MCshellcmd);
+	MCValueRelease(MCvcplayer);
+	MCValueRelease(MCfiletype);
+	MCValueRelease(MCstackfiletype);
+	MCValueRelease(MCserialcontrolsettings);
 	
 	MCprinter -> Finalize();
 	delete MCprinter;
 	
+    delete MCwidgeteventmanager;
+    
 	delete MCsslcertificates;
 	delete MCdefaultnetworkinterface;
 	
+#if defined(MCSSL) && !defined(_MOBILE)
 	ShutdownSSL();
+#endif
+
+#if defined(_MOBILE)
+    // SN-2015-02-24: [[ Merge 6.7.4-rc-1 ]] Need to clean-up the completed
+    //  purchase list
+    extern void MCPurchaseClearPurchaseList();
+    
+    MCPurchaseClearPurchaseList();
+#endif
+
 	MCS_shutdown();
 	delete MCundos;
 	while (MCcur_effects != NULL)
 	{
 		MCEffectList *veptr = MCcur_effects;
-		MCcur_effects = MCcur_effects->getnext();
+        MCcur_effects = MCcur_effects->getnext();
 		delete veptr;
 	}
 
@@ -1153,9 +1463,14 @@ int X_close(void)
 		MCcurtheme -> unload();
 	delete MCcurtheme;
 
-	delete MCiconmenu;
-	delete MCstatusiconmenu;
-	delete MCstatusicontooltip;
+	MCValueRelease(MCenvironmentvariables);
+	MCenvironmentvariables = nil;
+
+    // SN-2015-07-17: [[ CommandArguments ]] Clean up the memory
+    MCValueRelease(MCcommandname);
+    MCcommandname = NULL;
+    MCValueRelease(MCcommandarguments);
+    MCcommandarguments = NULL;
 
 	// Cleanup the cursors array - *before* we close the screen!!
 	if (MCModeMakeLocalWindows())
@@ -1175,42 +1490,334 @@ int X_close(void)
 	MCExternal::Cleanup();
 
 	// Cleanup the MClicenseparameters block
-	delete MClicenseparameters . license_token;
-	delete MClicenseparameters . license_name;
-	delete MClicenseparameters . license_organization;
-	delete MClicenseparameters . addons;
+    MCValueRelease(MClicenseparameters . license_token);
+    MCValueRelease(MClicenseparameters . license_name);
+    MCValueRelease(MClicenseparameters . license_organization);
+	MCValueRelease(MClicenseparameters . addons);
+
+
 
 	// Cleanup the startup stacks list
-	delete MCstacknames;
+	for(uint4 i = 0; i < MCnstacks; ++i)
+		MCValueRelease(MCstacknames[i]);
+
+	delete[] MCstacknames; /* allocated with new[] */
 
 	// Cleanup the parentscript stuff
 	MCParentScript::Cleanup();
 	
+	// Finalize the event queue
+	MCEventQueueFinalize();
+	
 	// MW-2012-02-23: [[ LogFonts ]] Finalize the font table module.
 	MCLogicalFontTableFinalize();
-	// MW-2012-02-23: [[ FontRefs ]] Finalize the font module.
-	MCFontFinalize();
-	
-	MCU_finalize_names();
-	MCNameFinalize();
 	
 	// MM-2013-09-03: [[ RefactorGraphics ]] Initialize graphics library.
 	MCGraphicsFinalize();
-    
+
+#ifdef MCSSL
+    MCSocketsFinalize();
+#endif /* MCSSL */
+
 #ifdef _ANDROID_MOBILE
     // MM-2012-02-22: Clean up any static variables as Android static vars are preserved between sessions
     MCAdFinalize();
     MCNativeControlFinalize();
     MCSensorFinalize();
+    MCAndroidFinalizeBuildInfo();
     MCAndroidCustomFontsFinalize();
+	MCSystemSoundFinalize();
 #endif
 	
+#ifdef _IOS_MOBILE
+	MCSystemSoundFinalize();
+    MCReachabilityEventFinalize();
+#endif
+	
+	MCDateTimeFinalize();
+	
+	MCU_finalize_names();
+	
+	if (MCsysencoding != nil)
+		delete[] MCsysencoding; /* Allocated with new[] */
+
+    if (kMCSystemLocale != nil)
+        MCLocaleRelease(kMCSystemLocale);
+    if (kMCBasicLocale != nil)
+        MCLocaleRelease(kMCBasicLocale);
+    
+    if (MCappcodepath != nullptr)
+        MCValueRelease(MCappcodepath);
+    if (MCcmd != nullptr)
+        MCValueRelease(MCcmd);
+    
+    MCValueRelease(MClogmessage);
+    
 	return MCretcode;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void MCActionsDoRunSome(uint32_t p_mask)
+{
+    uint32_t t_actions;
+    t_actions = MCactionsrequired & p_mask;
+    
+    if ((t_actions & kMCActionsDrainDeletedObjects) != 0)
+    {
+        MCactionsrequired &= ~kMCActionsDrainDeletedObjects;
+        MCDeletedObjectsDoDrain();
+    }
+    
+    if ((t_actions & kMCActionsUpdateScreen) != 0)
+    {
+        MCactionsrequired &= ~kMCActionsUpdateScreen;
+        MCRedrawDoUpdateScreen();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct MCHook
+{
+    MCHook *next;
+    MCHookType type;
+    void *descriptor;
+};
+
+bool MCHookRegister(MCHookType p_type, void *p_descriptor)
+{
+    MCHook *t_hook;
+    if (!MCMemoryNew(t_hook))
+        return false;
+    
+    t_hook -> next = MChooks;
+    t_hook -> type = p_type;
+    t_hook -> descriptor = p_descriptor;
+    
+    MChooks = t_hook;
+    
+    return true;
+}
+
+void MCHookUnregister(MCHookType p_type, void *p_descriptor)
+{
+    MCHook *t_hook, *t_previous;
+    for(t_previous = nil, t_hook = MChooks; t_hook != nil; t_previous = t_hook, t_hook = t_hook -> next)
+        if (t_hook -> type == p_type &&
+            t_hook -> descriptor == p_descriptor)
+            break;
+    
+    if (t_hook != nil)
+    {
+        if (t_previous != nil)
+            t_previous -> next = t_hook -> next;
+        else
+            MChooks = t_hook -> next;
+        
+        MCMemoryDelete(t_hook);
+    }
+}
+
+bool MCHookForEach(MCHookType p_type, MCHookForEachCallback p_callback, void *p_context)
+{
+    for(MCHook *t_hook = MChooks; t_hook != nil; t_hook = t_hook -> next)
+        if (t_hook -> type == p_type)
+            if (p_callback(p_context, t_hook -> descriptor))
+                return true;
+    
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct __MCIsGlobalHandlerContext
+{
+    MCNameRef name;
+};
+
+static bool __MCIsGlobalHandlerCallback(void *p_context, void *p_descriptor)
+{
+    __MCIsGlobalHandlerContext *ctxt;
+    ctxt = (__MCIsGlobalHandlerContext *)p_context;
+    
+    MCHookGlobalHandlersDescriptor *t_desc;
+    t_desc = (MCHookGlobalHandlersDescriptor *)p_descriptor;
+    
+    return t_desc -> can_handle(ctxt -> name);
+}
+
+bool MCIsGlobalHandler(MCNameRef message)
+{
+    __MCIsGlobalHandlerContext ctxt;
+    ctxt . name = message;
+    return MCHookForEach(kMCHookGlobalHandlers, __MCIsGlobalHandlerCallback, &ctxt);
+}
+
+//////////
+
+struct __MCRunGlobalHandlerContext
+{
+    MCNameRef name;
+    MCParameter *parameters;
+    Exec_stat *result;
+};
+
+static bool __MCRunGlobalHandlerCallback(void *p_context, void *p_descriptor)
+{
+    __MCRunGlobalHandlerContext *ctxt;
+    ctxt = (__MCRunGlobalHandlerContext *)p_context;
+    
+    MCHookGlobalHandlersDescriptor *t_desc;
+    t_desc = (MCHookGlobalHandlersDescriptor *)p_descriptor;
+ 
+    return t_desc -> handle(ctxt -> name, ctxt -> parameters, *(ctxt -> result));
+}
+
+bool MCRunGlobalHandler(MCNameRef message, MCParameter *parameters, Exec_stat& r_result)
+{
+    __MCRunGlobalHandlerContext ctxt;
+    ctxt . name = message;
+    ctxt . parameters = parameters;
+    ctxt . result = &r_result;
+    return MCHookForEach(kMCHookGlobalHandlers, __MCRunGlobalHandlerCallback, &ctxt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct __MCLookupNativeControlContext
+{
+    MCStringRef name;
+    intenum_t *type;
+};
+
+static bool __MCLookupNativeControlTypeCallback(void *p_context, void *p_descriptor)
+{
+    __MCLookupNativeControlContext *ctxt;
+    ctxt = (__MCLookupNativeControlContext *)p_context;
+    
+    MCHookNativeControlsDescriptor *t_desc;
+    t_desc = (MCHookNativeControlsDescriptor *)p_descriptor;
+    
+    return t_desc -> lookup_type(ctxt -> name, *(ctxt -> type));
+}
+
+bool MCLookupNativeControlType(MCStringRef p_name, intenum_t& r_type)
+{
+    __MCLookupNativeControlContext ctxt;
+    ctxt . name = p_name;
+    ctxt . type = &r_type;
+    return MCHookForEach(kMCHookNativeControls, __MCLookupNativeControlTypeCallback, &ctxt);
+}
+
+////
+
+static bool __MCLookupNativeControlPropertyCallback(void *p_context, void *p_descriptor)
+{
+    __MCLookupNativeControlContext *ctxt;
+    ctxt = (__MCLookupNativeControlContext *)p_context;
+    
+    MCHookNativeControlsDescriptor *t_desc;
+    t_desc = (MCHookNativeControlsDescriptor *)p_descriptor;
+    
+    return t_desc -> lookup_property(ctxt -> name, *(ctxt -> type));
+}
+
+bool MCLookupNativeControlProperty(MCStringRef p_name, intenum_t& r_type)
+{
+    __MCLookupNativeControlContext ctxt;
+    ctxt . name = p_name;
+    ctxt . type = &r_type;
+    return MCHookForEach(kMCHookNativeControls, __MCLookupNativeControlPropertyCallback, &ctxt);
+}
+
+////
+
+static bool __MCLookupNativeControlActionCallback(void *p_context, void *p_descriptor)
+{
+    __MCLookupNativeControlContext *ctxt;
+    ctxt = (__MCLookupNativeControlContext *)p_context;
+    
+    MCHookNativeControlsDescriptor *t_desc;
+    t_desc = (MCHookNativeControlsDescriptor *)p_descriptor;
+    
+    return t_desc -> lookup_action(ctxt -> name, *(ctxt -> type));
+}
+
+bool MCLookupNativeControlAction(MCStringRef p_name, intenum_t& r_type)
+{
+    __MCLookupNativeControlContext ctxt;
+    ctxt . name = p_name;
+    ctxt . type = &r_type;
+    return MCHookForEach(kMCHookNativeControls, __MCLookupNativeControlActionCallback, &ctxt);
+}
+
+////
+
+struct __MCCreateNativeControlContext
+{
+    intenum_t type;
+    void **control;
+};
+
+static bool __MCCreateNativeControlCallback(void *p_context, void *p_descriptor)
+{
+    __MCCreateNativeControlContext *ctxt;
+    ctxt = (__MCCreateNativeControlContext *)p_context;
+    
+    MCHookNativeControlsDescriptor *t_desc;
+    t_desc = (MCHookNativeControlsDescriptor *)p_descriptor;
+    
+    return t_desc -> create(ctxt -> type, *(ctxt -> control));
+}
+
+bool MCCreateNativeControl(intenum_t p_type, void *& r_control)
+{
+    __MCCreateNativeControlContext ctxt;
+    ctxt . type = p_type;
+    ctxt . control = &r_control;
+    return MCHookForEach(kMCHookNativeControls, __MCCreateNativeControlCallback, &ctxt);
+}
+
+////
+
+struct __MCPerformNativeControlActionContext
+{
+    intenum_t action;
+    void *control;
+    MCValueRef *arguments;
+    uindex_t argument_count;
+};
+
+static bool __MCPerformNativeControlActionCallback(void *p_context, void *p_descriptor)
+{
+    __MCPerformNativeControlActionContext *ctxt;
+    ctxt = (__MCPerformNativeControlActionContext *)p_context;
+    
+    MCHookNativeControlsDescriptor *t_desc;
+    t_desc = (MCHookNativeControlsDescriptor *)p_descriptor;
+    
+    if (t_desc -> action == nil)
+        return false;
+    
+    return t_desc -> action(ctxt -> action, ctxt -> control, ctxt -> arguments, ctxt -> argument_count);
+}
+
+bool MCPerformNativeControlAction(intenum_t p_action, void *p_control, MCValueRef *p_arguments, uindex_t p_argument_count)
+{
+    __MCPerformNativeControlActionContext ctxt;
+    ctxt . action = p_action;
+    ctxt . control = p_control;
+    ctxt . arguments = p_arguments;
+    ctxt . argument_count = p_argument_count;
+    return MCHookForEach(kMCHookNativeControls, __MCPerformNativeControlActionCallback, &ctxt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // MW-2013-10-08: [[ Bug 11259 ]] Make sure the Linux specific case tables are
 //   in a global place so it works for server and desktop.
-#if defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER)
+#if defined(_LINUX_DESKTOP) || defined(_LINUX_SERVER) || defined(__EMSCRIPTEN__)
 // MW-2013-10-01: [[ Bug 11160 ]] Use our own lowercasing table (ISO8859-1)
 uint1 MClowercasingtable[] =
 {
@@ -1274,3 +1881,5 @@ uint2 MCctypetable[] =
 	0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 0x0340, 0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 0x0385, 
 };
 #endif
+
+////////////////////////////////////////////////////////////////////////////////

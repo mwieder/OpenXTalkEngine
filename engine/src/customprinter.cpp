@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -15,7 +15,6 @@ You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
-#include "core.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -26,7 +25,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "uidc.h"
 #include "mcerror.h"
 #include "globals.h"
-#include "execpt.h"
+
+#include "exec.h"
 #include "metacontext.h"
 #include "printer.h"
 #include "customprinter.h"
@@ -115,23 +115,67 @@ static MCCustomPrinterTransform MCCustomPrinterTransformFromMCGAffineTransform(c
 	return t_transform;
 }
 
-static MCCustomPrinterImageType MCCustomPrinterImageTypeFromMCGRasterFormat(MCGRasterFormat p_format)
-{
-	switch (p_format)
-	{
-	case kMCGRasterFormat_ARGB:
-		return kMCCustomPrinterImageRawARGB;
-	case kMCGRasterFormat_xRGB:
-		return kMCCustomPrinterImageRawXRGB;
-	case kMCGRasterFormat_A:
-	case kMCGRasterFormat_U_ARGB:
-		// Unsupported
-		MCAssert(false);
-		return kMCCustomPrinterImageNone;
-	}
-}
-
 ////////////////////////////////////////////////////////////////////////////////
+
+bool MCCustomPrinterImageFromMCGImage(MCGImageRef p_image, MCCustomPrinterImage &r_image, void *&r_pixel_cache)
+{
+	MCGRaster t_raster;
+	if (!MCGImageGetRaster(p_image, t_raster))
+		return false;
+	
+	void *t_pixels;
+	t_pixels = nil;
+	
+	void *t_pixel_cache;
+	t_pixel_cache = nil;
+
+#if kMCCustomPrinterImagePixelFormat == kMCGPixelFormatNative
+    t_pixels = t_raster.pixels;
+#else
+    if (!MCMemoryAllocate(t_raster.stride * t_raster.height, t_pixel_cache))
+        return false;
+    
+    uint8_t *t_src;
+    t_src = (uint8_t*)t_raster.pixels;
+    
+    uint8_t *t_dst;
+    t_dst = (uint8_t*)t_pixel_cache;
+    
+    for (uint32_t i = 0; i < t_raster.height; i++)
+    {
+        uint32_t *t_src_row;
+        t_src_row = (uint32_t*)t_src;
+        
+        uint32_t *t_dst_row;
+        t_dst_row = (uint32_t*)t_dst;
+        
+		for (uint32_t j = 0; j < t_raster.width; j++)
+			*t_dst_row++ = MCGPixelFromNative(kMCCustomPrinterImagePixelFormat, *t_src_row++);
+		
+        t_src += t_raster.stride;
+        t_dst += t_raster.stride;
+    }
+    
+    t_pixels = t_pixel_cache;
+#endif
+
+	// Fill in the printer image info
+	r_image.width = t_raster.width;
+	r_image.height = t_raster.height;
+	
+	bool t_mask, t_alpha;
+	t_mask = !MCGImageIsOpaque(p_image);
+	t_alpha = t_mask && MCGImageHasPartialTransparency(p_image);
+	// IM-2014-06-26: [[ Bug 12699 ]] Set image type appropriately.
+	r_image . type = t_alpha ? kMCCustomPrinterImageRawARGB : (t_mask ? kMCCustomPrinterImageRawMRGB : kMCCustomPrinterImageRawXRGB);
+	r_image . id = (uint32_t)(intptr_t)p_image;
+	r_image . data = t_pixels;
+	r_image . data_size = t_raster.stride * t_raster.height;
+	
+	r_pixel_cache = t_pixel_cache;
+	
+	return true;
+}
 
 class MCCustomMetaContext: public MCMetaContext
 {
@@ -171,7 +215,7 @@ private:
 	// can be used.
 	MCPrinterRectangle m_page_rect;
 
-	// If this is true, an error has occured during execute
+	// If this is true, an error has occurred during execute
 	bool m_execute_error;
 
 	// The untransformed rect and scale of current composite region
@@ -212,7 +256,7 @@ bool MCCustomMetaContext::render(MCCustomPrintingDevice *p_device, const MCPrint
 
 bool MCCustomMetaContext::candomark(MCMark *p_mark)
 {
-	// If an error has occured during this execution, just return true to minimize
+	// If an error has occurred during this execution, just return true to minimize
 	// unnecessary rasterization (this is to make up for a lack of error handling
 	// during the super-classes execution process).
 	if (m_execute_error)
@@ -258,13 +302,13 @@ bool MCCustomMetaContext::candomark(MCMark *p_mark)
 			// we support for this kind of printing (yet?)
 			return true;
 		}
-		break;
 	case MARK_TYPE_IMAGE:
 		{
 			// Devices have to support unmasked images (otherwise we couldn't
 			// rasterize!).
 			bool t_mask, t_alpha;
-			t_mask = MCImageBitmapHasTransparency(p_mark -> image . descriptor . bitmap, t_alpha);
+			t_mask = !MCGImageIsOpaque(p_mark->image.descriptor.image);
+			t_alpha = t_mask && MCGImageHasPartialTransparency(p_mark->image.descriptor.image);
 
 			if (!t_mask)
 				return true;
@@ -279,7 +323,6 @@ bool MCCustomMetaContext::candomark(MCMark *p_mark)
 
 			return m_device -> CanRenderImage(t_image);
 		}
-		break;
 	case MARK_TYPE_METAFILE:
 	case MARK_TYPE_EPS:
 	case MARK_TYPE_THEME:
@@ -303,19 +346,29 @@ bool MCCustomMetaContext::candomark(MCMark *p_mark)
 			t_group . opacity = p_mark -> group . opacity / 255.0;
 			return m_device -> CanRenderGroup(t_group);
 		}
-		break;
 	case MARK_TYPE_LINK:
 		// We can always render links natively - even if this is a no-op.
 		return true;
+	case MARK_TYPE_END:
+		// Unknown mark so return false.
+		return false;
 	}
 
-	// Unknown mark so return false.
-	return false;
+	MCUnreachableReturn(false);
+}
+
+MCRectangle MCCustomPrinterInsetRectangle(const MCRectangle &p_rect, uint32_t p_inset)
+{
+	/* TODO - fix half pixels lost when insetting by odd integers */
+	return MCRectangleMake(p_rect.x + p_inset / 2,
+							 p_rect.y + p_inset / 2,
+							 MCMax(0, (int32_t)p_rect.width - p_inset),
+							 MCMax(0, (int32_t)p_rect.height - p_inset));
 }
 
 void MCCustomMetaContext::domark(MCMark *p_mark)
 {
-	// If an error has occured, we do nothing.
+	// If an error has occurred, we do nothing.
 	if (m_execute_error)
 		return;
 
@@ -355,14 +408,7 @@ void MCCustomMetaContext::domark(MCMark *p_mark)
 		break;
 	case MARK_TYPE_RECTANGLE:
 		{
-            // MM-2014-04-23: [[ Bug 11884 ]] Inset the bounds. Since MCPath only accepts ints, if the inset value is uneven,
-            // round up to the nearest even value, keeping behaviour as close to that of the graphics context as possible.
-			if (!(p_mark -> rectangle . inset % 2))
-				p_mark -> rectangle . inset ++;
-			p_mark -> rectangle . bounds = MCRectangleMake(p_mark -> rectangle . bounds . x + p_mark -> rectangle . inset / 2,
-														   p_mark -> rectangle . bounds . y + p_mark -> rectangle . inset / 2, 
-														   p_mark -> rectangle . bounds . width - p_mark -> rectangle . inset, 
-														   p_mark -> rectangle . bounds . height - p_mark -> rectangle . inset);
+			p_mark -> rectangle . bounds = MCCustomPrinterInsetRectangle(p_mark -> rectangle . bounds, p_mark -> rectangle . inset);
 			
 			MCPath *t_path;
 			if (p_mark -> stroke != nil && p_mark -> rectangle . bounds . height == 1)
@@ -382,14 +428,7 @@ void MCCustomMetaContext::domark(MCMark *p_mark)
 		break;
 	case MARK_TYPE_ROUND_RECTANGLE:
 		{
-            // MM-2014-04-23: [[ Bug 11884 ]] Inset the bounds. Since MCPath only accepts ints, if the inset value is uneven,
-            // round up to the nearest even value, keeping behaviour as close to that of the graphics context as possible.
-			if (!(p_mark -> round_rectangle . inset % 2))
-				p_mark -> round_rectangle . inset ++;
-			p_mark -> round_rectangle . bounds = MCRectangleMake(p_mark -> round_rectangle . bounds . x + p_mark -> round_rectangle . inset / 2,
-														   p_mark -> round_rectangle . bounds . y + p_mark -> round_rectangle . inset / 2, 
-														   p_mark -> round_rectangle . bounds . width - p_mark -> round_rectangle . inset, 
-														   p_mark -> round_rectangle . bounds . height - p_mark -> round_rectangle . inset);
+			p_mark -> round_rectangle . bounds = MCCustomPrinterInsetRectangle(p_mark -> round_rectangle . bounds, p_mark -> round_rectangle . inset);
 			
 			MCPath *t_path;
 			t_path = MCPath::create_rounded_rectangle(p_mark -> round_rectangle . bounds, p_mark -> round_rectangle . radius / 2, p_mark -> stroke != nil);
@@ -404,14 +443,7 @@ void MCCustomMetaContext::domark(MCMark *p_mark)
 		break;
 	case MARK_TYPE_ARC:
 		{
-            // MM-2014-04-23: [[ Bug 11884 ]] Inset the bounds. Since MCPath only accepts ints, if the inset value is uneven,
-            // round up to the nearest even value, keeping behaviour as close to that of the graphics context as possible.
-			if (!(p_mark -> arc . inset % 2))
-				p_mark -> arc . inset ++;
-			p_mark -> arc . bounds = MCRectangleMake(p_mark -> arc . bounds . x + p_mark -> arc . inset / 2,
-														   p_mark -> arc . bounds . y + p_mark -> arc . inset / 2, 
-														   p_mark -> arc . bounds . width - p_mark -> arc . inset, 
-														   p_mark -> arc . bounds . height - p_mark -> arc . inset);
+			p_mark -> arc . bounds = MCCustomPrinterInsetRectangle(p_mark -> arc . bounds, p_mark -> arc . inset);
 			
 			MCPath *t_path;
 			if (p_mark -> arc . complete)
@@ -493,24 +525,17 @@ void MCCustomMetaContext::doimagemark(MCMark *p_mark)
 			t_image_type = kMCCustomPrinterImageNone;
 	}
 
-	uint2 t_img_width, t_img_height;
-	MCImageBitmap *t_img_bitmap = nil;
-	t_img_bitmap = p_mark -> image . descriptor . bitmap;
-	t_img_width = t_img_bitmap -> width;
-	t_img_height = t_img_bitmap -> height;
-
+	void *t_pixel_cache;
+	t_pixel_cache = nil;
+	
+	// Fill in the printer image info
+	MCCustomPrinterImage t_image;
 	if (!m_execute_error)
 	{
-		// Fill in the printer image info
-		MCCustomPrinterImage t_image;
 		if (t_image_type == kMCCustomPrinterImageNone)
 		{
-			bool t_mask, t_alpha;
-			t_mask = MCImageBitmapHasTransparency(t_img_bitmap, t_alpha);
-			t_image . type = t_alpha ? kMCCustomPrinterImageRawARGB : (t_mask ? kMCCustomPrinterImageRawMRGB : kMCCustomPrinterImageRawXRGB);
-			t_image . id = (uint32_t)(intptr_t)t_img_bitmap;
-			t_image . data = t_img_bitmap -> data;
-			t_image . data_size = t_img_bitmap -> stride * t_img_height;
+			if (!MCCustomPrinterImageFromMCGImage(p_mark -> image . descriptor . image, t_image, t_pixel_cache))
+				m_execute_error = true;
 		}
 		else
 		{
@@ -518,15 +543,19 @@ void MCCustomMetaContext::doimagemark(MCMark *p_mark)
 			t_image . id = (uint32_t)(intptr_t)p_mark -> image . descriptor . data_bits;
 			t_image . data = p_mark -> image . descriptor . data_bits;
 			t_image . data_size = p_mark -> image . descriptor . data_size;
+			t_image . width = MCGImageGetWidth(p_mark -> image . descriptor . image);
+			t_image . height = MCGImageGetHeight(p_mark -> image . descriptor . image);
 		}
-		t_image . width = t_img_width;
-		t_image . height = t_img_height;
-
+	}
+	
+	if (!m_execute_error)
+	{
 		// Compute the transform that is needed - this transform goes from image
 		// space to page space.
+		// IM-2014-06-26: [[ Bug 12699 ]] Rework to ensure transforms are applied in the correct order - page transform -> image offset -> image transform
 		MCGAffineTransform t_transform;
-		t_transform = MCGAffineTransformMakeScale(m_scale_x, m_scale_y);
-		t_transform = MCGAffineTransformTranslate(t_transform, m_translate_x + p_mark -> image . dx - p_mark -> image . sx, m_translate_y + p_mark -> image . dy - p_mark -> image . sy);
+		t_transform = MCGAffineTransformMake(m_scale_x, 0, 0, m_scale_y, m_translate_x, m_translate_y);
+		t_transform = MCGAffineTransformConcat(t_transform, MCGAffineTransformMakeTranslation(p_mark -> image . dx - p_mark -> image . sx, p_mark -> image . dy - p_mark -> image . sy));
 		if (p_mark -> image . descriptor . has_transform)
 			t_transform = MCGAffineTransformConcat(t_transform, p_mark -> image . descriptor . transform);
 
@@ -538,6 +567,9 @@ void MCCustomMetaContext::doimagemark(MCMark *p_mark)
 		if (!m_device -> DrawImage(t_image, MCCustomPrinterTransformFromMCGAffineTransform(t_transform), t_clip))
 			m_execute_error = true;
 	}
+	
+	if (t_pixel_cache != nil)
+		MCMemoryDeallocate(t_pixel_cache);
 }
 
 void MCCustomMetaContext::dolinkmark(MCMark *p_mark)
@@ -568,7 +600,6 @@ bool MCCustomMetaContext::begincomposite(const MCRectangle &p_mark_clip, MCGCont
 	if (t_success)
 		t_success = MCGContextCreate(t_width, t_height, true, t_gcontext);
 
-	MCContext *t_context = nil;
 	if (t_success)
 	{
 		MCGContextScaleCTM(t_gcontext, t_scale, t_scale);
@@ -637,12 +668,11 @@ void MCCustomMetaContext::endcomposite(MCRegionRef p_clip_region)
 	MCGContextRelease(m_composite_context);
 	m_composite_context = nil;
 	
+	void *t_pixel_cache;
+	t_pixel_cache = nil;
+	
 	if (t_success)
 	{
-		MCGRaster t_raster;
-		
-		MCGImageGetRaster(t_image, t_raster);
-		
 		/* OVERHAUL - REVISIT: Disabling the mask stuff for now, just treat the composite image as ARGB */
 		
 		// Make sure the region is in logical coords.
@@ -662,12 +692,8 @@ void MCCustomMetaContext::endcomposite(MCRegionRef p_clip_region)
 		// Now we have a masked image, issue an appropriate image rendering call to the
 		// device
 		MCCustomPrinterImage t_img_data;
-		t_img_data . type = kMCCustomPrinterImageRawARGB;
-		t_img_data . id = 0;
-		t_img_data . width = t_raster . width;
-		t_img_data . height = t_raster . height;
-		t_img_data . data = t_raster . pixels;
-		t_img_data . data_size = t_raster . stride * t_raster . height;
+		
+		t_success = MCCustomPrinterImageFromMCGImage(t_image, t_img_data, t_pixel_cache);
 		
 		MCCustomPrinterTransform t_img_transform;
 		t_img_transform . scale_x = m_scale_x / m_composite_scale;
@@ -689,6 +715,12 @@ void MCCustomMetaContext::endcomposite(MCRegionRef p_clip_region)
 		//	m_execute_error = true;
 	}
 
+	if (t_image != nil)
+		MCGImageRelease(t_image);
+	
+	if (t_pixel_cache != nil)
+		MCMemoryDeallocate(t_pixel_cache);
+	
 	m_execute_error = !t_success;
 	
 	// Delete the region
@@ -705,10 +737,10 @@ void MCCustomMetaContext::dopathmark(MCMark *p_mark, MCPath *p_path)
 void MCCustomMetaContext::dorawpathmark(MCMark *p_mark, uint1 *p_commands, uint32_t p_command_count, int4 *p_ordinates, uint32_t p_ordinate_count, bool p_evenodd)
 {
 	MCCustomPrinterPathCommand *t_out_commands;
-	t_out_commands = new MCCustomPrinterPathCommand[p_command_count];
+	t_out_commands = new (nothrow) MCCustomPrinterPathCommand[p_command_count];
 
 	MCCustomPrinterPoint *t_out_coords;
-	t_out_coords = new MCCustomPrinterPoint[p_ordinate_count];
+	t_out_coords = new (nothrow) MCCustomPrinterPoint[p_ordinate_count];
 
 	if (t_out_commands != nil && t_out_coords != nil)
 	{
@@ -771,6 +803,12 @@ void MCCustomMetaContext::dorawpathmark(MCMark *p_mark, uint1 *p_commands, uint3
 		MCCustomPrinterGradientStop *t_paint_stops;
 		t_paint_stops = nil;
 
+		MCGImageRef t_image;
+		t_image = nil;
+		
+		void *t_pixel_cache;
+		t_pixel_cache = nil;
+		
 		// Note we have to check the fill in this order since 'gradient' is not
 		// a fill style and is indicated by the gradient field not being nil.
 		if (p_mark -> fill -> gradient != nil)
@@ -792,7 +830,7 @@ void MCCustomMetaContext::dorawpathmark(MCMark *p_mark, uint1 *p_commands, uint3
 			t_paint . gradient . transform . translate_y = p_mark->fill->gradient->origin.y;
 
 			// Map the paint stops appropriately
-			t_paint_stops = new MCCustomPrinterGradientStop[p_mark -> fill -> gradient -> ramp_length];
+			t_paint_stops = new (nothrow) MCCustomPrinterGradientStop[p_mark -> fill -> gradient -> ramp_length];
 			if (t_paint_stops != nil)
 			{
 				for(uint32_t i = 0; i < p_mark -> fill -> gradient -> ramp_length; i++)
@@ -819,23 +857,25 @@ void MCCustomMetaContext::dorawpathmark(MCMark *p_mark, uint1 *p_commands, uint3
 		else if (p_mark -> fill -> style == FillTiled)
 		{
 			// Fetch the size of the tile, and its data.
-			MCGRaster t_tile_raster;
-			if (MCGImageGetRaster(p_mark -> fill -> pattern -> image, t_tile_raster))
+			
+			MCGAffineTransform t_transform;
+			
+			// IM-2014-05-13: [[ HiResPatterns ]] Update pattern access to use lock function
+			if (MCPatternLockForContextTransform(p_mark->fill->pattern, MCGAffineTransformMakeIdentity(), t_image, t_transform))
 			{
+				MCGRaster t_tile_raster;
+				/* UNCHECKED */ MCGImageGetRaster(t_image, t_tile_raster);
+				
+				t_transform = MCGAffineTransformPreTranslate(t_transform, p_mark->fill->origin.x, p_mark->fill->origin.y);
+				
 				// Construct the paint pattern.
 				t_paint . type = kMCCustomPrinterPaintPattern;
-				t_paint . pattern . image . type = MCCustomPrinterImageTypeFromMCGRasterFormat(t_tile_raster . format);
-				t_paint . pattern . image . id = (uint32_t)(intptr_t)p_mark -> fill -> pattern;
-				t_paint . pattern . image . width = t_tile_raster . width;
-				t_paint . pattern . image . height = t_tile_raster . height;
-				t_paint . pattern . image . data = t_tile_raster . pixels;
-				t_paint . pattern . image . data_size = t_tile_raster . stride * t_tile_raster . height;
-				t_paint . pattern . transform . scale_x = 1.0 / p_mark -> fill -> pattern -> scale;
-				t_paint . pattern . transform . scale_y = 1.0 / p_mark -> fill -> pattern -> scale;
-				t_paint . pattern . transform . skew_x = 0.0;
-				t_paint . pattern . transform . skew_y = 0.0;
-				t_paint . pattern . transform . translate_x = p_mark -> fill -> origin . x;
-				t_paint . pattern . transform . translate_y = p_mark -> fill -> origin . y;
+				t_paint . pattern . transform = MCCustomPrinterTransformFromMCGAffineTransform(t_transform);
+				if (!MCCustomPrinterImageFromMCGImage(t_image, t_paint . pattern . image, t_pixel_cache))
+					m_execute_error = true;
+				
+				MCGImageRetain(t_image);
+				MCPatternUnlock(p_mark->fill->pattern, t_image);
 			}
 			else
 				m_execute_error = true;
@@ -893,7 +933,7 @@ void MCCustomMetaContext::dorawpathmark(MCMark *p_mark, uint1 *p_commands, uint3
 				{
 					t_stroke . dash_count = p_mark -> stroke -> dash . length;
 					t_stroke . dash_offset = p_mark -> stroke -> dash . offset;
-					t_stroke . dashes = new double[p_mark -> stroke -> dash . length];
+					t_stroke . dashes = new (nothrow) double[p_mark -> stroke -> dash . length];
 					if (t_stroke . dashes != nil)
 					{
 						for(uint32_t i = 0; i < p_mark -> stroke -> dash . length; i++)
@@ -919,6 +959,12 @@ void MCCustomMetaContext::dorawpathmark(MCMark *p_mark, uint1 *p_commands, uint3
 
 		if (t_paint_stops != nil)
 			delete[] t_paint_stops;
+		
+		if (t_image != nil)
+			MCGImageRelease(t_image);
+		
+		if (t_pixel_cache != nil)
+			MCMemoryDeallocate(t_pixel_cache);
 	}
 	else
 		m_execute_error = true;
@@ -943,23 +989,22 @@ static bool dotextmark_callback(void *p_context, const MCTextLayoutSpan *p_span)
 	dotextmark_callback_state *context;
 	context = (dotextmark_callback_state *)p_context;
 	
-	// Note we can use 'setstaticbytes' here because the execpoint is immediately
-	// modified.
-	MCExecPoint ep(nil, nil, nil);
-	ep . setstaticbytes((const char *)p_span -> chars, p_span -> char_count * 2);
-	ep . utf16toutf8();
-	
-	// Get the UTF-8 string pointer and length
-	const uint8_t *t_bytes;
-	uint32_t t_byte_count;
-	t_bytes = (const uint8_t *)ep . getcstring();
-	t_byte_count = ep . getsvalue() . getlength();
+	MCAutoStringRef t_string;
+    // SN-2014-06-17 [[ Bug 12595 ]] Not properly causing the bug, but it never hurts to get to use the right encoding
+    MCStringCreateWithBytes((byte_t*)p_span->chars, p_span->char_count * 2, kMCStringEncodingUTF16, false, &t_string);
+    
+	byte_t *t_bytes;
+	uindex_t t_byte_count;
+	/* UNCHECKED */ MCStringConvertToBytes(*t_string, kMCStringEncodingUTF8, false, t_bytes, t_byte_count);
 	
 	// Allocate a cluster index for every UTF-8 byte
 	uint32_t *t_clusters;
 	t_clusters = nil;
 	if (!MCMemoryNewArray(t_byte_count, t_clusters))
+    {
+        MCMemoryDeleteArray(t_bytes);
 		return false;
+    }
 	
 	// Now loop through and build up the cluster array. Notice we keep track of
 	// UTF-16 codepoint index by taking note of leading UTF-8 bytes.
@@ -1010,7 +1055,11 @@ static bool dotextmark_callback(void *p_context, const MCTextLayoutSpan *p_span)
 	extern int32_t MCCustomPrinterComputeFontSize(void *font);
 	t_font_size = MCCustomPrinterComputeFontSize(p_span -> font);
 	t_font_handle = p_span -> font;
-#elif defined(_SERVER)
+#elif defined(ANDROID)
+	t_font_size = context->font_size;
+	t_font_handle = p_span->font;
+#else
+    // Neither servers nor Android have an implementation
 	t_font_size = 0;
 	t_font_handle = NULL;
 #endif
@@ -1020,28 +1069,28 @@ static bool dotextmark_callback(void *p_context, const MCTextLayoutSpan *p_span)
 	t_font . handle = t_font_handle;
 
 	bool t_success;
-	t_success = context -> device -> DrawText((const MCCustomPrinterGlyph *)p_span -> glyphs, p_span -> glyph_count, (const char *)t_bytes, t_clusters, t_font, context -> paint, context -> transform, context -> clip);
+	t_success = context -> device -> DrawText((const MCCustomPrinterGlyph *)p_span -> glyphs, p_span -> glyph_count, (const char *)t_bytes, t_byte_count, t_clusters, t_font, context -> paint, context -> transform, context -> clip);
 
 	MCMemoryDeleteArray(t_clusters);
+    MCMemoryDeleteArray(t_bytes);
 	
 	return t_success;
 }
 
 void MCCustomMetaContext::dotextmark(MCMark *p_mark)
 {
-	// Note we can use 'setstaticbytes' here because the ep is just being used
-	// for conversion.
-	MCExecPoint ep(nil, nil, nil);
     MCFontStruct *f = MCFontGetFontStruct(p_mark -> text . font);
-	ep . setstaticbytes(p_mark -> text . data, p_mark -> text . length);
-	if (!p_mark -> text . unicode_override)
-		ep . nativetoutf16();
+    
+	MCAutoStringRef t_text_str;
+    if (p_mark -> text . unicode_override)
+        /* UNCHECKED */ MCStringCreateWithChars((const unichar_t*)p_mark -> text . data, p_mark -> text . length, &t_text_str);
+    else
+        /* UNCHECKED */ MCStringCreateWithNativeChars((const char_t*)p_mark -> text . data, p_mark -> text . length, &t_text_str);
 
-	const unichar_t *t_chars;
-	uint32_t t_char_count;
-	t_chars = (const unichar_t *)ep . getsvalue() . getstring();
-	t_char_count = ep . getsvalue() . getlength() / 2;
-
+	unichar_t *t_chars;
+	uindex_t t_char_count;
+	/* UNCHECKED */ MCStringConvertToUnicode(*t_text_str, t_chars, t_char_count);
+	
 	dotextmark_callback_state t_state;
 	t_state . device = m_device;
 
@@ -1061,10 +1110,12 @@ void MCCustomMetaContext::dotextmark(MCMark *p_mark)
 	t_state . font_size = f -> size;
 #elif defined(_LINUX)
 	extern MCFontlist *MCFontlistGetCurrent(void);
-	const char *t_name;
+	MCNameRef t_name;
 	uint2 t_size, t_style;
     MCFontlistGetCurrent() -> getfontreqs(f, t_name, t_size, t_style);
 	t_state . font_size = t_size;
+#elif defined(ANDROID)
+	t_state . font_size = f -> size;
 #endif
 
 	compute_clip(p_mark -> clip, t_state . clip);
@@ -1109,7 +1160,7 @@ public:
 
 	const char *Error(void) const;
 
-	MCPrinterResult Start(const char *p_title, MCVariableValue *p_options);
+	MCPrinterResult Start(const char *p_title, MCArrayRef p_options);
 	MCPrinterResult Finish(void);
 
 	MCPrinterResult Cancel(void);
@@ -1154,7 +1205,41 @@ const char *MCCustomPrinterDevice::Error(void) const
 	return m_device -> GetError();
 }
 
-MCPrinterResult MCCustomPrinterDevice::Start(const char *p_title, MCVariableValue *p_options)
+struct convert_options_array_t
+{
+	uindex_t index;
+	char **option_keys;
+	char **option_values;
+};
+
+static bool convert_options_array(void *p_context, MCArrayRef p_array, MCNameRef p_key, MCValueRef p_value)
+{
+	convert_options_array_t *ctxt;
+	ctxt = (convert_options_array_t *)p_context;
+
+	if (!MCStringConvertToCString(MCNameGetString(p_key), ctxt -> option_keys[ctxt -> index]))
+		return false;
+    
+    // SN-2014-08-11: [[ Bug 13146 ]] Also allow NameRef to be passed as options.
+	MCAutoStringRef t_value;
+    if (MCValueGetTypeCode(p_value) == kMCValueTypeCodeName)
+        t_value = MCNameGetString((MCNameRef)p_value);
+    else if (MCValueGetTypeCode(p_value) == kMCValueTypeCodeString)
+        t_value = (MCStringRef)p_value;
+    else
+    {
+        ctxt -> option_values[ctxt -> index] = NULL;
+        return false;
+    }
+	
+	if (!MCStringConvertToCString(*t_value, ctxt -> option_values[ctxt -> index]))
+		return false;
+	
+	ctxt -> index += 1;
+	return true;
+}
+
+MCPrinterResult MCCustomPrinterDevice::Start(const char *p_title, MCArrayRef p_options)
 {
 	MCPrinterResult t_result;
 	t_result = PRINTER_RESULT_SUCCESS;
@@ -1175,7 +1260,7 @@ MCPrinterResult MCCustomPrinterDevice::Start(const char *p_title, MCVariableValu
 	t_option_count = 0;
 	if (t_result == PRINTER_RESULT_SUCCESS && p_options != nil)
 	{
-		t_option_count = p_options -> get_array() -> getnfilled();
+		t_option_count = MCArrayGetCount(p_options);
 		if (!MCMemoryNewArray(t_option_count, t_option_keys) ||
 			!MCMemoryNewArray(t_option_count, t_option_values))
 			t_result = PRINTER_RESULT_ERROR;
@@ -1183,22 +1268,17 @@ MCPrinterResult MCCustomPrinterDevice::Start(const char *p_title, MCVariableValu
 	
 	if (t_result == PRINTER_RESULT_SUCCESS)
 	{
-		MCHashentry *t_option;
-		t_option = nil;
-		for(uint32_t i = 0; i < t_option_count; i++)
-		{
-			MCExecPoint ep(nil, nil, nil);
-
-			t_option = p_options -> get_array() -> getnextkey(t_option);
-			t_option -> value . fetch(ep);
-
-			t_option_keys[i] = t_option -> string;
-			if (!MCCStringClone(ep . getcstring(), t_option_values[i]))
-			{
-				t_result = PRINTER_RESULT_ERROR;
-				break;
-			}
-		}
+		convert_options_array_t ctxt;
+		ctxt . index = 0;
+		ctxt . option_keys = t_option_keys;
+		ctxt . option_values = t_option_values;
+        
+        // FG-2014-05-23: [[ Bugfix 12502 ]] Don't try to convert empty options
+        if (p_options != nil && !MCArrayIsEmpty(p_options))
+        {
+            if (!MCArrayApply(p_options, convert_options_array, &ctxt))
+                t_result = PRINTER_RESULT_ERROR;
+        }
 	}
 
 	if (t_result == PRINTER_RESULT_SUCCESS)
@@ -1212,7 +1292,10 @@ MCPrinterResult MCCustomPrinterDevice::Start(const char *p_title, MCVariableValu
 
 	if (t_option_values != nil)
 		for(uint32_t i = 0; i < t_document . option_count; i++)
-			MCCStringFree(t_option_values[i]);
+		{
+			delete(t_option_keys[i]);
+			delete(t_option_values[i]);
+		}
 
 	MCMemoryDeleteArray(t_option_values);
 	MCMemoryDeleteArray(t_option_keys);
@@ -1302,16 +1385,18 @@ MCPrinterResult MCCustomPrinterDevice::Begin(const MCPrinterRectangle& p_src_rec
 		if (!StartPage())
 			return PRINTER_RESULT_ERROR;
 
+    // MW-2014-07-30: [[ Bug 12804 ]] Make sure we get left / top round the right way else clipping
+    //   is wrong.
 	// Calculate the convex integer hull of the source rectangle.
 	MCRectangle t_src_rect_hull;
-	t_src_rect_hull . x = (int2)floor(p_src_rect . top);
-	t_src_rect_hull . y = (int2)floor(p_src_rect . left);
+	t_src_rect_hull . x = (int2)floor(p_src_rect . left);
+	t_src_rect_hull . y = (int2)floor(p_src_rect . top);
 	t_src_rect_hull . width = (uint2)(ceil(p_src_rect . right) - floor(p_src_rect . left));
 	t_src_rect_hull . height = (uint2)(ceil(p_src_rect . bottom) - floor(p_src_rect . top));
 
 	// Now create a custom meta context, targeting our device
 	MCCustomMetaContext *t_context;
-	t_context = new MCCustomMetaContext(t_src_rect_hull);
+	t_context = new (nothrow) MCCustomMetaContext(t_src_rect_hull);
 	if (t_context == nil)
 		return PRINTER_RESULT_ERROR;
 
@@ -1465,42 +1550,10 @@ bool MCCustomPrinterDevice::StartPage(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class MCCustomPrinter: public MCPrinter
-{
-public:
-	MCCustomPrinter(const char *p_name, MCCustomPrintingDevice *p_device);
-	~MCCustomPrinter(void);
-
-	void SetDeviceOptions(MCVariableValue *p_options);
-
-protected:
-	void DoInitialize(void);
-	void DoFinalize(void);
-
-	bool DoReset(const char *p_name);
-	bool DoResetSettings(const MCString& p_settings);
-
-	const char *DoFetchName(void);
-	void DoFetchSettings(void*& r_bufer, uint4& r_length);
-
-	void DoResync(void);
-
-	MCPrinterDialogResult DoPrinterSetup(bool p_window_modal, Window p_owner);
-	MCPrinterDialogResult DoPageSetup(bool p_window_modal, Window p_owner);
-
-	MCPrinterResult DoBeginPrint(const char *p_document, MCPrinterDevice*& r_device);
-	MCPrinterResult DoEndPrint(MCPrinterDevice* p_device);
-
-private:
-	char *m_device_name;
-	MCCustomPrintingDevice *m_device;
-	MCVariableValue *m_device_options;
-};
-
-MCCustomPrinter::MCCustomPrinter(const char *p_name, MCCustomPrintingDevice *p_device)
+MCCustomPrinter::MCCustomPrinter(MCStringRef p_name, MCCustomPrintingDevice *p_device)
 {
 	m_device_options = nil;
-	m_device_name = strdup(p_name);
+	m_device_name = MCValueRetain(p_name);
 	m_device = p_device;
 }
 
@@ -1512,14 +1565,17 @@ MCCustomPrinter::~MCCustomPrinter(void)
 	// scope of a single print loop.
 	Finalize();
 
-	delete m_device_name;
-	delete m_device_options;
+	MCValueRelease(m_device_name);
+	MCValueRelease(m_device_options);
 }
 
-void MCCustomPrinter::SetDeviceOptions(MCVariableValue *p_options)
+void MCCustomPrinter::SetDeviceOptions(MCArrayRef p_options)
 {
+	MCValueRelease(m_device_options);
+	m_device_options = nil;
+
 	if (p_options != nil)
-		m_device_options = new MCVariableValue(*p_options);
+		/* UNCHECKED */ MCArrayCopy(p_options, m_device_options);
 }
 
 void MCCustomPrinter::DoInitialize(void)
@@ -1530,19 +1586,21 @@ void MCCustomPrinter::DoFinalize(void)
 {
 }
 
-bool MCCustomPrinter::DoReset(const char *p_name)
+bool MCCustomPrinter::DoReset(MCStringRef p_name)
 {
-	return MCCStringEqualCaseless(p_name, m_device_name);
+	return MCStringIsEqualTo(p_name, m_device_name, kMCStringOptionCompareCaseless);
 }
 
-bool MCCustomPrinter::DoResetSettings(const MCString& p_settings)
+bool MCCustomPrinter::DoResetSettings(MCDataRef p_settings)
 {
-	return p_settings . getlength() == 0;
+	return MCDataIsEmpty(p_settings);
 }
 
 const char *MCCustomPrinter::DoFetchName(void)
 {
-	return m_device_name;
+    char *t_device_name;
+    /* UNCHECKED */ MCStringConvertToCString(m_device_name, t_device_name);
+    return t_device_name;
 }
 
 void MCCustomPrinter::DoResync(void)
@@ -1565,7 +1623,7 @@ MCPrinterDialogResult MCCustomPrinter::DoPageSetup(bool p_window_modal, Window p
 	return PRINTER_DIALOG_RESULT_ERROR;
 }
 
-MCPrinterResult MCCustomPrinter::DoBeginPrint(const char *p_document, MCPrinterDevice*& r_device)
+MCPrinterResult MCCustomPrinter::DoBeginPrint(MCStringRef p_document, MCPrinterDevice*& r_device)
 {
 	MCPrinterResult t_result;
 	t_result = PRINTER_RESULT_SUCCESS;
@@ -1574,13 +1632,17 @@ MCPrinterResult MCCustomPrinter::DoBeginPrint(const char *p_document, MCPrinterD
 	t_printer_device = nil;
 	if (t_result == PRINTER_RESULT_SUCCESS)
 	{
-		t_printer_device = new MCCustomPrinterDevice(m_device);
+		t_printer_device = new (nothrow) MCCustomPrinterDevice(m_device);
 		if (t_printer_device == nil)
 			t_result = PRINTER_RESULT_ERROR;
 	}
 	
 	if (t_result == PRINTER_RESULT_SUCCESS)
-		t_result = t_printer_device -> Start(p_document, m_device_options);
+    {
+        MCAutoPointer<char> t_doc;
+        /* UNCHECKED */ MCStringConvertToCString(p_document, &t_doc);
+        t_result = t_printer_device -> Start(*t_doc, m_device_options);
+    }
 
 	if (t_result == PRINTER_RESULT_SUCCESS)
 		r_device = t_printer_device;
@@ -1614,6 +1676,8 @@ public:
 	{
 		m_target = p_target;
 	}
+
+	virtual ~MCLoggingPrintingDevice(void) {}
 
 	////////
 
@@ -1710,9 +1774,9 @@ public:
 		return true;
 	}
 
-	bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& p_clip)
+	bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text_bytes, uint32_t text_byte_count, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& p_clip)
 	{
-		if (!m_target -> DrawText(glyphs, glyph_count, text, clusters, font, paint, transform, p_clip))
+		if (!m_target -> DrawText(glyphs, glyph_count, text_bytes, text_byte_count, clusters, font, paint, transform, p_clip))
 			return Failed("DrawText");
 		return true;
 	}
@@ -1758,6 +1822,8 @@ public:
 		m_indent = 0;
 		m_stream = nil;
 	}
+
+	virtual ~MCDebugPrintingDevice(void) {}
 
 	void Destroy(void)
 	{
@@ -1899,9 +1965,9 @@ public:
 		return true;
 	}
 
-	bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& p_clip)
+	bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text_bytes, uint32_t text_byte_count, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& p_clip)
 	{
-		Enter("begin text '%s' with clip (%f, %f)-(%f, %f)", text, 
+		Enter("begin text '%s' with clip (%f, %f)-(%f, %f)", text_bytes, 
 				p_clip . left, p_clip . top, p_clip . right, p_clip . bottom);
 		for(uint32_t i = 0; i < glyph_count; i++)
 			Print("glyph %d at (%f, %f)", glyphs[i] . id, glyphs[i] . x, glyphs[i] . y);
@@ -1964,6 +2030,8 @@ private:
 			case kMCCustomPrinterPathClose:
 				Print("close");
 				break;
+			case kMCCustomPrinterPathEnd:
+				MCUnreachable();
 			}
 		}
 	}
@@ -2015,58 +2083,26 @@ private:
 
 typedef MCCustomPrintingDevice *(*MCCustomPrinterCreateProc)(void);
 
-Exec_stat MCCustomPrinterCreate(const char *p_destination, const char *p_filename, MCVariableValue *p_options, MCPrinter*& r_printer)
+bool MCCustomPrinterCreate(MCStringRef p_destination, MCStringRef p_filename, MCArrayRef p_options, MCCustomPrinter*& r_printer)
 {
 	MCCustomPrintingDevice *t_device;
 	t_device = nil;
-	if (MCCStringEqualCaseless(p_destination, "pdf"))
+	if (MCStringIsEqualToCString(p_destination, "pdf", kMCCompareCaseless))
 	{
 		// To generalize/improve in the future if we open up the custom printing
 		// device interface :o)
-		static bool s_revpdfprinter_loaded = false;
 		static MCCustomPrinterCreateProc s_revpdfprinter_create = nil;
-		if (!s_revpdfprinter_loaded)
+        
+        static MCSAutoLibraryRef s_revpdfprinter;
+		if (!s_revpdfprinter.IsSet())
 		{
-			MCSysModuleHandle t_module;
-#if defined(_WINDOWS)
-			t_module = MCS_loadmodule("revpdfprinter.dll");
-#elif defined(_MACOSX)
-			char *t_module_path;
-			
-			t_module_path = nil;
-			MCCStringFormat(t_module_path, "%s/../revpdfprinter.bundle", MCcmd);
-			t_module = MCS_loadmodule(t_module_path);
-			MCCStringFree(t_module_path);
-			
-			if (t_module == nil)
+            &s_revpdfprinter = MCU_library_load(MCSTR("./revpdfprinter"));
+            
+			if (s_revpdfprinter.IsSet())
 			{
-				t_module_path = nil;
-				MCCStringFormat(t_module_path, "%s/../../../../revpdfprinter.bundle", MCcmd);
-				t_module = MCS_loadmodule(t_module_path);
-				MCCStringFree(t_module_path);
+				s_revpdfprinter_create = (MCCustomPrinterCreateProc)MCU_library_lookup(*s_revpdfprinter,
+                                                                                       MCSTR("MCCustomPrinterCreate"));
 			}
-#elif defined(_LINUX)
-			const char *t_engine_dir_end;
-			t_engine_dir_end = strrchr(MCcmd, '/');
-			char *t_module_path;
-			t_module_path = nil;
-			MCCStringFormat(t_module_path, "%.*s/revpdfprinter.so", t_engine_dir_end - MCcmd, MCcmd);
-			t_module = MCS_loadmodule(t_module_path);
-			MCCStringFree(t_module_path);
-#elif defined(TARGET_SUBPLATFORM_IPHONE)
-			const char *t_engine_dir_end;
-			t_engine_dir_end = strrchr(MCcmd, '/');
-			char *t_module_path;
-			t_module_path = nil;
-			MCCStringFormat(t_module_path, "%.*s/revpdfprinter.dylib", t_engine_dir_end - MCcmd, MCcmd);
-			t_module = MCS_loadmodule(t_module_path);
-			MCCStringFree(t_module_path);
-#elif defined(_SERVER)
-			t_module = nil;
-#endif
-			if (t_module != nil)
-				s_revpdfprinter_create = (MCCustomPrinterCreateProc)MCS_resolvemodulesymbol(t_module, "MCCustomPrinterCreate");
-			s_revpdfprinter_loaded = true;
 		}
 
 		if (s_revpdfprinter_create != nil)
@@ -2075,34 +2111,29 @@ Exec_stat MCCustomPrinterCreate(const char *p_destination, const char *p_filenam
 			t_device = nil;
 	}
 #ifdef _DEBUG
-	else if (MCCStringEqualCaseless(p_destination, "debug"))
-		t_device = new MCDebugPrintingDevice;
+	else if (MCStringIsEqualToCString(p_destination, "debug", kMCCompareCaseless))
+		t_device = new (nothrow) MCDebugPrintingDevice;
 #endif
 
 #ifdef _DEBUG
 	if (t_device != nil)
-		t_device = new MCLoggingPrintingDevice(t_device);
+		t_device = new (nothrow) MCLoggingPrintingDevice(t_device);
 #endif
 	
 	if (t_device == nil)
-	{
-		MCeerror -> add(EE_PRINT_UNKNOWNDST, 0, 0);
-		return ES_ERROR;
-	}
+    {
+        return false;
+    }
 
-	char *t_filename = nil;
+	MCAutoStringRef t_native_path;
 	if (p_filename != nil)
-	{
-		// TODO error checking
-		MCCStringClone(p_filename, t_filename);
-		MCU_path2native(t_filename);
-	}
+		/* UNCHECKED */ MCS_pathtonative(p_filename, &t_native_path);
 
 	MCCustomPrinter *t_printer;
-	t_printer = new MCCustomPrinter(p_destination, t_device);
+	t_printer = new (nothrow) MCCustomPrinter(p_destination, t_device);
 	t_printer -> Initialize();
 	t_printer -> SetDeviceName(p_destination);
-	t_printer -> SetDeviceOutput(PRINTER_OUTPUT_FILE, t_filename);
+	t_printer -> SetDeviceOutput(PRINTER_OUTPUT_FILE, *t_native_path);
 	t_printer -> SetDeviceOptions(p_options);
 	t_printer -> SetPageSize(MCprinter -> GetPageWidth(), MCprinter -> GetPageHeight());
 	t_printer -> SetPageOrientation(MCprinter -> GetPageOrientation());
@@ -2118,7 +2149,5 @@ Exec_stat MCCustomPrinterCreate(const char *p_destination, const char *p_filenam
 
 	r_printer = t_printer;
 
-	MCCStringFree(t_filename);
-
-	return ES_NORMAL;
+	return true;
 }

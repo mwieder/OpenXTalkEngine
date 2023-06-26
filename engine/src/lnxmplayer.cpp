@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -25,7 +25,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "stack.h"
 #include "card.h"
 #include "mcerror.h"
-#include "execpt.h"
+
 #include "param.h"
 #include "handler.h"
 #include "util.h"
@@ -37,6 +37,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include <sys/stat.h>
 #include <sys/wait.h>
+
+#include <unistd.h>
 
 #define C_PLAYER_CMD "/usr/bin/mplayer"
 #define C_PLAYER_ARG "/usr/bin/mplayer -vo x11 -slave -wid %d" 
@@ -79,9 +81,9 @@ MPlayer::MPlayer(void)
 	m_playing = true ;
 	m_cpid = -1 ;
 	
-	m_duration = -1 ;
-	m_timescale = -1 ;
-	m_loudness = -1;
+	m_duration = UINT32_MAX;
+	m_timescale = UINT32_MAX;
+	m_loudness = UINT32_MAX;
 
 }
 
@@ -105,7 +107,7 @@ bool MPlayer::shutdown(void)
 {
 	if ( m_window != DNULL)
 	{
-		XDestroyWindow( MCdpy, m_window ) ;
+		gdk_window_destroy(m_window);
 		m_window = DNULL;
 		MClastvideowindow = DNULL ;
 	}
@@ -123,15 +125,15 @@ bool MPlayer::shutdown(void)
 }	
 	
 
-
-static IO_handle open_fd(int4 fd, const char *mode)
-{
-	IO_handle handle = NULL;
-	FILE *fptr = fdopen(fd, mode);
-	if (fptr != NULL)
-		handle = new IO_header(fptr, NULL, 0, fd, 0);
-	return handle;
-}
+//// Never referenced
+//static IO_handle open_fd(int4 fd, const char *mode)
+//{
+//	IO_handle handle = NULL;
+//	FILE *fptr = fdopen(fd, mode);
+//	if (fptr != NULL)
+//		handle = new (nothrow) IO_header(fptr, NULL, 0, fd, 0);
+//	return handle;
+//}
 
 
 
@@ -153,7 +155,8 @@ bool MPlayer::launch_player(void)
 	
 	// Install a signal handler to let us know if the the child process exits...
 	//signal(SIGCHLD, handler);
-	
+    
+    x11::Window t_xid = x11::gdk_x11_drawable_get_xid(m_window);
 
 	m_cpid = fork() ;
 	if ( m_cpid == -1 )
@@ -184,13 +187,12 @@ bool MPlayer::launch_player(void)
 		dup(m_pfd_read[WRITE]);
 		close(m_pfd_read[WRITE]);
 		
-		
 		char t_widbuf[20];
-		sprintf(t_widbuf, "%d", m_window);
+		sprintf(t_widbuf, "%lu", t_xid);
 		
 		// TS-2007-12-17 : Added in the ability to drop down to use the native X11 video driver if Xv is not present (i.e. no hardware
 		// 					video support.
-		if ( !MCXVideo ) 
+		if ( !MCXVideo )
 			execl(C_PLAYER_CMD, C_PLAYER_CMD, "-vo", "x11","-sws","3","-zoom", "-nokeepaspect", "-osdlevel","0","-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-wid", t_widbuf, (char*)m_filename, (char*)NULL);
 		else 
 			execl(C_PLAYER_CMD, C_PLAYER_CMD, "-osdlevel","0","-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-wid", t_widbuf, (char*)m_filename, (char*)NULL);
@@ -209,54 +211,44 @@ bool MPlayer::launch_player(void)
 
 
 
-bool MPlayer::init( char * p_filename, MCStack *p_stack, MCRectangle p_rect )
+bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect )
 {
 	
 	// Are we already running a movie? If we are, then stop.
 	if ( m_window != DNULL && m_filename != NULL )
 		quit();
 	
-	Window w ;
+	GdkWindow* w ;
 	if ( p_stack == NULL )
 		return false ;
 	
 	// Locate the window for the stack
-	Window stack_window = p_stack->getwindow();
+	GdkWindow* stack_window = p_stack->getwindow();
 	if ( stack_window == DNULL)
 		return false ;
 	
-	
-	// Create a new window
-	XSetWindowAttributes xswa;
-	unsigned long xswamask = CWBorderPixel | CWColormap;
-	xswa.border_pixel = 0;
-	xswa.colormap = ((MCScreenDC *)MCscreen) -> getcmapnative() ; 
-
-	w = XCreateWindow(MCdpy, stack_window, 
-					  p_rect . x,
-					  p_rect . y,
-					  p_rect . width,
-					  p_rect . height ,
-					  0, ((MCScreenDC *)MCscreen)->getrealdepth(), InputOutput,
-					  ((MCScreenDC *)MCscreen)-> getvisnative() ->visual,
-	                  xswamask, &xswa);
+    GdkWindowAttr t_wa;
+    t_wa.colormap = ((MCScreenDC*)MCscreen)->getcmapnative();
+    t_wa.x = p_rect.x;
+    t_wa.y = p_rect.y;
+    t_wa.width = p_rect.width;
+    t_wa.height = p_rect.height;
+    t_wa.event_mask = 0;
+    t_wa.wclass = GDK_INPUT_OUTPUT;
+    t_wa.visual = ((MCScreenDC*)MCscreen)->getvisual();
+    t_wa.window_type = GDK_WINDOW_CHILD;
+    
+    w = gdk_window_new(stack_window, &t_wa, GDK_WA_X|GDK_WA_Y|GDK_WA_VISUAL);
 	
 	if ( w == DNULL )
 		return False;
 	
-	
 	// Set-up our hints so that we have NO window decorations.
-	MwmHints mwmhints;
-	mwmhints.flags	= MWM_HINTS_DECORATIONS ;
-	mwmhints.decorations = 0 ;
-	XChangeProperty(MCdpy, w, MCmwmhintsatom, MCmwmhintsatom, 32,
-	                PropModeReplace, (unsigned char *)&mwmhints,
-	                sizeof(mwmhints) / 4);
-
+    gdk_window_set_decorations(w, GdkWMDecoration(0));
 	
-	// Ensure the newly created window stays above the stack window & map ( show ) 
-	XSetTransientForHint(MCdpy, w, stack_window);
-	XMapWindow(MCdpy, w);
+	// Ensure the newly created window stays above the stack window & map ( show )
+    gdk_window_set_transient_for(w, stack_window);
+    gdk_window_show_unraised(w);
 	
 	m_window = w ;
 	MClastvideowindow = w ;
@@ -268,8 +260,8 @@ bool MPlayer::init( char * p_filename, MCStack *p_stack, MCRectangle p_rect )
 
 	if ( !launch_player() )
 	{
-		XUnmapWindow (MCdpy, m_window);
-		XDestroyWindow (MCdpy, m_window);
+		gdk_window_hide(m_window);
+        gdk_window_destroy(m_window);
 		m_window = DNULL;
 		MClastvideowindow = DNULL ;
 		return false;
@@ -290,78 +282,62 @@ void MPlayer::resize( MCRectangle p_rect)
 	if ( m_window == DNULL)
 		return ;
 	
-	XWindowChanges t_changes ;
-	uint4 t_mask ;
-	
-	t_mask = (CWX | CWY | CWWidth | CWHeight ) ;
-	t_changes . x = p_rect . x ;
-	t_changes . y = p_rect . y ;
-	t_changes . width = p_rect . width ;
-	t_changes . height = p_rect . height ;
-	
-	XConfigureWindow ( MCdpy, m_window, t_mask, &t_changes);
+    gdk_window_move_resize(m_window, p_rect.x, p_rect.y, p_rect.width, p_rect.height);
 	m_player_rect = p_rect ;
-
 }
 
 
 
-void MPlayer::write_command ( char * p_cmd )
+void MPlayer::write_command (MCStringRef p_cmd )
 {
 	if ( m_window == DNULL)
 		return ;
-	char *t_buffer;
-	t_buffer = (char *)malloc(strlen(p_cmd) + 2);
-	sprintf(t_buffer, "%s\n", p_cmd);
-	write(m_pfd_write[WRITE], t_buffer, strlen(t_buffer));
-	free(t_buffer);
+
+	MCAutoStringRefAsCString t_cstring;
+	if (t_cstring.Lock(p_cmd))
+		write(m_pfd_write[WRITE], *t_cstring, MCStringGetLength(p_cmd));
 }
 
-char * MPlayer::read_command( char * p_ans )
+bool MPlayer::read_command(MCStringRef p_ans, MCStringRef& r_ret)
 {
-	const char * cmd_failed = "Failed to get value of property" ;
+	const char *cmd_failed = "Failed to get value of property" ;
 	
-	if ( m_window == DNULL)
-		return NULL;
-	char * t_ret, * t_ptr ;
-	t_ret = (char*)malloc(2048) ;
-	memset(t_ret, 0, 2048);
-	t_ptr = t_ret ;
-	char t_char ;
-	bool t_found = false ;
-	*t_ptr = '\0' ;
-	int t_size = read(m_pfd_read[READ], &t_char, 1 ) ;
-	while (!t_found && t_size != -1)
+	if (m_window == DNULL)
+		return false;
+	
+	MCAutoStringRef t_read;
+	if (!MCStringCreateMutable(0, &t_read))
+		return false;	
+
+	char t_char;
+	int t_size = 0;
+	while (t_size != -1)
 	{
-		while ( t_size != -1 && t_char != '\n' )
-		{
-			*t_ptr=t_char ;
-			t_ptr++;
-			int t_size = read(m_pfd_read[READ], &t_char, 1 ) ;
-		}
+		t_size = read(m_pfd_read[READ], &t_char, 1);
 		
-		if ( strcasestr(t_ret, cmd_failed) != NULL)
+		// Read a line into the string
+		if (t_char != '\n')
 		{
-			t_ret = NULL ;
-			break ;
+			if (!MCStringAppendChar(*t_read, t_char))
+				return false;
+			continue;
 		}
-		
-		
-		if ( strstr(t_ret, p_ans) != NULL)
+
+
+		if (MCStringIsEqualToCString(*t_read, cmd_failed, kMCStringOptionCompareCaseless))
+			return false;
+
+		if (MCStringBeginsWith(*t_read, p_ans, kMCStringOptionCompareCaseless))
 		{
-			t_ret += strlen(p_ans) ;
-			t_found = true ;
+			MCRange t_range = MCRangeMake(MCStringGetLength(p_ans), UINDEX_MAX);
+			return MCStringCopySubstring(*t_read, t_range, r_ret); 
 		}
-		else 
-		{
-			t_char = '\0' ;
-			memset(t_ret, 0, 2048);
-			t_ptr = t_ret ;
-			int t_size = read(m_pfd_read[READ], &t_char, 1 ) ;
-		}
+
+		if (!MCStringRemove(*t_read, MCRangeMake(0, MCStringGetLength(*t_read))))
+			return false;
 	}
 
-	return t_ret;
+	return false;
 }
 
 
@@ -373,7 +349,7 @@ void MPlayer::play ( bool p_play )
 	{
 		if ( m_playing != p_play )
 		{
-			write_command("pause");
+			write_command(MCSTR("pause"));
 			m_playing = !m_playing ;
 		}
 	}
@@ -403,26 +379,26 @@ void MPlayer::pause ( void )
 
 void MPlayer::seek ( int4 p_amount ) 
 {
-	char buffer[1024] ;
-	sprintf(buffer, "pausing_keep seek %d 0", p_amount);
-	write_command ( buffer );
+	MCAutoStringRef t_seek_cmd;
+	if (MCStringFormat(&t_seek_cmd, "pausing_keep seek %d 0", p_amount))
+		write_command (*t_seek_cmd);
 }
 
 void MPlayer::seek(void)
 {
-	write_command("frame_step");
+	write_command(MCSTR("frame_step"));
 }
 
-void MPlayer::osd ( uint4 p_level = 0 )
+void MPlayer::osd (uint4 p_level = 0)
 {
-	char buffer[1024] ;
-	sprintf(buffer, "pausing_keep osd %d", p_level );
-	write_command ( buffer );
+	MCAutoStringRef t_pause_cmd;
+	if (MCStringFormat(&t_pause_cmd, "pausing_keep osd %d", p_level))
+		write_command (*t_pause_cmd);
 }
 
 void MPlayer::osd(void)
 {
-	write_command("pausing_keep osd");
+	write_command(MCSTR("pausing_keep osd"));
 }
 
 void MPlayer::quit(void)
@@ -430,7 +406,7 @@ void MPlayer::quit(void)
 	if ( m_cpid > -1 && m_window != DNULL ) 
 	{
 		int t_status ;
-		write_command("quit");
+		write_command(MCSTR("quit"));
 		// Wait for the child to quit.
 		waitpid(m_cpid, &t_status, 0) ;
 		shutdown();
@@ -443,72 +419,125 @@ void MPlayer::quit(void)
 		}
 
 	}
-} 
+}  
 
-
-void MPlayer::set_property ( char * p_prop, char * p_value ) 
+void MPlayer::set_property(const char * p_prop, MCPlayerPropertyType p_type, void *p_value) 
 {
-	char t_buffer[1024] ;
-	sprintf(t_buffer, "pausing_keep set_property %s %s", p_prop, p_value ) ;
-	write_command( t_buffer ) ;
+	MCAutoStringRef t_set_cmd;
+	bool t_success = false;
+	switch (p_type)
+	{
+		case kMCPlayerPropertyTypeUInt:
+		{
+			uint4 t_value;
+			t_value = *(uint4 *)p_value;
+			t_success = MCStringFormat(&t_set_cmd, "pausing_keep set_property %s %d", p_prop, t_value);
+		}			
+			break;
+		case kMCPlayerPropertyTypeDouble:
+		{
+			double t_value;
+			t_value = *(double *)p_value;
+			t_success = MCStringFormat(&t_set_cmd, "pausing_keep set_property %s %f", p_prop, t_value);
+		}
+			break;
+		case kMCPlayerPropertyTypeBool:
+		{
+			const char *t_value;
+			if (*(bool *)p_value)
+				t_value = "0";
+			else
+				t_value = "-1";
+			t_success = MCStringFormat(&t_set_cmd, "pausing_keep set_property %s %s", p_prop, t_value);
+		}
+			break;
+		default:
+			return;
+	}
+	
+	if (t_success)
+		write_command (*t_set_cmd);
 }
 
 
-char * MPlayer::get_property ( char * p_prop ) 
+bool MPlayer::get_property(const char* p_prop, MCPlayerPropertyType p_type, void *r_value) 
 {
 	if ( m_window == DNULL ) 
-		return "-1";
-		
-	char t_response[1024] ;
-	char t_question[1024];
-	sprintf(t_question, "pausing_keep get_property %s", p_prop);
-	sprintf(t_response, "ANS_%s=", p_prop);
-	write_command(t_question);
-	return (read_command(t_response));
-}
+		return false;
 
+	MCAutoStringRef t_get_cmd;
+	if (!MCStringFormat(&t_get_cmd, "pausing_keep get_property %s", p_prop))
+		return false;
+	
+	write_command (*t_get_cmd);
+		
+	MCAutoStringRef t_response;
+	if (!MCStringFormat(&t_response, "ANS_%s=", p_prop))
+		return false;
+
+	MCAutoStringRef t_string_value;
+	if (!read_command(*t_response, &t_string_value))
+		return false;
+
+	switch (p_type)
+	{
+		case kMCPlayerPropertyTypeUInt:
+		{
+			uint4 t_value;
+			if (!MCU_strtol(*t_string_value, (int4&)t_value))
+				return false;
+			*(uint4 *)r_value = t_value;
+			return true;
+		}		
+		case kMCPlayerPropertyTypeDouble:
+		{
+			double t_value;
+			if (!MCU_stor8(*t_string_value, t_value, false))
+				return false;
+			*(double *)r_value = t_value;
+			return true;
+		}
+		case kMCPlayerPropertyTypeBool:
+		default:
+			break;
+	}
+	return false;
+}
 
 uint4 MPlayer::getduration(void)
 {
-	if ( m_duration == -1 )
+	if (m_duration == UINT32_MAX)
 	{
-		char * t_ret ;
-		t_ret = get_property("stream_length") ;
-		if ( t_ret != NULL )
- 			m_duration = atoi(t_ret);
-		else 
-			m_duration = 0 ;
+		if (!get_property("stream_length", kMCPlayerPropertyTypeUInt, &m_duration))
+			m_duration = 0;
 	}
-	return m_duration ;
+	return m_duration;
 }
 
 
 uint4 MPlayer::getcurrenttime(void)
 {
-	char * t_ret ;
-	t_ret = get_property("stream_pos") ;
-	if ( t_ret != NULL )
- 		return atoi(t_ret);
-	else 
-		return 0 ;
-	
+	uint4 t_time;
+	if (!get_property("stream_pos", kMCPlayerPropertyTypeUInt, &t_time))
+		t_time = 0;
+
+	return t_time;
 }
 
 
 uint4 MPlayer::gettimescale(void)
 {
-	if ( m_timescale == -1 )
+	if (m_timescale == UINT32_MAX)
 	{
 		double t_length ;
-		char * t_ret ;
-		t_ret = get_property("length") ;
-		if ( t_ret != NULL )
+		if (get_property("length", kMCPlayerPropertyTypeDouble, &t_length))
 		{
-			t_length = atof(t_ret);
-			m_timescale = floor(getduration() / t_length) ;
+			m_timescale = floor(getduration() / t_length);
 		}
-		else 
-			m_timescale = 1 ;
+		else
+		{
+			m_timescale = 1;
+		}
 	}
 	return m_timescale ;
 }
@@ -516,33 +545,25 @@ uint4 MPlayer::gettimescale(void)
 
 void MPlayer::setspeed(double p_speed)
 {
-	char t_buffer[100];
-	sprintf(t_buffer, "%f", p_speed);
-	set_property("speed", t_buffer);
+	set_property("speed", kMCPlayerPropertyTypeDouble, &p_speed);
 }
 
 void MPlayer::setlooping(bool p_loop)
 {
-	set_property("looping", (char*)(p_loop ? "0" : "-1") ) ;
+	set_property("looping", kMCPlayerPropertyTypeBool, &p_loop);
 }	
 
-void MPlayer::setloudness(uint4 p_volume )
+void MPlayer::setloudness(uint4 p_volume)
 {
-	char t_buffer[4] ;
-	sprintf(t_buffer,"%d", p_volume);
-	set_property("volume", t_buffer);
+	set_property("volume", kMCPlayerPropertyTypeUInt, &p_volume);
 }
 
 uint4 MPlayer::getloudness(void)
 {
-	if ( m_loudness == -1 )
+	if (m_loudness == UINT32_MAX)
 	{
-		char * t_ret ;
-		t_ret = get_property("volume") ;
-		if ( t_ret != NULL)
-			m_loudness = atoi(t_ret);
-		else 
-			m_loudness = 0 ;
+		if (!get_property("volume", kMCPlayerPropertyTypeUInt, &m_loudness))
+			m_loudness = 0;
 	}
 	return m_loudness;
 

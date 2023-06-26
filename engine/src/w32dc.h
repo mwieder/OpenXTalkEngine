@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -31,13 +31,12 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define MC_WIN_CLASS_NAME		"MCWinClass"
 #define MC_WIN_CLASS_NAME_W L"MCWinClassW"
 #define MC_VIDEO_WIN_CLASS_NAME		"MCVideoWinClass"
-#define MC_QTVIDEO_WIN_CLASS_NAME	"MCQTVideoWinClass"
 #define MC_POPUP_WIN_CLASS_NAME		"MCPopupWinClass"
 #define MC_MENU_WIN_CLASS_NAME		"MCMenuWinClass"
 #define MC_SNAPSHOT_WIN_CLASS_NAME	"MCSnapshotWinClass"
 #define MC_BACKDROP_WIN_CLASS_NAME      "MCBackdropWinClass"
-#define MC_APP_NAME			"Revolution"
-#define MC_APP_NAME_W		L"Revolution"
+#define MC_APP_NAME			"LiveCode"
+#define MC_APP_NAME_W		L"LiveCode"
 
 #define REFRESH_RATE			10.0
 #define SELECTION_WAIT			5000
@@ -49,8 +48,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define fixmaskrop(a) ((a == GXand || a == GXor)?(a == GXand?GXor:GXand):(a == GXandInverted?GXorInverted:GXandInverted))//DEBUG
 #define fixmaskcolor(a) (a.pixel == 0 ? MConecolor:MCzerocolor)//DEBUG
 
-extern LRESULT CALLBACK MCQTPlayerWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
-	        LPARAM lParam);
 
 extern LRESULT CALLBACK MCPlayerWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 	        LPARAM lParam);
@@ -145,7 +142,6 @@ class MCScreenDC : public MCUIDC
 	Boolean owndnd;
 	HWND invisiblehwnd;
 	UINT mousetimer;
-	LPDATAOBJECT dnddata;
 
 	bool backdrop_active;
 	bool backdrop_hard;
@@ -165,9 +161,14 @@ class MCScreenDC : public MCUIDC
 	bool m_printer_dc_locked;
 	bool m_printer_dc_changed;
 
-	IDataObject *m_clipboard;
-
 	HANDLE m_srgb_profile;
+
+    int m_main_window_depth = 0;
+    HWND m_main_window_current = nullptr;
+
+	uint32_t m_metrics_x_dpi;
+	uint32_t m_metrics_y_dpi;
+	NONCLIENTMETRICSW m_metrics_non_client;
 
 protected:
 	static uint4 pen_inks[];
@@ -192,7 +193,7 @@ public:
 	virtual bool hasfeature(MCPlatformFeature p_feature);
 
 	// in w32dcs.cc
-	virtual void setstatus(const char *status);
+	virtual void setstatus(MCStringRef status);
 
 	virtual Boolean open();
 	virtual Boolean close(Boolean force);
@@ -203,7 +204,7 @@ public:
 	virtual void grabpointer(Window w);
 	virtual void ungrabpointer();
 	
-	virtual const char *getdisplayname();
+	virtual MCNameRef getdisplayname();
 	virtual uint2 getwidthmm();
 	virtual uint2 getheightmm();
 	virtual uint2 getmaxpoints();
@@ -216,7 +217,7 @@ public:
 	virtual bool platform_getdisplays(bool p_effective, MCDisplay *&r_displays, uint32_t &r_count);
 	virtual bool platform_displayinfocacheable(void);
 	virtual bool platform_getwindowgeometry(Window w, MCRectangle &drect);
-	virtual void platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m);
+	virtual void platform_boundrect(MCRectangle &rect, Boolean title, Window_mode m, Boolean resizable);
 	virtual void platform_querymouse(int16_t &r_x, int16_t &r_y);
 	virtual void platform_setmouse(int16_t p_x, int16_t p_y);
 	virtual MCStack *platform_getstackatpoint(int32_t x, int32_t y);
@@ -227,6 +228,8 @@ public:
 	MCRectangle logicaltoscreenrect(const MCRectangle &p_rect);
 	MCRectangle screentologicalrect(const MCRectangle &p_rect);
 
+	virtual void *GetNativeWindowHandle(Window p_window);
+
 	virtual void openwindow(Window w, Boolean override);
 	virtual void closewindow(Window window);
 	virtual void destroywindow(Window &window);
@@ -234,7 +237,7 @@ public:
 	virtual void iconifywindow(Window window);
 	virtual void uniconifywindow(Window window);
 	
-	virtual void setname(Window window, const char *newname);
+	virtual void setname(Window window, MCStringRef newname);
 	virtual void setcmap(MCStack *sptr);
 	virtual void sync(Window w);
 	virtual void beep();
@@ -245,7 +248,7 @@ public:
 	virtual void setgraphicsexposures(Boolean on, MCStack *sptr);
 	virtual void copyarea(Drawable source, Drawable dest, int2 depth,
 	                      int2 sx, int2 sy, uint2 sw, uint2 sh,
-	                      int2 dx, int2 dy, uint4 rop);
+                          int2 dx, int2 dy, uint4 rop);
 																	
 	virtual MCColorTransformRef createcolortransform(const MCColorSpaceInfo& info);
 	virtual void destroycolortransform(MCColorTransformRef transform);
@@ -254,30 +257,31 @@ public:
 	virtual MCCursorRef createcursor(MCImageBitmap *image, int2 xhot, int2 yhot);
 	virtual void freecursor(MCCursorRef c);
 
-	virtual uint4 dtouint4(Drawable d);
-	virtual Boolean uint4towindow(uint4, Window &w);
-	virtual void getbeep(uint4 property, MCExecPoint &ep);
+    virtual uintptr_t dtouint(Drawable d);
+    virtual Boolean uinttowindow(uintptr_t, Window &w);
+    virtual void getbeep(uint4 property, int4& r_value);
 	virtual void setbeep(uint4 property, int4 beep);
-	virtual void getvendorstring(MCExecPoint &ep);
+	virtual MCNameRef getvendorname(void);
 	virtual uint2 getpad();
 	virtual Window getroot();
+
 	//virtual bool selectrect(MCRectangle &r_rect);
-	virtual MCImageBitmap *snapshot(MCRectangle &r, uint4 window, const char *displayname, MCPoint *size);
+	virtual MCImageBitmap *snapshot(MCRectangle &r, uint4 window, MCStringRef displayname, MCPoint *size);
 
 	virtual HRGN BitmapToRegion(MCImageBitmap *p_bitmap);
 
 	virtual void expose();
 	virtual Boolean abortkey();
 	virtual uint2 querymods();
-	virtual void getkeysdown(MCExecPoint &ep);
+	virtual bool getkeysdown(MCListRef& r_list);
 	virtual Boolean getmouse(uint2 button, Boolean& r_abort);
 	virtual Boolean getmouseclick(uint2 button, Boolean& r_abort);
 	virtual void addmessage(MCObject *optr, MCNameRef name, real8 time, MCParameter *params);
 	virtual Boolean wait(real8 duration, Boolean dispatch, Boolean anyevent);
 	virtual void flushevents(uint2 e);
 	virtual Boolean istripleclick();
-	virtual char *charsettofontname(uint1 chharset, const char *oldfontname);
-	virtual uint1 fontnametocharset(const char *oldfontname);
+//	virtual char *charsettofontname(uint1 chharset, const char *oldfontname);
+	virtual uint1 fontnametocharset(MCStringRef p_fontname);
 	virtual void clearIME(Window w);
 	virtual void openIME();
 	virtual void activateIME(Boolean activate);
@@ -292,13 +296,13 @@ public:
 	virtual void assignbackdrop(enum Window_mode p_mode, Window p_window);
 
 	virtual void seticon(uint4 p_icon);
-	virtual void seticonmenu(const char *p_menu);
-	virtual void configurestatusicon(uint32_t icon_id, const char *menu, const char *tooltip);
+	virtual void seticonmenu(MCStringRef p_menu);
+	virtual void configurestatusicon(uint32_t icon_id, MCStringRef menu, MCStringRef tooltip);
 
 	virtual void enactraisewindows(void);
 	
 	virtual MCPrinter *createprinter(void);
-	virtual void listprinters(MCExecPoint& ep);
+	virtual bool listprinters(MCStringRef& r_printers);
 
 	//
 
@@ -309,22 +313,18 @@ public:
 
 	//
 
-	virtual void flushclipboard(void);
-	virtual bool ownsclipboard(void);
-	virtual bool setclipboard(MCPasteboard *p_pasteboard);
-	virtual MCPasteboard *getclipboard(void);
-    
     // TD-2013-07-01: [[ DynamicFonts ]]
-    virtual bool loadfont(const char *p_path, bool p_globally, void*& r_loaded_font_handle);
-    virtual bool unloadfont(const char *p_path, bool p_globally, void *r_loaded_font_handle);
+    virtual bool loadfont(MCStringRef p_path, bool p_globally, void*& r_loaded_font_handle);
+    virtual bool unloadfont(MCStringRef p_path, bool p_globally, void *r_loaded_font_handle);
 
 	//
 
-	virtual MCDragAction dodragdrop(MCPasteboard *p_pasteboard, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint* p_image_offset);
+	// SN-2014-07-11: [[ Bug 12769 ]] Update the signature - the non-implemented UIDC dodragdrop was called otherwise
+	virtual MCDragAction dodragdrop(Window w, MCDragActionSet p_allowed_actions, MCImage *p_image, const MCPoint* p_image_offset);
 
 	//
 
-	virtual MCScriptEnvironment *createscriptenvironment(const char *p_language);
+	virtual MCScriptEnvironment *createscriptenvironment(MCStringRef p_language);
 
 	//
 
@@ -356,8 +356,12 @@ public:
 	void redrawbackdrop(void);
 
 	void settaskbarstate(bool p_visible);
-	void processdesktopchanged(bool p_notify = true);
+	void processdesktopchanged(bool p_notify = true, bool p_update_fonts = true);
 	void processtaskbarnotify(HWND hwnd, WPARAM wparam, LPARAM lparam);
+
+	uint32_t getscreenxdpi(void) const { return m_metrics_x_dpi; }
+	uint32_t getscreenydpi(void) const { return m_metrics_y_dpi; }
+	const NONCLIENTMETRICSW& getnonclientmetrics(void) const { return m_metrics_non_client; }
 
 	// These rountines convert a UTF-8 string into with a 'WIDE' or 'ANSI'
 	// string suitable for passing to a windows API W or A function. The
@@ -366,6 +370,10 @@ public:
 	static LPCSTR convertutf8toansi(const char *p_utf8_string);
 
 private:
+	/* Refetch any system metric information that may be changed by either a
+	 * WM_SETTINGCHANGE or WM_DISPALYCHANGE message. */
+	void updatemetrics(void);
+
 	bool initialisebackdrop(void);
 	void finalisebackdrop(void);
 };

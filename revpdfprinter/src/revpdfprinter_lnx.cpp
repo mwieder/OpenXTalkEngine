@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -93,4 +93,10 @@ bool MCPDFPrintingDevice::set_cairo_pdf_datetime_to_now(cairo_pdf_datetime_t &r_
 	r_datetime.utc_minute_offset = 0;
 
 	return true;
+}
+
+// SN-2014-12-23: [[ Bug 14278 ]] Added system-specific to get the path.
+bool MCPDFPrintingDevice::get_filename(const char* p_utf8_path, char *& r_system_path)
+{
+	return MCCStringClone(p_utf8_path, r_system_path);
 }

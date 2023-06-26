@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,13 +14,14 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
+#include "core.h"
+
 #include "w32browser.h"
 #include <activscp.h>
 #include <revolution/support.h>
 
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef long SHANDLE_PTR;
 int CWebBrowser::browseridcounter= 121;
 HRESULT LoadWebBrowserFromStream(IWebBrowser2* pWebBrowser, HGLOBAL pText);
 HRESULT LoadWebBrowserFromStreamDo(IDispatch *pHtmlDoc, HGLOBAL pText);
@@ -66,7 +67,7 @@ struct MYBITMAP
 
 MYBITMAP *createmybitmap(uint2 depth, uint2 width, uint2 height)
 {
-  MYBITMAP *image = new MYBITMAP;
+  MYBITMAP *image = new (nothrow) MYBITMAP;
   image->width = width;
   image->height = height;
   image->depth = (uint1)depth;
@@ -158,9 +159,9 @@ CWebBrowser::CWebBrowser(HWND hparent,  BOOL isvisible)
 	if (SUCCEEDED(hr)) 
 		iunknown->QueryInterface(IID_IWebBrowser2,(void**)&iwebbrowser2); 
 	if (!iwebbrowser2) return;
-	browserevents = new CWebEvents(this); 
+	browserevents = new (nothrow) CWebEvents(this); 
 	browserevents->AddRef();
-	webui = new CWebUI(this);
+	webui = new (nothrow) CWebUI(this);
 	webui->AddRef();
 	browserwindow.SetExternalUIHandler(webui);
 	AtlAdvise(iwebbrowser2, browserevents, DIID_DWebBrowserEvents2,
@@ -185,10 +186,6 @@ CWebBrowser::CWebBrowser(HWND hparent,  BOOL isvisible)
 
 	next = s_browsers;
 	s_browsers = this;
-}
-
-CWebBrowserBase::~CWebBrowserBase(void)
-{
 }
 
 CWebBrowser::~CWebBrowser()
@@ -462,7 +459,7 @@ char *CWebBrowser::CallScript(const char *p_function_name, char **p_arguments, u
 	t_ole_arguments = NULL;
 	if (t_result == S_OK)
 	{
-		t_ole_arguments = new VARIANTARG[p_argument_count];
+		t_ole_arguments = new (nothrow) VARIANTARG[p_argument_count];
 		if (t_ole_arguments != NULL)
 			memset(t_ole_arguments, 0, sizeof(VARIANTARG) * p_argument_count);
 		else
@@ -1344,12 +1341,12 @@ bool CWebBrowser::GetImage(void*& r_data, int& r_length)
 	return t_success;
 }
 
-int CWebBrowser::GetWindowId(void)
+uintptr_t CWebBrowser::GetWindowId(void)
 {
-	return (int)hostwindow;
+	return uintptr_t(hostwindow);
 }
 
-void CWebBrowser::SetWindowId(int p_new_id)
+void CWebBrowser::SetWindowId(uintptr_t p_new_id)
 {
 	HWND t_new_window;
 	t_new_window = (HWND)p_new_id;
@@ -1375,6 +1372,16 @@ char *CWebBrowser::GetUserAgent(void)
 }
 
 void CWebBrowser::SetUserAgent(const char *p_user_agent)
+{
+}
+
+//////////
+
+void CWebBrowser::AddJavaScriptHandler(const char *p_handler)
+{
+}
+
+void CWebBrowser::RemoveJavaScriptHandler(const char *p_handler)
 {
 }
 
@@ -1546,10 +1553,10 @@ void CWebBrowser::swapBrowser()
 	if (SUCCEEDED(hr)) 
 		iunknown->QueryInterface(IID_IWebBrowser2,(void**)&iwebbrowser2); 
 	if (!iwebbrowser2) return;
-	browserevents = new CWebEvents(this); 
+	browserevents = new (nothrow) CWebEvents(this); 
 	browserevents->AddRef();
 	iwebbrowser2->put_Silent(VARIANT_TRUE);
-	webui = new CWebUI(this); webui->AddRef();
+	webui = new (nothrow) CWebUI(this); webui->AddRef();
 	browserwindow.SetExternalUIHandler(webui);
 	AtlAdvise(iwebbrowser2, browserevents, DIID_DWebBrowserEvents2,
 		&browserevents2_cookie);
@@ -2006,6 +2013,11 @@ class CWebBrowserModule: public CAtlDllModuleT<CWebBrowserModule>
 CWebBrowserModule _AtlModule;
 
 HINSTANCE theInstance;
+
+HINSTANCE MCWin32BrowserGetHINSTANCE()
+{
+	return theInstance;
+}
 
 // DLL Entry Point
 extern "C" BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)

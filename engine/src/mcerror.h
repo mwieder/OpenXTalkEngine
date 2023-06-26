@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,12 +21,10 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define	ERROR_H
 
 class MCScriptPoint;
-class MCExecPoint;
 
 class MCError
 {
-	MCString svalue;
-	char *buffer;
+	MCAutoStringRef buffer;
 	uint2 errorline;
 	uint2 errorpos;
 	uint2 depth;
@@ -34,29 +32,30 @@ class MCError
 public:
 	MCError()
 	{
-		buffer = MCU_empty();
+		/* UNCHECKED */ MCStringCreateMutable(0, &buffer);
 		errorline = errorpos = 0;
 		depth = 0;
 		thrown = False;
 	}
-	~MCError()
-	{
-		delete buffer;
-	}
 	void add(uint2 id, MCScriptPoint &);
 	void add(uint2 id, uint2 line, uint2 pos);
 	void add(uint2 id, uint2 line, uint2 pos, uint32_t);
-	void add(uint2 id, uint2 line, uint2 pos, const MCString &);
-	void add(uint2 id, uint2 line, uint2 pos, MCNameRef);
+	// void add(uint2 id, uint2 line, uint2 pos, const MCString &);
+	void add(uint2 id, uint2 line, uint2 pos, const char *);
+	void add(uint2 id, uint2 line, uint2 pos, MCValueRef);
 	void append(MCError& string);
-	const MCString &getsvalue();
-	void copysvalue(const MCString &s, Boolean t);
+	void copystringref(MCStringRef s, Boolean t);
+	bool copyasstringref(MCStringRef &r_string);
+	bool isthrown(void) const {return thrown;}
 	void clear();
 	Boolean isempty()
 	{
-		return strlen(buffer) == 0;
+		return MCStringIsEmpty(*buffer);
 	}
 	void geterrorloc(uint2 &line, uint2 &pos);
+
+private:
+	void doadd(uint2 id, uint2 line, uint2 pos, MCStringRef token);
 };
 #endif
 

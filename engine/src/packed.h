@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -83,30 +83,6 @@ PACKED_INLINE uint4 packed_avg(uint4 x, uint4 y)
 	v = ((((x >> 8) & 0xff00ff) + ((y >> 8) & 0xff00ff)) << 7) & 0xff00ff00;
 
 	return u | v;
-}
-
-PACKED_INLINE float magic_sqrt (float number)
-{
-	float x = number;
-	float xhalf = 0.5f*x;
-	int i = *(int*) &x;
-	i = 0x5f375a84 - ( i >> 1 );
-	x = *(float*) &i;
-	x = x*(1.5f-xhalf*x*x);
-	return number * x;
-
-}
-
-
-PACKED_INLINE float inv_sqrt (float x)
-{
-	float xhalf = 0.5f*x;
-	int i = *(int*) &x;
-	i = 0x5f375a84 - ( i >> 1 );
-	x = *(float*) &i;
-	x = x*(1.5f-xhalf*x*x);
-	return x;
-
 }
 
 #endif

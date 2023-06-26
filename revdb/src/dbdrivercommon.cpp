@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,8 +16,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "dbdrivercommon.h"
 
+#if defined(_WINDOWS) || defined(_WINDOWS_SERVER)
+#define LIBRARY_EXPORT __declspec(dllexport)
+#else
+#define LIBRARY_EXPORT __attribute__((__visibility__("default")))
+#endif
+
 // Default implementations for DBField
 DBField::DBField()
+    : maxlength(),
+      data()
 {
 	freeBuffer = False;
 	isAutoIncrement = False;
@@ -332,7 +340,7 @@ Bool CDBCursor::move(int p_record_index)
 		return True;
 
 	// The absolute value of the difference gives us the number of moves needed to reach the required record.
-	for (unsigned int i = 0; i < abs(t_gap); i++)
+	for (int i = 0; i < abs(t_gap); i++)
 	{
 		Bool t_result;
 		if (t_gap > 0)
@@ -452,3 +460,36 @@ void CDBCursor::FreeFields()
 	fields = NULL;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+static DBcallbacks *dbcallbacks = NULL;
+
+extern "C" LIBRARY_EXPORT void setcallbacksref(DBcallbacks *callbacks)
+{
+    dbcallbacks = callbacks;
+}
+
+#ifndef REVDB_BUILD
+extern "C" void *MCSupportLibraryLoad(const char *p_path)
+{
+    if (dbcallbacks == NULL)
+        return NULL;
+    return dbcallbacks -> load_module(p_path);
+}
+
+extern "C" void MCSupportLibraryUnload(void *p_handle)
+{
+    if (dbcallbacks == NULL)
+        return;
+    dbcallbacks -> unload_module(p_handle);
+}
+
+extern "C" void *MCSupportLibraryLookupSymbol(void *p_handle, const char *p_symbol)
+{
+    if (dbcallbacks == NULL)
+        return NULL;
+    return dbcallbacks -> resolve_symbol_in_module(p_handle, p_symbol);
+}
+#endif
+
+////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
  
  This file is part of LiveCode.
  
@@ -19,11 +19,12 @@
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
-
+#include "globals.h"
 #include "dispatch.h"
 
 #include "uidc.h"
-#include "execpt.h"
+
+#include "exec.h"
 
 #include "graphics.h"
 #include "resolution.h"
@@ -65,6 +66,9 @@ void MCResSetPixelScale(MCGFloat p_scale)
 
 void MCResInitPixelScaling(void)
 {
+	// IM-2014-08-14: [[ Bug 12372 ]] Perform platform-specific setup.
+	MCResPlatformInitPixelScaling();
+
 	// If pixel scaling is available then use it by default
 	s_res_use_pixel_scaling = MCResPlatformSupportsPixelScaling();
 	
@@ -98,7 +102,7 @@ bool MCResGetUsePixelScaling(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MCResListScreenPixelScales(MCExecPoint &ep, bool p_plural)
+void MCResListScreenPixelScales(bool p_plural, uindex_t& r_count, double *&r_list)
 {
 	const MCDisplay *t_displays;
 	t_displays = nil;
@@ -109,9 +113,12 @@ void MCResListScreenPixelScales(MCExecPoint &ep, bool p_plural)
 	uint32_t t_limit;
 	t_limit = p_plural ? t_display_count : 1;
 	
-	ep.clear();
-	for (uint32_t i = 0; i < t_limit; i++)
-		ep.concatreal(t_displays[i].pixel_scale, EC_RETURN, i == 0);
+    MCAutoArray<double> t_list;
+    if (t_list.New(t_limit))
+        for (uint32_t i = 0; i < t_limit; i++)
+            t_list[i] = t_displays[i].pixel_scale;
+
+    t_list . Take(r_list, r_count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

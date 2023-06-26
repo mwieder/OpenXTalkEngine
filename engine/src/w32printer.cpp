@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -14,7 +14,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-#include "w32prefix.h"
+#include "prefix.h"
 
 #include "globdefs.h"
 #include "filedefs.h"
@@ -31,11 +31,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "mode.h"
 #include "region.h"
 
-#include "sserialize.h"
-#include "sserialize_w32.h"
-
 #include "w32dc.h"
-#include "w32context.h"
 #include "w32printer.h"
 
 #include "graphics.h"
@@ -49,10 +45,24 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 extern void Windows_RenderMetaFile(HDC p_color_dc, HDC p_mask_dc, uint1 *p_data, uint4 p_length, const MCRectangle& p_dst_rect);
 
-extern void MCRemotePrintSetupDialog(char *&r_reply_data, uint32_t &r_reply_data_size, uint32_t &r_result, const char *p_config_data, uint32_t p_config_data_size);
-extern void MCRemotePageSetupDialog(char *&r_reply_data, uint32_t &r_reply_data_size, uint32_t &r_result, const char *p_config_data, uint32_t p_config_data_size);
+extern void MCRemotePrintSetupDialog(MCDataRef p_config_data, MCDataRef &r_reply_data, uint32_t &r_result);
+extern void MCRemotePageSetupDialog(MCDataRef p_config_data, MCDataRef &r_reply_data, uint32_t &r_result);
 
-extern bool MCImageBitmapSplitHBITMAPWithMask(HDC p_dc, MCImageBitmap *p_bitmap, HBITMAP &r_bitmap, HBITMAP &r_mask);
+extern bool serialize_bytes(char *&r_stream, uint32_t &r_stream_size, uint32_t &r_offset, const void *p_data, uint32_t p_data_size);
+extern bool deserialize_bytes(const char *p_stream, uint32_t p_stream_size, uint32_t &r_offset, void *p_dest, uint32_t p_size);
+extern bool serialize_uint32(char *&r_stream, uint32_t &r_stream_size, uint32_t &r_offset, uint32_t p_val);
+extern bool deserialize_uint32(const char *p_stream, uint32_t p_stream_size, uint32_t &r_offset, uint32_t &r_val);
+extern bool serialize_data(char *&r_stream, uint32_t &r_stream_size, uint32_t &r_offset, const void *p_data, uint32_t p_data_size);
+extern bool deserialize_data(const char *p_stream, uint32_t p_stream_size, uint32_t &r_offset, void *&r_data, uint32_t &r_size);
+
+extern bool deserialize_data_to_hglobal(const char *p_stream, uint32_t p_stream_size, uint32_t &r_offset, HGLOBAL &r_hglobal);
+// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+extern bool serialize_printdlg_data(char *&r_buffer, uint32_t &r_size, PRINTDLGEXW &p_data);
+extern bool deserialize_printdlg_data(const char *p_buffer, uint32_t p_size, PRINTDLGEXW *&x_data);
+extern bool serialize_pagedlg_data(char *&r_buffer, uint32_t &r_size, PAGESETUPDLGW &p_data);
+extern bool deserialize_pagedlg_data(const char *p_buffer, uint32_t p_size, PAGESETUPDLGW *&x_data);
+
+extern bool MCGImageSplitHBITMAPWithMask(HDC p_dc, MCGImageRef p_image, HBITMAP &r_bitmap, HBITMAP &r_mask);
 extern bool create_temporary_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP& r_bitmap, void*& r_bits);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -94,69 +104,70 @@ inline int32_t PointsToThousandthsInch(int32_t p_value)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static char *Win32GetDefaultPrinter(void)
+static void Win32GetDefaultPrinter(MCStringRef &r_printer)
 {
 	DWORD t_size;
 	t_size = 0;
-	GetDefaultPrinter(NULL, &t_size);
+	GetDefaultPrinterW(NULL, &t_size);
 
-	char *t_string;
-	t_string = new char[t_size];
-	if (GetDefaultPrinterA(t_string, &t_size) == 0)
-	{
-		delete t_string;
-		t_string = NULL;
-	}
+	MCAutoArray<unichar_t> t_buffer;
+	/* UNCHECKED */ t_buffer.New(t_size);
 
-	return t_string;
+	if (GetDefaultPrinterW(t_buffer.Ptr(), &t_size) == 0)
+		r_printer = MCValueRetain(kMCEmptyString);
+	else
+		/* UNCHECKED */ MCStringCreateWithChars(t_buffer.Ptr(), t_size, r_printer);
 }
 
-static char *Win32GetProfileString(const char *p_app, const char *p_key, const char *p_default)
+static void Win32GetProfileString(const wchar_t *p_app, const wchar_t *p_key, const wchar_t *p_default, MCStringRef &r_string)
 {
-	char *t_string;
-	t_string = new char[256];
-	GetProfileStringA(p_app, p_key, p_default, t_string, 256);
-	return t_string;
+	MCAutoArray<unichar_t> t_buffer;
+	/* UNCHECKED */ t_buffer.New(256);
+
+	DWORD t_size;
+	t_size = GetProfileStringW(p_app, p_key, p_default, t_buffer.Ptr(), t_buffer.Size());
+	
+	/* UNCHECKED */ MCStringCreateWithChars(t_buffer.Ptr(), t_size, r_string);
 }
 
-static HANDLE Win32OpenPrinter(const char *p_name)
+static HANDLE Win32OpenPrinter(MCStringRef p_name)
 {
 	HANDLE t_printer;
-	PRINTER_DEFAULTSA t_defaults;
+	PRINTER_DEFAULTSW t_defaults;
 	t_defaults . pDatatype = NULL;
 	t_defaults . pDevMode = NULL;
 	t_defaults . DesiredAccess = PRINTER_ACCESS_USE;
-	if (OpenPrinterA((LPSTR)p_name, &t_printer, &t_defaults) == 0)
+
+	MCAutoStringRefAsLPWSTR t_name_wstr;
+	/* UNCHECKED */ t_name_wstr.Lock(p_name);
+
+	if (OpenPrinterW(*t_name_wstr, &t_printer, &t_defaults) == 0)
 		return NULL;
 
 	return t_printer;
 }
 
-static char *WindowsGetDefaultPrinter(void)
+static void WindowsGetDefaultPrinter(MCStringRef &r_printer)
 {
-	char *t_printer_name;
-	t_printer_name = NULL;
-
-	if (MCmajorosversion >= 0x0500)
-		t_printer_name = Win32GetDefaultPrinter();
+	if (MCmajorosversion >= MCOSVersionMake(5,0,0))
+		Win32GetDefaultPrinter(r_printer);
 	else
 	{
-		char *t_profile_string;
-		t_profile_string = Win32GetProfileString("windows", "device", ",,,");
-		if (t_profile_string != NULL)
+		MCAutoStringRef t_string;
+		Win32GetProfileString(L"windows", L"device", L",,,", &t_string);
+
+		if (!MCStringIsEmpty(*t_string))
 		{
-			t_profile_string[strchr(t_profile_string, ',') - t_profile_string] = '\0';
-			if (strlen(t_profile_string) != 0)
-				t_printer_name = t_profile_string;
+			uindex_t t_comma;
+			if (MCStringFirstIndexOfChar(*t_string, ',', 0, kMCStringOptionCompareExact, t_comma))
+				/* UNCHECKED */ MCStringCopySubstring(*t_string, MCRangeMake(0, t_comma), r_printer);
 			else
-				delete t_profile_string;
+				r_printer = MCValueRetain(kMCEmptyString);
 		}
 	}
-
-	return t_printer_name;
 }
 
-static DEVMODEA *WindowsGetPrinterInfo(const char *p_printer_name, DEVMODEA *p_indevmode = NULL)
+static DEVMODEW *WindowsGetPrinterInfo(MCStringRef p_printer_name, DEVMODEW *p_indevmode = NULL)
 {
 	bool t_success;
 	t_success = true;
@@ -173,17 +184,23 @@ static DEVMODEA *WindowsGetPrinterInfo(const char *p_printer_name, DEVMODEA *p_i
 	LONG t_devmode_size;
 	if (t_success)
 	{
-		t_devmode_size = DocumentPropertiesA(NULL, t_printer, NULL, NULL, NULL, 0);
+		t_devmode_size = DocumentPropertiesW(NULL, t_printer, NULL, NULL, NULL, 0);
 		if (t_devmode_size < 0)
 			t_success = false;
 	}
 
-	DEVMODEA *t_devmode;
+	// SN-2015-03-05: [[ Bug 14160 ]] Ensure that the value returned
+	//  has been initialised (otherwise, we are at the risk a non-nil
+	//  value is returned, and MCWindowsPrinter::DoInitialise will not
+	//  return false.
+	DEVMODEW *t_devmode;
 	t_devmode = NULL;
 	if (t_success)
 	{
-		t_devmode = (DEVMODEA *)new char[t_devmode_size];
-		if (t_devmode == NULL || DocumentPropertiesA(NULL, t_printer, NULL, t_devmode, p_indevmode, (p_indevmode != NULL ? DM_IN_BUFFER : 0) | DM_OUT_BUFFER) < 0)
+		// NOTE: the memory required for the DEVMODE buffer can be bigger than
+		// the DEVMODE structure as the printer driver may append extra data
+		t_devmode = (DEVMODEW*)malloc(t_devmode_size);
+		if (DocumentPropertiesW(NULL, t_printer, NULL, t_devmode, p_indevmode, (p_indevmode != NULL ? DM_IN_BUFFER : 0) | DM_OUT_BUFFER) < 0)
 			t_success = false;
 		else
 		{
@@ -198,37 +215,34 @@ static DEVMODEA *WindowsGetPrinterInfo(const char *p_printer_name, DEVMODEA *p_i
 	if (t_printer != NULL)
 		ClosePrinter(t_printer);
 
-	if (!t_success)
-	{
-		if (t_devmode != NULL)
-			delete t_devmode;
-	}
-
 	return t_devmode;
 }
 
-bool WindowsGetPrinterPaperSize(const char *p_name, DEVMODEA *p_devmode, POINT& r_point)
+bool WindowsGetPrinterPaperSize(MCStringRef p_name, DEVMODEW *p_devmode, POINT& r_point)
 {
+	MCAutoStringRefAsWString t_name_wstr;
+	/* UNCHECKED */ t_name_wstr.Lock(p_name);
+	
 	DWORD t_papers_size;
-	t_papers_size = DeviceCapabilitiesA(p_name, NULL, DC_PAPERS, NULL, p_devmode);
+	t_papers_size = DeviceCapabilitiesW(*t_name_wstr, L"", DC_PAPERS, NULL, p_devmode);
 
 	DWORD t_papersizes_size;
-	t_papersizes_size = DeviceCapabilitiesA(p_name, NULL, DC_PAPERNAMES, NULL, p_devmode);
+	t_papersizes_size = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERNAMES, NULL, p_devmode);
 
 	if (t_papers_size < 0 || t_papersizes_size < 0)
 		return false;
 
 	WORD *t_papers;
-	t_papers = new WORD[t_papers_size];
+	t_papers = new (nothrow) WORD[t_papers_size];
 
 	POINT *t_papersizes;
-	t_papersizes = new POINT[t_papersizes_size];
+	t_papersizes = new (nothrow) POINT[t_papersizes_size];
 
 	DWORD t_papers_count;
-	t_papers_count = DeviceCapabilitiesA(p_name, NULL, DC_PAPERS, (LPSTR)t_papers, p_devmode);
+	t_papers_count = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERS, (LPWSTR)t_papers, p_devmode);
 
 	DWORD t_papersizes_count;
-	t_papersizes_count = DeviceCapabilitiesA(p_name, NULL, DC_PAPERSIZE, (LPSTR)t_papersizes, p_devmode);
+	t_papersizes_count = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERSIZE, (LPWSTR)t_papersizes, p_devmode);
 
 	bool t_success;
 	t_success = false;
@@ -249,28 +263,31 @@ bool WindowsGetPrinterPaperSize(const char *p_name, DEVMODEA *p_devmode, POINT& 
 	return t_success;
 }
 
-bool WindowsGetPrinterPaperIndex(const char *p_name, DEVMODEA *p_devmode, uint32_t p_width_pts, uint32_t p_height_pts, uint32_t& r_index)
+bool WindowsGetPrinterPaperIndex(MCStringRef p_name, DEVMODEW *p_devmode, uint32_t p_width_pts, uint32_t p_height_pts, uint32_t& r_index)
 {
+	MCAutoStringRefAsWString t_name_wstr;
+	/* UNCHECKED */ t_name_wstr.Lock(p_name);
+	
 	DWORD t_papers_size;
-	t_papers_size = DeviceCapabilitiesA(p_name, NULL, DC_PAPERS, NULL, p_devmode);
+	t_papers_size = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERS, NULL, p_devmode);
 
 	DWORD t_papersizes_size;
-	t_papersizes_size = DeviceCapabilitiesA(p_name, NULL, DC_PAPERNAMES, NULL, p_devmode);
+	t_papersizes_size = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERNAMES, NULL, p_devmode);
 
 	if (t_papers_size < 0 || t_papersizes_size < 0)
 		return false;
 
 	WORD *t_papers;
-	t_papers = new WORD[t_papers_size];
+	t_papers = new (nothrow) WORD[t_papers_size];
 
 	POINT *t_papersizes;
-	t_papersizes = new POINT[t_papersizes_size];
+	t_papersizes = new (nothrow) POINT[t_papersizes_size];
 
 	DWORD t_papers_count;
-	t_papers_count = DeviceCapabilitiesA(p_name, NULL, DC_PAPERS, (LPSTR)t_papers, p_devmode);
+	t_papers_count = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERS, (LPWSTR)t_papers, p_devmode);
 
 	DWORD t_papersizes_count;
-	t_papersizes_count = DeviceCapabilitiesA(p_name, NULL, DC_PAPERSIZE, (LPSTR)t_papersizes, p_devmode);
+	t_papersizes_count = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_PAPERSIZE, (LPWSTR)t_papersizes, p_devmode);
 
 	bool t_success;
 	t_success = false;
@@ -291,43 +308,49 @@ bool WindowsGetPrinterPaperIndex(const char *p_name, DEVMODEA *p_devmode, uint32
 	return t_success;
 }
 
-MCPrinterFeatureSet WindowsGetPrinterFeatures(const char *p_name, DEVMODEA *p_devmode)
+MCPrinterFeatureSet WindowsGetPrinterFeatures(MCStringRef p_name, DEVMODEW *p_devmode)
 {
+	MCAutoStringRefAsWString t_name_wstr;
+	/* UNCHECKED */ t_name_wstr.Lock(p_name);
+	
 	MCPrinterFeatureSet t_features;
 	t_features = 0;
 
 	DWORD t_copies;
-	t_copies = DeviceCapabilitiesA(p_name, NULL, DC_COPIES, NULL, p_devmode);
+	t_copies = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_COPIES, NULL, p_devmode);
 	if (t_copies > 1)
 		t_features |= PRINTER_FEATURE_COPIES;
 
 	DWORD t_collate;
-	t_collate = DeviceCapabilitiesA(p_name, NULL, DC_COLLATE, NULL, p_devmode);
+	t_collate = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_COLLATE, NULL, p_devmode);
 	if (t_collate != 0)
 		t_features |= PRINTER_FEATURE_COLLATE;
 
 	DWORD t_duplex;
-	t_duplex = DeviceCapabilitiesA(p_name, NULL, DC_DUPLEX, NULL, p_devmode);
+	t_duplex = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_DUPLEX, NULL, p_devmode);
 	if (t_duplex != 0)
 		t_features |= PRINTER_FEATURE_DUPLEX;
 
 	DWORD t_color;
-	t_color = DeviceCapabilitiesA(p_name, NULL, DC_COLORDEVICE, NULL, p_devmode);
+	t_color = DeviceCapabilitiesW(*t_name_wstr, NULL, DC_COLORDEVICE, NULL, p_devmode);
 	if (t_color != 0)
 		t_features |= PRINTER_FEATURE_COLOR;
 
 	return t_features;
 }
 
-MCRectangle WindowsGetPrinterRectangle(const char *p_name, DEVMODEA *p_devmode)
+MCRectangle WindowsGetPrinterRectangle(MCStringRef p_name, DEVMODEW *p_devmode)
 {
+	MCAutoStringRefAsWString t_name_wstr;
+	/* UNCHECKED */ t_name_wstr.Lock(p_name);
+	
 	MCRectangle t_rect;
 
 	// MW-2008-03-26: [[ Bug 5936 ]] Make sure the IC is actually created and
 	//   that we don't attempt to divide by 0 if the resolution is returned as
 	//   0.
 	HDC t_dc;
-	t_dc = CreateICA((LPCSTR)p_devmode -> dmDeviceName, p_name, NULL, p_devmode);
+	t_dc = CreateICW(p_devmode -> dmDeviceName, *t_name_wstr, NULL, p_devmode);
 	if (t_dc != NULL)
 	{
 		int t_physical_width, t_physical_height;
@@ -368,10 +391,11 @@ MCRectangle WindowsGetPrinterRectangle(const char *p_name, DEVMODEA *p_devmode)
 	return t_rect;
 }
 
-HRESULT WindowsPrintDlgEx(PRINTDLGEXA *p_dlg)
+// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+HRESULT WindowsPrintDlgEx(PRINTDLGEXW *p_dlg)
 {
-	return PrintDlgExA(p_dlg);
-		}
+	return PrintDlgExW(p_dlg);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -459,7 +483,7 @@ static void resolve_dashes(int2 p_offset, uint1* p_data, uint4 p_length, DWORD*&
 	uint2 t_start;
 	t_start = 0;
 	
-	r_out_data = new DWORD[p_length + 2];
+	r_out_data = new (nothrow) DWORD[p_length + 2];
 
 	while(p_offset >= p_data[t_start])
 	{
@@ -508,6 +532,15 @@ bool MCGDIMetaContext::candomark(MCMark *mark)
 	// Group marks are only generated precisely when the (most feable)
 	// system context cannot render it.
 	return mark -> type != MARK_TYPE_GROUP;
+}
+
+inline MCRectangle MCGDIInsetRectangle(const MCRectangle &p_rect, uint32_t p_inset)
+{
+	/* TODO - fix half pixels lost when insetting by odd integers */
+	return MCRectangleMake(p_rect.x + p_inset / 2,
+		p_rect.y + p_inset / 2,
+		MCMax(0, (int32_t)p_rect.width - p_inset),
+		MCMax(0, (int32_t)p_rect.height - p_inset));
 }
 
 void MCGDIMetaContext::domark(MCMark *p_mark)
@@ -737,7 +770,7 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 		case MARK_TYPE_POLYGON:
 		{
 			POINT *t_points;
-			t_points = new POINT[p_mark -> polygon . count];
+			t_points = new (nothrow) POINT[p_mark -> polygon . count];
 			if (t_points == NULL)
 				break;
 
@@ -786,7 +819,8 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 			else
 				SetBkMode(t_dc, TRANSPARENT);
 			if (p_mark -> text . unicode_override)
-				TextOutW(t_dc, p_mark -> text . position . x, p_mark -> text . position . y, (LPCWSTR)p_mark -> text . data, p_mark -> text . length >> 1);
+				// SN-2014-10-31: [[ Bug 13866 ]] The length is in characters, so fits the number of wchars
+				TextOutW(t_dc, p_mark -> text . position . x, p_mark -> text . position . y, (LPCWSTR)p_mark -> text . data, p_mark -> text . length);
 			else
 				TextOutA(t_dc, p_mark -> text . position . x, p_mark -> text . position . y, (LPCSTR)p_mark -> text . data, p_mark -> text . length);
 
@@ -801,16 +835,7 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 		case MARK_TYPE_RECTANGLE:
 		{
 			if (t_should_inset)
-			{
-                // MM-2014-04-23: [[ Bug 11884 ]] Inset the bounds. Since GDI only accepts ints, if the inset value is uneven,
-                // round up to the nearest even value, keeping behaviour as close to that of the graphics context as possible.
-				if (!(p_mark -> rectangle . inset % 2))
-					p_mark -> rectangle . inset ++;
-				p_mark -> rectangle . bounds = MCRectangleMake(p_mark -> rectangle . bounds . x + p_mark -> rectangle . inset / 2,
-															   p_mark -> rectangle . bounds . y + p_mark -> rectangle . inset / 2, 
-															   p_mark -> rectangle . bounds . width - p_mark -> rectangle . inset, 
-															   p_mark -> rectangle . bounds . height - p_mark -> rectangle . inset);
-			}
+				p_mark->rectangle.bounds = MCGDIInsetRectangle(p_mark->rectangle.bounds, p_mark->rectangle.inset);
 			
 			Rectangle(t_dc, p_mark -> rectangle . bounds . x, p_mark -> rectangle . bounds . y,
 											p_mark -> rectangle . bounds . x + p_mark -> rectangle . bounds . width,
@@ -821,19 +846,8 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 		case MARK_TYPE_ROUND_RECTANGLE:
 		{
 			if (t_should_inset)
-			{
-                // MM-2014-04-23: [[ Bug 11884 ]] Inset the bounds. Since GDI only accepts ints, if the inset value is uneven,
-                // round up to the nearest even value, keeping behaviour as close to that of the graphics context as possible.
-				if (!(p_mark -> round_rectangle . inset % 2))
-					p_mark -> round_rectangle . inset ++;
-				p_mark -> round_rectangle . bounds = MCRectangleMake(p_mark -> round_rectangle . bounds . x + p_mark -> round_rectangle . inset / 2,
-																	 p_mark -> round_rectangle . bounds . y + p_mark -> round_rectangle . inset / 2, 
-																	 p_mark -> round_rectangle . bounds . width - p_mark -> round_rectangle . inset, 
-																	 p_mark -> round_rectangle . bounds . height - p_mark -> round_rectangle . inset);
-			}
+				p_mark->round_rectangle.bounds = MCGDIInsetRectangle(p_mark->round_rectangle.bounds, p_mark->round_rectangle.inset);
 			
-			int4 t_adjust;
-			t_adjust = p_mark -> stroke != NULL ? 0 : 1;
 			RoundRect(t_dc, p_mark -> round_rectangle . bounds . x, p_mark -> round_rectangle . bounds . y,
 											p_mark -> round_rectangle . bounds . x + p_mark -> round_rectangle . bounds . width,
 											p_mark -> round_rectangle . bounds . y + p_mark -> round_rectangle . bounds . height, p_mark -> round_rectangle . radius,
@@ -843,16 +857,7 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 
 		case MARK_TYPE_ARC:
 			if (t_should_inset)
-			{
-                // MM-2014-04-23: [[ Bug 11884 ]] Inset the bounds. Since GDI only accepts ints, if the inset value is uneven,
-                // round up to the nearest even value, keeping behaviour as close to that of the graphics context as possible.
-				if (!(p_mark -> arc . inset % 2))
-					p_mark -> arc . inset ++;
-				p_mark -> arc . bounds = MCRectangleMake(p_mark -> arc . bounds . x + p_mark -> arc . inset / 2,
-														 p_mark -> arc . bounds . y + p_mark -> arc . inset / 2, 
-														 p_mark -> arc . bounds . width - p_mark -> arc . inset, 
-														 p_mark -> arc . bounds . height - p_mark -> arc . inset);				
-			}
+				p_mark->arc.bounds = MCGDIInsetRectangle(p_mark->arc.bounds, p_mark->arc.inset);
 			
 			gdi_do_arc(t_dc, NULL, p_mark -> stroke == NULL, p_mark -> arc . bounds . x, p_mark -> arc . bounds . y, p_mark -> arc . bounds . x + p_mark -> arc . bounds . width, p_mark -> arc . bounds . y + p_mark -> arc . bounds . height, p_mark -> arc . start, p_mark -> arc . start + p_mark -> arc . angle);
 			if (p_mark -> stroke != NULL)
@@ -893,11 +898,11 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 			int32_t t_src_y = p_mark->image.dy - p_mark->image.sy;
 
 			DWORD t_err;
-			if (p_mark->image.descriptor.bitmap != nil)
+			if (p_mark->image.descriptor.image != nil)
 			{
-				/* UNCHECKED */ MCImageBitmapSplitHBITMAPWithMask(t_src_dc, p_mark->image.descriptor.bitmap, t_src_bitmap, t_src_mask);
-				t_src_width = p_mark->image.descriptor.bitmap->width;
-				t_src_height = p_mark->image.descriptor.bitmap->height;
+				/* UNCHECKED */ MCGImageSplitHBITMAPWithMask(t_src_dc, p_mark->image.descriptor.image, t_src_bitmap, t_src_mask);
+				t_src_width = MCGImageGetWidth(p_mark->image.descriptor.image);
+				t_src_height = MCGImageGetHeight(p_mark->image.descriptor.image);
 			}
 
 			if (!p_mark->image.descriptor.has_transform)
@@ -987,64 +992,74 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 		RECT t_clip;
 		GetClipBox(t_dc, &t_clip);
 
-		// IM-2013-08-14: [[ ResIndependence ]] Apply pattern scale factor
-		MCGFloat t_scale;
-		t_scale = p_mark -> fill -> pattern -> scale;
+		MCGImageRef t_image;
+		MCGAffineTransform t_transform;
 
-		// Now create a suitable pattern by tiling out the selected pattern to be
-		// at least 32x32
-		int32_t t_src_width, t_src_height;
-		t_src_width = MCGImageGetWidth(p_mark -> fill -> pattern -> image) / t_scale;
-		t_src_height = MCGImageGetHeight(p_mark -> fill -> pattern -> image) / t_scale;
+		// IM-2014-05-13: [[ HiResPatterns ]] Update pattern access to use lock function
+		if (MCPatternLockForContextTransform(p_mark->fill->pattern, MCGAffineTransformMakeIdentity(), t_image, t_transform))
+		{
+			MCGRectangle t_src_rect;
+			t_src_rect = MCGRectangleMake(0, 0,
+				MCGImageGetWidth(t_image), MCGImageGetHeight(t_image));
 
-		int32_t t_width, t_height;
-		t_width = t_src_width;
-		t_height = t_src_height;
-		while(t_width < 32)
-			t_width *= 2;
-		while(t_height < 32)
-			t_height *= 2;
+			MCGRectangle t_dst_rect;
+			t_dst_rect = MCGRectangleApplyAffineTransform(t_src_rect, t_transform);
 
-		HDC t_src_dc;
-		t_src_dc = CreateCompatibleDC(m_dc);
+			// Now create a suitable pattern by tiling out the selected pattern to be
+			// at least 32x32
 
-		// draw the pattern image into a bitmap
-		HBITMAP t_pattern = nil;
-		void *t_bits = nil;
-		/* UNCHECKED */ create_temporary_dib(t_src_dc, t_width, t_height, t_pattern, t_bits);
-		MCGContextRef t_context = nil;
-		/* UNCHECKED */ MCGContextCreateWithPixels(t_width, t_height, t_width * sizeof(uint32_t), t_bits, true, t_context);
+			int32_t t_x_tiles, t_y_tiles;
+			t_x_tiles = ceilf(32.0 / t_dst_rect.size.width);
+			t_y_tiles = ceilf(32.0 / t_dst_rect.size.height);
 
-		// IM-2013-08-14: [[ ResIndependence ]] Apply pattern scale factor
-        // MM-2014-01-27: [[ UpdateImageFilters ]] Updated to use new libgraphics image filter types (was nearest).
-		MCGContextSetFillPattern(t_context, p_mark->fill->pattern->image, MCGAffineTransformMakeScale(1.0 / t_scale, 1.0 / t_scale), kMCGImageFilterNone);
-		MCGContextAddRectangle(t_context, MCGRectangleMake(0, 0, t_width, t_height));
-		MCGContextFill(t_context);
+			int32_t t_width, t_height;
+			t_width = ceilf(t_x_tiles * t_dst_rect.size.width);
+			t_height = ceilf(t_y_tiles * t_dst_rect.size.height);
 
-		MCGContextRelease(t_context);
-		
-		// Finally adjust the starting position based on origin, and tile the clip.
-		int32_t x, y;
-		x = p_mark -> fill -> origin . x;
-		y = p_mark -> fill -> origin . y;
-		while(x > t_clip . left)
-			x -= t_width;
-		while(x + t_width < t_clip . left)
-			x += t_width;
-		while(y > t_clip . top)
-			y -= t_height;
-		while(y + t_height < t_clip . top)
-			y += t_height;
+			HDC t_src_dc;
+			t_src_dc = CreateCompatibleDC(m_dc);
 
-		SelectObject(t_src_dc, t_pattern);
-		for(; y < t_clip . bottom; y += t_height)
-			for(int32_t tx = x; tx < t_clip . right; tx += t_width)
-				BitBlt(m_dc, tx, y, t_width, t_height, t_src_dc, 0, 0, SRCCOPY);
+			// draw the pattern image into a bitmap
+			HBITMAP t_pattern = nil;
+			void *t_bits = nil;
+			/* UNCHECKED */ create_temporary_dib(t_src_dc, t_width, t_height, t_pattern, t_bits);
+			MCGContextRef t_context = nil;
+			/* UNCHECKED */ MCGContextCreateWithPixels(t_width, t_height, t_width * sizeof(uint32_t), t_bits, true, t_context);
 
-		if (t_pattern != nil)
-			DeleteObject(t_pattern);
-		if (t_src_dc != nil)
-			DeleteDC(t_src_dc);
+			// IM-2013-08-14: [[ ResIndependence ]] Apply pattern scale factor
+			// MM-2014-01-27: [[ UpdateImageFilters ]] Updated to use new libgraphics image filter types (was nearest).
+			MCGContextSetFillPattern(t_context, t_image, t_transform, kMCGImageFilterNone);
+			MCGContextAddRectangle(t_context, MCGRectangleMake(0, 0, t_width, t_height));
+			MCGContextFill(t_context);
+
+			MCGContextRelease(t_context);
+
+			MCPatternUnlock(p_mark->fill->pattern, t_image);
+
+
+			// Finally adjust the starting position based on origin, and tile the clip.
+			int32_t x, y;
+			x = p_mark -> fill -> origin . x;
+			y = p_mark -> fill -> origin . y;
+			while(x > t_clip . left)
+				x -= t_width;
+			while(x + t_width < t_clip . left)
+				x += t_width;
+			while(y > t_clip . top)
+				y -= t_height;
+			while(y + t_height < t_clip . top)
+				y += t_height;
+
+			SelectObject(t_src_dc, t_pattern);
+			for(; y < t_clip . bottom; y += t_height)
+				for(int32_t tx = x; tx < t_clip . right; tx += t_width)
+					BitBlt(m_dc, tx, y, t_width, t_height, t_src_dc, 0, 0, SRCCOPY);
+
+			if (t_pattern != nil)
+				DeleteObject(t_pattern);
+			if (t_src_dc != nil)
+				DeleteDC(t_src_dc);
+		}
 	}
 
 	if (t_old_pen != NULL)
@@ -1163,16 +1178,18 @@ const char *MCWindowsPrinterDevice::Error(void) const
 	return m_error;
 }
 
-MCPrinterResult MCWindowsPrinterDevice::Start(HDC p_dc, const char *p_document_name, const char *p_output_file)
+// SN-2014-12-22: [[ Bug 14278 ]] Function updated to take wchar params
+MCPrinterResult MCWindowsPrinterDevice::Start(HDC p_dc, const wchar_t *p_document_name, const wchar_t *p_output_file)
 {
-	DOCINFOA t_info;
-	t_info . cbSize = sizeof(DOCINFOA);
+    // SN-2014-12-22: [[ Bug 14278 ]] Document name and output file now encoded as UTF16 chars
+	DOCINFOW t_info;
+	t_info . cbSize = sizeof(DOCINFOW);
 	t_info . lpszDocName = p_document_name;
 	t_info . lpszOutput = p_output_file;
 	t_info . lpszDatatype = NULL;
 	t_info . fwType = 0;
 	
-	if (StartDocA(p_dc, &t_info) <= 0)
+	if (StartDocW(p_dc, &t_info) <= 0)
 	{
 		SetError("unable to start document");
 		return PRINTER_RESULT_ERROR;
@@ -1252,8 +1269,8 @@ MCPrinterResult MCWindowsPrinterDevice::Begin(const MCPrinterRectangle& p_src_re
 	// Calculate the convex integer hull of the source rectangle.
 	//
 	MCRectangle t_src_rect_hull;
-	t_src_rect_hull . x = (int4)floor(p_src_rect . top);
-	t_src_rect_hull . y = (int4)floor(p_src_rect . left);
+	t_src_rect_hull . x = (int4)floor(p_src_rect . left);
+	t_src_rect_hull . y = (int4)floor(p_src_rect . top);
 	t_src_rect_hull . width = (int4)(ceil(p_src_rect . right) - floor(p_src_rect . left));
 	t_src_rect_hull . height = (int4)(ceil(p_src_rect . bottom) - floor(p_src_rect . top));
 
@@ -1261,7 +1278,7 @@ MCPrinterResult MCWindowsPrinterDevice::Begin(const MCPrinterRectangle& p_src_re
 	// rectangle
 	//
 	MCGDIMetaContext *t_context;
-	t_context = new MCGDIMetaContext(t_src_rect_hull);
+	t_context = new (nothrow) MCGDIMetaContext(t_src_rect_hull);
 	r_context = t_context;
 
 	m_src_rect = p_src_rect;
@@ -1304,14 +1321,16 @@ MCPrinterResult MCWindowsPrinterDevice::Bookmark(const char *title, double x, do
 void MCWindowsPrinter::DoInitialize(void)
 {
 	m_valid = false;
-	m_name = NULL;
+	// SN-2015-03-18: [[ Win shutdown crash ]] Avoid memory leak at printer
+	//  initialisation
+	MCValueAssign(m_name, kMCEmptyString);
 	m_devmode = NULL;
 	
 	m_dc = NULL;
 	m_dc_locked = false;
 	m_dc_changed = false;
 
-	DoReset(NULL);
+	DoReset(kMCEmptyString);
 }
 
 void MCWindowsPrinter::DoFinalize(void)
@@ -1321,75 +1340,86 @@ void MCWindowsPrinter::DoFinalize(void)
 	m_dc_locked = false;
 	m_dc_changed = false;
 
-	delete m_name;
+	MCValueRelease(m_name);
+	// SN-2015-03-18: [[ Win shutdown crash ]] Do not over-release m_name
+	m_name = NULL;
+
 	delete m_devmode;
 	m_valid = false;
 }
 
-bool MCWindowsPrinter::DoReset(const char *p_name)
+bool MCWindowsPrinter::DoReset(MCStringRef p_name)
 {
 	// Get a copy of the printer name - fetching the default
 	// name if the incoming name is NULL.
 	//
-	char *t_name;
-	if (p_name == NULL || *p_name == '\0')
+	MCAutoStringRef t_name;
+	if (MCStringIsEmpty(p_name))
 	{
-		t_name = WindowsGetDefaultPrinter();
-		if (t_name == NULL)
+		WindowsGetDefaultPrinter(&t_name);
+		if (MCStringIsEmpty(*t_name))
 			return false;
 	}
 	else
-		t_name = strdup(p_name);
+		t_name = p_name;
 
 	// Fetch the DEVMODE for the printer with the given name
 	//
-	DEVMODEA *t_devmode;
-	t_devmode = WindowsGetPrinterInfo(t_name);
+	DEVMODEW *t_devmode;
+	t_devmode = WindowsGetPrinterInfo(*t_name);
 	if (t_devmode == NULL)
 	{
-		delete t_name;
 		return false;
 	}
 
 	// Reset the printer properties based on the name and devmode
 	// Ownership of these pointers passes to 'Reset'.
 	//
-	Reset(t_name, t_devmode);
+	Reset(*t_name, t_devmode);
 
 	return true;
 }
 
-bool MCWindowsPrinter::DoResetSettings(const MCString& p_settings)
+bool MCWindowsPrinter::DoResetSettings(MCDataRef p_settings)
 {
-	if (p_settings . getlength() == 0)
-		return DoReset(NULL);
+	if (MCDataIsEmpty(p_settings))
+		return DoReset(kMCEmptyString);
 
 	// Attempt to decode the settings string into name and devmode
 	// This call also automatically validates the settings
 	//
-	char *t_name;
-	DEVMODEA *t_devmode;
-	if (!DecodeSettings(p_settings, t_name, t_devmode))
+	MCAutoStringRef t_name;
+	DEVMODEW *t_devmode;
+	if (!DecodeSettings(p_settings, &t_name, t_devmode))
 		return false;
 
 	// Reset the printer properties based on the name and devmode
 	// Ownership of these pointers passes to 'Reset'.
 	//
-	Reset(t_name, t_devmode);
+	Reset(*t_name, t_devmode);
 
 	return true;
 }
 
 const char *MCWindowsPrinter::DoFetchName(void)
 {
-	return m_name;
+    char *t_name;
+    /* UNCHECKED */ MCStringConvertToCString(m_name, t_name);
+	return t_name;
 }
 
 void MCWindowsPrinter::DoFetchSettings(void*& r_buffer, uint4& r_length)
 {
 	Synchronize();
 
-	EncodeSettings(m_name, m_devmode, r_buffer, r_length);
+	MCAutoDataRef t_data;
+	EncodeSettings(m_name, m_devmode, &t_data);
+
+	// This is ugly. Hopefully printing will get sorted out soon...
+	void *t_buffer = new (nothrow) byte_t[MCDataGetLength(*t_data)];
+	memcpy(t_buffer, MCDataGetBytePtr(*t_data), MCDataGetLength(*t_data));
+	r_buffer = t_buffer;
+	r_length = MCDataGetLength(*t_data);
 }
 
 void MCWindowsPrinter::DoResync(void)
@@ -1410,7 +1440,7 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 	t_range_count = MCU_max(0, GetJobRangeCount());
 
 	PRINTPAGERANGE *t_ranges;
-	t_ranges = new PRINTPAGERANGE[64];
+	t_ranges = new (nothrow) PRINTPAGERANGE[64];
 	for(int i = 0; i < t_range_count; ++i)
 	{
 		t_ranges[i] . nFromPage = GetJobRanges()[i] . from;
@@ -1420,11 +1450,12 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 	MCPrinterDialogResult t_result;
 	bool t_apply;
 	t_apply = false;
-	if (MCmajorosversion >= 0x0500)
+	if (MCmajorosversion >= MCOSVersionMake(5,0,0))
 	{
-		PRINTDLGEXA t_dlg;
-		memset(&t_dlg, 0, sizeof(PRINTDLGEXA));
-		t_dlg . lStructSize = sizeof(PRINTDLGEXA);
+		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+		PRINTDLGEXW t_dlg;
+		memset(&t_dlg, 0, sizeof(PRINTDLGEXW));
+		t_dlg . lStructSize = sizeof(PRINTDLGEXW);
 		t_dlg . Flags = PD_USEDEVMODECOPIESANDCOLLATE;
 		t_dlg . nStartPage = START_PAGE_GENERAL;
 		t_dlg . hDevMode = t_devmode_handle;
@@ -1468,17 +1499,17 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 			uint32_t t_databuffer_size = 0;
 			if (serialize_printdlg_data(t_databuffer, t_databuffer_size, t_dlg))
 			{
-				char *t_replydata;
-				uint32_t t_replysize;
+				MCAutoDataRef t_replydata;
 				uint32_t t_replyresult;
 
-				MCRemotePrintSetupDialog(t_replydata, t_replysize, t_replyresult, t_databuffer, t_databuffer_size);
-				free(t_databuffer);
+                MCAutoDataRef t_databuffer_str;
+                 /* UNCHECKED */ MCDataCreateWithBytesAndRelease((byte_t *)t_databuffer, t_databuffer_size, &t_databuffer_str);
+                MCRemotePrintSetupDialog(*t_databuffer_str, &t_replydata, t_replyresult);
 
-				PRINTDLGEXA *t_dlg_ptr = &t_dlg;
-				deserialize_printdlg_data(t_replydata, t_replysize, t_dlg_ptr);
+				// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+				PRINTDLGEXW *t_dlg_ptr = &t_dlg;
+				deserialize_printdlg_data((const char *)MCDataGetBytePtr(*t_replydata), MCDataGetLength(*t_replydata), t_dlg_ptr);
 				t_dialog_result = (HRESULT)t_replyresult;
-				free(t_replydata);
 			}
 		}
 		else
@@ -1520,9 +1551,10 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 	}
 	else
 	{
-		PRINTDLGA t_dlg;
-		memset(&t_dlg, 0, sizeof(PRINTDLGA));
-		t_dlg . lStructSize = sizeof(PRINTDLGA);
+		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+		PRINTDLGW t_dlg;
+		memset(&t_dlg, 0, sizeof(PRINTDLGW));
+		t_dlg . lStructSize = sizeof(PRINTDLGW);
 		t_dlg . Flags = PD_USEDEVMODECOPIESANDCOLLATE;
 		t_dlg . hDevMode = t_devmode_handle;
 		t_dlg . hDevNames = t_devnames_handle;
@@ -1553,7 +1585,8 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 		t_dlg . nMinPage = 0;
 		t_dlg . nMaxPage = 65535;
 
-		if (PrintDlgA(&t_dlg) != 0)
+		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+		if (PrintDlgW(&t_dlg) != 0)
 			t_result = PRINTER_DIALOG_RESULT_OKAY, t_apply = true;
 		else if (CommDlgExtendedError() == 0)
 			t_result = PRINTER_DIALOG_RESULT_CANCEL;
@@ -1577,7 +1610,7 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 
 	if (t_apply)
 	{
-		MCRange *t_page_ranges;
+		MCInterval *t_page_ranges;
 		t_page_ranges = NULL;
 		int t_page_range_count;
 		t_page_range_count = 0;
@@ -1607,10 +1640,11 @@ MCPrinterDialogResult MCWindowsPrinter::DoPageSetup(bool p_window_modal, Window 
 	if (!FetchDialogData(t_devmode_handle, t_devnames_handle))
 		return PRINTER_DIALOG_RESULT_ERROR;
 
+	// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
 	MCPrinterDialogResult t_result;
-	PAGESETUPDLGA t_dlg;
-	memset(&t_dlg, 0, sizeof(PAGESETUPDLGA));
-	t_dlg . lStructSize = sizeof(PAGESETUPDLGA);
+	PAGESETUPDLGW t_dlg;
+	memset(&t_dlg, 0, sizeof(PAGESETUPDLGW));
+	t_dlg . lStructSize = sizeof(PAGESETUPDLGW);
 	t_dlg . Flags = PSD_INTHOUSANDTHSOFINCHES | PSD_MARGINS | PSD_MINMARGINS;
 	t_dlg . hDevMode = t_devmode_handle;
 	t_dlg . hDevNames = t_devnames_handle;
@@ -1624,31 +1658,33 @@ MCPrinterDialogResult MCWindowsPrinter::DoPageSetup(bool p_window_modal, Window 
 	
 	bool t_apply;
 	t_apply = false;
+    
 	if (!MCModeMakeLocalWindows())
 	{
 		char *t_databuffer = NULL;
 		uint32_t t_databuffer_size = 0;
 		if (serialize_pagedlg_data(t_databuffer, t_databuffer_size, t_dlg))
 		{
-			char *t_replydata;
-			uint32_t t_replysize;
-			uint32_t t_replyresult;
+			MCAutoDataRef t_replydata;
+            uint32_t t_replyresult;
 
-			MCRemotePageSetupDialog(t_replydata, t_replysize, t_replyresult, t_databuffer, t_databuffer_size);
-			free(t_databuffer);
+            MCAutoDataRef t_databuffer_str;
+            /* UNCHECKED */ MCDataCreateWithBytesAndRelease((byte_t *)t_databuffer, t_databuffer_size, &t_databuffer_str);
+			MCRemotePageSetupDialog(*t_databuffer_str, &t_replydata, t_replyresult);
 
-			PAGESETUPDLGA *t_dlg_ptr = &t_dlg;
-			deserialize_pagedlg_data(t_replydata, t_replysize, t_dlg_ptr);
+			// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+			PAGESETUPDLGW *t_dlg_ptr = &t_dlg;
+			deserialize_pagedlg_data((const char *)MCDataGetBytePtr(*t_replydata), MCDataGetLength(*t_replydata), t_dlg_ptr);
 			t_result = (MCPrinterDialogResult) t_replyresult;
 			if (t_result == PRINTER_DIALOG_RESULT_OKAY)
 				t_apply = true;
 
-			free(t_replydata);
 		}
 	}
 	else
 	{
-		if (PageSetupDlgA(&t_dlg) != 0)
+		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+		if (PageSetupDlgW(&t_dlg) != 0)
 			t_result = PRINTER_DIALOG_RESULT_OKAY, t_apply = true;
 		else if (CommDlgExtendedError() == 0)
 			t_result = PRINTER_DIALOG_RESULT_CANCEL;
@@ -1671,7 +1707,7 @@ MCPrinterDialogResult MCWindowsPrinter::DoPageSetup(bool p_window_modal, Window 
 
 ///////////////////////////////////////////////////////////////////////////////
 
-MCPrinterResult MCWindowsPrinter::DoBeginPrint(const char *p_document_name, MCPrinterDevice*& r_device)
+MCPrinterResult MCWindowsPrinter::DoBeginPrint(MCStringRef p_document_name, MCPrinterDevice*& r_device)
 {
 	if (!m_valid)
 		return PRINTER_RESULT_ERROR;
@@ -1682,11 +1718,23 @@ MCPrinterResult MCWindowsPrinter::DoBeginPrint(const char *p_document_name, MCPr
 		return PRINTER_RESULT_ERROR;
 
 	MCWindowsPrinterDevice *t_device;
-	t_device = new MCWindowsPrinterDevice;
+	t_device = new (nothrow) MCWindowsPrinterDevice;
 
 	MCPrinterResult t_result;
-	t_result = t_device -> Start(t_dc, p_document_name, GetDeviceOutputLocation());
-
+    // SN-2014-12-22: [[ Bug 14278 ]] Updated to Unicode name and location
+    MCAutoStringRefAsWString t_doc_name, t_output_file;
+    /* UNCHECKED */ t_doc_name . Lock(p_document_name);
+    
+    MCAutoStringRef t_output_file_stringref;
+	if (GetDeviceOutputLocation() != NULL)
+	{
+		/* UNCHECKED */ MCStringCreateWithBytes((byte_t*)GetDeviceOutputLocation(), strlen(GetDeviceOutputLocation()), kMCStringEncodingUTF8, false, &t_output_file_stringref);
+		/* UNCHECKED */ t_output_file . Lock(*t_output_file_stringref);
+	}
+	else
+		t_output_file . Lock(kMCEmptyString);
+    
+	t_result = t_device -> Start(t_dc, *t_doc_name, *t_output_file);
 
 	r_device = t_device;
 
@@ -1712,7 +1760,7 @@ MCPrinterResult MCWindowsPrinter::DoEndPrint(MCPrinterDevice *p_device)
 //
 // Ownership of p_name and p_devmode pass to this routine.
 //
-void MCWindowsPrinter::Reset(char *p_name, DEVMODEA *p_devmode)
+void MCWindowsPrinter::Reset(MCStringRef p_name, DEVMODEW *p_devmode)
 {
 	// MW-2008-10-15: [[ Bug ]] Changed routine to *not* modify the DEVMODEA structure.
 	//   Doing this caused Windows to completely ignore settings on certain printers
@@ -1792,10 +1840,7 @@ void MCWindowsPrinter::Reset(char *p_name, DEVMODEA *p_devmode)
 	SetJobDuplex(t_duplex);
 	SetJobCollate(t_collate);
 
-	if (m_name != NULL)
-		delete m_name;
-
-	m_name = p_name;
+	MCValueAssign(m_name, p_name);
 
 	if (m_devmode != NULL)
 		delete m_devmode;
@@ -1849,7 +1894,7 @@ void MCWindowsPrinter::Synchronize(void)
 	m_devmode -> dmFields |= DM_COLLATE;
 	m_devmode -> dmCollate = GetJobCollate() ? DMCOLLATE_TRUE : DMCOLLATE_FALSE;
 
-	DEVMODEA *t_devmode;
+	DEVMODEW *t_devmode;
 	t_devmode = WindowsGetPrinterInfo(m_name, m_devmode);
 	if (t_devmode != NULL)
 	{
@@ -1904,18 +1949,31 @@ bool MCWindowsPrinter::FetchDialogData(HGLOBAL& r_devmode_handle, HGLOBAL& r_dev
 	t_devnames_handle = NULL;
 	if (t_success)
 	{
+		MCAutoStringRef t_string;
+		MCStringCreateMutable(0, &t_string);
+		MCStringAppend(*t_string, m_name);
+		MCStringAppendChar(*t_string, '\0');
+		MCStringAppend(*t_string, MCSTR("FILE:"));
+		MCStringAppendChar(*t_string, '\0');
+
 		int t_devnames_size;
-		t_devnames_size = sizeof(DEVNAMES) + strlen(m_name) + 7;
-		t_devnames_handle = GlobalAlloc(GMEM_MOVEABLE, t_devnames_size);
+		// SN-2014-07-24: [[ Bug 12916 ]] Closing the Page Setup dialog causes a crash
+		//  The size is indeed in unichars, not chars
+		//t_devnames_size = sizeof(DEVNAMES) + strlen(t_string) + 7;
+		t_devnames_size = sizeof(DEVNAMES) / sizeof(unichar_t) + MCStringGetLength(*t_string);
+		t_devnames_handle = GlobalAlloc(GMEM_MOVEABLE, t_devnames_size * sizeof(unichar_t));
 		if (t_devnames_handle != NULL)
 		{
 			DEVNAMES *t_devnames;
 			t_devnames = (DEVNAMES *)GlobalLock(t_devnames_handle);
-			t_devnames -> wDriverOffset = t_devnames_size - 1;
+			t_devnames -> wDriverOffset = t_devnames_size -	1;
 			t_devnames -> wOutputOffset = GetDeviceOutputType() == PRINTER_OUTPUT_FILE ? t_devnames_size - 6 : t_devnames_size - 1;
-			t_devnames -> wDeviceOffset = sizeof(DEVNAMES);
+			t_devnames -> wDeviceOffset = sizeof(DEVNAMES) / sizeof(unichar_t);
 			t_devnames -> wDefault = 0;
-			sprintf((char *)(t_devnames + 1), "%s\0FILE:\0", m_name);
+
+			// SN-2014-08-07: [[ Bug 13084 ]] The pointer arithmetic wasn't right
+			MCStringGetChars(*t_string, MCRangeMake(0, MCStringGetLength(*t_string)), (unichar_t*)(t_devnames + 1));
+
 			GlobalUnlock(t_devnames_handle);
 		}
 		else
@@ -1944,45 +2002,49 @@ void MCWindowsPrinter::StoreDialogData(HGLOBAL p_devmode_handle, HGLOBAL p_devna
 	bool t_success;
 	t_success = true;
 
-	char *t_printer_name;
-	t_printer_name = NULL;
-	char *t_output_file;
-	t_output_file = NULL;
+	MCAutoStringRef t_output_file;
+	MCAutoStringRef t_printer_name;
+	
 	if (t_success)
 	{
 		if (p_devnames_handle != NULL)
 		{
+			// SN-2014-07-08: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+			//  and make sure the pointer arithmetic is right
 			DEVNAMES *t_devnames;
 			t_devnames = (DEVNAMES *)GlobalLock(p_devnames_handle);
-			t_printer_name = strdup((char *)t_devnames + t_devnames -> wDeviceOffset);
 
-			if (strcmp((char *)t_devnames + t_devnames -> wOutputOffset, "FILE:") == 0)
-				t_output_file = strdup("");
+			wchar_t* t_chars;
+			t_chars = (wchar_t *)t_devnames + t_devnames -> wDeviceOffset;
+			/* UNCHECKED */ MCStringCreateWithChars(t_chars, lstrlenW(t_chars), &t_printer_name);
+ 
+			if (lstrcmpW((wchar_t *)t_devnames + t_devnames -> wOutputOffset, L"FILE:") == 0)
+				/* UNCHECKED */ t_output_file = kMCEmptyString;
 
 			GlobalUnlock(p_devnames_handle);
 			GlobalFree(p_devnames_handle);
 		}
 		else
-			t_printer_name = WindowsGetDefaultPrinter();
+			WindowsGetDefaultPrinter(&t_printer_name);
 
-		if (t_printer_name == NULL)
+		if (MCStringIsEmpty(*t_printer_name))
 			t_success = false;
 	}
 
-	DEVMODEA *t_devmode;
+	DEVMODEW *t_devmode;
 	t_devmode = NULL;
 	if (t_success)
 	{
 		if (p_devmode_handle != NULL)
 		{
-			DEVMODEA *t_devmode_ptr;
-			t_devmode_ptr = (DEVMODEA *)GlobalLock(p_devmode_handle);
-			t_devmode = (DEVMODEA *)memdup(t_devmode_ptr, t_devmode_ptr -> dmSize + t_devmode_ptr -> dmDriverExtra);
+			DEVMODEW *t_devmode_ptr;
+			t_devmode_ptr = (DEVMODEW *)GlobalLock(p_devmode_handle);
+			t_devmode = (DEVMODEW *)memdup(t_devmode_ptr, t_devmode_ptr -> dmSize + t_devmode_ptr -> dmDriverExtra);
 			GlobalUnlock(p_devmode_handle);
 			GlobalFree(p_devmode_handle);
 		}
 		else
-			t_devmode = WindowsGetPrinterInfo(t_printer_name);
+			t_devmode = WindowsGetPrinterInfo(*t_printer_name);
 
 		if (t_devmode == NULL)
 			t_success = false;
@@ -1996,60 +2058,63 @@ void MCWindowsPrinter::StoreDialogData(HGLOBAL p_devmode_handle, HGLOBAL p_devna
 			t_devmode -> dmFields |= DM_SCALE;
 		}
 
-		Reset(t_printer_name, t_devmode);
-		if (t_output_file != NULL)
-		{
-			SetDeviceOutput(PRINTER_OUTPUT_FILE, t_output_file);
-			delete t_output_file;
-		}
+		Reset(*t_printer_name, t_devmode);
+		if (*t_output_file != NULL)
+			SetDeviceOutput(PRINTER_OUTPUT_FILE, *t_output_file);
 	}
 	else
 	{
 		delete t_devmode;
-		delete t_printer_name;
-		delete t_output_file;
 	}
 }
 
-bool MCWindowsPrinter::DecodeSettings(const MCString& p_settings, char*& r_name, DEVMODEA*& r_devmode)
+bool MCWindowsPrinter::DecodeSettings(MCDataRef p_settings, MCStringRef &r_name, DEVMODEW* &r_devmode)
 {
 	MCDictionary t_dictionary;
-	if (!t_dictionary . Unpickle(p_settings . getstring(), p_settings . getlength()))
+	if (!t_dictionary . Unpickle(MCDataGetBytePtr(p_settings), MCDataGetLength(p_settings)))
 		return false;
 
-	MCString t_name;
-	if (!t_dictionary . Get('NMEA', t_name))
+	MCString t_name_old;
+	MCAutoStringRef t_name;
+	if (!t_dictionary . Get('NMEA', t_name_old))
+		return false;
+	if (!MCStringCreateWithOldString(t_name_old, &t_name))
 		return false;
 
 	MCString t_devmode;
 	if (!t_dictionary . Get('W32A', t_devmode))
 		return false;
 
-	DEVMODEA *t_validated_devmode;
-	t_validated_devmode = WindowsGetPrinterInfo(t_name . getstring(), (DEVMODEA *)t_devmode . getstring());
+	DEVMODEW *t_validated_devmode;
+	t_validated_devmode = WindowsGetPrinterInfo(*t_name, (DEVMODEW *)t_devmode . getstring());
 	if (t_validated_devmode == NULL)
 		return false;
 
-	r_name = strdup(t_name . getstring());
+	r_name = MCValueRetain(*t_name);
 	r_devmode = t_validated_devmode;
 
 	return true;
 }
 
-void MCWindowsPrinter::EncodeSettings(char *p_name, DEVMODEA* p_devmode, void*& r_buffer, uint4& r_length)
+void MCWindowsPrinter::EncodeSettings(MCStringRef p_name, DEVMODEW* p_devmode, MCDataRef &r_buffer)
 {
-	if (p_name == NULL || p_devmode == NULL)
+	if (MCStringIsEmpty(p_name) || p_devmode == NULL)
 	{
-		r_buffer = NULL;
-		r_length = 0;
+		r_buffer = MCValueRetain(kMCEmptyData);
 		return;
 	}
 
 	MCDictionary t_dictionary;
 
-	t_dictionary . Set('NMEA', MCString(p_name, strlen(p_name) + 1));
+	void *t_temp;
+	uint4 t_len;
+    MCAutoStringRefAsCString t_name;
+    /* UNCHECKED */ t_name.Lock(p_name);
+    t_dictionary . Set('NMEA', *t_name);
 	t_dictionary . Set('W32A', MCString((char *)p_devmode, p_devmode -> dmSize + p_devmode -> dmDriverExtra));
-	t_dictionary . Pickle(r_buffer, r_length);
+	t_dictionary . Pickle(t_temp, t_len);
+
+	/* UNCHECKED */ MCDataCreateWithBytesAndRelease((byte_t*)t_temp, t_len, r_buffer);
 }
 
 HDC MCWindowsPrinter::GetDC(bool p_synchronize)
@@ -2065,7 +2130,10 @@ HDC MCWindowsPrinter::GetDC(bool p_synchronize)
 		if (p_synchronize || m_resync)
 			Synchronize();
 
-		m_dc = CreateDCA(NULL, m_name, NULL, m_devmode);
+		MCAutoStringRefAsWString t_name_wstr;
+		/* UNCHECKED */ t_name_wstr.Lock(m_name);
+
+		m_dc = CreateDCW(NULL, *t_name_wstr, NULL, m_devmode);
 
 		// MW-2009-04-23: [[ Bug ]] Make sure we set up the standard printer co-ordinate mapping to ensure
 		//   that fonts are measured correctly.
@@ -2109,3 +2177,218 @@ void MCWindowsPrinter::ChangeDC(void)
 
 	MCstacks -> purgefonts();
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+bool deserialize_data_to_hglobal(const char *p_stream, uint32_t p_stream_size, uint32_t &r_offset, HGLOBAL &r_hglobal)
+{
+	bool t_success = true;
+	uint32_t t_size;
+	uint32_t t_offset = r_offset;
+	t_success = deserialize_uint32(p_stream, p_stream_size, t_offset, t_size);
+	if (t_success)
+	{
+		if (r_hglobal == NULL)
+			r_hglobal = GlobalAlloc(GMEM_MOVEABLE, t_size);
+		else if (GlobalSize(r_hglobal) < t_size)
+			r_hglobal = GlobalReAlloc(r_hglobal, t_size, 0);
+		t_success = (r_hglobal != NULL);
+	}
+	if (t_success)
+	{
+		void *t_ptr = GlobalLock(r_hglobal);
+		t_success = deserialize_data(p_stream, p_stream_size, r_offset, t_ptr, t_size);
+		GlobalUnlock(r_hglobal);
+	}
+	return t_success;
+}
+
+// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+bool serialize_printdlg_data(char *&r_buffer, uint32_t &r_size, PRINTDLGEXW &p_data)
+{
+	bool t_success = true;
+
+	uint32_t t_size, t_devmode_size, t_devnames_size, t_pagerange_size;
+	t_devmode_size = GlobalSize(p_data.hDevMode);
+	t_devnames_size = GlobalSize(p_data.hDevNames);
+	t_pagerange_size = p_data.nMaxPageRanges * sizeof(PRINTPAGERANGE);
+	t_size = p_data.lStructSize + t_devmode_size + t_devnames_size + t_pagerange_size;
+	// reserve space for byte counts
+	t_size += sizeof(p_data.lStructSize) + sizeof(t_devmode_size) + sizeof(t_devnames_size) + sizeof(t_pagerange_size);
+
+	char *t_buffer = NULL;
+	uint32_t t_offset = 0;
+	t_buffer = (char*)malloc(t_size);
+
+	t_success = (t_buffer != NULL);
+
+	if (t_success)
+		t_success = serialize_data(t_buffer, t_size, t_offset, &p_data, p_data.lStructSize);
+
+	if (t_success)
+	{
+		t_success = serialize_data(t_buffer, t_size, t_offset, GlobalLock(p_data.hDevMode), t_devmode_size);
+		GlobalUnlock(p_data.hDevMode);
+	}
+
+	if (t_success)
+	{
+		t_success = serialize_data(t_buffer, t_size, t_offset, GlobalLock(p_data.hDevNames), t_devnames_size);
+		GlobalUnlock(p_data.hDevNames);
+	}
+
+	if (t_success)
+		t_success = serialize_data(t_buffer, t_size, t_offset, &p_data.lpPageRanges, t_pagerange_size);
+
+	if (t_success)
+	{
+		r_buffer = t_buffer;
+		r_size = t_size;
+	}
+
+	return t_success;
+}
+
+bool deserialize_printdlg_data(const char *p_buffer, uint32_t p_size, PRINTDLGEXW *&x_data)
+{
+	bool t_success = true;
+
+	HGLOBAL t_devmode, t_devnames;
+	PRINTPAGERANGE *t_ranges;
+	uint32_t t_ranges_size = 0;
+	uint32_t t_dlg_size = 0;
+
+	uint32_t t_offset = 0;
+	void *t_ptr;
+
+	if (x_data == NULL)
+	{
+		t_devmode = t_devnames = t_ranges = NULL;
+	}
+	else
+	{
+		t_devmode = x_data->hDevMode;
+		t_devnames = x_data->hDevNames;
+		t_ranges = x_data->lpPageRanges;
+		t_ranges_size = x_data->nMaxPageRanges * sizeof(PRINTPAGERANGE);
+		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+		t_dlg_size = sizeof(PRINTDLGEXW);
+	}
+
+	// copy dialog data
+	t_ptr = x_data;
+	t_success = deserialize_data(p_buffer, p_size, t_offset, t_ptr, t_dlg_size);
+	// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+	x_data = (PRINTDLGEXW*)t_ptr;
+
+	if (t_success)
+		t_success = deserialize_data_to_hglobal(p_buffer, p_size, t_offset, t_devmode);
+
+	if (t_success)
+		t_success = deserialize_data_to_hglobal(p_buffer, p_size, t_offset, t_devnames);
+
+	if (t_success)
+	{
+		t_ptr = t_ranges;
+		t_success = deserialize_data(p_buffer, p_size, t_offset, t_ptr, t_ranges_size);
+		t_ranges = (PRINTPAGERANGE*)t_ptr;
+	}
+
+	if (t_success)
+	{
+		x_data->hDevMode = t_devmode;
+		x_data->hDevNames = t_devnames;
+		x_data->lpPageRanges = t_ranges;
+	}
+
+	return t_success;
+}
+
+// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+bool serialize_pagedlg_data(char *&r_buffer, uint32_t &r_size, PAGESETUPDLGW &p_data)
+{
+	bool t_success = true;
+
+	uint32_t t_size, t_devmode_size, t_devnames_size;
+	t_devmode_size = GlobalSize(p_data.hDevMode);
+	t_devnames_size = GlobalSize(p_data.hDevNames);
+	t_size = p_data.lStructSize + t_devmode_size + t_devnames_size;
+	// reserve space for byte counts
+	t_size += sizeof(p_data.lStructSize) + sizeof(t_devmode_size) + sizeof(t_devnames_size);
+
+	char *t_buffer = NULL;
+	uint32_t t_offset = 0;
+	t_buffer = (char*)malloc(t_size);
+
+	t_success = (t_buffer != NULL);
+
+	if (t_success)
+		t_success = serialize_data(t_buffer, t_size, t_offset, &p_data, p_data.lStructSize);
+
+	if (t_success)
+	{
+		t_success = serialize_data(t_buffer, t_size, t_offset, GlobalLock(p_data.hDevMode), t_devmode_size);
+		GlobalUnlock(p_data.hDevMode);
+	}
+
+	if (t_success)
+	{
+		t_success = serialize_data(t_buffer, t_size, t_offset, GlobalLock(p_data.hDevNames), t_devnames_size);
+		GlobalUnlock(p_data.hDevNames);
+	}
+
+	if (t_success)
+	{
+		r_buffer = t_buffer;
+		r_size = t_size;
+	}
+
+	return t_success;
+}
+
+// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+bool deserialize_pagedlg_data(const char *p_buffer, uint32_t p_size, PAGESETUPDLGW *&x_data)
+{
+	bool t_success = true;
+
+	HGLOBAL t_devmode, t_devnames;
+	uint32_t t_dlg_size = 0;
+
+	uint32_t t_offset = 0;
+	void *t_ptr;
+
+	if (x_data == NULL)
+	{
+		t_devmode = t_devnames = NULL;
+	}
+	else
+	{
+		t_devmode = x_data->hDevMode;
+		t_devnames = x_data->hDevNames;
+		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+		t_dlg_size = sizeof(PAGESETUPDLGW);
+	}
+
+	// copy dialog data
+	t_ptr = x_data;
+	t_success = deserialize_data(p_buffer, p_size, t_offset, t_ptr, t_dlg_size);
+	// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
+	x_data = (PAGESETUPDLGW*)t_ptr;
+
+	if (t_success)
+		t_success = deserialize_data_to_hglobal(p_buffer, p_size, t_offset, t_devmode);
+
+	if (t_success)
+		t_success = deserialize_data_to_hglobal(p_buffer, p_size, t_offset, t_devnames);
+
+	if (t_success)
+	{
+		x_data->hDevMode = t_devmode;
+		x_data->hDevNames = t_devnames;
+	}
+
+	return t_success;
+}
+
+///////////////////////////////////////////////////////////////////////////////

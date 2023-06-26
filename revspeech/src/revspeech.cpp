@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -19,6 +19,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include <stdio.h>
 
 #include <revolution/external.h>
+#include <revolution/support.h>
 
 #include "revspeech.h"
 
@@ -75,6 +76,8 @@ static bool NarratorUnload(void)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+extern "C" void getXtable();
+
 void revSpeechLoad(char *args[], int nargs, char **retstring,
 					Bool *pass, Bool *error)
 {
@@ -96,8 +99,7 @@ void revSpeechUnload(char *args[], int nargs, char **retstring,
 {
 	*pass = False;
 	*error = False;
-	char *result = NULL;
-
+	
 	// OK-2007-04-17: Part of fix for bug 3611. NarratorUnload may fail, in particular if the OS X
 	// Speech Manager is still busy speaking, in this case we report an error.
 	if (!NarratorUnload())
@@ -190,8 +192,6 @@ void revSpeechPitch(char *args[], int nargs, char **retstring, Bool *pass, Bool 
 
 void revGetSpeechPitch(char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
 {
-	char *result = NULL;
-
 	*pass = False;
 	*error = False;
 
@@ -225,11 +225,31 @@ void revSpeechSpeak(char *args[], int nargs, char **retstring,
 	{
 		NarratorLoad();
 
-		s_narrator -> Start(args[0]);
+		s_narrator -> Start(args[0], false);
 	}
 	else
 		*error = True;
 
+	*retstring = result != NULL ? result : strdup("");
+}
+
+void revSpeechSpeakUTF8(char *args[], int nargs, char **retstring,
+                    Bool *pass, Bool *error)
+{
+	char *result = NULL;
+    
+	*pass = False;
+	*error = False;
+    
+	if (nargs == 1)
+	{
+		NarratorLoad();
+        
+		s_narrator -> Start(args[0], true);
+	}
+	else
+		*error = True;
+    
 	*retstring = result != NULL ? result : strdup("");
 }
 
@@ -465,7 +485,8 @@ EXTERNAL_BEGIN_DECLARATIONS("revSpeech")
 	EXTERNAL_DECLARE_COMMAND("revSetSpeechPitch", revSpeechPitch)
 	EXTERNAL_DECLARE_COMMAND("revSetSpeechVolume", revSpeechSetVolume)
 	EXTERNAL_DECLARE_FUNCTION("revGetSpeechVolume", revSpeechGetVolume)
-	EXTERNAL_DECLARE_COMMAND("revSpeak", revSpeechSpeak)
+    EXTERNAL_DECLARE_COMMAND("revSpeak", revSpeechSpeak)
+    EXTERNAL_DECLARE_COMMAND_UTF8("revSpeak", revSpeechSpeakUTF8)
 	EXTERNAL_DECLARE_COMMAND("revStopSpeech", revSpeechStop)
 	EXTERNAL_DECLARE_FUNCTION("revIsSpeaking", revSpeechBusy)
 	EXTERNAL_DECLARE_FUNCTION("revSpeechVoices", revSpeechVoices)

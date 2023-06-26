@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -32,7 +32,7 @@ public:
 	virtual bool ListHandlers(MCExternalListHandlersCallback callback, void *state) = 0;
 	virtual Exec_stat Handle(MCObject *p_context, Handler_type p_type, uint32_t p_index, MCParameter *p_parameters) = 0;
 	
-	static MCExternal *Load(const char *p_filename);
+	static MCExternal *Load(MCStringRef p_filename);
 	static void Unload(MCExternal *p_external);
 
 	// Called on exit to cleanup all external instances.
@@ -46,7 +46,7 @@ protected:
 	MCExternal *m_next;
 
 	uint32_t m_references;
-	MCSysModuleHandle m_module;
+	MCSAutoLibraryRef m_module;
 	const char *m_name;
 
 	static MCExternal *s_externals;
@@ -79,15 +79,16 @@ public:
 	bool IsEmpty(void);
 
 	// Create a return-delimited list of external names.
-	bool ListExternals(MCExecPoint& ep);
+	bool ListExternals(MCStringRef& r_list);
+
 	// Create a return-delimited list of external handlers of the given type.
-	bool ListHandlers(MCExecPoint& ep, Handler_type type);
+	bool ListHandlers(Handler_type p_type, MCStringRef& r_list);
 
 	// Looks to see if there is a handler of the given type.
 	bool HasHandler(MCNameRef handler, Handler_type type);
 	
 	// Attempt to load the external with the given path.
-	bool Load(const char *p_external);
+	bool Load(MCStringRef p_external);
 
 	// Attempt to handle the given message.
 	Exec_stat Handle(MCObject *p_object, Handler_type type, MCNameRef p_message, MCParameter *p_parameters);

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -28,7 +28,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "undolst.h"
 #include "image.h"
 #include "uidc.h"
-#include "execpt.h"
+
 #include "mcio.h"
 
 #include "globals.h"
@@ -36,7 +36,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "context.h"
 #include "packed.h"
 
-#include "core.h"
 #include "iquantization.h"
 
 void MCImage::init()
@@ -71,15 +70,15 @@ void MCImage::shutdown()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-MCImageNeed::MCImageNeed(MCObject *p_object)
+MCImageNeed::MCImageNeed(MCObject *p_object) :
+  m_object(p_object->GetHandle()),
+  m_prev(nil),
+  m_next(nil)
 {
-	m_object = p_object->gethandle();
-	m_next = m_prev = nil;
 }
 
 MCImageNeed::~MCImageNeed()
 {
-	m_object->Release();
 }
 
 void MCImageNeed::Add(MCImageNeed *&x_head)
@@ -106,7 +105,10 @@ void MCImageNeed::Remove(MCImageNeed *&x_head)
 
 MCObject *MCImageNeed::GetObject()
 {
-	return m_object->Get();
+	if (m_object.IsValid())
+        return m_object;
+    else
+        return nil;
 }
 
 MCImageNeed *MCImageNeed::GetNext()
@@ -145,7 +147,7 @@ void MCImage::addneed(MCObject *p_object)
 	}
 
 	// not found - create new need & add to list
-	/* UNCHECKED */ t_need = new MCImageNeed(p_object);
+	/* UNCHECKED */ t_need = new (nothrow) MCImageNeed(p_object);
 	t_need->Add(m_needs);
 }
 
@@ -163,6 +165,30 @@ void MCImage::notifyneeds(bool p_deleting)
 			delete t_need;
 		}
 		t_need = t_next;
+	}
+}
+
+//////////
+
+MCGImageFilter MCImage::resizequalitytoimagefilter(uint8_t p_quality)
+{
+    // MM-2014-05-29: [[ Bug 12382 ]] Temporarily reverted the box filter back to none to improve perfromace on non-Mac platforms.
+	switch (p_quality)
+	{
+        case INTERPOLATION_NEAREST:
+            return kMCGImageFilterNone;
+
+        case INTERPOLATION_BOX:
+            return kMCGImageFilterNone;
+
+		case INTERPOLATION_BILINEAR:
+            return kMCGImageFilterMedium;
+
+		case INTERPOLATION_BICUBIC:
+            return kMCGImageFilterHigh;
+
+		default:
+			return kMCGImageFilterNone;
 	}
 }
 
@@ -279,26 +305,26 @@ void MCImage::cutimage()
 void MCImage::copyimage()
 {
 	bool t_success = true;
-
-	MCImageBitmap *t_bitmap = nil;
-	MCSharedString *t_data = nil;
+	
+	MCAutoDataRef t_image_data;
 	
 	if (isediting())
 	{
 		MCImageBitmap *t_bitmap = nil;
 		t_success = static_cast<MCMutableImageRep*>(m_rep)->copy_selection(t_bitmap);
 		if (t_success)
-			t_success = MCImageCreateClipboardData(t_bitmap, t_data);
+			t_success = MCImageCreateClipboardData(t_bitmap, &t_image_data);
 		MCImageFreeBitmap(t_bitmap);
 	}
 	else
-		t_data = getclipboardtext();
-
-	if (t_data != NULL)
-	{
-		MCclipboarddata -> Store(TRANSFER_TYPE_IMAGE, t_data);
-		t_data -> Release();
-	}
+		getclipboardtext(&t_image_data);
+	
+	if (*t_image_data != NULL)
+    {
+        // Clear the clipboard and add the image to it.
+        MCclipboard->Clear();
+        MCclipboard->AddImage(*t_image_data);
+    }
 }
 
 void MCImage::delimage()
@@ -350,7 +376,6 @@ void MCImage::pasteimage(MCImage *clipimage)
 
 void MCImage::compute_gravity(MCRectangle &trect, int2 &xorigin, int2 &yorigin)
 {
-	MCImageBitmap *t_bitmap = nil;
 	uint16_t t_width, t_height;
 	t_width = m_current_width;
 	t_height = m_current_height;
@@ -360,23 +385,27 @@ void MCImage::compute_gravity(MCRectangle &trect, int2 &xorigin, int2 &yorigin)
 	if (rect.width != t_width)
 	{
 		if (state & CS_SIZEL)
+		{
 			if (rect.width > t_width)
 				trect.x = rect.x + rect.width - t_width;
 			else
 				xorigin = t_width - rect.width;
+		}
 		trect.width = MCU_min(t_width, rect.width);
 	}
 	if (rect.height != t_height)
 	{
 		if (state & CS_SIZET)
+		{
 			if (rect.height > t_height)
 				trect.y = rect.y + rect.height - t_height;
 			else
 				yorigin = t_height - rect.height;
+		}
 		trect.height = MCU_min(t_height, rect.height);
 	}
 
-	MCLog("compute gravity: rect(%d,%d,%d,%d) x(%d) y(%d)", trect.x, trect.y, trect.width, trect.height, xorigin, yorigin);
+    //MCLog("compute gravity: rect(%d,%d,%d,%d) x(%d) y(%d)", trect.x, trect.y, trect.width, trect.height, xorigin, yorigin);
 }
 
 void MCImage::compute_offset(MCRectangle &p_rect, int16_t &r_xoffset, int16_t &r_yoffset)
@@ -442,6 +471,9 @@ void MCImage::crop(MCRectangle *newrect)
 	unlockbitmap(t_bitmap);
 
 	/* UNCHECKED */ setbitmap(t_cropimage, 1.0);
+	
+	// PM-2015-07-13: [[ Bug 15590 ]] Fix memory leak
+	MCImageFreeBitmap(t_cropimage);
 
 	uint32_t t_pixwidth, t_pixheight;
 	getgeometry(t_pixwidth, t_pixheight);
@@ -503,17 +535,17 @@ void MCImage::rotate_transform(int32_t p_angle)
 		MCCalculateRotatedGeometry(t_src_width, t_src_height, p_angle, t_trans_width, t_trans_height);
 
 		MCGAffineTransform t_transform = MCGAffineTransformMakeTranslation(-(int32_t)t_src_width / 2.0, -(int32_t)t_src_height / 2.0);
-		t_transform = MCGAffineTransformRotate(t_transform, -p_angle);
+		t_transform = MCGAffineTransformPreRotate(t_transform, -p_angle);
 		
 		// MW-2013-10-25: [[ Bug 11300 ]] If needed, flip the transform appropriately.
 		if (m_flip_x || m_flip_y)
-			t_transform = MCGAffineTransformScale(t_transform, m_flip_x ? -1.0f : 1.0f, m_flip_y ? -1.0f : 1.0f);
+			t_transform = MCGAffineTransformPreScale(t_transform, m_flip_x ? -1.0f : 1.0f, m_flip_y ? -1.0f : 1.0f);
 		
-		t_transform = MCGAffineTransformTranslate(t_transform, t_trans_width / 2.0, t_trans_height / 2.0);
+		t_transform = MCGAffineTransformPreTranslate(t_transform, t_trans_width / 2.0, t_trans_height / 2.0);
 		
 		if (getflag(F_LOCK_LOCATION))
 		{
-			t_transform = MCGAffineTransformScale(t_transform, rect.width / (MCGFloat)t_trans_width, rect.height / (MCGFloat)t_trans_height);
+			t_transform = MCGAffineTransformPreScale(t_transform, rect.width / (MCGFloat)t_trans_width, rect.height / (MCGFloat)t_trans_height);
 			t_trans_width = rect.width;
 			t_trans_height = rect.height;
 		}
@@ -552,13 +584,13 @@ void MCImage::resize_transform()
 		if (m_flip_x || m_flip_y)
 		{
 			t_transform = MCGAffineTransformMakeTranslation(-(signed)t_src_width / 2.0f, -(signed)t_src_height / 2.0f);
-			t_transform = MCGAffineTransformScale(t_transform, m_flip_x ? -1.0f : 1.0f, m_flip_y ? -1.0f : 1.0f);
-			t_transform = MCGAffineTransformTranslate(t_transform, t_src_width / 2.0, t_src_height / 2.0);
+			t_transform = MCGAffineTransformPreScale(t_transform, m_flip_x ? -1.0f : 1.0f, m_flip_y ? -1.0f : 1.0f);
+			t_transform = MCGAffineTransformPreTranslate(t_transform, t_src_width / 2.0, t_src_height / 2.0);
 		}
 		else
 			t_transform = MCGAffineTransformMakeIdentity();
 		
-		m_transform = MCGAffineTransformScale(t_transform, rect.width / (MCGFloat)t_src_width, rect.height / (MCGFloat)t_src_height);
+		m_transform = MCGAffineTransformPreScale(t_transform, rect.width / (MCGFloat)t_src_width, rect.height / (MCGFloat)t_src_height);
 	}
 }
 
@@ -575,8 +607,8 @@ void MCImage::flip_transform()
 		m_has_transform = true;
 		
 		m_transform = MCGAffineTransformMakeTranslation(-(signed)t_src_width / 2.0, -(signed)t_src_height / 2.0);
-		m_transform = MCGAffineTransformScale(m_transform, m_flip_x ? -1.0f : 1.0f, m_flip_y ? -1.0f : 1.0f);
-		m_transform = MCGAffineTransformTranslate(m_transform, t_src_width / 2.0, t_src_height / 2.0);
+		m_transform = MCGAffineTransformPreScale(m_transform, m_flip_x ? -1.0f : 1.0f, m_flip_y ? -1.0f : 1.0f);
+		m_transform = MCGAffineTransformPreTranslate(m_transform, t_src_width / 2.0, t_src_height / 2.0);
 	}	
 }
 
@@ -714,15 +746,16 @@ MCCursorRef MCImage::createcursor()
 	{
 		MCColor t_palette[2];
 		MCColor *t_colors;
+        // SN-2015-06-02: [[ CID 90611 ]] Initialise t_colors
+        t_colors = NULL;
+        
 		if (!MCcursorbwonly)
 			MCImageGenerateOptimalPaletteWithWeightedPixels(t_cursor_bitmap, 2, t_colors);
 		else
 		{
 			t_colors = t_palette;
 			t_palette[0] . red = t_palette[0] . green = t_palette[0] . blue = 0;
-			t_palette[0] . pixel = 0;
 			t_palette[1] . red = t_palette[1] . green = t_palette[1] . blue = 0xffff;
-			t_palette[1] . pixel = 0xffffff;
 		}
 
 		MCImageIndexedBitmap *t_indexed = nil;
@@ -778,8 +811,6 @@ bool MCImage::createpattern(MCPatternRef &r_image)
 	MCImageBitmap *t_bitmap = nil;
 	MCImageBitmap *t_blank = nil;
 
-	MCGImageRef t_image = nil;
-	
 	MCPatternRef t_pattern;
 	t_pattern = nil;
 
@@ -793,35 +824,26 @@ bool MCImage::createpattern(MCPatternRef &r_image)
 		{
 			MCImageBitmapClear(t_blank);
 			t_bitmap = t_blank;
+
+			MCGRaster t_raster;
+			t_raster = MCImageBitmapGetMCGRaster(t_bitmap, true);
+			
+			// IM-2013-08-14: [[ ResIndependence ]] Wrap image in MCPattern with scale factor
+			t_success = MCPatternCreate(t_raster, 1.0, getimagefilter(), t_pattern);
 		}
 	}
 	else
-		t_success = lockbitmap(t_bitmap, true);
-
-	if (t_success)
 	{
-		MCGRaster t_raster;
-		t_raster.width = t_bitmap->width;
-		t_raster.height = t_bitmap->height;
-		t_raster.pixels = t_bitmap->data;
-		t_raster.stride = t_bitmap->stride;
-		t_raster.format = t_bitmap->has_transparency ? kMCGRasterFormat_ARGB : kMCGRasterFormat_xRGB;
-	
-		t_success = MCGImageCreateWithRaster(t_raster, t_image);
+		// IM-2014-05-13: [[ HiResPatterns ]] Rather than create a pattern with a static bitmap image,
+		// we can now supply the source rep and the image transform to enable density-mapped patterns
+		apply_transform();
+		t_success = MCPatternCreate(m_rep, m_has_transform ? m_transform : MCGAffineTransformMakeIdentity(), getimagefilter(), t_pattern);
 	}
 
-	// IM-2013-08-14: [[ ResIndependence ]] Wrap image in MCPattern with scale factor
-	if (t_success)
-		t_success = MCPatternCreate(t_image, getscalefactor(), t_pattern);
-		
 	if (t_blank != nil)
 		MCImageFreeBitmap(t_blank);
-	else
-		unlockbitmap(t_bitmap);
 
 	closeimage();
-	
-	MCGImageRelease(t_image);
 	
 	if (t_success)
 		r_image = t_pattern;
@@ -934,8 +956,6 @@ bool MCImageRotateRotate(MCImageBitmap *p_src, real64_t p_angle, uint32_t p_back
 	t_icosw += -t_isinh + (p_src->width << 7);
 	t_isinw += t_icosh + (p_src->height << 7);
 
-	uint1 t_byte;
-	uint1 t_bit = 0x80;
 	uint8_t *t_dst_ptr = (uint8_t*)r_rotated->data;
 	for (uint2 t_y=0; t_y < t_height; t_y++)
 	{
@@ -1080,7 +1100,7 @@ void MCImage::resetimage()
 		// MW-2011-09-12: [[ Redraw ]] If the rect has changed then notify the layer.
 		//   (note we have to check 'parent' as at the moment MCImage is used for
 		//    the rb* icons which are unowned!).
-		if (parent != nil && !MCU_equal_rect(t_old_rect, rect))
+		if (parent && !MCU_equal_rect(t_old_rect, rect))
 			layer_rectchanged(t_old_rect, false);
 
 		if (m_rep->GetFrameCount() > 1)
@@ -1092,13 +1112,13 @@ void MCImage::resetimage()
 		}
 	}
 
-	if (parent != nil)
+	if (parent)
 		layer_redrawall();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MCImageFreeFrames(MCImageFrame *p_frames, uindex_t p_count)
+void MCImageFreeFrames(MCBitmapFrame *p_frames, uindex_t p_count)
 {
 	if (p_frames != nil)
 	{
@@ -1220,35 +1240,29 @@ void MCImageFreeCompressedBitmap(MCImageCompressedBitmap *p_compressed)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCImageCreateClipboardData(MCImageBitmap *p_bitmap, MCSharedString *&r_data)
+bool MCImageCreateClipboardData(MCImageBitmap *p_bitmap, MCDataRef &r_data)
 {
 	bool t_success = true;
-
-	MCImageBitmap *t_bitmap = nil;
+	
 	IO_handle t_stream = nil;
-	MCSharedString *t_data = nil;
-
-	char *t_bytes = nil;
+	
+	void *t_bytes = nil;
 	uindex_t t_byte_count = 0;
-
+	
 	t_success = nil != (t_stream = MCS_fakeopenwrite());
-
+	
 	if (t_success)
-		t_success = MCImageEncodePNG(p_bitmap, t_stream, t_byte_count);
-
-	if (t_stream != nil && IO_NORMAL != MCS_fakeclosewrite(t_stream, t_bytes, t_byte_count))
+		t_success = MCImageEncodePNG(p_bitmap, nil, t_stream, t_byte_count);
+	
+	if (t_stream != nil && IO_NORMAL != MCS_closetakingbuffer_uint32(t_stream, t_bytes, t_byte_count))
 		t_success = false;
-
+	
 	if (t_success)
-	{
-		t_success = nil != (t_data = MCSharedString::CreateNoCopy(t_bytes, t_byte_count));
-	}
-
-	if (t_success)
-		r_data = t_data;
-	else
+		t_success = MCDataCreateWithBytesAndRelease((char_t*)t_bytes, t_byte_count, r_data);
+	
+	if (!t_success)
 		MCMemoryDeallocate(t_bytes);
-
+	
 	return t_success;
 }
 

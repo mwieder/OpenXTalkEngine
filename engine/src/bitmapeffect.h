@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,6 +18,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define __MC_BITMAP_EFFECT__
 
 struct MCBitmapEffects;
+struct MCExecValue;
 typedef MCBitmapEffects *MCBitmapEffectsRef;
 
 void MCBitmapEffectsInitialize(MCBitmapEffectsRef& r_dst);
@@ -32,8 +33,8 @@ bool MCBitmapEffectsIsInteriorOnly(MCBitmapEffectsRef effects);
 
 bool MCBitmapEffectsScale(MCBitmapEffectsRef& x_dst, int32_t scale);
 
-Exec_stat MCBitmapEffectsSetProperties(MCBitmapEffectsRef& self, Properties which_type, MCExecPoint& ep, MCNameRef prop, Boolean& r_dirty);
-Exec_stat MCBitmapEffectsGetProperties(MCBitmapEffectsRef& self, Properties which_type, MCExecPoint& ep, MCNameRef prop);
+bool MCBitmapEffectsGetProperty(MCExecContext& ctxt, MCBitmapEffectsRef& self, MCNameRef p_index, Properties which, MCExecValue& r_color);
+bool MCBitmapEffectsSetProperty(MCExecContext& ctxt, MCBitmapEffectsRef& self, MCNameRef p_index, Properties which, MCExecValue p_color, bool& r_dirty);
 
 uint32_t MCBitmapEffectsWeigh(MCBitmapEffectsRef self);
 IO_stat MCBitmapEffectsPickle(MCBitmapEffectsRef self, MCObjectOutputStream& p_stream);

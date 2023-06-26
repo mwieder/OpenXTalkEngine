@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -80,10 +80,12 @@ void MCDLlist::splitat(MCDLlist *node)
 MCDLlist *MCDLlist::remove(MCDLlist *&list)
 {
 	if (list == this)
+	{
 		if (list->nptr == this)
 			list = NULL;
 		else
 			list = nptr;
+	}
 	nptr->pptr = pptr;
 	pptr->nptr = nptr;
 	pptr = nptr = this;

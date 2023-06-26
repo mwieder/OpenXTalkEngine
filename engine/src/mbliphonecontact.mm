@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,20 +16,20 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
 
 #include "uidc.h"
-#include "execpt.h"
+
 #include "globals.h"
 
 #include "exec.h"
 #include "mblsyntax.h"
 #include "mblcontact.h"
 
+#include "mbliphone.h"
 #include "mbliphoneapp.h"
 
 #import <UIKit/UIKit.h>
@@ -114,7 +114,8 @@ static bool label_to_name(CFStringRef p_label, MCNameRef &r_name)
 	{
 		if (CFStringCompare(s_label_map[i].label, p_label, 0) == kCFCompareEqualTo)
 		{
-			r_name = *s_label_map[i].name;
+            // SN-201-04-28: [[ Bug 15124 ]] The value must be retained.
+			r_name = MCValueRetain(*s_label_map[i].name);
 			return true;
 		}
 	}
@@ -128,7 +129,8 @@ static bool key_to_name(CFStringRef p_key, MCNameRef &r_name)
 	{
 		if (CFStringCompare(s_key_map[i].key, p_key, 0) == kCFCompareEqualTo)
 		{
-			r_name = *s_key_map[i].name;
+			// PM-2015-12-09: [[ Bug 16156 ]] Prevent crash caused by underretain
+			r_name = MCValueRetain(*s_key_map[i].name);
 			return true;
 		}
 	}
@@ -140,7 +142,7 @@ static bool name_to_key(MCNameRef p_name, CFStringRef &r_key)
 {
 	for (uindex_t i = 0; i < ELEMENTS(s_key_map); i++)
 	{
-		if (MCNameIsEqualTo(*s_key_map[i].name, p_name, kMCCompareCaseless))
+		if (MCNameIsEqualToCaseless(*s_key_map[i].name, p_name))
 		{
 			r_key = s_key_map[i].key;
 			return true;
@@ -150,7 +152,7 @@ static bool name_to_key(MCNameRef p_name, CFStringRef &r_key)
 	return false;
 }
 
-bool MCCFDictionaryToArray(MCExecPoint& ep, CFDictionaryRef p_dict, MCVariableValue *&r_array)
+bool MCCFDictionaryToArray(CFDictionaryRef p_dict, MCArrayRef &r_array)
 {
 	bool t_success = true;
 	
@@ -158,9 +160,8 @@ bool MCCFDictionaryToArray(MCExecPoint& ep, CFDictionaryRef p_dict, MCVariableVa
 	CFStringRef *t_dict_values = nil;
 	uindex_t t_dict_size = 0;
 	
-	MCVariableValue *t_prop_array = nil;
-	
-	t_success = nil != (t_prop_array = new MCVariableValue());
+	MCAutoArrayRef t_prop_array;
+	t_success = MCArrayCreateMutable(&t_prop_array);
 	
 	if (t_success)
 	{
@@ -174,22 +175,18 @@ bool MCCFDictionaryToArray(MCExecPoint& ep, CFDictionaryRef p_dict, MCVariableVa
 		CFDictionaryGetKeysAndValues(p_dict, (const void **)t_dict_keys, (const void**)t_dict_values);
 		for (uindex_t i = 0; t_success && i < t_dict_size; i++)
 		{
-			MCNameRef t_key_name;
-			MCVariableValue *t_array_entry;
-			if (key_to_name(t_dict_keys[i], t_key_name))
+			MCNewAutoNameRef t_key_name;
+			if (key_to_name(t_dict_keys[i], &t_key_name))
 			{
-				t_success = t_prop_array->lookup_element(ep, MCNameGetOldString(t_key_name), t_array_entry) == ES_NORMAL;
-				if (t_success)
-				{
-					const char *t_value = [(NSString*)t_dict_values[i] cStringUsingEncoding: NSMacOSRomanStringEncoding];
-					t_success = t_array_entry->assign_string(MCString(t_value));
-				}
+				MCAutoStringRef t_string;
+				MCStringCreateWithCFStringRef((CFStringRef)t_dict_values[i], &t_string);
+				t_success = MCArrayStoreValue(*t_prop_array, false, *t_key_name, *t_string);
 			}
 		}
 	}
 	
 	if (t_success)
-		r_array = t_prop_array;
+		r_array = MCValueRetain(*t_prop_array);
 	
 	MCMemoryDeleteArray(t_dict_keys);
 	MCMemoryDeleteArray(t_dict_values);
@@ -197,42 +194,31 @@ bool MCCFDictionaryToArray(MCExecPoint& ep, CFDictionaryRef p_dict, MCVariableVa
 	return t_success;
 }
 
-bool MCCFDictionaryFromArray(MCExecPoint& p_ep, MCVariableValue *p_array, CFDictionaryRef& r_dict)
+bool MCCFDictionaryFromArray(MCArrayRef p_array, CFDictionaryRef& r_dict)
 {
-	if (!p_array->is_array())
-		return false;
-	
 	bool t_success = true;
-	
-	MCVariableArray *t_array = p_array->get_array();
 
 	CFMutableDictionaryRef t_dict = nil;
-	t_success = nil != (t_dict = CFDictionaryCreateMutable(kCFAllocatorDefault, t_array->getnfilled(), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
+
+	if (t_success)
+		t_success = nil != (t_dict = CFDictionaryCreateMutable(kCFAllocatorDefault, MCArrayGetCount(p_array), &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
 	
-	MCHashentry *t_hashentry = nil;
-	uindex_t t_index = 0;
-	
-	MCExecPoint ep(p_ep);
-	
-	while (t_success && nil != (t_hashentry = t_array->getnextelement(t_index, t_hashentry, False, ep)))
+	MCValueRef t_entry;
+	MCNameRef t_key_name;
+	uintptr_t t_index;
+
+	while (t_success && MCArrayIterate(p_array, t_index, t_key_name, t_entry))
 	{
 		CFStringRef t_key;
-		t_hashentry->value.fetch(ep);
-		
-		MCNameRef t_key_name = nil;
-		t_success = MCNameCreateWithCString(t_hashentry->string, t_key_name);
-		
 		if (name_to_key(t_key_name, t_key))
 		{
 			NSString *t_value = nil;
 			if (t_success)
-				t_success = nil != (t_value = [NSString stringWithCString:ep.getcstring() encoding: NSMacOSRomanStringEncoding]);
+				t_success = nil != (t_value = MCStringConvertToAutoreleasedNSString((MCStringRef)t_entry));
 			
 			if (t_success)
 				CFDictionaryAddValue(t_dict, t_key, t_value);
 		}
-		
-		MCNameDelete(t_key_name);
 	}
 	
 	if (t_success)
@@ -243,13 +229,12 @@ bool MCCFDictionaryFromArray(MCExecPoint& p_ep, MCVariableValue *p_array, CFDict
 	return t_success;
 }
 
-bool MCCreatePersonData(MCExecPoint& ep, ABRecordRef p_person, MCVariableValue *&r_contact)
+bool MCCreatePersonData(ABRecordRef p_person, MCArrayRef& r_contact)
 {
-	MCVariableValue *t_contact = nil;
 	bool t_success = true;
 	
-	t_contact = new MCVariableValue();
-	t_success = t_contact != nil;
+	MCAutoArrayRef t_contact;
+	t_success = MCArrayCreateMutable(&t_contact);
 	
 	for (uindex_t i = 0; t_success && i < ELEMENTS(s_property_map); i++)
 	{
@@ -259,8 +244,9 @@ bool MCCreatePersonData(MCExecPoint& ep, ABRecordRef p_person, MCVariableValue *
 		{
 			if (!s_property_map[i].has_labels)
 			{
-				const char *t_value = [(NSString*)t_prop_value cStringUsingEncoding: NSMacOSRomanStringEncoding];
-				t_success = MCContactAddProperty(ep, t_contact, *s_property_map[i].name, MCString(t_value));
+				MCAutoStringRef t_value;
+				MCStringCreateWithCFStringRef((CFStringRef)t_prop_value, &t_value);
+				t_success = MCContactAddProperty(*t_contact, *s_property_map[i].name, *t_value);
 			}
 			else
 			{
@@ -272,14 +258,11 @@ bool MCCreatePersonData(MCExecPoint& ep, ABRecordRef p_person, MCVariableValue *
 				for (uindex_t j = 0; j < t_value_count; j++)
 				{
 					CFStringRef t_label;
-					MCNameRef t_label_name;
+					MCNewAutoNameRef t_label_name;
 					
 					t_label = ABMultiValueCopyLabelAtIndex(t_values, j);
 					
-                    // FG-2013-11-26 [[ Bugfix 11511 ]]
-                    // ABMultiValueCopyLabelAtIndex returns a null pointer if
-                    // there is no label for the given index.
-					if (t_label != nil && label_to_name(t_label, t_label_name))
+					if (label_to_name(t_label, &t_label_name))
 					{
 						CFTypeRef t_multi_value;
 						t_multi_value = ABMultiValueCopyValueAtIndex(t_values, j);
@@ -287,17 +270,16 @@ bool MCCreatePersonData(MCExecPoint& ep, ABRecordRef p_person, MCVariableValue *
 						// Currently we're only dealing with string values
 						if (t_proptype == kABStringPropertyType)
 						{
-							const char *t_value = [(NSString*)t_multi_value cStringUsingEncoding: NSMacOSRomanStringEncoding];
-							t_success = MCContactAddPropertyWithLabel(ep, t_contact, *s_property_map[i].name, t_label_name, MCString(t_value));
+							MCAutoStringRef t_value;
+							MCStringCreateWithCFStringRef((CFStringRef)t_multi_value, &t_value);
+							t_success = MCContactAddPropertyWithLabel(*t_contact, *s_property_map[i].name, *t_label_name, *t_value);
 						}
 						else if (t_proptype == kABDictionaryPropertyType)
 						{
 							// construct an array containing the keys/values of the CFDictionaryRef and add it to our contact array
-							MCVariableValue *t_prop_array = nil;
-							t_success = MCCFDictionaryToArray(ep, (CFDictionaryRef)t_multi_value, t_prop_array) && 
-								MCContactAddPropertyWithLabel(ep, t_contact, *s_property_map[i].name, t_label_name, t_prop_array);
-							
-							delete t_prop_array;
+							MCAutoArrayRef t_prop_array;
+							t_success = MCCFDictionaryToArray((CFDictionaryRef)t_multi_value, &t_prop_array) && 
+								MCContactAddPropertyWithLabel(*t_contact, *s_property_map[i].name, *t_label_name, *t_prop_array);
 						}
 						
 						CFRelease(t_multi_value);
@@ -310,94 +292,87 @@ bool MCCreatePersonData(MCExecPoint& ep, ABRecordRef p_person, MCVariableValue *
 	}
 	
 	if (t_success)
-		r_contact = t_contact;
-	else
-		delete t_contact;
-	
+		r_contact = MCValueRetain(*t_contact);
+
 	return t_success;
 }
 
-bool MCCreatePerson(MCExecPoint &p_ep, MCVariableValue *p_contact, ABRecordRef &r_person)
+bool MCCreatePerson(MCArrayRef p_contact, ABRecordRef &r_person)
 {
-	MCExecPoint ep(p_ep);
 	bool t_success = true;
 	ABRecordRef t_person = nil;
 	t_success = nil != (t_person = ABPersonCreate());
 	
 	for (uindex_t i = 0; t_success && i < ELEMENTS(s_property_map); i++)
 	{
-		if (p_contact->fetch_element_if_exists(ep, MCNameGetOldString(*s_property_map[i].name), false))
+		MCValueRef t_value;
+		if (MCArrayFetchValue(p_contact, false, *s_property_map[i].name, t_value))
 		{
 			if (!s_property_map[i].has_labels)
 			{
-				MCString t_value = ep.getsvalue0();
-				if (t_value.getlength() > 0)
+                // PM-2015-05-25: [[ Bug 15403 ]] Convert the valueref to a stringref
+                MCExecContext ctxt(nil,nil,nil);
+                MCAutoStringRef t_value_string;
+                ctxt.ConvertToString(t_value, &t_value_string);
+				if (MCStringGetLength(*t_value_string) > 0)
 				{
 					t_success = ABRecordSetValue(t_person, *s_property_map[i].property,
-									 [NSString stringWithCString:t_value.getstring() encoding:NSMacOSRomanStringEncoding],
+									 MCStringConvertToAutoreleasedNSString(*t_value_string),
 									 nil);
 				}
 			}
-			else
+			else if (MCValueIsArray(t_value))
 			{
-				MCVariableValue *t_prop_array = ep.getarray();
-				if (t_prop_array != nil)
+				ABMutableMultiValueRef t_multi_value = nil;
+				
+				CFTypeID t_multi_type = s_property_map[i].has_keys ? kABDictionaryPropertyType : kABStringPropertyType;
+				t_success = nil != (t_multi_value = ABMultiValueCreateMutable(t_multi_type));
+				for (uindex_t j = 0; t_success && j < ELEMENTS(s_label_map); j++)
 				{
-					ABMutableMultiValueRef t_multi_value = nil;
-					
-					CFTypeID t_multi_type = s_property_map[i].has_keys ? kABDictionaryPropertyType : kABStringPropertyType;
-					t_success = nil != (t_multi_value = ABMultiValueCreateMutable(t_multi_type));
-					for (uindex_t j = 0; t_success && j < ELEMENTS(s_label_map); j++)
+					MCValueRef t_element;
+					if (MCArrayFetchValue((MCArrayRef)t_value, false, *s_label_map[j].name, t_element))
 					{
-						if (t_prop_array->fetch_element_if_exists(ep, MCNameGetOldString(*s_label_map[j].name), false))
-					{
-							MCVariableValue *t_indexed_array = ep.getarray();
-							if (t_indexed_array != nil)
+						if (MCValueIsArray(t_element))
+						{
+							uindex_t t_index = 1;
+							MCValueRef t_index_value;
+                            
+                            // PM-2015-05-21: [[ Bug 14792 ]] t_success should not become false if MCArrayFetchValueAtIndex fails
+							while ((MCArrayFetchValueAtIndex((MCArrayRef)t_element, t_index++, t_index_value)))
 							{
-								MCVariableValue *t_index_value;
-								uindex_t t_index = 1;
-								
-								while (t_success = (ES_NORMAL == t_indexed_array->lookup_index(ep, t_index++, false, t_index_value)))
+								if (!s_property_map[i].has_keys)
 								{
-									if (t_index_value == nil)
-										break;
-
-									t_index_value->fetch(ep);
-									if (!s_property_map[i].has_keys)
+                                    // PM-2015-05-25: [[ Bug 15403 ]] Convert the valueref to a stringref
+                                    MCExecContext ctxt(nil,nil,nil);
+                                    MCAutoStringRef t_index_value_string;
+                                    /* UNCHECKED */ ctxt.ConvertToString(t_index_value, &t_index_value_string);
+									if (MCStringGetLength(*t_index_value_string) > 0)
 									{
-										MCString t_value = ep.getsvalue0();
-										if (t_value.getlength() > 0)
-										{
-											t_success = ABMultiValueAddValueAndLabel(t_multi_value,
-																					 [NSString stringWithCString:t_value.getstring() encoding:NSMacOSRomanStringEncoding],
-																					 s_label_map[j].label,
-																					 nil);
-										}
+										t_success = ABMultiValueAddValueAndLabel(t_multi_value,
+																				 MCStringConvertToAutoreleasedNSString(*t_index_value_string),
+																				 s_label_map[j].label,
+																				 nil);
 									}
-									else
-									{
-										MCVariableValue *t_label_array = ep.getarray();
-										if (t_label_array != nil)
-										{
-											CFDictionaryRef t_dict = nil;
-											t_success = MCCFDictionaryFromArray(ep, t_label_array, t_dict) &&
-											ABMultiValueAddValueAndLabel(t_multi_value, t_dict, s_label_map[j].label, nil);
-											if (t_dict != nil)
-												CFRelease(t_dict);
-										}
-									}
+								}
+								else if (MCValueIsArray(t_index_value))
+								{
+									CFDictionaryRef t_dict = nil;
+									t_success = MCCFDictionaryFromArray((MCArrayRef)t_index_value, t_dict) &&
+									ABMultiValueAddValueAndLabel(t_multi_value, t_dict, s_label_map[j].label, nil);
+									if (t_dict != nil)
+										CFRelease(t_dict);
 								}
 							}
 						}
 					}
-					
-					if (t_success && ABMultiValueGetCount(t_multi_value) > 0)
-						t_success = ABRecordSetValue(t_person, *s_property_map[i].property, t_multi_value, nil);
 				}
-			}
-		}
-	}
-	
+				
+				if (t_success && ABMultiValueGetCount(t_multi_value) > 0)
+					t_success = ABRecordSetValue(t_person, *s_property_map[i].property, t_multi_value, nil);
+            }
+        }
+    }
+    
 	if (t_success)
 		r_person = t_person;
 	else if (t_person != nil)
@@ -408,18 +383,56 @@ bool MCCreatePerson(MCExecPoint &p_ep, MCVariableValue *p_contact, ABRecordRef &
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCContactAddContact(MCVariableValue *p_contact, int32_t& r_chosen)
+static void requestAuthorization(ABAddressBookRef &x_address_book)
+{
+#ifdef __IPHONE_6_0
+    ABAuthorizationStatus t_status = ABAddressBookGetAuthorizationStatus();
+    
+    // ABAddressBookGetAuthorizationStatus() returns kABAuthorizationStatusNotDetermined *only* the first time the app is installed. The user will only be prompted the first time access is requested; any subsequent calls will use the existing permissions.
+    if (t_status == kABAuthorizationStatusNotDetermined)
+    {
+        __block bool t_blocking;
+        t_blocking = true;
+        ABAddressBookRequestAccessWithCompletion(x_address_book, ^(bool granted, CFErrorRef error) {
+            MCIPhoneRunBlockOnMainFiber(^(void){
+                
+                t_blocking = false;
+            });
+        });
+        
+        while (t_blocking)
+            MCscreen -> wait(1.0, False, True);
+    }
+#endif
+}
+
+bool MCContactAddContact(MCArrayRef p_contact, int32_t& r_chosen)
 {
     bool t_success = true;
-	MCExecPoint ep(nil, nil, nil);
 	
     ABAddressBookRef t_address_book = nil;
+    
+    // PM-2014-10-08: [[ Bug 13621 ]] ABAddressBookCreate is deprecated in iOS 6. Use ABAddressBookCreateWithOptions instead
+    if (MCmajorosversion < MCOSVersionMake(6,0,0))
+    {
+        // Fetch the address book
+        t_address_book = ABAddressBookCreate();
+    }
+    else
+    {
+#ifdef __IPHONE_6_0
+        // The ABAddressBookRef created with ABAddressBookCreateWithOptions will initially not have access to contact data. The app must then call ABAddressBookRequestAccessWithCompletion to request this access.
+        t_address_book = ABAddressBookCreateWithOptions(NULL, NULL);
+        requestAuthorization(t_address_book);
+#endif
+    }
+
 	if (t_success)
-		t_success = nil != (t_address_book = ABAddressBookCreate());
+		t_success = (nil != t_address_book);
 	
 	ABRecordRef t_contact = nil;
 	if (t_success)
-		t_success = MCCreatePerson(ep, p_contact, t_contact);
+		t_success = MCCreatePerson(p_contact, t_contact);
 	
 	
     // try to add new record in the address book
@@ -442,14 +455,30 @@ bool MCContactAddContact(MCVariableValue *p_contact, int32_t& r_chosen)
 	if (t_address_book != nil)
 		CFRelease(t_address_book);
 	
-	return t_success;
+	return t_success; 
 }
 
 bool MCContactDeleteContact(int32_t p_person_id)
 {
 	bool t_success = true;
 	
-    ABAddressBookRef t_address_book = ABAddressBookCreate();
+    ABAddressBookRef t_address_book = nil;
+    
+    // PM-2014-10-08: [[ Bug 13621 ]] ABAddressBookCreate is deprecated in iOS 6. Use ABAddressBookCreateWithOptions instead
+    if (MCmajorosversion < MCOSVersionMake(6,0,0))
+    {
+        // Fetch the address book
+        t_address_book = ABAddressBookCreate();
+    }
+    else
+    {
+#ifdef __IPHONE_6_0
+        // The ABAddressBookRef created with ABAddressBookCreateWithOptions will initially not have access to contact data. The app must then call ABAddressBookRequestAccessWithCompletion to request this access.
+        t_address_book = ABAddressBookCreateWithOptions(NULL, NULL);
+        requestAuthorization(t_address_book);
+#endif
+    }
+    
     ABRecordRef t_contact = ABAddressBookGetPersonWithRecordID (t_address_book, p_person_id);
 	
 	t_success = t_contact != nil && t_address_book != nil;
@@ -463,7 +492,7 @@ bool MCContactDeleteContact(int32_t p_person_id)
 	return t_success;
 }
 
-bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
+bool MCContactFindContact(MCStringRef p_person_name, MCStringRef &r_chosen)
 {
 	bool t_success = true;
 	
@@ -472,9 +501,24 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 		r_chosen = nil;
 		return true;
 	}
-	
-    // Fetch the address book
-    ABAddressBookRef t_address_book = ABAddressBookCreate();
+    
+    ABAddressBookRef t_address_book = nil;
+    
+    // PM-2014-10-08: [[ Bug 13621 ]] ABAddressBookCreate is deprecated in iOS 6. Use ABAddressBookCreateWithOptions instead
+    if (MCmajorosversion < MCOSVersionMake(6,0,0))
+    {
+        // Fetch the address book
+        t_address_book = ABAddressBookCreate();
+    }
+    else
+    {
+#ifdef __IPHONE_6_0
+        // The ABAddressBookRef created with ABAddressBookCreateWithOptions will initially not have access to contact data. The app must then call ABAddressBookRequestAccessWithCompletion to request this access.
+        t_address_book = ABAddressBookCreateWithOptions(NULL, NULL);
+        requestAuthorization(t_address_book);
+#endif
+    }
+    
 	t_success = t_address_book != nil;
 	
 	CFStringRef t_person_name = nil;
@@ -482,7 +526,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 	NSMutableString *t_chosen = nil;
 	
     if (t_success)
-		t_success = nil != (t_person_name = CFStringCreateWithCString(NULL, p_person_name, kCFStringEncodingMacRoman));
+		t_success = MCStringConvertToCFStringRef(p_person_name, t_person_name);
 
 	if (t_success)
 	{
@@ -494,13 +538,14 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 			// set the label item
 			for (int i = 1; t_success && i < [t_people count]; i++)
 			{
-				/* UNCHECKED */ [t_chosen appendFormat:@",%d", ABRecordGetRecordID((ABRecordRef)[t_people objectAtIndex:i])];
+            [t_chosen appendFormat:@",%d", ABRecordGetRecordID((ABRecordRef)[t_people objectAtIndex:i])];
 			}
 		}
 	}
 
-	if (t_success)
-		t_success = MCCStringClone([t_chosen cStringUsingEncoding:NSMacOSRomanStringEncoding], r_chosen);
+    // AL-2015-05-14: [[ Bug 15370 ]] Crash when matching contact not found
+    if (t_success && t_chosen != nil)
+		t_success = MCStringCreateWithCFStringRef((CFStringRef)t_chosen, r_chosen);
 	
     if (t_people != nil)
 		[t_people release];
@@ -509,12 +554,12 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 	if (t_address_book != nil)
 		CFRelease(t_address_book);
 	
-	return t_success;
+	return t_success; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@interface MCIPhoneContactDelegate : NSObject
+@interface com_runrev_livecode_MCIPhoneContactDelegate : NSObject
 {
 	bool m_running, m_finished, m_success;
 	UINavigationController *m_navigation;
@@ -526,7 +571,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 @end
 
-@implementation MCIPhoneContactDelegate
+@implementation com_runrev_livecode_MCIPhoneContactDelegate
 
 - (id)init
 {
@@ -542,7 +587,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 		// Returned values.
 		m_selected_person = kABRecordInvalidID;
-	}
+    }
     
 	return self;
 }
@@ -556,7 +601,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 - (void)doDismissController
 {
-	if (MCmajorosversion >= 500)
+	if (MCmajorosversion >= MCOSVersionMake(5,0,0))
 		[MCIPhoneGetViewController() dismissViewControllerAnimated:YES completion:^(){m_finished = true;}];
 	else
         [MCIPhoneGetViewController() dismissModalViewControllerAnimated:YES];
@@ -565,7 +610,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 - (void)dismissController
 {
     // HSC-2012-05-14: [[ BZ 10213 ]] Delayed continuation until view disappeared. 
-    if (MCmajorosversion >= 500)
+    if (MCmajorosversion >= MCOSVersionMake(5,0,0))
     {
         m_finished = false;
 		MCIPhoneCallSelectorOnMainFiber(self, @selector(doDismissController));
@@ -585,7 +630,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@interface MCIPhonePickContactDelegate : MCIPhoneContactDelegate <ABPeoplePickerNavigationControllerDelegate>
+@interface com_runrev_livecode_MCIPhonePickContactDelegate : com_runrev_livecode_MCIPhoneContactDelegate <ABPeoplePickerNavigationControllerDelegate>
 {
     ABPeoplePickerNavigationController *m_pick_contact;
 }
@@ -595,7 +640,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 @end
 
-@implementation MCIPhonePickContactDelegate
+@implementation com_runrev_livecode_MCIPhonePickContactDelegate
 
 - (id)init
 {
@@ -627,24 +672,41 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 		m_pick_contact.peoplePickerDelegate = self;
 		NSArray *t_displayed_items = [NSArray arrayWithObjects:[NSNumber numberWithInt:kABPersonPhoneProperty],
 									  [NSNumber numberWithInt:kABPersonEmailProperty],
-									  [NSNumber numberWithInt:kABPersonBirthdayProperty], nil];
+									  [NSNumber numberWithInt:kABPersonBirthdayProperty], nil, nil];
 		
 		m_pick_contact.displayedProperties = t_displayed_items;
 		// Show the picker
 		m_running = true;
 		
-		[MCIPhoneGetViewController() presentModalViewController:m_pick_contact animated:YES];
+        if (MCmajorosversion >= MCOSVersionMake(5,0,0))
+        {
+            [MCIPhoneGetViewController() presentViewController:m_pick_contact animated:YES completion:nil];
+        }
+        else
+            [MCIPhoneGetViewController() presentModalViewController:m_pick_contact animated:YES];
 	}
 }
 
 -(bool)showPickContact: (int32_t&) r_chosen
 {
+#ifdef __IPHONE_8_0
+    // PM-2014-11-10: [[ Bug 13979 ]] On iOS 8, we need to request authorization to be able to get a record identifier
+    // The ABAddressBookRef created with ABAddressBookCreateWithOptions will initially not have access to contact data. The app must then call ABAddressBookRequestAccessWithCompletion to request this access.
+    if (MCmajorosversion >= MCOSVersionMake(8,0,0))
+    {
+        ABAddressBookRef t_address_book = ABAddressBookCreateWithOptions(NULL, NULL);
+        requestAuthorization(t_address_book);
+    }
+#endif
+
 	MCIPhoneCallSelectorOnMainFiber(self, @selector(doShowPickContact));
 	
     while (m_running)
 		MCscreen -> wait(1.0, False, True);
 	
-	[self dismissController];
+    // PM-2014-10-10: [[ Bug 13639 ]] On iOS 8, the ABPeoplePickerNavigationController is dismissed in peoplePickerNavigationController:didSelectPerson. If [self dismissController] is called, then the completion block of dismissViewControllerAnimated:completion:^(){} in doDismissController is never called. So m_finish never becomes true and the app freezes
+    if (MCmajorosversion < MCOSVersionMake(8,0,0))
+        [self dismissController];
 	
     // Return the result
     if (m_selected_person == kABRecordInvalidID)
@@ -653,6 +715,25 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
         r_chosen = m_selected_person;
 	
 	return m_success;
+}
+
+// PM-2014-10-10: [[ Bug 13639 ]] In iOS 8, this is the replacement for peoplePickerNavigationController:shouldContinueAfterSelectingPerson
+// Called after a person has been selected by the user. It seems that it is also dismissing the ABPeoplePickerNavigationController (m_pick_contact), so we should not call [self dismissController] in showPickContact.
+- (void)peoplePickerNavigationController:(ABPeoplePickerNavigationController*)peoplePicker didSelectPerson:(ABRecordRef)person;
+{
+    if (person != NULL)
+        m_selected_person = ABRecordGetRecordID(person);
+    m_running = false;
+    return;
+}
+
+
+- (void)peoplePickerNavigationController:(ABPeoplePickerNavigationController *)peoplePicker didSelectPerson:(ABRecordRef)person property:(ABPropertyID)property identifier:(ABMultiValueIdentifier)identifier
+{
+    if (person != NULL)
+        m_selected_person = ABRecordGetRecordID(person);
+    m_running = false;
+    return;
 }
 
 - (BOOL)peoplePickerNavigationController:(ABPeoplePickerNavigationController *)peoplePicker shouldContinueAfterSelectingPerson:(ABRecordRef)person
@@ -683,7 +764,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@interface MCIPhoneShowContactDelegate : MCIPhoneContactDelegate <ABPersonViewControllerDelegate>
+@interface com_runrev_livecode_MCIPhoneShowContactDelegate : com_runrev_livecode_MCIPhoneContactDelegate <ABPersonViewControllerDelegate>
 {
 	ABPersonViewController *m_view_contact;
 }
@@ -693,7 +774,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 @end
 
-@implementation MCIPhoneShowContactDelegate
+@implementation com_runrev_livecode_MCIPhoneShowContactDelegate
 
 - (id)init
 {
@@ -718,7 +799,23 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 	t_person_id = [personId intValue];
 	
     ABAddressBookRef t_address_book = nil;
-	m_success = nil != (t_address_book = ABAddressBookCreate());
+    
+    // ABAddressBookCreate is deprecated in iOS 6. Use ABAddressBookCreateWithOptions instead
+    if (MCmajorosversion < MCOSVersionMake(6,0,0))
+    {
+        // Fetch the address book
+        t_address_book = ABAddressBookCreate();
+    }
+    else
+    {
+#ifdef __IPHONE_6_0
+        // The ABAddressBookRef created with ABAddressBookCreateWithOptions will initially not have access to contact data. The app must then call ABAddressBookRequestAccessWithCompletion to request this access.
+        t_address_book = ABAddressBookCreateWithOptions(NULL, NULL);
+        requestAuthorization(t_address_book);
+#endif
+    }
+    
+    m_success = t_address_book != nil;
 
     ABRecordRef t_person = ABAddressBookGetPersonWithRecordID (t_address_book, t_person_id);
 	if (t_person != nil)
@@ -735,6 +832,10 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 			m_success = nil != (m_navigation = [[UINavigationController alloc] initWithRootViewController: m_view_contact]);
 		}
 		
+        // PM-2014-12-10: [[ Bug 13168 ]] Add a Cancel button to allow dismissing mobileShowContact
+        if (m_success)
+            m_success = nil != (m_view_contact.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(handleGetContactCancel)]);
+        
 		if (m_success)
 		{
 			[m_navigation setToolbarHidden: NO];
@@ -780,6 +881,13 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 	m_running = false;
 }
 
+// PM-2014-12-10: [[ Bug 13168 ]] If Cancel button is pressed return to the app
+-(void) handleGetContactCancel
+{
+    m_running = false;
+}
+
+
 // Does not allow users to perform default actions such as dialing a phone number, when they select a contact property.
 - (BOOL)personViewController:(ABPersonViewController *)personViewController shouldPerformDefaultActionForPerson:(ABRecordRef)person 
                     property:(ABPropertyID)property identifier:(ABMultiValueIdentifier)identifierForValue
@@ -793,7 +901,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@interface MCIPhoneCreateContactDelegate : MCIPhoneContactDelegate <ABNewPersonViewControllerDelegate>
+@interface com_runrev_livecode_MCIPhoneCreateContactDelegate : com_runrev_livecode_MCIPhoneContactDelegate <ABNewPersonViewControllerDelegate>
 {
 	ABNewPersonViewController *m_get_contact;
 }
@@ -803,7 +911,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 @end
 
-@implementation MCIPhoneCreateContactDelegate
+@implementation com_runrev_livecode_MCIPhoneCreateContactDelegate
 
 - (id)init
 {
@@ -872,7 +980,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@interface MCIPhoneUpdateContactDelegate : MCIPhoneContactDelegate <ABUnknownPersonViewControllerDelegate>
+@interface com_runrev_livecode_MCIPhoneUpdateContactDelegate : com_runrev_livecode_MCIPhoneContactDelegate <ABUnknownPersonViewControllerDelegate>
 {
 	ABUnknownPersonViewController *m_update_contact;
 }
@@ -882,7 +990,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 
 @end
 
-@implementation MCIPhoneUpdateContactDelegate
+@implementation com_runrev_livecode_MCIPhoneUpdateContactDelegate
 
 - (id)init
 {
@@ -902,7 +1010,7 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 }
 
 -(bool)showUpdateContact: (ABRecordRef) p_contact
-			   withTitle: (const char*)p_title withMessage: (const char*)p_message withAlternateName: (const char*)p_alternate_name
+			   withTitle: (MCStringRef)p_title withMessage: (MCStringRef)p_message withAlternateName: (MCStringRef)p_alternate_name
 			  withResult: (int32_t&) r_chosen
 {
 	m_success = true;
@@ -917,9 +1025,9 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 		
 		if (m_success)
 		{
-			t_title = [NSString stringWithCString: p_title == nil ? "" : p_title encoding:NSMacOSRomanStringEncoding];
-			t_message = [NSString stringWithCString: p_message == nil ? "" : p_message encoding:NSMacOSRomanStringEncoding];
-			t_alternate_name = [NSString stringWithCString: p_alternate_name == nil ? "" : p_alternate_name encoding:NSMacOSRomanStringEncoding];
+            t_title = MCStringConvertToAutoreleasedNSString(p_title == nil ? kMCEmptyString : p_title);
+            t_message = MCStringConvertToAutoreleasedNSString(p_message == nil ? kMCEmptyString : p_message);
+			t_alternate_name = MCStringConvertToAutoreleasedNSString(p_alternate_name == nil ? kMCEmptyString : p_alternate_name);
 			m_success = (t_title != nil) && (t_message != nil) && (t_alternate_name != nil);
 		}
 		
@@ -942,6 +1050,11 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 		
 		if (m_success)
 			m_success = nil != (t_done_button = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(handleUpdateContactDone)]);
+        
+        // PM-2014-12-10: [[ Bug 13169 ]] Add a Cancel button to allow dismissing mobileUpdateContact
+        if (m_success)
+            m_success = nil != (m_update_contact.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel target:self action:@selector(handleUpdateContactCancel)]);
+        
 		if (m_success)
 			m_success = nil != (t_items = [NSArray arrayWithObject: t_done_button]);
 		
@@ -978,6 +1091,13 @@ bool MCContactFindContact(const char* p_person_name, char *&r_chosen)
 	m_running = false;
 }
 
+// PM-2014-12-10: [[ Bug 13169 ]] If Cancel button is pressed return to the app
+-(void) handleUpdateContactCancel
+{
+    m_running = false;
+}
+
+
 // Dismisses the picker when users are done creating a contact or adding the displayed person properties to an existing contact. 
 - (void)unknownPersonViewController:(ABUnknownPersonViewController *)unknownPersonView didResolveToPerson:(ABRecordRef)person
 {
@@ -999,8 +1119,8 @@ bool MCSystemPickContact(int32_t& r_result) // ABPeoplePickerNavigationControlle
 {
     bool t_success = true;
 	
-    MCIPhonePickContactDelegate *t_pick_contact = nil;
-	t_success = nil != (t_pick_contact = [[MCIPhonePickContactDelegate alloc] init]);
+    com_runrev_livecode_MCIPhonePickContactDelegate *t_pick_contact = nil;
+	t_success = nil != (t_pick_contact = [[com_runrev_livecode_MCIPhonePickContactDelegate alloc] init]);
 	
 	if (t_success)
 		t_success = [t_pick_contact showPickContact: r_result];
@@ -1015,8 +1135,8 @@ bool MCSystemShowContact(int32_t p_contact_id, int32_t& r_result) // ABPersonVie
 {
     bool t_success = true;
 	
-    MCIPhoneShowContactDelegate *t_view_contact = nil;
-	t_success = nil != (t_view_contact = [[MCIPhoneShowContactDelegate alloc] init]);
+    com_runrev_livecode_MCIPhoneShowContactDelegate *t_view_contact = nil;
+	t_success = nil != (t_view_contact = [[com_runrev_livecode_MCIPhoneShowContactDelegate alloc] init]);
 	
 	if (t_success)
 		t_success = [t_view_contact showViewContact:p_contact_id withResult: r_result];
@@ -1031,8 +1151,8 @@ bool MCSystemCreateContact(int32_t& r_result) // ABNewPersonViewController
 {
     bool t_success = true;
 	
-    MCIPhoneCreateContactDelegate *t_create_contact = nil;
-	t_success = nil != (t_create_contact = [[MCIPhoneCreateContactDelegate alloc] init]);
+    com_runrev_livecode_MCIPhoneCreateContactDelegate *t_create_contact = nil;
+	t_success = nil != (t_create_contact = [[com_runrev_livecode_MCIPhoneCreateContactDelegate alloc] init]);
 	
 	if (t_success)
 		t_success = [t_create_contact showCreateContact:r_result];
@@ -1043,18 +1163,17 @@ bool MCSystemCreateContact(int32_t& r_result) // ABNewPersonViewController
     return t_success;
 }
 
-bool MCSystemUpdateContact(MCVariableValue *p_contact, const char *p_title, const char *p_message, const char *p_alternate_name,
+bool MCSystemUpdateContact(MCArrayRef p_contact, MCStringRef p_title, MCStringRef p_message, MCStringRef p_alternate_name,
 						   int32_t &r_result)
 {
 	bool t_success = true;
-	
-	MCExecPoint ep(nil, nil, nil);
-	ABRecordRef t_contact = nil;
-	t_success = MCCreatePerson(ep, p_contact, t_contact);
 
-	MCIPhoneUpdateContactDelegate *t_update_contact = nil;
+	ABRecordRef t_contact = nil;
+	t_success = MCCreatePerson(p_contact, t_contact);
+
+	com_runrev_livecode_MCIPhoneUpdateContactDelegate *t_update_contact = nil;
 	if (t_success)
-		t_success = nil != (t_update_contact = [[MCIPhoneUpdateContactDelegate alloc] init]);
+		t_success = nil != (t_update_contact = [[com_runrev_livecode_MCIPhoneUpdateContactDelegate alloc] init]);
 	if (t_success)
 		t_success = [t_update_contact showUpdateContact:t_contact
 											  withTitle:p_title withMessage:p_message withAlternateName:p_alternate_name
@@ -1064,27 +1183,43 @@ bool MCSystemUpdateContact(MCVariableValue *p_contact, const char *p_title, cons
 	if (t_contact != nil)
 		CFRelease(t_contact);
 	
-	return t_success;
+	return t_success; 
 }
 
-bool MCSystemGetContactData(MCExecContext &r_ctxt, int32_t p_contact_id, MCVariableValue *&r_contact_data)
+bool MCSystemGetContactData(int32_t p_contact_id, MCArrayRef &r_contact_data)
 {
 	bool t_success = true;
 	
     ABAddressBookRef t_address_book = nil;
-	t_success = nil != (t_address_book = ABAddressBookCreate());
+    
+    // PM-2014-10-08: [[ Bug 13621 ]] ABAddressBookCreate is deprecated in iOS 6. Use ABAddressBookCreateWithOptions instead
+    if (MCmajorosversion < MCOSVersionMake(6,0,0))
+    {
+        // Fetch the address book
+        t_address_book = ABAddressBookCreate();
+    }
+    else
+    {
+#ifdef __IPHONE_6_0
+        // The ABAddressBookRef created with ABAddressBookCreateWithOptions will initially not have access to contact data. The app must then call ABAddressBookRequestAccessWithCompletion to request this access.
+        t_address_book = ABAddressBookCreateWithOptions(NULL, NULL);
+        requestAuthorization(t_address_book);
+#endif
+    }
+
+	t_success = (nil != t_address_book);
 	
     ABRecordRef t_person = nil;
 	if (t_success)
 		t_success = nil != (t_person = ABAddressBookGetPersonWithRecordID (t_address_book, p_contact_id));
 	
 	if (t_success)
-		t_success = MCCreatePersonData(r_ctxt.GetEP(), t_person, r_contact_data);
+		t_success = MCCreatePersonData(t_person, r_contact_data);
 	
 	if (t_address_book != nil)
 		CFRelease(t_address_book);
 	
-	return t_success;
+	return t_success; 
 }
 
 bool MCSystemRemoveContact(int32_t p_contact_id)
@@ -1092,12 +1227,12 @@ bool MCSystemRemoveContact(int32_t p_contact_id)
 	return MCContactDeleteContact(p_contact_id);
 }
 
-bool MCSystemAddContact(MCVariableValue *p_contact, int32_t& r_result)
+bool MCSystemAddContact(MCArrayRef p_contact, int32_t& r_result)
 {
 	return MCContactAddContact(p_contact, r_result);
 }
 
-bool MCSystemFindContact(const char* p_contact_name, char *& r_result)
+bool MCSystemFindContact(MCStringRef p_contact_name, MCStringRef& r_result)
 {
 	return MCContactFindContact(p_contact_name, r_result);
 }

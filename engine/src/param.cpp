@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -21,7 +21,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "filedefs.h"
 
 #include "scriptpt.h"
-#include "execpt.h"
+
 #include "param.h"
 #include "mcerror.h"
 #include "util.h"
@@ -39,110 +39,184 @@ Parse_stat MCParameter::parse(MCScriptPoint &sp)
 	}
 	return PS_NORMAL;
 }
+/////////
+
+void MCParameter::setvalueref_argument(MCValueRef p_value)
+{
+	MCValueRef t_value;
+	t_value = MCValueRetain(p_value);
+
+	MCExecTypeRelease(value);
+    MCExecTypeSetValueRef(value, t_value);
+}
+
+void MCParameter::give_exec_argument(MCExecValue p_value)
+{
+    if (MCExecTypeIsValueRef(p_value . type))
+    {
+        setvalueref_argument(p_value . valueref_value);
+        // SN-2014-07-09: [[ MemoryLeak ]] give_exec_argument should give the ExecValue, not copy it
+        MCExecTypeRelease(p_value);
+    }
+    else
+    {
+        MCExecTypeRelease(value);
+        value = p_value;
+    }
+}
+
+// Converts the exec value to a valueref
+MCValueRef MCParameter::getvalueref_argument(void)
+{
+    MCExecContext ctxt(nil, nil, nil);
+    MCExecTypeConvertAndReleaseAlways(ctxt, value . type, &value, kMCExecValueTypeValueRef, &value);
+    
+	return value . valueref_value;
+}
+
+void MCParameter::setn_argument(real8 p_number)
+{
+    MCExecTypeRelease(value);
+    value . type  = kMCExecValueTypeDouble;
+    value . double_value = p_number;
+}
+
+void MCParameter::setrect_argument(MCRectangle p_rect)
+{
+    MCExecTypeRelease(value);
+    value . type  = kMCExecValueTypeRectangle;
+    value . rectangle_value = p_rect;
+}
+
+void MCParameter::clear_argument(void)
+{
+    container = nil;
+	MCExecTypeRelease(value);
+}
 
 ////////
 
-MCVariable *MCParameter::evalvar(MCExecPoint& ep)
+bool MCParameter::eval(MCExecContext &ctxt, MCValueRef &r_value)
 {
-	if (exp == NULL)
-		return NULL;
-
-	return exp -> evalvar(ep);
+    if (exp != nullptr)
+    {
+        if (!ctxt . EvalOptionalExprAsValueRef(exp, (MCValueRef)kMCEmptyString, EE_PARAM_BADEXP, r_value))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        r_value = MCValueRetain(kMCEmptyString);
+    }
+    return true;
 }
 
-Exec_stat MCParameter::eval(MCExecPoint& ep)
+bool MCParameter::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-	if (!value . is_undefined() || exp == NULL)
-	{
-		switch(value . get_format())
-		{
-		case VF_STRING:
-			ep . setsvalue(value . get_string());
-		break;
-		case VF_NUMBER:
-			ep . setnvalue(value . get_real());
-		break;
-		case VF_BOTH:
-			ep . setboth(value . get_string(), value . get_real());
-		break;
-		case VF_ARRAY:
-			ep . setarray(&value, False);
-		break;
-		default:
-			ep . clear();
-		break;
-		}
-	}
-	else if (exp -> eval(ep) != ES_NORMAL)
-	{
-		MCeerror->add(EE_PARAM_BADEXP, line, pos);
-		return ES_ERROR;
-	}
-
-	return ES_NORMAL;
+    if (exp != nil)
+    {
+        if (!ctxt . EvaluateExpression(exp, EE_PARAM_BADEXP, r_value))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        MCExecTypeSetValueRef(r_value, MCValueRetain(kMCEmptyString));
+    }
+    return true;
 }
 
-Exec_stat MCParameter::evalcontainer(MCExecPoint& ep, MCVariable*& r_var, MCVariableValue*& r_var_value)
+bool MCParameter::evalcontainer(MCExecContext &ctxt, MCContainer& r_container)
 {
-	if (exp == NULL)
-		return ES_ERROR;
+    if (exp == NULL)
+        return false;
 
-	return exp -> evalcontainer(ep, r_var, r_var_value);
+    return exp -> evalcontainer(ctxt, r_container);
 }
 
-Exec_stat MCParameter::eval_argument(MCExecPoint& ep)
+bool MCParameter::eval_argument(MCExecContext &ctxt, MCValueRef &r_value)
 {
-	if (var != NULL)
-		return var -> fetch(ep);
+    // AL-2014-08-28: [[ ArrayElementRefParams ]] MCParameter argument can now be a container
+    if (container != nil)
+        return container -> eval(ctxt, r_value);
+    
+    if (value . type == kMCExecValueTypeNone)
+        return r_value = MCValueRetain(kMCEmptyString), true;
 
-	return value . fetch(ep);
+    MCValueRef t_value;
+    if (MCExecTypeIsValueRef(value . type))
+    {
+        if (!MCValueCopy(value . valueref_value, t_value))
+            return false;
+    }
+    else
+    {
+        MCExecTypeConvertToValueRefAndReleaseAlways(ctxt, value . type, &value, t_value);
+    }
+    
+
+    r_value = t_value;
+    return true;
 }
 
-MCVariable *MCParameter::eval_argument_var(void)
+bool MCParameter::eval_argument_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-	return var;
+    if (container != nil)
+        return container -> eval_ctxt(ctxt, r_value);
+    
+    MCExecTypeCopy(value, r_value);
+    return true;
+}
+
+MCContainer *MCParameter::eval_argument_container(void)
+{
+	return container;
+}
+
+unsigned MCParameter::count_containers(void)
+{
+    /* Loop through the parameter list (starting at this node) and count the
+     * number of parameters with expressions which have a root variable - these
+     * require containers when being passed to handlers. */
+    unsigned t_count = 0;
+    for(MCParameter *t_param = this; t_param != nullptr; t_param = t_param->next)
+    {
+        if (t_param->exp == nullptr)
+        {
+            continue;
+        }
+        
+        if (t_param->exp->getrootvarref() != nullptr)
+        {
+            t_count += 1;
+        }
+    }
+    return t_count;
 }
 
 /////////
 
-void MCParameter::set_argument(MCExecPoint& ep)
+void MCParameter::set_argument(MCExecContext& ctxt, MCValueRef p_value)
 {
-	switch(ep . getformat())
-	{
-	case VF_UNDEFINED:
-		value . clear();
-	break;
-
-	case VF_STRING:
-		if (ep . usingbuffer())
-			value . assign_string(ep . getsvalue());
-		else
-			value . assign_constant_string(ep . getsvalue());
-	break;
-
-	case VF_NUMBER:
-		value . assign_real(ep . getnvalue());
-	break;
-
-	case VF_BOTH:
-		// MW-2008-06-30: [[ Bug ]] Make sure we set 'both', previously the string part
-		//   and then numeric part was being set which caused uninitialized parameters to
-		//   appear as 0.
-		if (ep . usingbuffer())
-			value . assign_both(ep . getsvalue(), ep . getnvalue());
-		else
-			value . assign_constant_both(ep . getsvalue(), ep . getnvalue());
-	break;
-
-	case VF_ARRAY:
-		value . assign(*(ep . getarray()));
-	break;
-	}
-
-	var = NULL;
+    MCValueRef t_new_value;
+    t_new_value = MCValueRetain(p_value);
+    MCExecTypeRelease(value);
+    MCExecTypeSetValueRef(value, t_new_value);
 }
 
-void MCParameter::set_argument_var(MCVariable* p_var)
+void MCParameter::set_exec_argument(MCExecContext& ctxt, MCExecValue p_value)
 {
-	var = p_var;
+	MCExecValue t_old_value;
+	t_old_value = value;
+    MCExecTypeCopy(p_value, value);
+	MCExecTypeRelease(t_old_value);
 }
+
+void MCParameter::set_argument_container(MCContainer* p_container)
+{
+	container = p_container;
+}
+
+////////////////////////////////////////////////////////////////////////////////

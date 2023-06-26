@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,5 +16,11 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #ifndef __PREFIX__
 #define __PREFIX__
+
 #include "globdefs.h"
+
+#if defined(_WIN32)
+#  include "w32prefix.h"
+#endif
+
 #endif

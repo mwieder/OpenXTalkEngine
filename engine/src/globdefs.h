@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -52,20 +52,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#if defined(_MOBILE)
-
-#undef _MACOSX
-#undef _LINUX
-#undef _WINDOWS
-
-#elif defined(_SERVER)
-
-#undef _MACOSX
-#undef _LINUX
-#undef _WINDOWS
-
-#endif
 
 #include "sysdefs.h"
 

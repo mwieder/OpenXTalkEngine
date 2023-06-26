@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -44,7 +44,7 @@ RTFStatus RTFState::Save(void)
 	t_new_entry = NULL;
 	if (t_status == kRTFStatusSuccess)
 	{
-		t_new_entry = new Entry;
+		t_new_entry = new (nothrow) Entry;
 		if (t_new_entry == NULL)
 			t_status = kRTFStatusOverflow;
 	}
@@ -78,9 +78,9 @@ RTFStatus RTFState::Save(void)
 			t_new_entry -> paragraph_background_color = m_entries -> paragraph_background_color;
 			t_new_entry -> border_color = m_entries -> border_color;
 
-			MCNameClone(m_entries -> metadata, t_new_entry -> metadata);
-			MCNameClone(m_entries -> paragraph_metadata, t_new_entry -> paragraph_metadata);
-			MCNameClone(m_entries -> hyperlink, t_new_entry -> hyperlink);
+            /* UNCHECKED */ MCStringCopy(m_entries -> metadata, t_new_entry -> metadata);
+            /* UNCHECKED */ MCStringCopy(m_entries -> paragraph_metadata, t_new_entry -> paragraph_metadata);
+            t_new_entry->hyperlink = MCValueRetain(m_entries -> hyperlink);
 		}
 		else
 		{
@@ -108,9 +108,9 @@ RTFStatus RTFState::Save(void)
 			t_new_entry -> paragraph_background_color = 0xffffffff;
 			t_new_entry -> border_color = 0xffffffff;
 
-			MCNameClone(kMCEmptyName, t_new_entry -> metadata);
-			MCNameClone(kMCEmptyName, t_new_entry -> paragraph_metadata);
-			MCNameClone(kMCEmptyName, t_new_entry -> hyperlink);
+            t_new_entry -> metadata = MCValueRetain(kMCEmptyString);
+            t_new_entry -> paragraph_metadata = MCValueRetain(kMCEmptyString);
+            t_new_entry -> hyperlink = MCValueRetain(kMCEmptyName);
 		}
 		
 		m_entries = t_new_entry;
@@ -136,9 +136,9 @@ RTFStatus RTFState::Restore(void)
 		t_entry = m_entries;
 		m_entries = t_entry -> previous;
 		
-		MCNameDelete(t_entry -> metadata);
-		MCNameDelete(t_entry -> paragraph_metadata);
-		MCNameDelete(t_entry -> hyperlink);
+        MCValueRelease(t_entry -> metadata);
+        MCValueRelease(t_entry -> paragraph_metadata);
+		MCValueRelease(t_entry -> hyperlink);
 
 		delete t_entry;
 	}
@@ -162,7 +162,7 @@ bool RTFState::HasParagraphChanged(void) const
 			m_entries -> space_above != 0 || m_entries -> space_below != 0 ||
 			m_entries -> paragraph_background_color != 0xffffffff ||
 			m_entries -> border_color !=0xffffffff ||
-			m_entries -> paragraph_metadata != kMCEmptyName;
+			m_entries -> paragraph_metadata != kMCEmptyString;
 	
 	return m_entries -> list_style != m_entries -> previous -> list_style ||
 			m_entries -> list_level != m_entries -> previous -> list_level ||

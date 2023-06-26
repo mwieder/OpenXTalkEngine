@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -86,9 +86,10 @@ MCUndolist::~MCUndolist()
 
 void MCUndolist::savestate(MCObject *objptr, Ustruct *us)
 {
-	MCUndonode *uptr = new MCUndonode(objptr, us);
+	MCUndonode *uptr = new (nothrow) MCUndonode(objptr, us);
 	uptr->appendto(nodes);
-	objptr->message(MCM_undo_changed);
+    if (MCdefaultstackptr)
+        MCdefaultstackptr->getcurcard()->message(MCM_undo_changed);
 }
 
 void MCUndolist::freestate()

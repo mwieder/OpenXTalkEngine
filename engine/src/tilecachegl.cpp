@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -16,7 +16,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "prefix.h"
 
-#include "core.h"
 #include "globdefs.h"
 #include "filedefs.h"
 #include "objdefs.h"
@@ -35,14 +34,17 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include <CoreGraphics/CoreGraphics.h>
 #import <OpenGLES/ES1/gl.h>
 #import <OpenGLES/ES1/glext.h>
-extern void MCIPhoneSwitchToUIKit(void);
-extern void MCIPhoneSwitchToOpenGL(void);
 #elif defined(TARGET_SUBPLATFORM_ANDROID)
+#define GL_GLEXT_PROTOTYPES
 #include <GLES/gl.h>
 #include <GLES/glext.h>
-extern void MCAndroidEnableOpenGLMode(void);
-extern void MCAndroidDisableOpenGLMode(void);
+#include <EGL/egl.h>
+#else
+#error tilecachegl.cpp not supported on this platform
 #endif
+
+extern void MCPlatformEnableOpenGLMode(void);
+extern void MCPlatformDisableOpenGLMode(void);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +138,7 @@ static inline void glvColor4ub(MCTileCacheOpenGLVersion p_version, uint8_t r, ui
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline void MCTileCacheOpenGLCompositorDecodeTile(MCTileCacheOpenGLCompositorContext *self, uint32_t p_tile, uint32_t& r_super_tile, uint32_t& r_sub_tile)
+static inline void MCTileCacheOpenGLCompositorDecodeTile(MCTileCacheOpenGLCompositorContext *self, uintptr_t p_tile, uint32_t& r_super_tile, uint32_t& r_sub_tile)
 {
 	r_super_tile = (p_tile & 0xffff) - 1;
 	r_sub_tile = (p_tile >> 16) - 1;
@@ -219,7 +221,7 @@ static bool MCTileCacheOpenGLCompositorCreateTile(MCTileCacheOpenGLCompositorCon
 	return true;
 }
 
-static void MCTileCacheOpenGLCompositorDestroyTile(MCTileCacheOpenGLCompositorContext *self, uint32_t p_tile)
+static void MCTileCacheOpenGLCompositorDestroyTile(MCTileCacheOpenGLCompositorContext *self, uintptr_t p_tile)
 {
 	// Fetch the super/sub indices of the tile.
 	uint32_t t_super_tile_index, t_sub_tile_index;
@@ -300,7 +302,7 @@ bool MCTileCacheOpenGLCompositor_EndTiling(void *p_context)
 	// Flush any empty textures.
 	MCTileCacheOpenGLCompositorFlushSuperTiles(self, false);
 	
-	// If an OpenGL error occured, then return false.
+	// If an OpenGL error occurred, then return false.
 	GLenum t_error;
 	t_error = glGetError();
 	if (t_error != GL_NO_ERROR)
@@ -354,7 +356,14 @@ bool MCTileCacheOpenGLCompositor_AllocateTile(void *p_context, int32_t p_size, c
 		
 		// Fill the texture.
 		// IM_2013-08-21: [[ RefactorGraphics ]] set iOS pixel format to RGBA
-		glTexSubImage2D(GL_TEXTURE_2D, 0, t_x * self -> tile_size, t_y * self -> tile_size, self -> tile_size, self -> tile_size, GL_RGBA, GL_UNSIGNED_BYTE, t_data);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, t_x * self -> tile_size, t_y * self -> tile_size, self -> tile_size, self -> tile_size, GL_RGBA, GL_UNSIGNED_BYTE, t_data);
+        // SN-2015-04-13: [[ Bug 14879 ]] This function seems to fail sometimes,
+        //  and we want to get the error here, not in
+        //  MCTileCacheOpenGLCompositorFlushSuperTiles as it happens in the
+        //  stack attached to the bug report.
+        GLenum t_error = glGetError();
+        if (t_error != GL_NO_ERROR)
+            MCLog("glTextSubImage2D(x,x,%d,%d,%d,%d,...) returned error 0x%X", t_x * self -> tile_size, t_y * self -> tile_size, self -> tile_size, self -> tile_size, t_error);
 
 		// Set the tile id.
 		t_tile = (void *)t_tile_id;
@@ -376,12 +385,22 @@ void MCTileCacheOpenGLCompositor_DeallocateTile(void *p_context, void *p_tile)
 	MCTileCacheOpenGLCompositorContext *self;
 	self = (MCTileCacheOpenGLCompositorContext *)p_context;
 	
-	MCTileCacheOpenGLCompositorDestroyTile(self, (uint32_t)p_tile);
+	MCTileCacheOpenGLCompositorDestroyTile(self, (uintptr_t)p_tile);
 }
 
 static void MCTileCacheOpenGLCompositor_PrepareFrame(MCTileCacheOpenGLCompositorContext *self)
 {
-	self -> viewport_height = MCTileCacheGetViewport(self -> tilecache) . height;
+#if defined(_ANDROID_MOBILE)
+    EGLint t_height;
+    eglQuerySurface(eglGetCurrentDisplay(),
+                    eglGetCurrentSurface(EGL_DRAW),
+                    EGL_HEIGHT,
+                    &t_height);
+    
+    self -> viewport_height = t_height;
+#else
+    self -> viewport_height = MCTileCacheGetViewport(self -> tilecache) . height;
+#endif
 	self -> current_texture = 0;
 	self -> current_color = 0xffffffff;
 	self -> current_opacity = 255;
@@ -428,7 +447,7 @@ static void MCTileCacheOpenGLCompositor_PrepareFrame(MCTileCacheOpenGLCompositor
 	glTexCoordPointer(2, GL_SHORT, 8, self -> vertex_data + 2);
 }
 
-bool MCTileCacheOpenGLCompositor_BeginFrame(void *p_context, MCStackSurface *p_surface, MCRegionRef p_dirty)
+bool MCTileCacheOpenGLCompositor_BeginFrame(void *p_context, MCStackSurface *p_surface, MCGRegionRef p_dirty)
 {
 	MCTileCacheOpenGLCompositorContext *self;
 	self = (MCTileCacheOpenGLCompositorContext *)p_context;
@@ -541,12 +560,12 @@ bool MCTileCacheOpenGLCompositor_BeginLayer(void *p_context, const MCRectangle& 
 			glScissor(p_clip . x + self -> origin_x, p_clip . y + self -> origin_y, p_clip . width, p_clip . height);
 	}
 	
-	if (!self -> is_blending)
-	{
-		self -> is_blending = true;
-		glEnable(GL_BLEND);
-	}
-			
+    if (!self -> is_blending)
+    {
+        self -> is_blending = true;
+        glEnable(GL_BLEND);
+    }
+		
 	self -> current_opacity = p_opacity;
 	
 	return true;
@@ -566,11 +585,14 @@ bool MCTileCacheOpenGLCompositor_EndLayer(void *p_context)
 
 bool MCTileCacheOpenGLCompositor_CompositeTile(void *p_context, int32_t p_x, int32_t p_y, void *p_tile)
 {
+    if (p_tile == nil)
+        return false;
+    
 	MCTileCacheOpenGLCompositorContext *self;
 	self = (MCTileCacheOpenGLCompositorContext *)p_context;
 
 	uint32_t t_super_tile_index, t_sub_tile_index;
-	MCTileCacheOpenGLCompositorDecodeTile(self, (uint32_t)p_tile, t_super_tile_index, t_sub_tile_index);
+	MCTileCacheOpenGLCompositorDecodeTile(self, (uintptr_t)p_tile, t_super_tile_index, t_sub_tile_index);
 	
 	GLuint t_texture;
 	t_texture = self -> super_tiles[t_super_tile_index] -> texture;
@@ -669,11 +691,7 @@ void MCTileCacheOpenGLCompositor_Cleanup(void *p_context)
 	MCMemoryDeleteArray(self -> super_tiles);
 	MCMemoryDelete(self);
 	
-#ifdef _IOS_MOBILE
-	MCIPhoneSwitchToUIKit();
-#else
-	MCAndroidDisableOpenGLMode();
-#endif
+	MCPlatformDisableOpenGLMode();
 }
 
 void MCTileCacheOpenGLCompositor_Flush(void *p_context)
@@ -710,11 +728,7 @@ bool MCTileCacheOpenGLCompositorConfigure(MCTileCacheRef p_tilecache, MCTileCach
 	r_compositor . begin_snapshot = MCTileCacheOpenGLCompositor_BeginSnapshot;
 	r_compositor . end_snapshot = MCTileCacheOpenGLCompositor_EndSnapshot;
 	
-#ifdef _IOS_MOBILE
-	MCIPhoneSwitchToOpenGL();
-#else
-	MCAndroidEnableOpenGLMode();
-#endif
+	MCPlatformEnableOpenGLMode();
 	
 	return true;
 }

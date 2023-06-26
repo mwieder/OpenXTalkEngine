@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -37,6 +37,7 @@ class MCPDFPrintingDevice: public MCCustomPrintingDevice
 {
 public:
 	MCPDFPrintingDevice();
+	virtual ~MCPDFPrintingDevice() {};
 
 	void Destroy(void);
 
@@ -59,7 +60,7 @@ public:
 	bool FillPath(const MCCustomPrinterPath& path, MCCustomPrinterFillRule rule, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip);
 	bool StrokePath(const MCCustomPrinterPath& path, const MCCustomPrinterStroke& stroke, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip);
 	bool DrawImage(const MCCustomPrinterImage& image, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip);
-	bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip);
+	bool DrawText(const MCCustomPrinterGlyph *glyphs, uint32_t glyph_count, const char *text_bytes, uint32_t text_byte_count, const uint32_t *clusters, const MCCustomPrinterFont& font, const MCCustomPrinterPaint& paint, const MCCustomPrinterTransform& transform, const MCCustomPrinterRectangle& clip);
 
 	bool MakeAnchor(const MCCustomPrinterPoint& position, const char *name);
 	bool MakeLink(const MCCustomPrinterRectangle& area, const char *link, MCCustomPrinterLinkType type);
@@ -73,6 +74,7 @@ private:
 	bool create_mask_surface_from_image(const MCCustomPrinterImage &p_image, cairo_surface_t* &r_surface);
 	bool create_cairo_font_from_custom_printer_font(const MCCustomPrinterFont &p_cp_font, cairo_font_face_t* &r_cairo_font);
 	bool set_cairo_pdf_datetime_to_now(cairo_pdf_datetime_t &r_datetime);
+	bool get_filename(const char* p_utf8_path, char *& r_system_path);
 
 private:
 	struct FontCache

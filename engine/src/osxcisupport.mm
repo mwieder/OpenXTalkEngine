@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -31,7 +31,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern bool MCGImageToCGImage(MCGImageRef p_src, MCGRectangle p_src_rect, bool p_copy, bool p_invert, CGImageRef &r_image);
+extern bool MCMacPlatformGetImageColorSpace(CGColorSpaceRef &r_colorspace);
+extern bool MCGImageToCGImage(MCGImageRef p_src, const MCGIntegerRectangle &p_src_rect, bool p_invert, CGImageRef &r_image);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,8 +46,6 @@ extern bool MCGImageToCGImage(MCGImageRef p_src, MCGRectangle p_src_rect, bool p
 
 #define OBJC_LEAVE \
 	[__t_pool release];
-
-static bool s_coreimage_present = false;
 
 typedef struct __coreimage_visualeffect_t coreimage_visualeffect_t;
 typedef coreimage_visualeffect_t *coreimage_visualeffect_ref_t;
@@ -248,7 +247,7 @@ bool MCGImageToCIImage(MCGImageRef p_image, CIImage *&r_image)
 {
 	CGImageRef t_cg_image = nil;
 	CIImage *t_ci_image = nil;
-	if (!MCGImageToCGImage(p_image, MCGRectangleMake(0, 0, MCGImageGetWidth(p_image), MCGImageGetHeight(p_image)), false, false, t_cg_image))
+	if (!MCGImageToCGImage(p_image, MCGIntegerRectangleMake(0, 0, MCGImageGetWidth(p_image), MCGImageGetHeight(p_image)), false, t_cg_image))
 		return false;
 	
 	bool t_success = true;
@@ -325,17 +324,17 @@ rei_boolean_t coreimage_visualeffect_begin(rei_handle_t p_handle, MCGImageRef p_
 				
 				case REI_VISUALEFFECT_PARAMETER_TYPE_VECTOR:
 				{
-					float *t_vector_as_float;
+					CGFloat *t_vector_as_float;
 					unsigned int t_count;
 					unsigned int t_jndex;
 				
 					t_count = p_parameters -> entries[t_index] . value . vector . length;
 				
-					t_vector_as_float = (float*)alloca(sizeof(float) * t_count);
+					t_vector_as_float = (CGFloat*)alloca(sizeof(CGFloat) * t_count);
 					if (t_vector_as_float != NULL)
 					{
 						for(t_jndex = 0; t_jndex < t_count; ++t_jndex)
-							t_vector_as_float[t_jndex] = (float)p_parameters -> entries[t_index] . value . vector . coefficients[t_jndex];
+							t_vector_as_float[t_jndex] = CGFloat(p_parameters -> entries[t_index] . value . vector . coefficients[t_jndex]);
 						t_value = [CIVector vectorWithValues: t_vector_as_float count: t_count];
 						free(p_parameters -> entries[t_index] . value . vector . coefficients);
 					}
@@ -350,7 +349,7 @@ rei_boolean_t coreimage_visualeffect_begin(rei_handle_t p_handle, MCGImageRef p_
 					t_height = p_parameters -> entries[t_index] . value . image . height;
 					t_data = p_parameters -> entries[t_index] . value . image . data;
 					CGColorSpaceRef t_color_space;
-					t_color_space = CGColorSpaceCreateDeviceRGB();
+					/* UNCHECKED */ MCMacPlatformGetImageColorSpace(t_color_space);
 					t_value = [CIImage imageWithBitmapData: [NSData dataWithBytesNoCopy: t_data length: t_width * t_height * 4] bytesPerRow: t_width * 4 size: CGSizeMake(t_width, t_height) format: kCIFormatARGB8 colorSpace: t_color_space];
 					CGColorSpaceRelease(t_color_space);
 				}
@@ -404,7 +403,6 @@ rei_boolean_t coreimage_visualeffect_step(MCStackSurface *p_target, float p_time
 	{
 		CIContext *t_context = nil;
 		rei_boolean_t t_result = true;
-		Rect t_rect;
 		
 		OBJC_ENTER(false)
 		

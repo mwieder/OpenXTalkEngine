@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -31,18 +31,20 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
 
-inline void *operator new(size_t size, const char *fnm, int line)
+#define _DEBUG_MEMORY
+#undef new
+#undef delete
+
+inline void *operator new(size_t size, std::nothrow_t, const char *fnm, int line) throw () {return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);}
+inline void *operator new[](size_t size, std::nothrow_t, const char *fnm, int line) throw () {return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);}
+
+inline void *operator new(size_t, void *p, const char *, long)
 {
-	return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);
+	return p;
 }
 
-inline void *operator new[](size_t size, const char *fnm, int line)
-{
-	return _malloc_dbg(size, _NORMAL_BLOCK, fnm, line);
-}
-
-#define new new(__FILE__, __LINE__)
-
+#define new(...) new(__VA_ARGS__, __FILE__, __LINE__ )
+#define delete delete
 #endif
 
 
@@ -137,8 +139,8 @@ class DBList
 		void add(DBObject *newdbnode);
 		void clear();
 		DBObjectList *getList();
-		Bool erase(const int fid);
-		DBObject *find(const int fid);
+		Bool erase(const unsigned int fid);
+		DBObject *find(const unsigned int fid);
 		int getsize();
 		DBObject *findIndex(const int tindex);
 		void show();
@@ -290,6 +292,20 @@ inline void DBString::Set(char *p_string, int p_length, Bool p_binary)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+#define DBcallbacks_version 0
+
+struct DBcallbacks
+{
+    unsigned int version;
+
+    // V0 callbacks
+    void *(*load_module)(const char *module);
+    void (*unload_module)(void *module);
+    void *(*resolve_symbol_in_module)(void *module, const char *symbol);
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 // These are the standard exported functions for all db-drivers. We predeclare
 // them here with appropriate visibility so we don't have to do this in all
 // driver files.
@@ -298,6 +314,7 @@ inline void DBString::Set(char *p_string, int p_length, Bool p_binary)
 extern "C" DBConnection *newdbconnectionref() __attribute__((visibility("default")));
 extern "C" void releasedbconnectionref(DBConnection *dbref) __attribute__((visibility("default")));
 extern "C" void setidcounterref(unsigned int *tidcounter) __attribute__((visibility("default")));
+extern "C" void setcallbacksref(DBcallbacks *callbacks) __attribute__((visibility("default")));
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////

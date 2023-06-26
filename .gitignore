@@ -5,6 +5,7 @@ engine/src/hashedstrings.cpp
 engine/src/encodederrors.cpp
 engine/src/startupstack.cpp
 engine/src/linuxstubs.cpp
+engine/src/quicktimestubs.mac.cpp
 engine/include/revbuild.h
 lcidlc/src/EncodedSupport.c
 lcidlc/src/EncodedJavaSupport.c
@@ -18,15 +19,28 @@ encryptedobjectstream.h
 encryptedstack.cpp
 encryptedstack.h
 stacksecurity_encrypted.cpp
+util/perfect/perfect.linux-*
+**/extensions/*/*/*.xml
+**/extensions/*/*/*.lci
+**/extensions/*/*/*.lcm
+**/extensions/*/*/*.lce
+**/extensions/*/*/api.lcdoc
+*/src/.lci/*
 
-# Compiled source #
+# Compiled source and intermediates #
 ###################
+*.i
+*.ii
 *.com
 *.class
 *.dll
 *.exe
 *.o
 *.so
+*.a
+*.pyc
+*.d
+*.stamp
 
 # Packages #
 ############
@@ -62,7 +76,7 @@ Thumbs.db
 ####################
 .svn/
 
-# Project setting files #
+# Projects and project setting files #
 #########################
 *.pbxuser
 *.perspectivev3
@@ -72,13 +86,54 @@ xcuserdata/
 *.vcproj.*.user
 *.ncb
 *.suo
+*.mode1v3
+*.xcworkspacedata
+*.creator.user
+*.Makefile
+*.mk
+*.xcodeproj/*
+*.pbxproj
+*.vcproject
+*.vcxproject
+make-*_*/
+vsprojects/
+xcprojects/
+GPATH
+GRTAGS
+GTAGS
 
 # Build folders #
 #################
 _build/
 _cache/
 build/
+/_tests/
+*-bin/
+mac-bin
+build-*/
 
 # SDKs          #
 #################
 sdks/
+
+# Ignore prebuilts #
+###################
+prebuilt/bin
+prebuilt/include
+prebuilt/lib
+prebuilt/share
+prebuilt/build
+prebuilt/packaged
+prebuilt/fetched
+prebuilt/unpacked
+
+# Stamp files and generated C files
+###################################
+stamp-mlc*
+_mlc
+
+# Built Notes   #
+#################
+LiveCodeNotes-*
+LiveCodeUpdates-*
+LiveCodeUserGuide-*

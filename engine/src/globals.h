@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -20,11 +20,33 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #ifndef __MC_GLOBALS__
 #define __MC_GLOBALS__
 
+#include "clipboard.h"
 #include "mcstring.h"
 #include "imagelist.h"
+#include "parsedef.h"
+#include "sysdefs.h"
+#include "mcsemaphore.h"
+
+#include "object.h"
+#include "card.h"
+#include "group.h"
+#include "aclip.h"
+#include "stack.h"
+#include "player.h"
+#include "image.h"
+#include "magnify.h"
+#include "field.h"
+#include "tooltip.h"
+
+#include "foundation-locale.h"
 
 typedef struct _Streamnode Streamnode;
 typedef struct _Linkatts Linkatts;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GLOBAL VARIABLES
+//
 
 extern Bool MCquit;
 
@@ -35,11 +57,15 @@ extern Bool MCquitisexplicit;
 
 extern int MCidleRate;
 
-
 extern Boolean MCaqua;
-extern char *MCcmd;
-extern char *MCfiletype;
-extern char *MCstackfiletype;
+extern MCStringRef MCcmd;
+
+/* The app code path is the folder relative to which the engine can find all
+ * its code resources */
+extern MCStringRef MCappcodepath;
+
+extern MCStringRef MCfiletype;
+extern MCStringRef MCstackfiletype;
 
 extern Boolean MCuseXft ;
 extern Boolean MCuselibgnome ;
@@ -55,7 +81,7 @@ extern Boolean MCXVideo ;
 extern Window MClastvideowindow ;
 #endif
 
-extern char **MCstacknames;
+extern MCStringRef *MCstacknames;
 
 extern int2 MCnstacks;
 extern Boolean MCnofiles;
@@ -73,7 +99,6 @@ extern Boolean MCproportionalthumbs;
 extern Boolean MCdontuseNS;
 extern Boolean MCdontuseQT;
 extern Boolean MCdontuseQTeffects;
-extern Boolean MCfreescripts;
 extern uint4 MCeventtime;
 extern uint2 MCbuttonstate;
 extern uint2 MCmodifierstate;
@@ -102,11 +127,11 @@ extern real8 MCgamma;
 extern MCColor MCzerocolor;
 extern MCColor MConecolor;
 extern MCColor MCpencolor;
-extern char *MCpencolorname;
+extern MCStringRef MCpencolorname;
 extern MCColor MCbrushcolor;
 extern MCColor MChilitecolor;
 extern MCColor MCgraycolor;
-extern char *MCbrushcolorname;
+extern MCStringRef MCbrushcolorname;
 extern uint4 MCpenpmid;
 extern MCPatternRef MCpenpattern;
 extern uint4 MCbrushpmid;
@@ -115,19 +140,19 @@ extern uint4 MCbackdroppmid;
 extern MCPatternRef MCbackdroppattern;
 extern MCImageList *MCpatternlist;
 extern MCColor MCaccentcolor;
-extern char *MCaccentcolorname;
+extern MCStringRef MCaccentcolorname;
 extern MCColor MChilitecolor;
-extern char *MChilitecolorname;
+extern MCStringRef MChilitecolorname;
 extern MCColor MCselectioncolor;
-extern char *MCselectioncolorname;
+extern MCStringRef MCselectioncolorname;
 extern Linkatts MClinkatts;
 extern Boolean MCrelayergrouped;
 extern Boolean MCselectgrouped;
 extern Boolean MCselectintersect;
 extern MCRectangle MCwbr;
 extern uint2 MCjpegquality;
-extern uint2 MCpaintcompression;
-extern uint2 MCrecordformat;
+extern Export_format MCpaintcompression;
+extern intenum_t MCrecordformat;
 extern uint2 MCsoundchannel;
 extern uint2 MCrecordsamplesize;
 extern uint2 MCrecordchannels;
@@ -137,7 +162,7 @@ extern char MCrecordinput[5];
 extern Boolean MCuselzw;
 
 extern real8 MCinfinity;
-extern char *MCstackbottom;
+extern char* MCstackbottom;
 extern Boolean MCcheckstack;
 extern Boolean MCswapbytes;
 extern Boolean MCtranslatechars;
@@ -153,7 +178,7 @@ extern uint2 MCnsockets;
 extern MCStack **MCusing;
 extern uint2 MCnusing;
 extern uint2 MCiconicstacks;
-extern uint2 MCwaitdepth;
+extern MCSemaphore MCwaitdepth;
 extern uint4 MCrecursionlimit;
 
 
@@ -162,27 +187,26 @@ extern MCUndolist *MCundos;
 extern MCSellist *MCselected;
 extern MCStacklist *MCstacks;
 extern MCStacklist *MCtodestroy;
-extern MCObject *MCtodelete;
 extern MCCardlist *MCrecent;
 extern MCCardlist *MCcstack;
 extern MCDispatch *MCdispatcher;
-extern MCStack *MCtopstackptr;
-extern MCStack *MCdefaultstackptr;
-extern MCStack *MCstaticdefaultstackptr;
-extern MCStack *MCmousestackptr;
-extern MCStack *MCclickstackptr;
-extern MCStack *MCfocusedstackptr;
-extern MCObject *MCtargetptr;
-extern MCObject *MCmenuobjectptr;
-extern MCCard *MCdynamiccard;
+extern MCStackHandle MCtopstackptr;
+extern MCStackHandle MCdefaultstackptr;
+extern MCStackHandle MCstaticdefaultstackptr;
+extern MCStackHandle MCmousestackptr;
+extern MCStackHandle MCclickstackptr;
+extern MCStackHandle MCfocusedstackptr;
+extern MCObjectPartHandle MCtargetptr;
+extern MCObjectHandle MCmenuobjectptr;
+extern MCCardHandle MCdynamiccard;
 extern Boolean MCdynamicpath;
-extern MCObject *MCerrorptr;
-extern MCObject *MCerrorlockptr;
 extern MCGroup *MCsavegroupptr;
-extern MCGroup *MCdefaultmenubar;
-extern MCGroup *MCmenubar;
-extern MCAudioClip *MCacptr;
-extern MCPlayer *MCplayers;
+extern MCObjectHandle MCerrorptr;
+extern MCObjectHandle MCerrorlockptr;
+extern MCGroupHandle MCdefaultmenubar;
+extern MCGroupHandle MCmenubar;
+extern MCAudioClipHandle MCacptr;
+extern MCPlayerHandle MCplayers;
 
 extern MCStack *MCtemplatestack;
 extern MCAudioClip *MCtemplateaudio;
@@ -197,25 +221,25 @@ extern MCPlayer *MCtemplateplayer;
 extern MCImage *MCtemplateimage;
 extern MCField *MCtemplatefield;
 
-extern MCImage *MCmagimage;
-extern MCMagnify *MCmagnifier;
-extern MCObject *MCdragsource;
-extern MCObject *MCdragdest;
-extern MCField *MCactivefield;
-extern MCField *MCclickfield;
-extern MCField *MCfoundfield;
-extern MCField *MCdropfield;
+extern MCImageHandle MCmagimage;
+extern MCMagnifyHandle MCmagnifier;
+extern MCObjectHandle MCdragsource;
+extern MCObjectHandle MCdragdest;
+extern MCFieldHandle MCactivefield;
+extern MCFieldHandle MCclickfield;
+extern MCFieldHandle MCfoundfield;
+extern MCFieldHandle MCdropfield;
 extern int4 MCdropchar;
-extern MCImage *MCactiveimage;
-extern MCImage *MCeditingimage;
-extern MCTooltip *MCtooltip;
-extern MCStack *MCmbstackptr;
+extern MCImageHandle MCactiveimage;
+extern MCImageHandle MCeditingimage;
+extern MCTooltipHandle MCtooltip;
+extern MCStackHandle MCmbstackptr;
 
 extern MCUIDC *MCscreen;
 extern MCPrinter *MCprinter;
 extern MCPrinter *MCsystemprinter;
 
-extern char *MCscriptfont;
+extern MCStringRef MCscriptfont;
 extern uint2 MCscriptsize;
 extern uint2 MCfocuswidth;
 extern uint2 MCsizewidth;
@@ -251,19 +275,16 @@ extern Boolean MCsystemCS;
 extern Boolean MCsystemPS;
 extern Boolean MChidewindows;
 extern Boolean MCbufferimages;
-extern char *MCserialcontrolsettings;
-extern char *MCshellcmd;
-extern char *MCvcplayer;
-extern char *MCbackdropcolor;
+extern MCStringRef MCserialcontrolsettings;
+extern MCStringRef MCshellcmd;
+extern MCStringRef MCvcplayer;
 
-extern char *MCftpproxyhost;
+extern MCStringRef MCftpproxyhost;
 extern uint2 MCftpproxyport;
 
-extern char *MChttpproxy;
+extern MCStringRef MChttpproxy;
 
-extern char *MClongdateformat;
-extern char *MCshortdateformat;
-extern char *MChttpheaders;
+extern MCStringRef MChttpheaders;
 extern int4 MCrandomseed;
 extern Boolean MCshowinvisibles;
 extern MCObjectList *MCbackscripts;
@@ -277,11 +298,11 @@ extern MCError *MCeerror;
 extern MCVariable *MCmb;
 extern MCVariable *MCeach;
 extern MCVariable *MCresult;
+extern MCExecResultMode MCresultmode;
 extern MCVariable *MCurlresult;
 extern MCVariable *MCglobals;
 extern MCVariable *MCdialogdata;
-extern char *MChcstat;
-extern char *MCcurdir;
+extern MCStringRef MChcstat;
 extern Boolean MCexitall;
 extern int4 MCretcode;
 extern Boolean MCrecording;
@@ -298,11 +319,11 @@ extern Boolean MCmainstackschanged;
 // global properties
 
 extern uint2 MClook;
-extern const char *MCttbgcolor;
-extern const char *MCttfont;
+extern MCStringRef MCttbgcolor;
+extern MCStringRef MCttfont;
 extern uint2 MCttsize;
-extern uint2 MCtrylock;
-extern uint2 MCerrorlock;
+extern MCSemaphore MCtrylock;
+extern MCSemaphore MCerrorlock;
 extern Boolean MCwatchcursor;
 extern Boolean MClockcursor;
 extern MCCursorRef MCcursor;
@@ -315,7 +336,6 @@ extern Boolean MClockcolormap;
 extern Boolean MClockerrors;
 extern Boolean MClockmenus;
 extern Boolean MClockmessages;
-extern Boolean MClockmoves;
 extern Boolean MClockrecent;
 extern Boolean MCtwelvetime;
 extern Boolean MCuseprivatecmap;
@@ -336,7 +356,6 @@ extern uint2 MCndashes;
 extern uint2 MCroundradius;
 extern Boolean MCmultiple;
 extern uint2 MCmultispace;
-extern uint4 MCpattern;
 extern uint2 MCpolysides;
 extern Boolean MCroundends;
 extern uint2 MCslices;
@@ -360,14 +379,13 @@ extern char *MCsslcertificates;
 extern char *MCdefaultnetworkinterface;
 extern uint4 MCstackfileversion;
 extern uint4 MCmajorosversion;
-extern Boolean MCantialiasedtextworkaround;
+extern Boolean MCignorevoiceoversensitivity;
 extern uint4 MCqtidlerate;
 
-extern uint4 MCiconid;
-extern char *MCiconmenu;
-extern uint4 MCstatusiconid;
-extern char *MCstatusiconmenu;
-extern char *MCstatusicontooltip;
+extern MCStringRef MCcommandname;
+extern MCArrayRef MCcommandarguments;
+
+extern MCArrayRef MCenvironmentvariables;
 
 #ifdef _LINUX_DESKTOP
 extern Window MCgtkthemewindow;
@@ -378,15 +396,16 @@ extern Window MCgtkthemewindow;
 #define RTB_NO_UNICODE_WINDOWS (1 << 2)
 extern uint4 MCruntimebehaviour;
 
-extern MCDragData *MCdragdata;
 extern MCDragAction MCdragaction;
-extern MCObject *MCdragtargetptr;
+extern MCObjectHandle MCdragtargetptr;
 extern MCDragActionSet MCallowabledragactions;
 extern uint4 MCdragimageid;
 extern MCPoint MCdragimageoffset;
 
-extern MCClipboardData *MCclipboarddata;
-extern MCSelectionData *MCselectiondata;
+extern MCClipboard* MCclipboard;
+extern MCClipboard* MCselection;
+extern MCClipboard* MCdragboard;
+extern uindex_t MCclipboardlockcount;
 
 extern uint4 MCsecuremode;
 
@@ -412,6 +431,142 @@ extern MCPoint MCgroupedobjectoffset;
 // MW-2012-11-14: [[ Bug 10516 ]] When true, sending packets to broadcast
 //   addresses will work.
 extern Boolean MCallowdatagrambroadcasts;
+
+// Character encoding used by the system
+extern char *MCsysencoding;
+
+// Locales
+extern MCLocaleRef kMCBasicLocale;
+extern MCLocaleRef kMCSystemLocale;
+
+// A callback to invoke to fetch the current mainwindow to use for modal dialog
+// parenting.
+typedef void *(*MCMainWindowCallback)(void);
+extern MCMainWindowCallback MCmainwindowcallback;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LIFECYCLE
+//
+
+struct X_init_options
+{
+    /* Standard argc, argv and envp */
+    int argc = 0;
+    MCStringRef *argv = nullptr;
+    MCStringRef *envp = nullptr;
+    
+    /* Specifies the base folder to use to resolve relative library paths */
+    MCStringRef app_code_path = nullptr;
+
+    /* Specifies the root main window of the application */
+    MCMainWindowCallback main_window_callback = nullptr;
+};
+
+/* These are the main lifecycle functions. They are implemented separately for
+ * desktop, server, mobile and emscripten engines. */
+bool X_init(const X_init_options& p_options);
+bool X_main_loop_iteration(void);
+int X_close(void);
+
+bool X_open(int argc, MCStringRef argv[], MCStringRef envp[]);
+void X_clear_globals(void);
+void X_initialize_names(void);
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HOOK REGISTRATION
+//
+
+struct MCHookGlobalHandlersDescriptor
+{
+    bool (*can_handle)(MCNameRef message_name);
+    bool (*handle)(MCNameRef message, MCParameter *parameters, Exec_stat& r_result);
+};
+
+struct MCHookNativeControlsDescriptor
+{
+    bool (*lookup_type)(MCStringRef name, intenum_t& r_type);
+    bool (*lookup_property)(MCStringRef name, intenum_t& r_type);
+    bool (*lookup_action)(MCStringRef name, intenum_t& r_type);
+    bool (*create)(intenum_t type, void*& r_control);
+    bool (*action)(intenum_t action, void *control, MCValueRef *arguments, uindex_t argument_count);
+};
+
+enum MCHookType
+{
+    kMCHookGlobalHandlers,
+    kMCHookNativeControls,
+};
+
+struct MCHook;
+extern MCHook *MChooks;
+
+typedef bool (*MCHookForEachCallback)(void *context, void *descriptor);
+
+bool MCHookRegister(MCHookType type, void *descriptor);
+void MCHookUnregister(MCHookType type, void *descriptor);
+bool MCHookForEach(MCHookType type, MCHookForEachCallback callback, void *context);
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GLOBAL HANDLERS
+//
+
+bool MCIsGlobalHandler(MCNameRef name);
+bool MCRunGlobalHandler(MCNameRef message, MCParameter *parameters, Exec_stat& r_result);
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NATIVE CONTROLS
+//
+
+bool MCLookupNativeControlType(MCStringRef p_type_name, intenum_t& r_type);
+bool MCLookupNativeControlProperty(MCStringRef p_name, intenum_t& r_prop);
+bool MCLookupNativeControlAction(MCStringRef p_name, intenum_t& r_action);
+bool MCCreateNativeControl(intenum_t type, void*& r_control);
+bool MCPerformNativeControlAction(intenum_t action, void *control, MCValueRef *arguments, uindex_t argument_count);
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  POST EXECUTION ACTIONS
+//
+
+enum
+{
+    kMCActionsUpdateScreen = 1 << 0,
+    kMCActionsDrainDeletedObjects = 1 << 2,
+};
+
+extern uint32_t MCactionsrequired;
+extern void MCActionsDoRunSome(uint32_t mask);
+
+inline void MCActionsSchedule(uint32_t mask)
+{
+    MCactionsrequired |= mask;
+}
+
+inline void MCActionsRunAll(void)
+{
+    if (MCactionsrequired != 0)
+        MCActionsDoRunSome(UINT32_MAX);
+}
+
+inline void MCActionsRunSome(uint32_t mask)
+{
+    if ((MCactionsrequired & mask) != 0)
+        MCActionsDoRunSome(mask);
+}
+
+inline void MCRedrawUpdateScreen(void)
+{
+    MCActionsRunSome(kMCActionsUpdateScreen);
+}
+
+inline void MCDeletedObjectsDrain(void)
+{
+    MCActionsRunSome(kMCActionsDrainDeletedObjects);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -23,6 +23,8 @@ import android.content.*;
 import android.content.res.*;
 import android.widget.*;
 import android.util.*;
+import android.content.pm.PackageManager;
+import android.graphics.*;
 
 // This is the main activity exported by the application. This is
 // split into two parts, a customizable sub-class that gets dynamically
@@ -41,6 +43,11 @@ public class LiveCodeActivity extends Activity
 	{
 	}
 
+    public Class getServiceClass()
+    {
+        return LiveCodeService.class;
+    }
+
 	//////////
 
 	@Override
@@ -54,6 +61,11 @@ public class LiveCodeActivity extends Activity
 		// any following methods cause resize and such to be sent!).
 		s_main_view = new Engine(this);
 		s_main_view.doCreate(this, s_main_layout, s_main_view);
+        
+        // PM-2015-06-05: [[ Bug 15110 ]] Prevent black flash when setting the acceleratedRendering to true for the very first time
+        SurfaceView t_empty_view = new SurfaceView(this);
+        s_main_layout . addView(t_empty_view,
+								new FrameLayout.LayoutParams(0,0));
 		
 		// Add the view into the heirarchy
 		s_main_layout . addView(s_main_view,
@@ -65,6 +77,15 @@ public class LiveCodeActivity extends Activity
         
         // prevent soft keyboard from resizing our view when shown
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        
+        s_main_layout.getRootView().getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener()
+        {
+            @Override
+            public void onGlobalLayout()
+            {
+                s_main_view.updateKeyboardVisible();
+            }
+        });
 	}
 
 	@Override
@@ -188,4 +209,13 @@ public class LiveCodeActivity extends Activity
 	{
 		s_main_view.onActivityResult(requestCode, resultCode, data);
 	}
+    
+    // Callback sent when the app requests permissions on runtime (Android API 23+)
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
+    {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        s_main_view.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
 }

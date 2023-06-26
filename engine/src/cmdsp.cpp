@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -22,7 +22,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "filedefs.h"
 
 #include "scriptpt.h"
-#include "execpt.h"
+
 #include "cmds.h"
 #include "chunk.h"
 #include "mcerror.h"
@@ -33,6 +33,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "util.h"
 #include "globals.h"
 #include "securemode.h"
+#include "exec.h"
+
+#include "graphics_util.h"
 
 MCPrint::MCPrint()
 {
@@ -227,7 +230,7 @@ Parse_stat MCPrint::parse(MCScriptPoint &sp)
 			{
 				MCScriptPoint oldsp(sp);
 				sp.backup();
-				target = new MCChunk(False);
+				target = new (nothrow) MCChunk(False);
 				MCerrorlock++;
 				if (target->parse(sp, False) != PS_NORMAL)
 				{
@@ -245,7 +248,7 @@ Parse_stat MCPrint::parse(MCScriptPoint &sp)
 	if ((mode != PM_CARD && sp . skip_token(SP_FACTOR, TT_OF) == PS_NORMAL) ||
 		(mode == PM_CARD && !single && target == NULL))
 	{
-		target = new MCChunk(False);
+		target = new (nothrow) MCChunk(False);
 		if (target->parse(sp, False) != PS_NORMAL)
 		{
 			MCperror->add(PE_PRINT_BADTARGET, sp);
@@ -284,344 +287,205 @@ Parse_stat MCPrint::parse(MCScriptPoint &sp)
 	return PS_NORMAL;
 }
 
-Exec_stat MCPrint::exec(MCExecPoint &ep)
+bool MCPrint::evaluate_src_rect(MCExecContext& ctxt, MCPoint& r_from, MCPoint& r_to)
 {
-#ifdef /* MCPrint */ LEGACY_EXEC
-	if (MCsecuremode & MC_SECUREMODE_PRINT)
-	{
-		MCeerror->add(EE_PRINT_NOPERM, line, pos);
-		return ES_ERROR;
-	}
+    MCPoint t_from, t_to;
+    if (!ctxt . EvalExprAsPoint(from, EE_PRINT_CANTGETCOORD, t_from))
+        return false;
 
+    if (!ctxt . EvalExprAsPoint(to, EE_PRINT_CANTGETCOORD, t_to))
+        return false;
+
+    r_from = t_from;
+    r_to = t_to;
+
+    return true;
+}
+
+void MCPrint::exec_ctxt(MCExecContext &ctxt)
+{
 	if (mode == PM_ANCHOR)
-	{
-		char *t_name;
-		t_name = nil;
-		if (from -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINTANCHOR_BADNAME, line, pos);
-			return ES_ERROR;
-		}
+    {
+        MCAutoStringRef t_name;
+        if (!ctxt . EvalExprAsStringRef(from, EE_DO_BADEXP, &t_name))
+            return;
+		
+		MCPoint t_location;
+        if (!ctxt . EvalExprAsPoint(rect, EE_PRINTANCHOR_BADLOCATION, t_location))
+            return;
 
-		t_name = ep . getsvalue() . clone();
-
-		int2 t_at_x, t_at_y;
-		if (rect -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINTANCHOR_BADLOCATION, line, pos);
-			delete t_name;
-			return ES_ERROR;
-		}
-
-		if (!MCU_stoi2x2(ep . getsvalue(), t_at_x, t_at_y))
-		{
-			MCeerror -> add(EE_PRINTANCHOR_LOCATIONNAP, line, pos, ep . getsvalue());
-			delete t_name;
-			return ES_ERROR;
-		}
-
-		MCprinter -> MakeAnchor(t_name, t_at_x, t_at_y);
-
-		delete t_name;
-
-		return ES_NORMAL;
+		MCPrintingExecPrintAnchor(ctxt, *t_name, t_location);
 	}
 	else if (mode == PM_LINK || mode == PM_LINK_ANCHOR || mode == PM_LINK_URL)
 	{
-		MCPrinterLinkType t_type = kMCPrinterLinkUnspecified;
+		MCPrinterLinkType t_type;
 		if (mode == PM_LINK_ANCHOR)
 			t_type = kMCPrinterLinkAnchor;
 		else if (mode == PM_LINK_URL)
 			t_type = kMCPrinterLinkURI;
-		char *t_dest;
-		t_dest = nil;
-		if (to -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINTLINK_BADDEST, line, pos);
-			return ES_ERROR;
-		}
+		else
+            t_type = kMCPrinterLinkUnspecified;
 
-		t_dest = ep . getsvalue() . clone();
+		MCAutoStringRef t_target;
+        if (!ctxt . EvalExprAsStringRef(to, EE_PRINTLINK_BADDEST, &t_target))
+            return;
 
-		if (rect -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINTLINK_BADAREA, line, pos);
-			return ES_ERROR;
-		}
+		MCRectangle t_area;
+        if (!ctxt . EvalExprAsRectangle(rect, EE_PRINTLINK_BADAREA, t_area))
+            return;
 
-		int2 i1, i2, i3, i4;
-		if (!MCU_stoi2x4(ep . getsvalue(), i1, i2, i3, i4))
-		{
-			MCeerror->add(EE_PRINTLINK_AREANAR, line, pos, ep . getsvalue());
-			return ES_ERROR;
-		}
-
-		MCRectangle t_area_rect;
-		t_area_rect . x = i1;
-		t_area_rect . y = i2;
-		t_area_rect . width = MCU_max(i3 - i1, 1);
-		t_area_rect . height = MCU_max(i4 - i2, 1);
-
-		MCprinter -> MakeLink(t_dest, t_area_rect, t_type);
-
-		delete t_dest;
-
-		return ES_NORMAL;
+		MCPrintingExecPrintLink(ctxt, (int)t_type, *t_target, t_area);
 	}
 	else if (mode == PM_BOOKMARK || mode == PM_UNICODE_BOOKMARK)
-	{
-		char *t_title = nil;
-		uint32_t t_level = 0;
-		int16_t t_x = 0, t_y = 0;
-		bool t_success = true;
+    {
+		MCAutoValueRef t_title;
+        if (mode != PM_UNICODE_BOOKMARK)
+        {
+            if (!ctxt . EvalExprAsStringRef(from, EE_PRINTBOOKMARK_BADTITLE, (MCStringRef&)&t_title))
+                return;
+        }
+        else
+        {
+            if (!ctxt . EvalExprAsDataRef(from, EE_PRINTBOOKMARK_BADTITLE, (MCDataRef&)&t_title))
+                return;
+        }
 
-		if (from->eval(ep) != ES_NORMAL)
-		{
-			MCeerror->add(EE_PRINTBOOKMARK_BADTITLE, line, pos, ep.getsvalue());
-			t_success = false;
-		}
+		uint32_t t_level;
+        if (!ctxt . EvalOptionalExprAsUInt(to, 0, EE_PRINTBOOKMARK_BADLEVEL, t_level))
+            return;
 
-		if (t_success)
+		MCPoint t_location;
+        t_location . x = t_location . y = 0;
+
+        MCPoint *t_location_ptr;
+        t_location_ptr = &t_location;
+        if (!ctxt . EvalOptionalExprAsPoint(rect, t_location_ptr, EE_PRINTBOOKMARK_BADAT, t_location_ptr))
+            return;
+
+		bool t_initially_closed;
+		t_initially_closed = false;
+		if (initial_state != nil)
 		{
-			if (mode == PM_UNICODE_BOOKMARK)
-				ep.utf16toutf8();
+            MCAutoStringRef t_state;
+            if (!ctxt . EvalExprAsStringRef(initial_state, EE_PRINTBOOKMARK_BADINITIAL, &t_state))
+                return;
+
+            if (MCStringIsEqualToCString(*t_state, "closed", kMCCompareExact))
+				t_initially_closed = true;
+            else if (MCStringIsEqualToCString(*t_state, "open", kMCCompareExact))
+				t_initially_closed = false;
 			else
-				ep.nativetoutf8();
-			t_title = ep.getsvalue().clone();
-		}
-
-		if (t_success && to != NULL)
-		{
-			if (to->eval(ep) != ES_NORMAL ||
-				ep.ton() != ES_NORMAL)
 			{
-				MCeerror->add(EE_PRINTBOOKMARK_BADLEVEL, line, pos, ep.getsvalue());
-				t_success = false;
-			}
-			else
-				t_level = ep.getint4();
-		}
-
-		if (t_success && rect != NULL)
-		{
-			if (rect->eval(ep) != ES_NORMAL ||
-				!MCU_stoi2x2(ep.getsvalue(), t_x, t_y))
-			{
-				MCeerror->add(EE_PRINTBOOKMARK_BADAT, line, pos, ep.getsvalue());
-				t_success = false;
+                ctxt . LegacyThrow(EE_PRINTBOOKMARK_BADINITIAL);
+                return;
 			}
 		}
+		else
+			t_initially_closed = bookmark_closed;
 
-		if (t_success && initial_state != NULL)
+
+		if (mode != PM_UNICODE_BOOKMARK)
+            MCPrintingExecPrintBookmark(ctxt, (MCStringRef)*t_title, t_location, t_level, t_initially_closed);
+		else
+            MCPrintingExecPrintUnicodeBookmark(ctxt, (MCDataRef)*t_title, t_location, t_level, t_initially_closed);
+	}
+	else if (mode == PM_BREAK)
+	{
+		MCPrintingExecPrintBreak(ctxt);
+	}
+	else if (mode == PM_MARKED || mode == PM_ALL)
+	{
+		MCStack *t_stack;
+		t_stack = nil;
+		if (target != nil)
 		{
-			if (initial_state->eval(ep) != ES_NORMAL)
-				t_success = false;
-			if (t_success)
+			MCObject *optr;
+			uint32_t parid;
+            if (!target -> getobj(ctxt, optr, parid, True)
+                    || optr -> gettype() != CT_STACK)
 			{
-				if (ep.getsvalue() == "closed")
-					bookmark_closed = true;
-				else if (ep.getsvalue() == "open")
-					bookmark_closed = false;
-				else
-					t_success = false;
+                ctxt . LegacyThrow(EE_PRINT_NOTARGET);
+                return;
 			}
-			if (!t_success)
-				MCeerror->add(EE_PRINTBOOKMARK_BADINITIAL, line, pos, ep.getsvalue());
+
+			t_stack = (MCStack *)optr;
 		}
 
-		if (t_success)
-			MCprinter->MakeBookmark(t_title, t_x, t_y, t_level, bookmark_closed);
-		delete t_title;
+		MCPoint t_area_from, t_area_to;
+		if (from != nil &&
+                !evaluate_src_rect(ctxt, t_area_from, t_area_to))
+            return;
 
-		return t_success ? ES_NORMAL : ES_ERROR;
+		if (from == nil)
+			MCPrintingExecPrintAllCards(ctxt, t_stack, mode == PM_MARKED);
+		else
+			MCPrintingExecPrintRectOfAllCards(ctxt, t_stack, mode == PM_MARKED, t_area_from, t_area_to);
 	}
-
-	MCObject *optr;
-	uint4 parid;
-	MCStack *stack = MCdefaultstackptr;
-	
-	MCCard *t_card;
-	t_card  = NULL;
-	
-	uint2 count = 1;
-
-	MCresult -> clear(False);
-	
-	// Syntax: print .. from .. to ..
-	MCRectangle t_src_rect;
-	bool t_src_rect_required;
-	t_src_rect_required = true;
-	if (from != NULL)
+	else if (mode == PM_CARD)
 	{
-		int2 lrx, lry;
-		if (from -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINT_CANTGETCOORD, line, pos);
-			return ES_ERROR;
-		}
-		if (!MCU_stoi2x2(ep.getsvalue(), t_src_rect . x, t_src_rect . y))
-		{
-			MCeerror -> add(EE_PRINT_NAP, line, pos, ep.getsvalue());
-			return ES_ERROR;
-		}
-		if (to -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINT_CANTGETCOORD, line, pos);
-			return ES_ERROR;
-		}
-		if (!MCU_stoi2x2(ep . getsvalue(), lrx, lry))
-		{
-			MCeerror -> add(EE_PRINT_NAP, line, pos, ep . getsvalue());
-			return ES_ERROR;
-		}
-		// MJ: the old printing added 1 to both width and height below.
-		// This indeed caused rectangles to look 1 pixel too large on either sides. Removing this solves this problem.
-		t_src_rect . width = lrx - t_src_rect . x;//  + 1;
-		t_src_rect . height = lry - t_src_rect . y; // + 1;
-		
-		t_src_rect_required = false;
-	}
-	//else the source rectangle will be the rect of the target.
-	
-	// Syntax: print .. into ..
-	MCRectangle t_dst_rect;
-	bool t_dst_rect_defined;
-	t_dst_rect_defined = false;
-	if (rect != NULL)
-	{
-		if (rect -> eval(ep) != ES_NORMAL)
-		{
-			MCeerror -> add(EE_PRINT_CANTGETRECT, line, pos);
-			return ES_ERROR;
-		}
-		int2 i1, i2, i3, i4;
-		if (!MCU_stoi2x4(ep . getsvalue(), i1, i2, i3, i4))
-		{
-			MCeerror->add(EE_PRINT_NAR, line, pos, ep . getsvalue());
-			return ES_ERROR;
-		}
-		t_dst_rect . x = i1;
-		t_dst_rect . y = i2;
-		t_dst_rect . width = MCU_max(i3 - i1, 1);
-		t_dst_rect . height = MCU_max(i4 - i2, 1);
-		
-		t_dst_rect_defined = true; // could use rect != NULL or whatever..
-	}
-	
-	switch (mode)
-	{
-	case PM_ALL:
-	case PM_MARKED:
+		MCObject *t_object;
 		if (target != NULL)
 		{
-			if (target -> getobj(ep, optr, parid, True) != ES_NORMAL || optr -> gettype() != CT_STACK)
+			uint32_t parid;
+            if (!target -> getobj(ctxt, t_object, parid, True))
 			{
-				MCeerror -> add(EE_PRINT_NOTARGET, line, pos);
-				return ES_ERROR;
+                ctxt . LegacyThrow(EE_PRINT_NOTARGET);
+                return;
 			}
-			stack = (MCStack *)optr;
+			if (t_object -> gettype() != CT_CARD && t_object -> gettype() != CT_STACK)
+			{
+                ctxt . LegacyThrow(EE_PRINT_NOTACARD);
+                return;
+			}
 		}
-	break;
-		
-	case PM_SOME:
-		if (target -> eval(ep) != ES_NORMAL || ep . ton() != ES_NORMAL)
+		else
+			t_object = MCdefaultstackptr -> getcurcard();
+
+		MCPoint t_from, t_to;
+		if (from != nil &&
+                !evaluate_src_rect(ctxt, t_from, t_to))
+            return;
+
+		if (t_object -> gettype() == CT_STACK)
 		{
-			MCeerror -> add(EE_PRINT_CANTGETCOUNT, line, pos);
-			return ES_ERROR;
-		}
-		count = ep . getuint2();
-	break;
-		
-	case PM_CARD:
-		if (target != NULL)
-		{
-			if (target -> getobj(ep, optr, parid, True) != ES_NORMAL)
-			{
-				MCeerror -> add(EE_PRINT_NOTARGET, line, pos);
-				return ES_ERROR;
-			}
-			if (optr->gettype() == CT_CARD)
-			{
-				t_card = (MCCard *)optr;
-				stack = t_card -> getstack();
-			}
+			if (from == nil)
+				MCPrintingExecPrintAllCards(ctxt, (MCStack *)t_object, mode == PM_MARKED);
 			else
-			{
-				if (optr -> gettype() != CT_STACK)
-				{
-					MCeerror -> add(EE_PRINT_NOTACARD, line, pos);
-					return ES_ERROR;
-				}
-				mode = PM_ALL;
-				stack = (MCStack *)optr;
-			}
+				MCPrintingExecPrintRectOfAllCards(ctxt, (MCStack *)t_object, mode == PM_MARKED, t_from, t_to);
 		}
-	break;
-		
-	default:
-	break;
+		else if (rect == nil)
+		{
+			if (from == nil)
+				MCPrintingExecPrintCard(ctxt, (MCCard *)t_object);
+			else
+				MCPrintingExecPrintRectOfCard(ctxt, (MCCard *)t_object, t_from, t_to);
+		}
+		else
+		{
+            MCRectangle t_dst_area;
+            if (!ctxt . EvalExprAsRectangle(rect, EE_PRINT_CANTGETRECT, t_dst_area))
+                return;
+
+			if (from == nil)
+				MCPrintingExecPrintCardIntoRect(ctxt, (MCCard *)t_object, t_dst_area);
+			else
+				MCPrintingExecPrintRectOfCardIntoRect(ctxt, (MCCard *)t_object, t_from, t_to, t_dst_area);
+		}
 	}
-	
-	if (stack -> getopened() == 0)
+	else if (mode == PM_SOME)
 	{
-		MCeerror -> add(EE_PRINT_NOTOPEN, line, pos);
-		return ES_ERROR;
-	}
-	
-	MCU_watchcursor(NULL, True);
-	
-	Exec_stat t_exec_stat;
-	t_exec_stat = ES_NORMAL;
-	switch (mode)
-	{
-	case PM_BREAK: // syntax: print break
-		MCprinter -> Break();
-	break;
-	
-	case PM_MARKED:
-		MCprinter -> LayoutStack(stack, true, t_src_rect_required ? NULL : &t_src_rect); // extend this with a stack pointer
-	break;
-	
-	case PM_ALL:
-		MCprinter -> LayoutStack(stack, false, t_src_rect_required ? NULL : &t_src_rect);
-	break;
-	
-	case PM_CARD:
-	{
-		// If no t_card specified, then we get the current t_card of the default stack.
-		if (t_card == NULL)
-			t_card = stack -> getcurcard();
-		
-		if (t_src_rect_required)
-			t_src_rect = t_card -> getrect();
-			
-		if (t_dst_rect_defined) // we have a destination rect, this is where it will go
-			MCprinter -> Render(t_card, t_src_rect, t_dst_rect);
-		else // the card is laid out in the current layout
-			MCprinter -> LayoutCard(t_card, &t_src_rect);
-	}
-	break;
-	
-	case PM_SOME:
-	{
-		if (t_src_rect_required)
-			t_src_rect = MCdefaultstackptr -> getcurcard() -> getrect();
-		
-		MCprinter -> LayoutCardSequence(MCdefaultstackptr, count, &t_src_rect);
-	}
-	break;
-	
-	default:
-		// What do we do here? Could get here if mode == PM_UNDEFINED, however, for now
-		// let's just put an assertion here.
-		assert(false);
-	break;
-	}
-	
-	// MW-2007-12-17: [[ Bug 266 ]] The watch cursor must be reset before we
-	//   return back to the caller.
-	MCU_unwatchcursor(ep.getobj()->getstack(), True);
-	
-	return t_exec_stat;
-#endif /* MCPrint */
+        integer_t t_count;
+        if (!ctxt . EvalExprAsInt(target, EE_PRINT_CANTGETCOUNT, t_count))
+            return;
+
+		MCPoint t_from, t_to;
+		if (from != nil &&
+            !evaluate_src_rect(ctxt, t_from, t_to))
+            return;
+
+		if (from == nil)
+			MCPrintingExecPrintSomeCards(ctxt, t_count);
+		else
+			MCPrintingExecPrintRectOfSomeCards(ctxt, t_count, t_from, t_to);
+    }
 }

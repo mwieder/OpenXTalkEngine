@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,6 +18,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define	CARDLIST_H
 
 #include "dllst.h"
+#include "card.h"
 
 #define MAX_FILL 32
 #define MIN_FILL 32
@@ -25,7 +26,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 class MCCardnode : public MCDLlist
 {
 public:
-	MCCard *card;
+	MCCardHandle card;
 	MCCardnode()
 	{ }
 	~MCCardnode();
@@ -74,9 +75,7 @@ public:
 	MCCardlist();
 	~MCCardlist();
 	void trim();
-	void getprop(Properties prop, MCStack *stack, MCExecPoint &);
-	void getnames(MCStack *stack, MCExecPoint &);
-	void getlongids(MCStack *stack, MCExecPoint &);
+	bool GetRecent(MCExecContext& ctxt, MCStack *stack, Properties which, MCStringRef& r_props);
 	void addcard(MCCard *cptr);
 	void deletecard(MCCard *cptr);
 	void deletestack(MCStack *cptr);

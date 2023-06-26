@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -18,6 +18,13 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define SOCKET_H
 
 #include "dllst.h"
+#include "object.h"
+
+#if defined(_WINDOWS_DESKTOP) || defined(_WINDOWS_SERVER)
+#include <winsock2.h>
+#else
+#include <sys/select.h>
+#endif
 
 enum MCSocketType {
     MCSOCK_TCP,
@@ -41,7 +48,7 @@ public:
 	uint4 size;
 	char *until;
 	real8 timeout;
-	MCObject *optr;
+	MCObjectHandle optr;
 	MCNameRef message;
 	MCSocketread(uint4 s, char *u, MCObject *o, MCNameRef m);
 	~MCSocketread();
@@ -69,17 +76,17 @@ class MCSocketwrite : public MCDLlist
 {
 public:
 	real8 timeout;
-	MCObject *optr;
+	MCObjectHandle optr;
 	MCNameRef message;
 	char *buffer;
 	uint4 size;
 	uint4 done;
 	Boolean writedone;
-	
-	// MM-2014-02-12: [[ SecureSocket ]] We now store against each individual write if it should be encrypted (rather than checking against socket).
+
+    // MM-2014-02-12: [[ SecureSocket ]] We now store against each individual write if it should be encrypted (rather than checking against socket).
 	Boolean secure;
-	
-	MCSocketwrite(const MCString &d, MCObject *o, MCNameRef m, Boolean secure);
+    
+	MCSocketwrite(MCStringRef d, MCObject *o, MCNameRef m, Boolean secure);
 	~MCSocketwrite();
 	MCSocketwrite *next()
 	{
@@ -110,13 +117,10 @@ typedef enum _mcsocketstate
 	kMCSocketStateError,
 } MCSocketState ;
 
-typedef struct ssl_st SSL;
-typedef struct ssl_ctx_st SSL_CTX;
-
 class MCSocket
 {
 public:
-	char *name;
+	MCNameRef name;
 	Boolean closing;
 	Boolean waiting;
 	Boolean datagram;
@@ -126,7 +130,7 @@ public:
 	Boolean connected;
 	Boolean shared;
 	MCSocketState resolve_state;
-	MCObject *object;
+	MCObjectHandle object;
 	MCNameRef message;
 	MCSocketread *revents;
 	MCSocketwrite *wevents;
@@ -135,8 +139,13 @@ public:
 	uint4 nread;
 	char *error;
 	real8 timeout;
-	MCSocketHandle fd;
-	MCSocket(char *n, MCObject *o, MCNameRef m, Boolean d, MCSocketHandle sock, Boolean a, Boolean s, Boolean issecure);
+	MCSocketHandle fd;	
+	// MM-2014-06-13: [[ Bug 12567 ]] Added support for specifying an end host name to verify against.
+	MCNameRef endhostname;
+    MCNewAutoNameRef from;
+    
+	MCSocket(MCNameRef n, MCNameRef f, MCObject *o, MCNameRef m, Boolean d, MCSocketHandle sock, Boolean a, Boolean s, Boolean issecure);
+
 	void setselect();
 	void setselect(uint2 sflags);
 
@@ -151,7 +160,7 @@ public:
 	Boolean sslverify;
 	void doclose();
 
-#if defined _WINDOWS
+#if defined(_WINDOWS_DESKTOP) || defined(_WINDOWS_SERVER)
 	void acceptone();
 #endif
 
@@ -170,13 +179,12 @@ public:
 	char *sslgraberror();
 	Boolean secure;
 	Boolean initsslcontext();
-	bool ssl_set_default_certificates();
 	Boolean sslconnect();
 	Boolean sslaccept();
 	void sslclose();
 protected:
-#ifdef _MACOSX
-	CFSocketRef cfsockref;
+#if defined(_MACOSX) || defined(TARGET_SUBPLATFORM_IPHONE)
+    CFSocketRef cfsockref;
 	CFRunLoopSourceRef rlref;
 #endif
 
@@ -189,26 +197,6 @@ protected:
 #endif
 };
 
-
-
-extern bool MCS_init_sockets();
-extern bool MCS_compare_host_domain(const char *p_host_a, const char *p_host_b);
-extern MCSocket *MCS_open_socket(char *name, Boolean datagram, MCObject *o, MCNameRef m, Boolean secure, Boolean sslverify, char *sslcertfile);
-extern void MCS_close_socket(MCSocket *s);
-extern void MCS_read_socket(MCSocket *s, MCExecPoint &ep, uint4 length, char *until, MCNameRef m);
-extern void MCS_write_socket(const MCString &d, MCSocket *s, MCObject *optr, MCNameRef m);
-// MM-2014-02-12: [[ SecureSocket ]] New secure socket command.
-void MCS_secure_socket(MCSocket *s, Boolean sslverify);
-extern MCSocket *MCS_accept(uint2 p, MCObject *o, MCNameRef m, Boolean datagram,Boolean secure,Boolean sslverify,char *sslcertfile);
-extern void MCS_ha(MCExecPoint &ep, MCSocket *s);
-extern void MCS_hn(MCExecPoint &ep);
-extern void MCS_aton(MCExecPoint &ep);
-extern void MCS_ntoa(MCExecPoint &ep, MCExecPoint &ep2);
-extern void MCS_pa(MCExecPoint &ep, MCSocket *s);
-
-
-
-
 typedef bool (*MCHostNameResolveCallback)(void *p_context, bool p_resolved, bool p_final, struct sockaddr *p_addr, int p_addrlen);
 typedef void (*MCSockAddrToStringCallback)(void *p_context, bool p_resolved, const char *p_hostname);
 
@@ -217,17 +205,31 @@ bool MCSocketHostNameResolve(const char *p_name, const char *p_port, int p_sockt
 bool MCSocketAddrToString(struct sockaddr *p_sockaddr, int p_addrlen, bool p_lookup_hostname, bool p_blocking,
 						MCSockAddrToStringCallback p_callback, void *p_context);
 
-bool MCS_name_to_sockaddr(const char *p_name_in, struct sockaddr_in *r_addr,
+bool MCS_name_to_sockaddr(MCStringRef p_name_in, struct sockaddr_in *r_addr,
 						  MCHostNameResolveCallback p_callback, void *p_context);
-bool MCS_name_to_sockaddr(const char *p_name_in, struct sockaddr_in &r_addr);
 
+bool MCS_name_to_sockaddr(MCStringRef p_name, struct sockaddr_in &r_addr);
+
+bool MCS_name_to_host_and_port(MCStringRef p_name, MCStringRef &r_host, MCNumberRef &r_port);
+bool MCS_host_and_port_to_sockaddr(MCStringRef p_host, MCNumberRef p_port, struct sockaddr_in *r_addr, MCHostNameResolveCallback p_callback, void *p_context);
+bool MCS_host_and_port_to_sockaddr(MCStringRef p_host, MCNumberRef p_port, struct sockaddr_in &r_addr);
 
 
 bool addrinfo_lookup(const char *p_name, const char *p_port, int p_socktype, struct addrinfo *&r_addrinfo);
 bool sockaddr_to_string(struct sockaddr *p_addr, int p_addrlen, bool p_lookup_hostname, char *&r_string);
 
-bool MCS_sockaddr_to_string(struct sockaddr *p_addr, int p_addrlen, bool p_lookup_hostname, char *&r_string,
+bool MCS_sockaddr_to_string(struct sockaddr *p_addr, int p_addrlen, bool p_lookup_hostname, bool p_blocking,
 							MCSockAddrToStringCallback p_callback, void *p_context);
-bool MCS_sockaddr_to_string(struct sockaddr *p_addr, int p_addrlen, bool p_lookup_hostname, char *&r_string);
+bool MCS_sockaddr_to_string(struct sockaddr *p_addr, int p_addrlen, bool p_lookup_hostname, MCStringRef &r_string);
+bool MCS_sockaddr_to_string(struct sockaddr *p_addr, int p_addrlen, bool p_lookup_hostname, MCStringRef& r_string);
+
+bool MCSocketsInitialize(void);
+void MCSocketsFinalize(void);
+
+void MCSocketsAppendToSocketList(MCSocket *s);
+void MCSocketsRemoveFromSocketList(uint32_t socket_no);
+
+bool MCSocketsAddToFileDescriptorSets(int4 &r_maxfd, fd_set &r_rmaskfd, fd_set &r_wmaskfd, fd_set &r_emaskfd);
+void MCSocketsHandleFileDescriptorSets(fd_set &p_rmaskfd, fd_set &p_wmaskfd, fd_set &p_emaskfd);
 
 #endif // SOCKET_H

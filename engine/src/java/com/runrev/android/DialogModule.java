@@ -1,4 +1,4 @@
-/* Copyright (C) 2003-2013 Runtime Revolution Ltd.
+/* Copyright (C) 2003-2015 LiveCode Ltd.
 
 This file is part of LiveCode.
 
@@ -149,7 +149,7 @@ class DialogModule
         Calendar t_calendar = Calendar.getInstance();
         t_calendar.setTimeInMillis(p_current * 1000);
         
-        DatePickerDialog t_dialog = new DatePickerDialog(m_engine.getContext(), t_date_listener,
+        DatePickerDialog t_dialog = new DatePickerDialog(m_engine.getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert, t_date_listener,
                                                          t_calendar.get(Calendar.YEAR),
                                                          t_calendar.get(Calendar.MONTH),
                                                          t_calendar.get(Calendar.DAY_OF_MONTH));
@@ -171,14 +171,14 @@ class DialogModule
                 if (p_with_min)
                 {
                     Method t_setMinDate;
-                    t_setMinDate = t_dialog.getClass().getMethod("setMinDate", new Class[] {Long.TYPE});
+                    t_setMinDate = t_date_picker.getClass().getMethod("setMinDate", new Class[] {Long.TYPE});
                     t_setMinDate.invoke(t_date_picker, new Object[] {p_min * 1000});
                 }
 
                 if (p_with_max)
                 {
                     Method t_setMaxDate;
-                    t_setMaxDate = t_dialog.getClass().getMethod("setMaxDate", new Class[] {Long.TYPE});
+                    t_setMaxDate = t_date_picker.getClass().getMethod("setMaxDate", new Class[] {Long.TYPE});
                     t_setMaxDate.invoke(t_date_picker, new Object[] {p_max * 1000});
                 }
             }
@@ -216,7 +216,7 @@ class DialogModule
             }
         };
 
-        TimePickerDialog t_dialog = new TimePickerDialog(m_engine.getContext(), t_time_listener,
+        TimePickerDialog t_dialog = new TimePickerDialog(m_engine.getContext(), android.R.style.Theme_DeviceDefault_Dialog_Alert, t_time_listener,
                                                          p_hour, p_minute,
                                                          false);
         t_dialog.setOnCancelListener(t_cancel_listener);
@@ -229,12 +229,12 @@ class DialogModule
     protected boolean m_list_close_on_selection;
     AlertDialog m_list_dialog;
     
-    public void showListPicker(String p_items[], String p_title, boolean p_item_selected, int p_selection_index, boolean p_use_checkmark, boolean p_use_cancel, boolean p_use_done)
+    public void showListPicker(String p_items[], String p_title, boolean p_item_selected, int p_selection_index, boolean p_use_hilite, boolean p_use_cancel, boolean p_use_done)
     {
         m_list_selection = p_selection_index - 1;
-        m_list_close_on_selection = !p_use_done || !p_use_checkmark;
+        m_list_close_on_selection = !p_use_done || p_use_hilite;
         
-        Log.i(TAG, String.format("showListPicker(items, title, %b, %d, %b, %b, %b)", p_item_selected, p_selection_index, p_use_checkmark, p_use_cancel, p_use_done));
+        Log.i(TAG, String.format("showListPicker(items, title, %b, %d, %b, %b, %b)", p_item_selected, p_selection_index, p_use_hilite, p_use_cancel, p_use_done));
         DialogInterface.OnClickListener t_item_click_listener;
 		t_item_click_listener = new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface p_dialog, int p_which)
@@ -274,7 +274,7 @@ class DialogModule
         if (p_title != null)
             t_dialog_builder . setTitle(p_title);
 
-        if (p_use_checkmark)
+        if (!p_use_hilite)
             t_dialog_builder.setSingleChoiceItems(p_items, p_item_selected ? p_selection_index - 1 : -1, t_item_click_listener);
         else
             t_dialog_builder . setItems(p_items, t_item_click_listener);
