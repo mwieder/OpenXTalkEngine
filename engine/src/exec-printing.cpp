@@ -38,6 +38,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "exec.h"
 
+const char * PS_FNAME = "/tmp/tmpprintfile.ps";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static MCExecSetTypeElementInfo _kMCPrintingPrinterFeaturesElementInfo[] =
@@ -139,8 +141,8 @@ static void MCPrintingPrintDeviceOutputParse(MCExecContext& ctxt, MCStringRef p_
 	if (MCStringIsEqualToCString(p_input, "device", kMCCompareCaseless))
 	{
 		r_output -> type = PRINTER_OUTPUT_DEVICE;
-		r_output -> location = nil;
-		return;
+//		r_output -> location = nil;
+//		return;
 	}
 	
 	MCAutoStringRef t_head, t_tail;
@@ -165,6 +167,8 @@ static void MCPrintingPrintDeviceOutputFormat(MCExecContext& ctxt, const MCPrint
 	switch(p_input -> type)
 	{
 		case PRINTER_OUTPUT_DEVICE:
+            if (MCStringFormat(r_output, "file:%@", PS_FNAME))
+                {}
 			if (MCStringCreateWithCString("device", r_output))
 				return;
 			break;
@@ -776,7 +780,12 @@ void MCPrintingGetPrintDeviceOutput(MCExecContext& ctxt, MCPrintingPrintDeviceOu
 		}
 	}
 	else
-		r_output . location = nil;
+		//r_output . location = nil;
+		if (!MCStringCreateWithBytes((byte_t*)PS_FNAME, strlen(PS_FNAME), kMCStringEncodingUTF8, false, r_output . location))
+		{
+			ctxt . Throw();
+			return;
+		}
 	
 	r_output . type = t_output_type;
 }
