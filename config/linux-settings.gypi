@@ -58,7 +58,8 @@
 				[
 					'-Wall',
 					'-Wextra',
-					'-Wno-deprecated-register',	# Fix when we move to C++17
+# 2023.06.25 mdw no longer applicable : cut down on the noise
+#					'-Wno-deprecated-register',	# Fix when we move to C++17
 					'-Wno-unused-parameter',	# Just contributes build noise
 					'-Werror=return-type',
 					'-Werror=uninitialized',
