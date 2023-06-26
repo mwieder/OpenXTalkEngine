@@ -33,11 +33,11 @@ util/perfect/perfect.linux-*
 *.ii
 *.com
 *.class
-*.dll
+#*.dll
 *.exe
 *.o
-*.so
-*.a
+#*.so
+#*.a
 *.pyc
 *.d
 *.stamp
@@ -118,14 +118,18 @@ sdks/
 
 # Ignore prebuilts #
 ###################
+prebuilt
 prebuilt/bin
 prebuilt/include
-prebuilt/lib
+prebuilt/lib/mac
 prebuilt/share
-prebuilt/build
+#prebuilt/build
 prebuilt/packaged
 prebuilt/fetched
 prebuilt/unpacked
+#"prebuilt/lib/libcef/mac/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+#prebuilt/lib/linux/x86_64/CEF/libcef.so
+#prebuilt/lib/linux/x86_64/libskia.a
 
 # Stamp files and generated C files
 ###################################
