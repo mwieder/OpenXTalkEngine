@@ -54,6 +54,7 @@ util/perfect/perfect.linux-*
 *.rar
 *.tar
 *.zip
+*.bz2
 
 # Logs and databases #
 ######################
@@ -119,13 +120,18 @@ sdks/
 # Ignore prebuilts #
 ###################
 prebuilt/bin
-prebuilt/include
 prebuilt/lib
+prebuit/docs
+#prebuilt/include
+#prebuilt/lib/mac
 prebuilt/share
 prebuilt/build
 prebuilt/packaged
 prebuilt/fetched
 prebuilt/unpacked
+"prebuilt/lib/libcef/mac/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+prebuilt/lib/linux/x86_64/libskia.a
+prebuilt/lib/linux/x86_64/CEF/libcef.so
 
 # Stamp files and generated C files
 ###################################
