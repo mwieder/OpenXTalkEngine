@@ -121,6 +121,7 @@ sdks/
 prebuilt/bin
 prebuilt/include
 prebuilt/lib
+prebuilt/docs
 prebuilt/share
 prebuilt/build
 prebuilt/packaged
