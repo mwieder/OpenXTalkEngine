@@ -121,7 +121,7 @@ sdks/
 ###################
 prebuilt/bin
 prebuilt/lib
-prebuit/docs
+prebuilt/docs
 #prebuilt/include
 #prebuilt/lib/mac
 prebuilt/share
