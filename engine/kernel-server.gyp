@@ -152,6 +152,9 @@
 								'-Wl,-Bstatic',
 								'-lstdc++',
 								'-Wl,-Bdynamic',
+# added for rpi per PR #3398
+								'-lX11',
+								'-lXext',
 							],
 						},
 					],

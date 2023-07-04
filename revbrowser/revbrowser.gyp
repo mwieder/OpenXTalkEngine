@@ -49,7 +49,9 @@
 			[
 				# Only supported on OSX, Windows and Linux
 				[
-					'not toolset_os in ("mac", "win", "linux")',
+# changed per PR #3398
+#					'not toolset_os in ("mac", "win", "linux")',
+					'not toolset_os in ("win", "linux") or (toolset_os == "linux" and not toolset_arch in ("x86", "x86_64"))',
 					{
 						'type': 'none',
 					},

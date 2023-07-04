@@ -61,6 +61,13 @@
 			
 			'target_conditions':
 			[
+				[
+					'OS != "mac" and OS != "win" and OS != "linux"',
+					{
+						'type': 'none',
+					},
+				],
+
 				## Exclusions
 				# Only use CEF on desktop platforms
 				[
@@ -188,6 +195,22 @@
 			# Gyp doesn't like dependencies in 'target_conditions'...
 			'conditions':
 			[
+
+                [
+                    'OS == "linux" and target_arch != "x86" and target_arch != "x86_64"',
+                    {
+                        'sources!':
+                        [
+                            'src/libbrowser_cef_lnx.cpp',
+                            'src/libbrowser_cefshared_lnx.cpp',
+                        ],
+
+                        'sources':
+                        [
+                            'src/libbrowser_no_factories.cpp',
+                        ],
+                    },
+                ],
 				[
 					# Only the CEF platforms need libbrowser-cefprocess
 					'OS in ("linux", "win") or host_os in ("linux", "win")',
@@ -203,6 +226,11 @@
 					},
 				],
 				
+				'defines':
+				[
+                'BUILDING_CEFPROCESS=1',
+				],
+
 				[
 					'OS == "win"',
 					{	
