@@ -197,7 +197,7 @@
 			[
 
                 [
-                    'OS == "linux" and target_arch != "x86" and target_arch != "x86_64"',
+                    'OS == "linux" and not toolset_arch in ("x86", "x86_64")',
                     {
                         'sources!':
                         [
@@ -228,7 +228,7 @@
 				
 				'defines':
 				[
-                'BUILDING_CEFPROCESS=1',
+                	'BUILDING_CEFPROCESS=1',
 				],
 
 				[
