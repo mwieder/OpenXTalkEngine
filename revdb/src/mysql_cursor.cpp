@@ -49,10 +49,10 @@ Bool DBCursor_MYSQL::open(DBConnection *newconnection)
 	DBConnection_MYSQL *mysqlconn = (DBConnection_MYSQL *)connection;
 	mysql_res = mysql_store_result(mysqlconn->getMySQL());
 	
-	if (mysql_res == NULL || mysql_errno(mysqlconn->getMySQL()))
+	if (NULL == mysql_res || mysql_errno(mysqlconn->getMySQL()))
 		return False;
 
-	recordCount = (unsigned int)mysql_num_rows(mysql_res);
+	recordCount = mysql_num_rows(mysql_res);
 	fieldCount = mysql_num_fields(mysql_res);
 	
 	if (!getFieldsInformation())
@@ -105,7 +105,7 @@ Bool DBCursor_MYSQL::first()
 Output - False on error*/
 Bool DBCursor_MYSQL::last()
 {
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	recordNum = recordCount - 1;
@@ -121,7 +121,7 @@ Bool DBCursor_MYSQL::last()
 
 Bool DBCursor_MYSQL::move(int p_record_index)
 {
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	// Don't allow the recordNum to be set to something outside the range.
@@ -148,7 +148,7 @@ Bool DBCursor_MYSQL::move(int p_record_index)
 Output - False on error*/
 Bool DBCursor_MYSQL::next()
 {
-	if (recordCount == 0 || isEOF == True)
+	if (0 == recordCount || True == isEOF)
 		return False;
 
 	isBOF = False;
@@ -161,7 +161,7 @@ Bool DBCursor_MYSQL::next()
 		return False;
 	}
 
-	if (recordNum == 0)
+	if (0 == recordNum)
 		isBOF = True;
 	else
 		isBOF = False;
@@ -180,13 +180,13 @@ Bool DBCursor_MYSQL::next()
 Output - False on error*/
 Bool DBCursor_MYSQL::prev()
 {
-	if (recordCount == 0 || isBOF == True)
+	if (0 == recordCount || True == isBOF)
 		return False;
 
 	isEOF = False; 
 
 	recordNum--;
-	if (recordNum == -1)
+	if (-1 == recordNum)
 	{
 		isBOF = True;
 		recordNum = 0;
@@ -206,12 +206,12 @@ Bool DBCursor_MYSQL::getFieldsInformation()
 {
 	MYSQL_FIELD *field_prop;
 	fields = new (nothrow) DBField *[fieldCount];
-	for (unsigned int i=0; i< fieldCount; i++)
+	for (int i=0; i< fieldCount; i++)
 	{
 		DBField *tfield = new (nothrow) DBField();
 		fields[i] = tfield;
 		field_prop = mysql_fetch_field(mysql_res);
-		if (field_prop != NULL) 
+		if (NULL != field_prop) 
 		{
 			if (strlen(field_prop->name) > F_NAMESIZE -6)
 				strncpy(tfield->fieldName, field_prop->name, F_NAMESIZE-6);

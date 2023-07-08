@@ -228,7 +228,7 @@ Bool DBCursor_ODBC::next()
 
 Bool DBCursor_ODBC::move(int p_record_index)
 {
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	if (p_record_index == recordNum)
@@ -242,7 +242,7 @@ Bool DBCursor_ODBC::move(int p_record_index)
 
 	if (p_record_index < 0)
 		return False;
-	else if (recordCount != -1 && p_record_index > recordCount - 1)
+	else if (-1 != recordCount && p_record_index > recordCount - 1)
 		return False;
 
 	recordNum = p_record_index;

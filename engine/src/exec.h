@@ -1241,6 +1241,7 @@ public:
     MCExecContext(const MCExecContext& p_ctxt)
         : m_stat(ES_NORMAL)
 	{
+// 2023.07.07 mdw removed implicit copy constructor
         *this = p_ctxt;
         MCValueRetain(p_ctxt . m_itemdel);
         MCValueRetain(p_ctxt . m_linedel);

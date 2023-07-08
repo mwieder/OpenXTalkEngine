@@ -251,10 +251,10 @@ bool CDBConnection::processQuery(const char *p_input, DBBuffer& p_output, Proces
 
 void CDBConnection::errorMessageSet(const char *p_message)
 {
-	if (m_error != NULL)
+	if (NULL != m_error)
 		free(m_error);
 
-	if (p_message == NULL)
+	if (NULL == p_message)
 		m_error = NULL;
 	else
 		m_error = strdup(p_message);
@@ -278,7 +278,7 @@ CDBCursor::CDBCursor()
 
 Bool CDBCursor::getIsOpen()
 {
-	return fieldCount != 0;
+	return 0 != fieldCount;
 }
 
 int CDBCursor::getFieldCount()
@@ -336,7 +336,7 @@ Bool CDBCursor::move(int p_record_index)
 	int t_gap;
 	t_gap = p_record_index - recordNum;
 
-	if (t_gap == 0)
+	if (0 == t_gap)
 		return True;
 
 	// The absolute value of the difference gives us the number of moves needed to reach the required record.
@@ -365,7 +365,7 @@ Bool CDBCursor::move(int p_record_index)
 unsigned int CDBCursor::getFieldLength(unsigned int fieldnum)
 {
 	fieldnum--;
-	if ((int)fieldnum >= fieldCount)
+	if (fieldnum >= (unsigned int)fieldCount)
 		return 0;
 
 	return (unsigned int)fields[fieldnum] -> maxlength;
@@ -377,7 +377,7 @@ char *CDBCursor::getFieldName(unsigned int fieldnum)
 {
 	fieldnum--;
 	//check that field is in range
-	if ((int)fieldnum >= fieldCount) 
+	if (fieldnum >= (unsigned int)fieldCount) 
 		return NULL;
 
 	return fields[fieldnum] -> fieldName;
@@ -386,7 +386,7 @@ char *CDBCursor::getFieldName(unsigned int fieldnum)
 DBFieldType CDBCursor::getFieldType(unsigned int fieldnum)
 {
 	fieldnum--;
-	if ((int)fieldnum >= fieldCount) 
+	if (fieldnum >= (unsigned int)fieldCount) 
 		return FT_NULL;
 
 	return fields[fieldnum] -> fieldType;
@@ -400,7 +400,7 @@ Output: pointer to fields data, NULL on error*/
 char *CDBCursor::getFieldDataBinary(unsigned int fieldnum,unsigned int &fdlength)
 {
 	fieldnum--;
-	if ((int)fieldnum >= fieldCount)
+	if (fieldnum >= (unsigned int)fieldCount)
 		return NULL;
 
 	// MW-2010-10-01: [[ Bug 8980 ]] If the field is NULL, always return 0 length ""
@@ -427,7 +427,7 @@ char *CDBCursor::getFieldDataString(unsigned int fieldnum)
 {
 	unsigned int fdlength = 0;
 	char *fdata = getFieldDataBinary(fieldnum, fdlength);
-	if (fdata == NULL)
+	if (NULL == fdata)
 		return NULL;
 
 	if (fdata != DBNullValue)
@@ -442,7 +442,7 @@ Bool CDBCursor::getFieldIsNull(unsigned int fieldnum)
 	if (fieldnum > 0)
 		fieldnum--;
 
-	if ((int)fieldnum >= fieldCount) 
+	if (fieldnum >= (unsigned int)fieldCount) 
 		return False;
 
 	return fields[fieldnum] -> isNull;
@@ -451,7 +451,7 @@ void CDBCursor::FreeFields()
 {
 	if (fields)
 	{
-		for (int i = 0; i < fieldCount; i++)
+		for (unsigned int i = 0; i < (unsigned int)fieldCount; i++)
 		{
 			delete fields[i];
 		}
@@ -472,21 +472,21 @@ extern "C" LIBRARY_EXPORT void setcallbacksref(DBcallbacks *callbacks)
 #ifndef REVDB_BUILD
 extern "C" void *MCSupportLibraryLoad(const char *p_path)
 {
-    if (dbcallbacks == NULL)
+    if (NULL == dbcallbacks)
         return NULL;
     return dbcallbacks -> load_module(p_path);
 }
 
 extern "C" void MCSupportLibraryUnload(void *p_handle)
 {
-    if (dbcallbacks == NULL)
+    if (NULL == dbcallbacks)
         return;
     dbcallbacks -> unload_module(p_handle);
 }
 
 extern "C" void *MCSupportLibraryLookupSymbol(void *p_handle, const char *p_symbol)
 {
-    if (dbcallbacks == NULL)
+    if (NULL == dbcallbacks)
         return NULL;
     return dbcallbacks -> resolve_symbol_in_module(p_handle, p_symbol);
 }
