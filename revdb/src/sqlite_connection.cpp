@@ -302,7 +302,8 @@ char *DBConnection_SQLITE::getErrorMessage(Bool p_last)
     return (char*)DBNullValue;
 }
 
-char *replaceString(char *p_string, char *p_find, char *p_replace)
+// 2023.07.07 mdw changed p_find and p_replace to const char * from char *
+char *replaceString(char *p_string, const char *p_find, const char *p_replace)
 {
 
 

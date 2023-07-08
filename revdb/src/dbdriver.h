@@ -250,9 +250,9 @@ class DBString
 public:
 	DBString(void);
 	DBString(char *somechar);
-	DBString(char *somechar, int tlength, Bool tbinary);
+	DBString(char *somechar, unsigned int tlength, Bool tbinary);
 	void Set(char *somechar);
-	void Set(char *somechar, int tlength, Bool tbinary);
+	void Set(char *somechar, unsigned int tlength, Bool tbinary);
 
 	const char *sptr;
 	int length;
@@ -271,7 +271,7 @@ inline DBString::DBString(char *p_string)
 	Set(p_string);
 }
 
-inline DBString::DBString(char *p_string, int p_length, Bool p_binary)
+inline DBString::DBString(char *p_string, unsigned int p_length, Bool p_binary)
 {
 	Set(p_string, p_length, p_binary);
 }
@@ -282,7 +282,7 @@ inline void DBString::Set(char *p_string)
 	length = strlen(p_string);
 }
 
-inline void DBString::Set(char *p_string, int p_length, Bool p_binary)
+inline void DBString::Set(char *p_string, unsigned int p_length, Bool p_binary)
 {
 	sptr = p_string;
 	length = p_length;

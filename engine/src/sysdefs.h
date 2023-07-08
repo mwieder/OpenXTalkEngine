@@ -1395,12 +1395,13 @@ struct MCObjectPtr
         : object(p_object), part_id(p_part_id)
     {}
 
-    MCObjectPtr& operator = (const MCObjectPtr& p_obj_ptr)
-    {
-        object = p_obj_ptr . object;
-        part_id = p_obj_ptr . part_id;
-        return *this;
-    }
+// 2023.7.07 mdw deprecated implicitly-declared copy constructor
+//    MCObjectPtr& operator = (const MCObjectPtr& p_obj_ptr)
+//    {
+//        object = p_obj_ptr . object;
+//        part_id = p_obj_ptr . part_id;
+//        return *this;
+//    }
 };
 
 // NOTE: the indices in this structure are UTF-16 code unit indices if the value is a stringref,
