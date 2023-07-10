@@ -212,6 +212,7 @@ Bool DBConnection_SQLITE::sqlExecute(char *query, DBString *args, int numargs, u
 
 int query_callback(void* res_ptr, int ncol, char** reslt, char** cols) 
 {
+// 2023.07.09 mdw : value computed is not used
 	int *i = (int*)res_ptr;
 	*i++;
 	return 0;
@@ -506,8 +507,8 @@ char *DBConnection_SQLITE::BindVariables(char *p_query, int p_query_length, DBSt
 	int t_parsed_query_length;
 	t_parsed_query_length = p_query_length;
 
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 
 	if (p_argument_count != 0)
 	{
@@ -518,6 +519,7 @@ char *DBConnection_SQLITE::BindVariables(char *p_query, int p_query_length, DBSt
 
 		DBBuffer t_query_buffer(t_parsed_query_length + 1);
 
+		bool t_success;
 		t_success = processQuery(p_query, t_query_buffer, queryCallback, &t_query_metadata);
 
 		t_query_buffer . ensure(1);
@@ -638,6 +640,7 @@ int DBConnection_SQLITE::basicExec(const char *q, unsigned int *rows)
 		*rows = 0;
 		t_return_value = sqlite3_exec(mDB.getHandle(), q, exec_callback, rows, &err);
 
+// 2023.07.09 mdw : variable set but not used
 		int t_changed_rows;
 		t_changed_rows = sqlite3_changes(mDB.getHandle());
 

@@ -60,6 +60,7 @@
 					'-Wextra',
 #					'-Wno-deprecated-register',	# Fix when we move to C++17
 					'-Wno-unused-parameter',	# Just contributes build noise
+					'-Wno-misleading-indentation',
 					'-Werror=return-type',
 					'-Werror=uninitialized',
 					'-Wno-error=maybe-uninitialized',

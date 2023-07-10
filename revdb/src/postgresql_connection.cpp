@@ -280,11 +280,13 @@ PGresult *DBConnection_POSTGRESQL::ExecuteQuery(char *p_query, DBString *p_argum
 	char *t_parsed_query;
 	t_parsed_query = p_query;
 
-	int *t_placeholders;
-	t_placeholders = NULL;
+// 2023.07.09 mdw : variable set but not used
+//	int *t_placeholders;
+//	t_placeholders = NULL;
 
-	int t_placeholder_count;
-	t_placeholder_count = 0;
+// 2023.07.09 mdw : variable set but not used
+//	int t_placeholder_count;
+//	t_placeholder_count = 0;
 
 	bool t_success;
 	t_success = true;

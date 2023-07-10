@@ -46,6 +46,7 @@ typedef unsigned short uint2;
 int UTF8ToUnicode(const char * lpSrcStr, int cchSrc, uint2 * lpDestStr, int cchDest);
 int UnicodeToUTF8(uint2 *lpSrcStr, int cchSrc, char *lpDestStr, int cchDest);
 
+// 2023.07.09 mdw : function defined but not used
 static char *unidecode(char *unistring, int tsize)
 {
   int length = tsize >> 1;
@@ -483,14 +484,14 @@ Bool DBCursor_ODBC::getRowData()
 			{
 				int t_length;
 				for(t_length = 0; t_length < ofield -> maxlength; ++t_length)
-					if (ofield -> data[t_length] == '\0')
+					if ('\0' == ofield -> data[t_length])
 						break;
 				ofield -> dataSize = t_length;
 			}
 			else
 				ofield -> dataSize = buf_ind;
 
-			if (retcode != SQL_SUCCESS)
+			if (SQL_SUCCESS != retcode)
 			{
 				// OK-2009-11-16: [[Bug 8368]]
 				// Before assuming that the return code of SQL_SUCCESS_WITH_INFO is due to 
@@ -515,7 +516,7 @@ Bool DBCursor_ODBC::getRowData()
 					ofield -> extraData = (char *)malloc(RAWSIZE + 1);
 					offset = 0;
 					unsigned int bytestocopy;
-					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO )
+					while (SQL_SUCCESS == retcode || SQL_SUCCESS_WITH_INFO == retcode)
 					{   
 						// If the amount of data is greater than the buffer allocated, then put the buffer size into bytestocopy,
 						// otherwise put the data length into it
@@ -528,9 +529,9 @@ Bool DBCursor_ODBC::getRowData()
 						memcpy((char*)(ofield->extraData + offset), ofield->data, bytestocopy);
 
 						// Calculate the offset for the next lump of data to be copied to, overwriting null terminating chars if appropriate.
-						if (ofield -> fieldType == FT_BLOB)
+						if (FT_BLOB == ofield -> fieldType)
 							offset += bytestocopy;
-						else if (ofield -> fieldType == FT_WSTRING)
+						else if (FT_WSTRING == ofield -> fieldType)
 							offset += bytestocopy - 2;
 						else
 							offset += bytestocopy - 1;
@@ -544,7 +545,7 @@ Bool DBCursor_ODBC::getRowData()
 				}
 			}
             
-            if (ofield -> fieldType == FT_WSTRING && sizeof(SQLWCHAR) != sizeof(uint16_t))
+            if (FT_WSTRING == ofield -> fieldType && sizeof(SQLWCHAR) != sizeof(uint16_t))
             {
                 uint16_t * t_buffer = static_cast<uint16_t *>(malloc(ofield -> dataSize));
             
@@ -586,7 +587,7 @@ char *DBCursor_ODBC::getErrorMessage()
     DBConnection_ODBC * odbcconn = (DBConnection_ODBC *)connection;
     SQLRETURN err = SQLErrorA(odbcconn->getHENV(), odbcconn->getHDBC(), ODBC_res, NULL, &error, (SQLCHAR *)errmsg, SQL_MAX_MESSAGE_LENGTH-1, &errormsgsize);
     
-    if (err == SQL_SUCCESS)
+    if (SQL_SUCCESS == err)
 		return errmsg;
     else
         return (char *)DBNullValue;
