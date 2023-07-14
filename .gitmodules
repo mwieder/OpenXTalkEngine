@@ -4,7 +4,7 @@
 	branch = develop
 [submodule "thirdparty"]
 	path = thirdparty
-	url = https://github.com/livecode/livecode-thirdparty
+	url = https://github.com/mwieder/livecode-thirdparty
 	branch = develop
 [submodule "libcpptest/googletest"]
 	path = libcpptest/googletest
