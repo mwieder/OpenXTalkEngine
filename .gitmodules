@@ -6,6 +6,10 @@
 	path = thirdparty
 	url = https://github.com/livecode/livecode-thirdparty
 	branch = develop
+[submodule "prebuilt"]
+	path = thirdparty
+	url = https://github.com/livecode/livecode-prebuilt
+	branch = develop
 [submodule "libcpptest/googletest"]
 	path = libcpptest/googletest
 	url = https://github.com/google/googletest.git

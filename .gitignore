@@ -121,12 +121,13 @@ sdks/
 prebuilt/bin
 prebuilt/include
 prebuilt/lib
-prebuilt/docs
 prebuilt/share
 prebuilt/build
-prebuilt/packaged
+# these are no longer used. I think
 prebuilt/fetched
 prebuilt/unpacked
+prebuilt/packaged
+prebuilt/docs
 
 # Stamp files and generated C files
 ###################################
