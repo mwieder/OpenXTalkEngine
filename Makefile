@@ -215,18 +215,18 @@ check-ios-%:
 
 # Dummy targets to prevent our build system from building old iOS simulators+devices
 $(addprefix config-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix compile-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix check-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 	
 $(addprefix config-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix compile-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix check-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 
 # Provide some synonyms for "latest iOS SDK"
 $(addsuffix -ios-iphoneos,all config compile check): %: %$(lastword $(IPHONEOS_VERSIONS))
