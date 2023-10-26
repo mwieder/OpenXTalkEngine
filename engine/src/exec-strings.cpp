@@ -14,6 +14,97 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
+/*
+* Public functions in this file:
+
+MCStringsSplit
+MCStringsEvalToLower
+MCStringsEvalToUpper
+MCStringsEvalNumToChar
+MCStringsEvalNumToNativeChar
+MCStringsEvalNumToUnicodeChar
+MCStringsEvalCharToNum
+MCStringsEvalNativeCharToNum
+MCStringsEvalUnicodeCharToNum
+MCStringsEvalNumToByte
+MCStringsEvalByteToNum
+MCStringsEvalTextEncoding
+MCStringsEvalTextDecode
+MCStringsEvalTextEncode
+MCStringsEvalNormalizeText
+MCStringsEvalCodepointProperty
+MCStringsEvalLength
+MCStringsCompilePattern
+MCStringsEvalMatchText
+MCStringsEvalMatchChunk
+MCStringsEvalReplaceText
+PopParam
+MCStringsEvalFormat
+MCStringsMerge
+MCStringsEvalMerge
+MCStringsConcatenate
+MCStringsConcatenateWithChar
+MCStringsEvalConcatenate
+MCDataConcatenate
+MCStringsEvalConcatenateWithSpace
+MCStringsEvalConcatenateWithComma
+
+MCStringsEvalContains
+MCStringsEvalDoesNotContain
+MCStringsEvalBeginsWith
+MCStringsEvalEndsWith
+MCStringsEvalIsAmongTheChunksOf
+MCStringsEvalIsAmongTheLinesOf
+MCStringsEvalIsNotAmongTheLinesOf
+MCStringsEvalIsAmongTheParagraphsOf
+MCStringsEvalIsNotAmongTheParagraphsOf
+MCStringsEvalIsAmongTheSentencesOf
+MCStringsEvalIsNotAmongTheSentencesOf
+MCStringsEvalIsAmongTheItemsOf
+MCStringsEvalIsNotAmongTheItemsOf
+MCStringsEvalIsAmongTheWordsOf
+MCStringsEvalIsNotAmongTheWordsOf
+MCStringsEvalIsAmongTheTrueWordsOf
+MCStringsEvalIsNotAmongTheTrueWordsOf
+MCStringsEvalIsAmongTheTokensOf
+MCStringsEvalIsNotAmongTheTokensOf
+MCStringsEvalIsAmongTheCharsOf
+MCStringsEvalIsNotAmongTheCharsOf
+MCStringsEvalIsAmongTheCodepointsOf
+MCStringsEvalIsNotAmongTheCodepointsOf
+MCStringsEvalIsAmongTheCodeunitsOf
+MCStringsEvalIsNotAmongTheCodeunitsOf
+MCStringsEvalIsAmongTheBytesOf
+MCStringsEvalIsNotAmongTheBytesOf
+
+MCStringsEvalLineOffset
+MCStringsEvalParagraphOffset
+MCStringsEvalSentenceOffset
+MCStringsEvalItemOffset
+MCStringsEvalWordOffset
+MCStringsEvalTrueWordOffset
+MCStringsEvalTokenOffset
+MCStringsEvalCodepointOffset
+MCStringsEvalCodeunitOffset
+MCStringsEvalByteOffset
+MCStringsEvalOffset
+
+MCStringsExecReplace
+MCStringsExecFilterDelimited
+MCStringsExecFilterWildcard
+MCStringsExecFilterRegex
+MCStringsExecFilterExpression
+MCStringsEvalIsAscii
+MCStringsEvalIsNotAscii
+
+MCStringsDoSort
+MCStringsSort
+
+MCStringsSortAddItem
+MCStringsExecSort
+MCStringsEvalBidiDirection
+*/
+
 #include "prefix.h"
 
 #include "globdefs.h"
@@ -727,9 +818,9 @@ void MCStringsEvalLength(MCExecContext& ctxt, MCStringRef p_string, integer_t& r
 
 index_t MCregexfrontier = 0;
 
-bool MCStringsCompilePattern(MCStringRef p_pattern, regexp*& r_compiled, bool casesensitive)
+bool MCStringsCompilePattern(MCStringRef p_pattern, regexCacheElement*& r_compiled, bool isCaseSensitive)
 {
-    r_compiled = MCR_compile(p_pattern, casesensitive);
+    r_compiled = MCR_compile(p_pattern, isCaseSensitive);
     return r_compiled != nil;    
 }
 
@@ -737,7 +828,7 @@ bool MCStringsCompilePattern(MCStringRef p_pattern, regexp*& r_compiled, bool ca
 
 void MCStringsEvalMatchText(MCExecContext& ctxt, MCStringRef p_string, MCStringRef p_pattern, MCStringRef* r_results, uindex_t p_result_count, bool& r_match)
 {
-    regexp* t_compiled = nil;
+    regexCacheElement* t_compiled = nil;
 
     if (!MCStringsCompilePattern(p_pattern, t_compiled, true /* casesensitive */))
     {
@@ -780,7 +871,7 @@ void MCStringsEvalMatchText(MCExecContext& ctxt, MCStringRef p_string, MCStringR
 
 void MCStringsEvalMatchChunk(MCExecContext& ctxt, MCStringRef p_string, MCStringRef p_pattern, MCStringRef* r_results, uindex_t p_result_count, bool& r_match)
 {
-    regexp* t_compiled = nil;
+    regexCacheElement* t_compiled = nil;
     
     if (!MCStringsCompilePattern(p_pattern, t_compiled, true /* casesensitive */))
     {
@@ -837,7 +928,7 @@ void MCStringsEvalMatchChunk(MCExecContext& ctxt, MCStringRef p_string, MCString
 
 void MCStringsEvalReplaceText(MCExecContext& ctxt, MCStringRef p_string, MCStringRef p_pattern, MCStringRef p_replacement, MCStringRef& r_result)
 {
-    regexp* t_compiled = nil;
+    regexCacheElement* t_compiled = nil;
 
     if (!MCStringsCompilePattern(p_pattern, t_compiled, true /* casesensitive */))
     {

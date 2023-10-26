@@ -839,7 +839,7 @@ void MCNetworkSetDefaultNetworkInterface(MCExecContext& ctxt, MCStringRef p_valu
 	}
 	else
 	{
-		regexp *t_net_int_regex;
+		regexCacheElement *t_net_int_regex;
 		t_net_int_regex = MCR_compile(MCSTR("\\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b"), true /* casesensitive */);
 		int t_net_int_valid;
 		t_net_int_valid = MCR_exec(t_net_int_regex, p_value, MCRangeMake(0, MCStringGetLength(p_value)));

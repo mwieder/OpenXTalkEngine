@@ -104,7 +104,9 @@ bool MCRegexMatcher::compile(MCStringRef& r_error)
     // MW-2013-07-01: [[ EnhancedFilter ]] Removed 'usecache' parameter as there's
     //   no reason not to use the cache.
     // AL-2014-07-11: [[ Bug 12797 ]] Compare options correctly
+
     m_compiled = MCR_compile(m_pattern, (m_options == kMCStringOptionCompareExact || m_options == kMCStringOptionCompareNonliteral));
+
     if (m_compiled == nil)
     {
         MCR_copyerror(r_error);
@@ -122,7 +124,14 @@ bool MCRegexMatcher::match(MCExecContext& ctxt, MCRange p_range)
         MCAutoStringRef t_string, normalized_source;
         MCStringCopySubstring(m_string_source, p_range, &t_string);
         MCStringNormalizedCopyNFC(*t_string, &normalized_source);
-        return MCR_exec(m_compiled, *normalized_source, MCRangeMake(0, MCStringGetLength(*normalized_source)));
+
+//    MCAutoPointer<char> temp;
+//	const char *t_pattern;
+//    /* UNCHECKED */ MCStringConvertToCString(m_string_source, &temp);
+//    t_pattern = *temp;
+//printf("MCRegexMatcher::match with regex text=%s\n", t_pattern);
+ 
+       return MCR_exec(m_compiled, *normalized_source, MCRangeMake(0, MCStringGetLength(*normalized_source)));
     }
     
     return MCR_exec(m_compiled, m_string_source, p_range);

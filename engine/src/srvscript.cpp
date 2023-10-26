@@ -451,7 +451,7 @@ bool MCServerScript::Include(MCExecContext& ctxt, MCStringRef p_filename, bool p
 
                 MCAutoStringRef t_encoding_str;
                 
-                regexp *t_regexp;
+                regexCacheElement *t_regexp;
                 t_regexp = MCR_compile(MCSTR("coding[=:]\\s*([-\\w.]+)"), false);
                 if (t_regexp != NULL)
                 {

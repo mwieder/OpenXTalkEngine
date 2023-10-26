@@ -65,7 +65,7 @@ clean-linux:
 	rm -rf build-linux-*
 	rm -rf prebuilt/fetched
 	rm -rf prebuilt/build
-	rm -rf prebuilt/include
+#	rm -rf prebuilt/include
 #	rm -rf prebuilt/lib
 	find . -name \*.lcb | xargs touch
 
