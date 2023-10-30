@@ -371,7 +371,7 @@ static void lookup_name_for_prop(Properties p_which, MCNameRef& r_name)
 	if (lookup_property_override_name(p_which, r_name))
 		return;
 
-    assert(false);
+	assert(false);
 }
 
 bool MCWidget::getprop(MCExecContext& ctxt, uint32_t p_part_id, Properties p_which, MCNameRef p_index, Boolean p_effective, MCExecValue& r_value)

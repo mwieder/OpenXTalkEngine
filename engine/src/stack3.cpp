@@ -2139,7 +2139,7 @@ void MCStack::markfind(MCExecContext &ctxt, Find_mode fmode,
 	}
 	while (curcard != ocard);
     for (uint4 i = 0 ; i < nstrings ; i++)
-        MCValueRelease(strings[i]);
+		MCValueRelease(strings[i]);
 	delete strings;
 	if (MCfoundfield)
 		MCfoundfield->clearfound();

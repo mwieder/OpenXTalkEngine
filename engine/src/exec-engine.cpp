@@ -1367,7 +1367,7 @@ void MCEngineExecCall(MCExecContext& ctxt, MCStringRef p_script, MCObjectPtr *p_
 void MCEngineExecSendScript(MCExecContext& ctxt, MCStringRef p_script, MCObjectPtr *p_target)
 {
     MCObject *optr;
-    if (p_target == nil)
+    if (nil == p_target)
         optr = ctxt . GetObject();
     else
         optr = p_target -> object;
@@ -1382,8 +1382,8 @@ void MCEngineExecSendScript(MCExecContext& ctxt, MCStringRef p_script, MCObjectP
         added = True;
     }
     
-    if (optr->domess(p_script, nil, false) == ES_ERROR)
-        ctxt . Throw();
+    if (ES_ERROR == optr->domess(p_script, nil, false))
+		ctxt . Throw();
     
 	if (added)
 		MCnexecutioncontexts--;

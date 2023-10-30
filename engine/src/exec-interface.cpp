@@ -3841,7 +3841,7 @@ void MCInterfaceExportBitmap(MCExecContext &ctxt, MCImageBitmap *p_bitmap, int p
 	
 	IO_handle t_stream = nil;
 	t_stream = MCS_fakeopenwrite();
-    if (t_stream == nil)
+    if (nil == t_stream)
         t_success = false;
     if (t_success)
         t_success = MCImageExport(p_bitmap, (Export_format)p_format, t_ps_ptr, p_dither, p_metadata, t_stream, nil);
@@ -3862,8 +3862,8 @@ void MCInterfaceExportBitmap(MCExecContext &ctxt, MCImageBitmap *p_bitmap, int p
 	if (!t_success)
 	{
 		ctxt.LegacyThrow(EE_EXPORT_CANTWRITE);
-		
-		return;
+
+//		return;
 	}
 }
 
