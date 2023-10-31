@@ -7,7 +7,7 @@
 	url = https://github.com/mwieder/livecode-thirdparty
 	branch = develop
 [submodule "prebuilt"]
-	path = thirdparty
+	path = prebuilt
 	url = https://github.com/mwieder/livecode-prebuilt
 	branch = develop
 [submodule "libcpptest/googletest"]
