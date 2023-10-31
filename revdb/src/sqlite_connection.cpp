@@ -302,7 +302,7 @@ char *DBConnection_SQLITE::getErrorMessage(Bool p_last)
     return (char*)DBNullValue;
 }
 
-char *replaceString(char *p_string, char *p_find, char *p_replace)
+char *replaceString(char *p_string, const char *p_find, const char *p_replace)
 {
 
 
@@ -400,8 +400,8 @@ bool queryCallback(void *p_context, int p_placeholder, DBBuffer& p_output)
     
     // SN-2015-06-01: [[ Bug 15416 ]] Make sure that we don't access an out-of-
     //  bounds placeholder.
-    if (p_placeholder > t_query_metadata -> argument_count)
-        return false;
+	if (p_placeholder > t_query_metadata -> argument_count)
+		return false;
 
 	DBString t_parameter_value;
 	t_parameter_value = t_query_metadata -> arguments[p_placeholder - 1];
@@ -435,7 +435,7 @@ bool queryCallback(void *p_context, int p_placeholder, DBBuffer& p_output)
 			
 			*t_buffer++ = 'X';
 			*t_buffer++ = '\'';
-			for(size_t i = 0; i < t_parameter_value . length; i++)
+			for(size_t i = 0; i < (size_t)t_parameter_value . length; i++)
 			{
 				char t_high_nibble, t_low_nibble;
 				t_high_nibble = num2nibble(((unsigned)t_parameter_value . sptr[i] & 0xff) >> 4);

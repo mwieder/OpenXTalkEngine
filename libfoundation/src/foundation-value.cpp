@@ -1155,8 +1155,8 @@ MC_DLLEXPORT_DEF MCBooleanRef kMCFalse;
 
 bool __MCValueInitialize(void)
 {
-    if (!MCMemoryNewArray(kMCValuePoolCount, s_value_pools))
-        return false;
+	if (!MCMemoryNewArray(kMCValuePoolCount, s_value_pools))
+		return false;
     
 	if (!__MCValueCreate(kMCValueTypeCodeNull, kMCNull))
 		return false;
