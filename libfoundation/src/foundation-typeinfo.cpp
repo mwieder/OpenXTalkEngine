@@ -776,21 +776,21 @@ static bool MCCommonHandlerTypeInfoCreate(bool p_is_foreign, const MCHandlerType
 	MCAssert(nil != p_fields || 0 == p_field_count);
 
     __MCTypeInfo *self;
-    if (!__MCValueCreate(kMCValueTypeCodeTypeInfo, self))
-        return false;
+	if (!__MCValueCreate(kMCValueTypeCodeTypeInfo, self))
+		return false;
     
 	/* If the p_field_count < 0 then the p_fields are expected to be
 	 * terminated by a custodian with name = nil. */
 	if (p_field_count < 0)
 		for (p_field_count = 0; p_fields[p_field_count].type != nil; ++p_field_count);
 
-    if (!MCMemoryNewArray(p_field_count, self -> handler . fields))
-    {
-        MCMemoryDelete(self);
-        return false;
-    }
+	if (!MCMemoryNewArray(p_field_count, self -> handler . fields))
+	{
+		MCMemoryDelete(self);
+		return false;
+	}
     
-    self -> flags |= kMCValueTypeCodeHandler;
+	self -> flags |= kMCValueTypeCodeHandler;
 
     if (p_is_foreign)
         self -> flags |= kMCTypeInfoFlagHandlerIsForeign;
@@ -985,23 +985,23 @@ bool MCHandlerTypeInfoGetLayoutType(MCTypeInfoRef unresolved_self, int p_abi, vo
     
     // Now we must create a new layout object.
     MCHandlerTypeLayout *t_layout;
-    if (!MCMemoryAllocate(sizeof(MCHandlerTypeLayout) + sizeof(ffi_cif), t_layout))
-        return false;
+	if (!MCMemoryAllocate(sizeof(MCHandlerTypeLayout) + sizeof(ffi_cif), t_layout))
+		return false;
 
 	t_layout -> abi = p_abi;
+
+	if (ffi_prep_cif((ffi_cif *)&t_layout -> cif, (ffi_abi)p_abi, self -> handler . field_count, self -> handler . layout_args[0], self -> handler . layout_args + 1) != FFI_OK)
+	{
+		MCMemoryDeallocate(t_layout);
+		return MCErrorThrowGeneric(MCSTR("unexpected libffi failure"));
+	}
     
-    if (ffi_prep_cif((ffi_cif *)&t_layout -> cif, (ffi_abi)p_abi, self -> handler . field_count, self -> handler . layout_args[0], self -> handler . layout_args + 1) != FFI_OK)
-    {
-        MCMemoryDeallocate(t_layout);
-        return MCErrorThrowGeneric(MCSTR("unexpected libffi failure"));
-    }
-    
-    t_layout -> next = self -> handler . layouts;
-    self -> handler . layouts = t_layout;
-    
-    r_cif = &t_layout -> cif;
-    
-    return true;
+	t_layout -> next = self -> handler . layouts;
+	self -> handler . layouts = t_layout;
+
+	r_cif = &t_layout -> cif;
+
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

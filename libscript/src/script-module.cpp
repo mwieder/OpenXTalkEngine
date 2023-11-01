@@ -577,14 +577,14 @@ MCScriptIsModuleLicensed(MCScriptModuleRef self)
 bool MCScriptEnsureModuleIsUsable(MCScriptModuleRef self)
 {
     // If the module has already been ensured as usable, we are done.
-    if (self -> is_usable)
-        return true;
+	if (self -> is_usable)
+		return true;
 
 	/* If the module is already marked as being checked for usability,
 	 * then there must be a cyclic module dependency. */
 	if (self -> is_in_usable_check)
 		return MCErrorThrowGeneric(MCSTR("cyclic module dependency"));
-    
+
 	self -> is_in_usable_check = true;
     
     // First ensure we can resolve all its external dependencies.
