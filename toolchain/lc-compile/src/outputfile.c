@@ -219,34 +219,34 @@ void GetOutputFile(const char **r_output)
 
 FILE *OpenOutputBytecodeFile(const char **r_filename)
 {
-    if (s_output_bytecode_file == NULL)
-        return NULL;
+	if (s_output_bytecode_file == NULL)
+		return NULL;
 
 	if (NULL != r_filename)
 	{
 		*r_filename = s_output_bytecode_file;
 	}
 
-    return fopen(s_output_bytecode_file, "wb");
+	return fopen(s_output_bytecode_file, "wb");
 }
 
 FILE *OpenOutputCodeFile(const char **r_filename)
 {
-    if (s_output_code_file == NULL)
-        return NULL;
+	if (s_output_code_file == NULL)
+		return NULL;
     
 	if (NULL != r_filename)
 	{
 		*r_filename = s_output_code_file;
 	}
     
-    return fopen(s_output_code_file, "w");
+	return fopen(s_output_code_file, "w");
 }
 
 FILE *OpenOutputGrammarFile(const char **r_filename)
 {
-    if (s_output_grammar_file == NULL)
-        return NULL;
+	if (s_output_grammar_file == NULL)
+		return NULL;
 
 	if (NULL != r_filename)
 	{
@@ -259,19 +259,19 @@ FILE *OpenOutputGrammarFile(const char **r_filename)
 		return stdout;
 	}
     
-    return fopen(s_output_grammar_file, "w");
+	return fopen(s_output_grammar_file, "w");
 }
 
 FILE *OpenManifestOutputFile(void)
 {
-    if (s_manifest_output_file == NULL)
-        return NULL;
-    return fopen(s_manifest_output_file, "w");
+	if (s_manifest_output_file == NULL)
+		return NULL;
+	return fopen(s_manifest_output_file, "w");
 }
 
 FILE *OpenTemplateFile(void)
 {
-    return fopen(s_template_file, "r");
+	return fopen(s_template_file, "r");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

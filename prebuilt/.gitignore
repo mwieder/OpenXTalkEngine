@@ -1,0 +1,10 @@
+fetched
+fetched/*
+Chromium*
+*.bz2
+*.tgz
+*.gz
+*.old
+lib/*
+bin/*
+build/*
