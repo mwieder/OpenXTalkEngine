@@ -2,17 +2,26 @@
 
 set -e
 
+echo "in build-openssl.sh"
+
 source "${BASEDIR}/scripts/platform.inc"
+echo "platform = ${PLATFORM}"
 source "${BASEDIR}/scripts/lib_versions.inc"
+echo "openssl version=${OpenSSL_VERSION}"
+echo "Thirdparty_LIBS_linux=${Thirdparty_LIBS_linux}"
+
 source "${BASEDIR}/scripts/util.inc"
 
 # Grab the source for the library
 OPENSSL_TGZ="openssl-${OpenSSL_VERSION}.tar.gz"
 OPENSSL_SRC="openssl-${OpenSSL_VERSION}"
+
 cd "${BUILDDIR}"
 
 if [ ! -d "$OPENSSL_SRC" ] ; then
+	echo "local openssl directory not found"
 	if [ ! -e "$OPENSSL_TGZ" ] ; then
+		echo "no openssl .gz file found"
 		echo "Fetching OpenSSL source"
 		fetchUrl "https://www.openssl.org/source/openssl-${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
 		if [ $? != 0 ] ; then

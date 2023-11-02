@@ -140,6 +140,7 @@
                                 'destination': '<(PRODUCT_DIR)/Externals/CEF',
                                 'files':
                                 [
+# these are available at https://cef-builds.spotifycdn.com/index.html#linux64
                                     'lib/linux/<(target_arch)/CEF/cef.pak',
                                     'lib/linux/<(target_arch)/CEF/cef_100_percent.pak',
                                     'lib/linux/<(target_arch)/CEF/cef_200_percent.pak',
@@ -155,14 +156,14 @@
                                     'lib/linux/<(target_arch)/CEF/icudtl.dat',
                                 ],
                             },
-							{
-                                'destination': '<(PRODUCT_DIR)/Externals/CEF/swiftshader',
-                                'files':
-                                [
-                                    'lib/linux/<(target_arch)/CEF/swiftshader/libEGL.so',
-                                    'lib/linux/<(target_arch)/CEF/swiftshader/libGLESv2.so',
-                                ],
-                            },
+#							{
+#                                'destination': '<(PRODUCT_DIR)/Externals/CEF/swiftshader',
+#                                'files':
+#                                [
+#                                    'lib/linux/<(target_arch)/CEF/swiftshader/libEGL.so',
+#                                    'lib/linux/<(target_arch)/CEF/swiftshader/libGLESv2.so',
+#                                ],
+#                            },
                             {
                                 'destination': '<(PRODUCT_DIR)/Externals/CEF/locales',
                                 'files':

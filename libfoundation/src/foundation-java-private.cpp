@@ -1954,14 +1954,14 @@ jobject MCJavaPrivateDoNativeListenerCallback(jlong p_handler, jstring p_method_
     }
 
     // We have an LCB handler, so just invoke with the args.
-    MCAutoValueRef t_result;
-    MCAutoProperListRef t_list;
-    if (!__MCJavaProperListFromJObjectArray(p_args, &t_list))
-        return nullptr;
-    
-    MCProperListRef t_mutable_list;
-    if (!MCProperListMutableCopy(*t_list, t_mutable_list))
-        return nullptr;
+	MCAutoValueRef t_result;
+	MCAutoProperListRef t_list;
+	if (!__MCJavaProperListFromJObjectArray(p_args, &t_list))
+		return nullptr;
+
+	MCProperListRef t_mutable_list;
+	if (!MCProperListMutableCopy(*t_list, t_mutable_list))
+		return nullptr;
 	
 	/* The handler is run on the script thread and could call code which executes
 	 * MCJavaDoAttachCurrentThread() so we must ensure s_env is reset correctly for the

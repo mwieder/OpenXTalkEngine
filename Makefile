@@ -63,9 +63,8 @@ check: check-$(guess_platform)
 clean-linux:
 	rm -rf linux-*-bin
 	rm -rf build-linux-*
-#	rm -rf prebuilt/fetched
-#	rm -rf prebuilt/include
-#	rm -rf prebuilt/lib
+	rm -rf prebuilt/build
+	rm -rf prebuilt/lib
 	find . -name \*.lcb | xargs touch
 
 check-common-%:
@@ -214,18 +213,18 @@ check-ios-%:
 
 # Dummy targets to prevent our build system from building old iOS simulators+devices
 $(addprefix config-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix compile-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix check-ios-iphonesimulator,$(SKIP_IPHONESIMULATOR_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 	
 $(addprefix config-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix compile-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 $(addprefix check-ios-iphonesimulator,$(SKIP_IPHONEOS_VERSIONS)):
-	@echo "Skipping $@ (no longer supported)"
+#	@echo "Skipping $@ (no longer supported)"
 
 # Provide some synonyms for "latest iOS SDK"
 $(addsuffix -ios-iphoneos,all config compile check): %: %$(lastword $(IPHONEOS_VERSIONS))

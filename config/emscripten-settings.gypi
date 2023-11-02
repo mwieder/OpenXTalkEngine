@@ -56,7 +56,7 @@
 					'-Wno-unused-parameter',
 					'-Wno-ignored-attributes',
 
-					'-Werror=conversion-null',
+#					'-Werror=conversion-null',
 					'-Werror=logical-not-parentheses',
 					'-Werror=return-type',
 					'-Werror=tautological-compare',

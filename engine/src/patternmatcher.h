@@ -43,7 +43,7 @@ public:
 class MCRegexMatcher : public MCPatternMatcher
 {
 protected:
-    regexp *m_compiled;
+    regexCacheElement *m_compiled;
 public:
     MCRegexMatcher(MCStringRef p_pattern, MCStringRef p_string, MCStringOptions p_options);
     MCRegexMatcher(MCStringRef p_pattern, MCArrayRef p_array, MCStringOptions p_options);

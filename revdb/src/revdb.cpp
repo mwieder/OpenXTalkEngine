@@ -144,7 +144,7 @@ static void *DBcallback_loadmodule(const char *p_path)
     int t_success;
     void *t_handle;
     LoadModuleByName(p_path, &t_handle, &t_success);
-    if (t_success == EXTERNAL_FAILURE)
+    if (EXTERNAL_FAILURE == t_success)
         return NULL;
     return t_handle;
 }
@@ -160,7 +160,7 @@ static void *DBcallback_resolvesymbol(void *p_handle, const char *p_symbol)
     int t_success;
     void *t_address;
     ResolveSymbolInModule(p_handle, p_symbol, &t_address, &t_success);
-    if (t_success == EXTERNAL_FAILURE)
+    if (EXTERNAL_FAILURE == t_success)
         return NULL;
     return t_address;
 }
@@ -705,9 +705,9 @@ void REVDB_SetDriverPath(char *args[], int nargs, char **retstring,
 {
 	*error = False;
 	*pass = False;
-	if (nargs == 1)
+	if (1 == nargs)
 	{
-		if (revdbdriverpaths != NULL)
+		if (NULL != revdbdriverpaths)
 			free(revdbdriverpaths);
 		revdbdriverpaths = istrdup(args[0]);
 	}

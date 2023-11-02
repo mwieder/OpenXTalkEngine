@@ -43,18 +43,18 @@ bool MCFiltersBase64Decode(MCStringRef p_src, MCDataRef& r_dst)
     MCAutoStringRefAsNativeChars t_native;
     const char_t *s = nil;
     byte_t *p = nil;
-    
-    if (!t_native . Lock(p_src, s, l))
-        return false;
-    
+
+	if (!t_native . Lock(p_src, s, l))
+		return false;
+
 	if (!buffer . New(l))
 		return false;
-    
+
 	p = buffer . Bytes();
-    
+
 	uint8_t c[5];
 	c[4] = '\0';
-    
+
 	while (l)
 	{
 		uint16_t i = 0;

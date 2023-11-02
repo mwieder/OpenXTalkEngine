@@ -340,7 +340,7 @@ regex_t *MCregexcache[PATTERN_CACHE_SIZE];
 // MW-2013-07-01: [[ EnhancedFilter ]] Tweak to take 'const char *' and copy pattern as required.
 // MW-2013-07-01: [[ EnhancedFilter ]] Removed 'usecache' parameter as there's
 //   no reason not to use the cache.
-regexp *MCR_compile(MCStringRef exp, bool casesensitive)
+regexCacheElement *MCR_compile(MCStringRef exp, bool casesensitive)
 {
 	Boolean found = False;
 	regex_t *re = nil;
@@ -402,14 +402,14 @@ regexp *MCR_compile(MCStringRef exp, bool casesensitive)
 		MCregexcache[0] = re;
 	}
 	
-	regexp *treg = nil;
-	/* UNCHECKED */ treg = new(std::nothrow) regexp;
+	regexCacheElement *treg = nil;
+	/* UNCHECKED */ treg = new(std::nothrow) regexCacheElement;
 	treg->rexp = re;
 	
 	return treg;
 }
 
-int MCR_exec(regexp *prog, MCStringRef string, MCRange p_range)
+int MCR_exec(regexCacheElement *prog, MCStringRef string, MCRange p_range)
 {
 	int status;
 	int flags = 0;

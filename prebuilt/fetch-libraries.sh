@@ -12,7 +12,8 @@ LIBS_android=( Thirdparty OpenSSL ICU )
 LIBS_mac=( Thirdparty OpenSSL ICU )
 LIBS_ios=( Thirdparty OpenSSL ICU )
 LIBS_win32=( Thirdparty OpenSSL Curl ICU CEF )
-LIBS_linux=( Thirdparty OpenSSL Curl ICU CEF )
+#LIBS_linux=( Thirdparty OpenSSL Curl ICU CEF )
+LIBS_linux=( OpenSSL Curl ICU CEF )
 LIBS_emscripten=( Thirdparty ICU )
 
 SUBPLATFORMS_ios=(iPhoneSimulator11.2 iPhoneSimulator12.1 iPhoneSimulator13.2 iPhoneSimulator14.4 iPhoneSimulator14.5 iPhoneOS11.2 iPhoneOS12.1 iPhoneOS13.2 iPhoneOS14.4 iPhoneOS14.5)
@@ -25,6 +26,12 @@ FETCH_DIR="${SCRIPT_DIR}/fetched"
 EXTRACT_DIR="${SCRIPT_DIR}"
 WIN32_EXTRACT_DIR="${SCRIPT_DIR}/unpacked"
 URL="https://downloads.livecode.com/prebuilts"
+URLCURL="https://github.com/curl/curl/archive/refs/heads/master.zip"
+URLOPENSSL="https://github.com/openssl/openssl/archive/refs/heads/master.zip"
+URLICU="https://github.com/unicode-org/icu/archive/refs/heads/main.zip"
+URLCEF="https://github.com/chromiumembedded/cef/archive/refs/heads/master.zip"
+# the sqlite url is unfortunately pegged to release year and version
+URLSQLITE="https://sqlite.org/2023/sqlite-amalgamation-3420000.zip"
 
 # Platform specific settings
 if [ "${OS}" = "Windows_NT" ]; then
@@ -48,10 +55,11 @@ if [ ! -z "${PREBUILT_CACHE_DIR}" ] ; then
 fi
 
 function fetchLibrary {
-	local LIB=$1
-	local PLATFORM=$2
-	local ARCH=$3
-	local SUBPLATFORM=$4
+	local LIBURL=$1
+	local LIB=$2
+	local PLATFORM=$3
+	local ARCH=$4
+	local SUBPLATFORM=$5
 
 	eval "local VERSION=\${${LIB}_VERSION}"
 	eval "local BUILDREVISION=\${${LIB}_BUILDREVISION}"
@@ -71,18 +79,20 @@ function fetchLibrary {
 		NAME+="-${BUILDREVISION}"
 	fi
 
+	# see if we have already fetched the latest
 	if [ ! -f "${FETCH_DIR}/${NAME}.tar.bz2" ]; then
 		if [ -f "${LOCAL_DIR}/${NAME}.tar.bz2" ]; then
 			echo "Fetching local library: ${NAME}"
 			cp "${LOCAL_DIR}/${NAME}.tar.bz2" "${FETCH_DIR}/${NAME}.tar.bz2"
 		else
-			echo "Fetching remote library: ${NAME}"
+			echo "Fetching remote library: ${LIBURL}/${NAME}"
 		
-			# Download using an HTTP client of some variety
+			# Download using an HTTP client of some variety : first choice is curl
 			if $(which curl 1>/dev/null 2>/dev/null) ; then
-				curl -k "${URL}/${NAME}.tar.bz2" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
+				curl -k "${LIBURL}/${NAME}" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
 			elif $(which wget 1>/dev/null 2>/dev/null) ; then
-				wget "${URL}/${NAME}.tar.bz2" -O "${FETCH_DIR}/${NAME}.tar.bz2"
+				# curl is not available on the build system... try wget
+				wget "${LIBURL}/${NAME}" -O "${FETCH_DIR}/${NAME}.tar.bz2"
 			else
 				# Perl as a last resort (useful for Cygwin)
 				perl -MLWP::Simple -e "getstore('${URL}/${NAME}.tar.bz2', '${FETCH_DIR}/${NAME}.tar.bz2') == 200 or exit 1"
@@ -171,10 +181,10 @@ for PLATFORM in ${SELECTED_PLATFORMS} ; do
 		for LIB in "${LIBS[@]}" ; do
 			if [ ! -z "${SUBPLATFORMS}" ] ; then
 				for SUBPLATFORM in "${SUBPLATFORMS[@]}" ; do
-					fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
+					fetchLibrary "${ARCH}URL" "${LIB}" "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
 				done
 			else
-				fetchLibrary "${LIB}" "${PLATFORM}" "${ARCH}"
+				fetchLibrary "${ARCH}URL" "${LIB}" "${PLATFORM}" "${ARCH}"
 			fi
 		done
 	done
@@ -236,7 +246,7 @@ done
 
 # Don't forget the headers & data on non-Windows platforms
 if [ 0 -eq "$FETCH_HEADERS" ]; then
-	fetchLibrary OpenSSL All Universal Headers
-	fetchLibrary ICU All Universal Headers
-	fetchLibrary ICU All Universal Data
+	fetchLibrary "${URL}" OpenSSL All Universal Headers
+	fetchLibrary "${URL}" ICU All Universal Headers
+	fetchLibrary "${URL}" ICU All Universal Data
 fi

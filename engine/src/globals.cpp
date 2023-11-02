@@ -1256,6 +1256,8 @@ bool X_open(int argc, MCStringRef argv[], MCStringRef envp[])
 	
     MCwidgeteventmanager = new (nothrow) MCWidgetEventManager;
     
+MCR_clearcache();
+
     /* Now that the script engine state has been initialized, we can load all
      * builtin extensions. */
     if (!MCExtensionInitialize())

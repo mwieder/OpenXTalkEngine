@@ -117,10 +117,12 @@
 					{
 						'sources!':
 						[
-							'src/libbrowser_cef_lnx.cpp',
-							'src/signal_restore_posix.cpp',
+#							'src/libbrowser_cef_lnx.cpp',
+#							'src/signal_restore_posix.cpp',
 							
-							'src/libbrowser_lnx_factories.cpp',
+#							'src/libbrowser_osx_webview.h',
+#							'src/libbrowser_lnx_webview.cpp',
+#							'src/libbrowser_lnx_factories.cpp',
 						],
 					},
 				],
@@ -130,7 +132,7 @@
 					{
 						'sources!':
 						[
-							'src/libbrowser_cef_lnx.cpp',
+#							'src/libbrowser_cef_lnx.cpp',
 						],
 					},
 				],

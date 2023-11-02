@@ -1440,15 +1440,15 @@ bool MCStringCopySubstring(MCStringRef self, MCRange p_range, MCStringRef& r_sub
     if (__MCStringIsIndirect(self))
         self = self -> string;
     
-    // Avoid copying in case the substring is actually the whole string
-    if (p_range . offset == 0 && self -> char_count < p_range . length)
-        return MCStringCopy(self, r_substring);
+	// Avoid copying in case the substring is actually the whole string
+	if (p_range . offset == 0 && self -> char_count < p_range . length)
+		return MCStringCopy(self, r_substring);
 
 	__MCStringClampRange(self, p_range);
 	
-    if (__MCStringIsNative(self))
-        return MCStringCreateWithNativeChars(self -> native_chars + p_range . offset, p_range . length, r_substring);
-    
+	if (__MCStringIsNative(self))
+		return MCStringCreateWithNativeChars(self -> native_chars + p_range . offset, p_range . length, r_substring);
+
 	return MCStringCreateWithChars(self -> chars + p_range . offset, p_range . length, r_substring);
 }
 
@@ -1670,15 +1670,15 @@ unichar_t MCStringGetCharAtIndex(MCStringRef self, uindex_t p_index)
 {
 	__MCAssertIsString(self);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
 
-    /* Allow trailing null character */
-    MCAssert(p_index <= MCStringGetLength(self));
+	/* Allow trailing null character */
+	MCAssert(p_index <= MCStringGetLength(self));
 
-    if (__MCStringIsNative(self))
-        return MCUnicodeCharMapFromNative(self -> native_chars[p_index]);
-    
+	if (__MCStringIsNative(self))
+		return MCUnicodeCharMapFromNative(self -> native_chars[p_index]);
+
 	return self -> chars[p_index];
 }
 
@@ -1691,10 +1691,10 @@ char_t MCStringGetNativeCharAtIndex(MCStringRef self, uindex_t p_index)
         self = self -> string;
 
     /* Allow trailing null character */
-    MCAssert(p_index <= __MCStringGetLength(self));
+	MCAssert(p_index <= __MCStringGetLength(self));
 
-    if (__MCStringIsNative(self))
-        return self -> native_chars[p_index];
+	if (__MCStringIsNative(self))
+		return self -> native_chars[p_index];
     
 	char_t t_native_char;
 	if (MCUnicodeCharMapToNative(self -> chars[p_index], t_native_char))
@@ -1738,8 +1738,8 @@ uindex_t MCStringGetChars(MCStringRef self, MCRange p_range, unichar_t *p_chars)
 {
 	__MCAssertIsString(self);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
     
 	uindex_t t_count;
 	t_count = 0;
@@ -1764,9 +1764,9 @@ uindex_t MCStringGetNativeChars(MCStringRef self, MCRange p_range, char_t *p_cha
 {
 	__MCAssertIsString(self);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
-    
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
+
 	uindex_t t_count;
 	t_count = 0;
 
@@ -2937,14 +2937,14 @@ hash_t MCStringHash(MCStringRef self, MCStringOptions p_options)
 {
 	__MCAssertIsString(self);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
-    
-    if (__MCStringIsNative(self))
-        return __MCNativeOp_Hash(self -> native_chars,
-                                 self -> char_count,
-                                 p_options);
-    
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
+
+	if (__MCStringIsNative(self))
+		return __MCNativeOp_Hash(self -> native_chars,
+								self -> char_count,
+								p_options);
+
 	return MCUnicodeHash(self -> chars, self -> char_count, (MCUnicodeCompareOption)p_options);
 }
 
@@ -2954,35 +2954,35 @@ bool MCStringIsEqualTo(MCStringRef self, MCStringRef p_other, MCStringOptions p_
 	__MCAssertIsString(self);
 	__MCAssertIsString(p_other);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
-    
-    if (__MCStringIsIndirect(p_other))
-        p_other = p_other -> string;
-    
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
+
+	if (__MCStringIsIndirect(p_other))
+		p_other = p_other -> string;
+
 	if (self == p_other)
-        return true;
-    
-    if (__MCStringIsEmpty(self) != __MCStringIsEmpty(p_other))
-        return false;
+		return true;
 
-    bool self_native, other_native;
-    self_native = __MCStringIsNative(self);
-    other_native = __MCStringIsNative(p_other);
-    
-    if ((self_native && __MCStringCantBeEqualToNative(p_other, p_options)) || (other_native && __MCStringCantBeEqualToNative(self, p_options)))
-        return false;
-    
-    if (self_native && other_native)
-    {
-        return __MCNativeOp_IsEqualTo(self -> native_chars,
-                                      self -> char_count,
-                                      p_other -> native_chars,
-                                      p_other -> char_count,
-                                      p_options);
-    }
+	if (__MCStringIsEmpty(self) != __MCStringIsEmpty(p_other))
+		return false;
 
-    return MCUnicodeCompare(self -> chars, self -> char_count, self_native, p_other -> chars, p_other -> char_count, other_native, (MCUnicodeCompareOption)p_options) == 0;
+	bool self_native, other_native;
+	self_native = __MCStringIsNative(self);
+	other_native = __MCStringIsNative(p_other);
+
+	if ((self_native && __MCStringCantBeEqualToNative(p_other, p_options)) || (other_native && __MCStringCantBeEqualToNative(self, p_options)))
+		return false;
+
+	if (self_native && other_native)
+	{
+		return __MCNativeOp_IsEqualTo(self -> native_chars,
+									self -> char_count,
+									p_other -> native_chars,
+									p_other -> char_count,
+									p_options);
+	}
+
+	return MCUnicodeCompare(self -> chars, self -> char_count, self_native, p_other -> chars, p_other -> char_count, other_native, (MCUnicodeCompareOption)p_options) == 0;
 }
 
 MC_DLLEXPORT_DEF
@@ -3038,27 +3038,27 @@ bool MCStringSubstringIsEqualTo(MCStringRef self, MCRange p_sub, MCStringRef p_o
 	__MCAssertIsString(self);
 	__MCAssertIsString(p_other);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
-    
-    if (__MCStringIsIndirect(p_other))
-        p_other = p_other -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
+
+	if (__MCStringIsIndirect(p_other))
+		p_other = p_other -> string;
     
 	__MCStringClampRange(self, p_sub);
     
-    bool self_native = __MCStringIsNative(self);
-    if (self_native)
-    {
+	bool self_native = __MCStringIsNative(self);
+	if (self_native)
+	{
         if (__MCStringIsNative(p_other))
-            return __MCNativeOp_IsEqualTo(self -> native_chars + p_sub . offset,
-                                          p_sub . length,
-                                          p_other -> native_chars,
-                                          p_other -> char_count,
-                                          p_options);
+		return __MCNativeOp_IsEqualTo(self -> native_chars + p_sub . offset,
+										p_sub . length,
+										p_other -> native_chars,
+										p_other -> char_count,
+										p_options);
         
-        if (__MCStringCantBeEqualToNative(p_other, p_options))
-            return false;
-    }
+		if (__MCStringCantBeEqualToNative(p_other, p_options))
+			return false;
+	}
     const void *self_chars;
     if (self_native)
         self_chars = self -> native_chars + p_sub . offset;
@@ -3073,25 +3073,25 @@ bool MCStringSubstringIsEqualToSubstring(MCStringRef self, MCRange p_sub, MCStri
 	__MCAssertIsString(self);
 	__MCAssertIsString(p_other);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
     
-    if (__MCStringIsIndirect(p_other))
-        p_other = p_other -> string;
+	if (__MCStringIsIndirect(p_other))
+		p_other = p_other -> string;
     
 	__MCStringClampRange(self, p_sub);
-    __MCStringClampRange(p_other, p_other_sub);
+	__MCStringClampRange(p_other, p_other_sub);
     
-    bool self_native = __MCStringIsNative(self);
-    bool other_native = __MCStringIsNative(p_other);
-    if (self_native && other_native)
-    {
-        return __MCNativeOp_IsEqualTo(self -> native_chars + p_sub . offset,
-                                      p_sub . length,
-                                      p_other -> native_chars + p_other_sub . offset,
-                                      p_other_sub . length,
-                                      p_options);
-    }
+	bool self_native = __MCStringIsNative(self);
+	bool other_native = __MCStringIsNative(p_other);
+	if (self_native && other_native)
+	{
+		return __MCNativeOp_IsEqualTo(self -> native_chars + p_sub . offset,
+										p_sub . length,
+										p_other -> native_chars + p_other_sub . offset,
+										p_other_sub . length,
+										p_options);
+	}
     
     const void *self_chars, *other_chars;
     if (self_native)
@@ -3414,16 +3414,16 @@ bool MCStringSubstringContains(MCStringRef self, MCRange p_range, MCStringRef p_
 	__MCAssertIsString(self);
 	__MCAssertIsString(p_needle);
 
-    if (__MCStringIsIndirect(p_needle))
-        p_needle = p_needle -> string;
+	if (__MCStringIsIndirect(p_needle))
+		p_needle = p_needle -> string;
     
     // SN-2014-09-05: [[ Bug 13346 ]] Empty is *never* contained in a string. In the loop, a commong string of length 0
     // will be found, which unfortunaly matches the length of the empty needle.
-    if (__MCStringIsEmpty(p_needle))
-        return false;
-    
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsEmpty(p_needle))
+		return false;
+
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
     
 	__MCStringClampRange(self, p_range);
 
@@ -3607,31 +3607,31 @@ bool MCStringLastIndexOfChar(MCStringRef self, codepoint_t p_needle, uindex_t p_
 {
 	__MCAssertIsString(self);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
     
 	// Make sure the after index is in range.
 	p_before = MCMin(p_before, self -> char_count);
     
-    if (__MCStringIsNative(self))
-    {
-        char_t t_mapped_needle;
-        if (p_needle > UNICHAR_MAX ||
-            !MCUnicodeCharMapToNative((unichar_t)p_needle, t_mapped_needle))
-            return false;
+	if (__MCStringIsNative(self))
+	{
+		char_t t_mapped_needle;
+		if (p_needle > UNICHAR_MAX ||
+			!MCUnicodeCharMapToNative((unichar_t)p_needle, t_mapped_needle))
+			return false;
         
-        size_t t_relative_offset;
-        if (!__MCNativeOp_LastIndexOf(self -> native_chars,
-                                      p_before,
-                                      &t_mapped_needle,
-                                      1,
-                                      p_options,
-                                      t_relative_offset))
-            return false;
+		size_t t_relative_offset;
+		if (!__MCNativeOp_LastIndexOf(self -> native_chars,
+									p_before,
+									&t_mapped_needle,
+									1,
+									p_options,
+									t_relative_offset))
+			return false;
         
-        r_offset = (uindex_t)t_relative_offset;
-        return true;
-    }
+		r_offset = (uindex_t)t_relative_offset;
+		return true;
+	}
     
     return MCUnicodeLastIndexOfChar(self -> chars, p_before, p_needle, (MCUnicodeCompareOption)p_options, r_offset);
 }
@@ -3715,21 +3715,21 @@ bool MCStringFind(MCStringRef self, MCRange p_range, MCStringRef p_needle, MCStr
 
 static uindex_t MCStringCountStrChars(MCStringRef self, MCRange p_range, const void *p_needle_chars, uindex_t p_needle_char_count, bool p_needle_native, MCStringOptions p_options)
 {
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
     
 	// Keep track of how many occurrences have been found.
 	uindex_t t_count;
 	t_count = 0;
 
-    __MCStringClampRange(self, p_range);
+	__MCStringClampRange(self, p_range);
 	
-    bool self_native = __MCStringIsNative(self);
-    const void *self_chars;
-    if (self_native)
-        self_chars = self -> native_chars + p_range . offset;
-    else
-        self_chars = self -> chars + p_range . offset;
+	bool self_native = __MCStringIsNative(self);
+	const void *self_chars;
+	if (self_native)
+		self_chars = self -> native_chars + p_range . offset;
+	else
+		self_chars = self -> chars + p_range . offset;
     
 	// Loop through the char range checking for occurrences of needle.
 	uindex_t t_offset;
@@ -4417,8 +4417,8 @@ bool MCStringAppendSubstring(MCStringRef self, MCStringRef p_suffix, MCRange p_r
 {
 	MCAssert(MCStringIsMutable(self));
   
-    if (__MCStringIsIndirect(p_suffix))
-        p_suffix = p_suffix -> string;
+	if (__MCStringIsIndirect(p_suffix))
+		p_suffix = p_suffix -> string;
 
 	// Only do the append now if self != suffix.
 	if (self != p_suffix)
@@ -4442,22 +4442,22 @@ bool MCStringAppendNativeChars(MCStringRef self, const char_t *p_chars, uindex_t
 {
 	MCAssert(MCStringIsMutable(self));
 	
-    // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	// Ensure the string is not indirect.
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
 	// Ensure we have enough room in self - with the gap at the end.
 	if (!__MCStringExpandAt(self, self -> char_count, p_char_count))
 		return false;
 
 	if (__MCStringIsNative(self))
-    {
-        MCMemoryCopy(self -> native_chars + self -> char_count - p_char_count, p_chars, p_char_count);
-        self -> native_chars[self -> char_count] = '\0';
-        __MCStringChanged(self, true, true, true);
-        return true;
-    }
+	{
+		MCMemoryCopy(self -> native_chars + self -> char_count - p_char_count, p_chars, p_char_count);
+		self -> native_chars[self -> char_count] = '\0';
+		__MCStringChanged(self, true, true, true);
+		return true;
+	}
     
 	// Now copy the chars across.
 	for(uindex_t i = 0; i < p_char_count; i++)
@@ -4603,21 +4603,21 @@ bool MCStringPrependNativeChars(MCStringRef self, const char_t *p_chars, uindex_
 {
 	MCAssert(MCStringIsMutable(self));
 	
-    // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	// Ensure the string is not indirect.
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
 	// Ensure we have enough room in self - with the gap at the beginning.
 	if (!__MCStringExpandAt(self, 0, p_char_count))
 		return false;
 	
-    if (__MCStringIsNative(self))
-    {
-        MCMemoryCopy(self -> native_chars, p_chars, p_char_count);
-        __MCStringChanged(self, true, true, true);
-        return true;
-    }
+	if (__MCStringIsNative(self))
+	{
+		MCMemoryCopy(self -> native_chars, p_chars, p_char_count);
+		__MCStringChanged(self, true, true, true);
+		return true;
+	}
     
 	// Now copy the chars across.
 	for(uindex_t i = 0; i < p_char_count; i++)
@@ -4711,8 +4711,8 @@ bool MCStringInsert(MCStringRef self, uindex_t p_at, MCStringRef p_substring)
 {
 	MCAssert(MCStringIsMutable(self));
 
-    if (__MCStringIsIndirect(p_substring))
-        p_substring = p_substring -> string;
+	if (__MCStringIsIndirect(p_substring))
+		p_substring = p_substring -> string;
     
 	// Only do the insert now if self != substring.
 	if (self != p_substring)
@@ -4734,8 +4734,8 @@ bool MCStringInsertSubstring(MCStringRef self, uindex_t p_at, MCStringRef p_subs
 {
 	MCAssert(MCStringIsMutable(self));
 
-    if (__MCStringIsIndirect(p_substring))
-        p_substring = p_substring -> string;
+	if (__MCStringIsIndirect(p_substring))
+		p_substring = p_substring -> string;
     
 	// Only do the insert now if self != substring.
 	if (self != p_substring)
@@ -4757,10 +4757,10 @@ bool MCStringInsertNativeChars(MCStringRef self, uindex_t p_at, const char_t *p_
 {
 	MCAssert(MCStringIsMutable(self));
 	
-    // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	// Ensure the string is not indirect.
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
 	p_at = MCMin(p_at, self -> char_count);
 
@@ -4768,12 +4768,12 @@ bool MCStringInsertNativeChars(MCStringRef self, uindex_t p_at, const char_t *p_
 	if (!__MCStringExpandAt(self, p_at, p_char_count))
 		return false;
 	
-    if (__MCStringIsNative(self))
-    {
-        MCMemoryCopy(self -> native_chars + p_at, p_chars, p_char_count);
-        __MCStringChanged(self, true, true, true);
-        return true;
-    }
+	if (__MCStringIsNative(self))
+	{
+		MCMemoryCopy(self -> native_chars + p_at, p_chars, p_char_count);
+		__MCStringChanged(self, true, true, true);
+		return true;
+	}
     
 	// Now copy the chars across.
 	for(uindex_t i = 0; i < p_char_count; i++)
@@ -4791,10 +4791,10 @@ bool MCStringInsertChars(MCStringRef self, uindex_t p_at, const unichar_t *p_cha
 {
 	MCAssert(MCStringIsMutable(self));
 
-    // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	// Ensure the string is not indirect.
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
 	p_at = MCMin(p_at, self -> char_count);
 	
@@ -4868,10 +4868,10 @@ bool MCStringRemove(MCStringRef self, MCRange p_range)
 {
 	MCAssert(MCStringIsMutable(self));
 
-    // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	// Ensure the string is not indirect.
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
 	__MCStringClampRange(self, p_range);
 
@@ -4879,10 +4879,10 @@ bool MCStringRemove(MCStringRef self, MCRange p_range)
 	// NUL.
 	__MCStringShrinkAt(self, p_range . offset, p_range . length);
 	
-    if (!__MCStringIsNative(self))
-        __MCStringChanged(self, false, false);
-    else
-        __MCStringChanged(self, true, true, true);
+	if (!__MCStringIsNative(self))
+		__MCStringChanged(self, false, false);
+	else
+		__MCStringChanged(self, true, true, true);
 	
 	// We succeeded.
 	return true;
@@ -4893,24 +4893,24 @@ bool MCStringSubstring(MCStringRef self, MCRange p_range)
 {
 	MCAssert(MCStringIsMutable(self));
 
-    // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	// Ensure the string is not indirect.
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
 	__MCStringClampRange(self, p_range);
     
 	// Remove the surrounding chars.
     // On the left if necessary
-    if (p_range . offset != 0)
-    {
-        __MCStringShrinkAt(self, 0, p_range . offset);
-        p_range . offset = 0;
-    }
+	if (p_range . offset != 0)
+	{
+		__MCStringShrinkAt(self, 0, p_range . offset);
+		p_range . offset = 0;
+	}
     
-    // And on the right if necessary
-    if (p_range . offset + p_range . length != self -> char_count)
-        __MCStringShrinkAt(self, p_range . length, self -> char_count - p_range . length);
+	// And on the right if necessary
+	if (p_range . offset + p_range . length != self -> char_count)
+		__MCStringShrinkAt(self, p_range . length, self -> char_count - p_range . length);
     
 	// We succeeded.
 	return true;
@@ -5044,8 +5044,8 @@ bool MCStringReplace(MCStringRef self, MCRange p_range, MCStringRef p_replacemen
 {
 	__MCAssertIsMutableString(self);
 
-    if (__MCStringIsIndirect(p_replacement))
-        p_replacement = p_replacement -> string;
+	if (__MCStringIsIndirect(p_replacement))
+		p_replacement = p_replacement -> string;
     
 	// Only do the replace now if self != substring.
 	if (self != p_replacement)
@@ -5068,12 +5068,12 @@ bool MCStringPad(MCStringRef self, uindex_t p_at, uindex_t p_count, MCStringRef 
 	__MCAssertIsMutableString(self);
 
     // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
-    if (__MCStringIsIndirect(p_value))
-        p_value = p_value -> string;
+	if (__MCStringIsIndirect(p_value))
+		p_value = p_value -> string;
     
 	if (!__MCStringExpandAt(self, p_at, p_count * (p_value != nil ? p_value -> char_count : 1)))
 		return false;
@@ -5324,15 +5324,15 @@ bool MCStringFindAndReplaceNative(MCStringRef self, MCStringRef p_pattern, MCStr
 	__MCAssertIsMutableString(self);
 	
     // Ensure the string is not indirect.
-    if (__MCStringIsIndirect(self))
-        if (!__MCStringResolveIndirect(self))
-            return false;
+	if (__MCStringIsIndirect(self))
+		if (!__MCStringResolveIndirect(self))
+			return false;
     
-    if (__MCStringIsIndirect(p_replacement))
-        p_replacement = p_replacement -> string;
+	if (__MCStringIsIndirect(p_replacement))
+		p_replacement = p_replacement -> string;
     
-    if (__MCStringIsIndirect(p_pattern))
-        p_pattern = p_pattern -> string;
+	if (__MCStringIsIndirect(p_pattern))
+		p_pattern = p_pattern -> string;
     
 	if (p_pattern -> char_count == 1 && p_replacement -> char_count == 1)
 		return MCStringFindAndReplaceChar(self, p_pattern -> native_chars[0], p_replacement -> native_chars[0], p_options);
@@ -5496,9 +5496,9 @@ bool MCStringSplit(MCStringRef self, MCStringRef p_elem_del, MCStringRef p_key_d
     MCAutoArrayRef t_array;
 	if (!MCArrayCreateMutable(&t_array))
 		return false;
-    
-    if (__MCStringIsIndirect(p_elem_del))
-        p_elem_del = p_elem_del -> string;
+
+	if (__MCStringIsIndirect(p_elem_del))
+		p_elem_del = p_elem_del -> string;
     
 	const void *t_echar, *t_kchar;
     bool del_native, key_native;
@@ -5602,24 +5602,24 @@ bool MCStringSplitByDelimiter(MCStringRef self, MCStringRef p_elem_del, MCString
 	__MCAssertIsString(self);
 	__MCAssertIsString(p_elem_del);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
     
-    // SN-2014-03-24: [[ SplitWithStrings ]] No longer checks whether the delimiter is actually 1-char long.
+	// SN-2014-03-24: [[ SplitWithStrings ]] No longer checks whether the delimiter is actually 1-char long.
 	if (self -> char_count == 0)
 	{
 		r_list = MCValueRetain(kMCEmptyProperList);
 		return true;
 	}
     
-    if (MCStringIsNative(self))
-    {
-        if (MCStringIsNative(p_elem_del))
-            return MCStringSplitByDelimiterNative(self, p_elem_del, p_options, r_list);
-    }
-    
-    if (__MCStringIsIndirect(p_elem_del))
-        p_elem_del = p_elem_del -> string;
+	if (MCStringIsNative(self))
+	{
+		if (MCStringIsNative(p_elem_del))
+			return MCStringSplitByDelimiterNative(self, p_elem_del, p_options, r_list);
+	}
+
+	if (__MCStringIsIndirect(p_elem_del))
+		p_elem_del = p_elem_del -> string;
     
 	const void *t_echar;
     bool del_native;
@@ -5632,16 +5632,16 @@ bool MCStringSplitByDelimiter(MCStringRef self, MCStringRef p_elem_del, MCString
     
     uindex_t t_del_length = MCStringGetLength(p_elem_del);
     
-    if (self_native)
-        t_sptr = self -> native_chars;
-    else
-        t_sptr = self -> chars;
+	if (self_native)
+		t_sptr = self -> native_chars;
+	else
+		t_sptr = self -> chars;
     
-    uindex_t t_offset, t_to_end;
-    t_to_end = self -> char_count;
-    t_offset = 0;
+	uindex_t t_offset, t_to_end;
+	t_to_end = self -> char_count;
+	t_offset = 0;
 
-    bool t_success;
+	bool t_success;
     t_success = true;
     
     MCAutoStringRefArray t_strings;
@@ -6067,14 +6067,14 @@ static bool __MCStringExpandAt(MCStringRef self, uindex_t p_at, uindex_t p_count
 
 static void __MCStringShrinkAt(MCStringRef self, uindex_t p_at, uindex_t p_count)
 {
-    MCAssert(!__MCStringIsIndirect(self));
+	MCAssert(!__MCStringIsIndirect(self));
     
 	// Shift the chars above 'at' down to remove 'count', remembering to include
 	// the implicit NUL.
-    if (__MCStringIsNative(self))
-        MCMemoryMove(self -> native_chars + p_at, self -> native_chars + (p_at + p_count), (self -> char_count - (p_at + p_count) + 1));
-    else
-        MCMemoryMove(self -> chars + p_at, self -> chars + (p_at + p_count), (self -> char_count - (p_at + p_count) + 1) * sizeof(strchar_t));
+	if (__MCStringIsNative(self))
+		MCMemoryMove(self -> native_chars + p_at, self -> native_chars + (p_at + p_count), (self -> char_count - (p_at + p_count) + 1));
+	else
+		MCMemoryMove(self -> chars + p_at, self -> chars + (p_at + p_count), (self -> char_count - (p_at + p_count) + 1) * sizeof(strchar_t));
 
 	// Now adjust the length of the string.
 	self -> char_count -= p_count;
@@ -6637,9 +6637,9 @@ bool MCStringConvertToSysString(MCStringRef p_string, char *& r_system_string, s
 		t_mc_len = MCStringGetLength(p_string) * sizeof(unichar_t);
 	}
 
-    // Was creation of the iconv FD successful?
-    if (!is_valid_iconv_fd(t_fd))
-        return false;
+	// Was creation of the iconv FD successful?
+	if (!is_valid_iconv_fd(t_fd))
+		return false;
 	
 	// Perform the conversion
 	bool t_success;
@@ -7045,74 +7045,74 @@ MCStringNormalizeLineEndings(MCStringRef p_input,
     
     // normalize input to LF line endings first
     MCAutoStringRef t_mutable_input;
-    if (!MCStringMutableCopy(p_input, &t_mutable_input))
-    {
-        return false;
-    }
-    if (!MCStringFindAndReplace(*t_mutable_input, 
+	if (!MCStringMutableCopy(p_input, &t_mutable_input))
+	{
+		return false;
+	}
+	if (!MCStringFindAndReplace(*t_mutable_input, 
                                 MCSTR("\r\n"), 
                                 MCSTR("\n"), 
                                 kMCStringOptionCompareExact))
-    {
-        return false;
-    }
-    if (!MCStringFindAndReplace(*t_mutable_input, 
+	{
+		return false;
+	}
+	if (!MCStringFindAndReplace(*t_mutable_input, 
                                 MCSTR("\r"), 
                                 MCSTR("\n"), 
                                 kMCStringOptionCompareExact))
-    {
-        return false;
-    }
+	{
+		return false;
+	}
     
     // AL-2014-07-21: [[ Bug 12162 ]] Convert PS to LF, and LS to VT on text import.
-    if (((p_options & kMCStringLineEndingOptionNormalizeLSToVT) != 0) &&
+	if (((p_options & kMCStringLineEndingOptionNormalizeLSToVT) != 0) &&
         !MCStringFindAndReplaceChar(*t_mutable_input, 
                                    (const codepoint_t)0x2028, 
                                    (const codepoint_t)0x0B, 
                                     kMCStringOptionCompareExact))
-    {
-        return false;
-    }
-    if (((p_options & kMCStringLineEndingOptionNormalizePSToLineEnding) != 0) &&
+	{
+		return false;
+	}
+	if (((p_options & kMCStringLineEndingOptionNormalizePSToLineEnding) != 0) &&
         !MCStringFindAndReplaceChar(*t_mutable_input, 
                                    (const codepoint_t)0x2029, 
                                    (const codepoint_t)0x0A, 
                                     kMCStringOptionCompareExact))
-    {
-        return false;
-    }
+	{
+		return false;
+	}
     
     // now convert the line endings to the proper version
-    if ((p_to_style == kMCStringLineEndingStyleCR) &&
+	if ((p_to_style == kMCStringLineEndingStyleCR) &&
         !MCStringFindAndReplace(*t_mutable_input, 
                                 MCSTR("\n"), 
                                 MCSTR("\r"), 
                                 kMCStringOptionCompareExact))
-    {
-        return false;
-    }
-    else if ((p_to_style == kMCStringLineEndingStyleCRLF) &&
+	{
+		return false;
+	}
+	else if ((p_to_style == kMCStringLineEndingStyleCRLF) &&
              !MCStringFindAndReplace(*t_mutable_input, 
                                      MCSTR("\n"), 
                                      MCSTR("\r\n"), 
                                      kMCStringOptionCompareExact))
-    {
-        return false;
-    }
+	{
+		return false;
+	}
     
-    if (!t_mutable_input.MakeImmutable())
-    {
-        return false;
-    }
+	if (!t_mutable_input.MakeImmutable())
+	{
+		return false;
+	}
     
-    r_output = t_mutable_input.Take();
+	r_output = t_mutable_input.Take();
 
-    if (r_original_style != nullptr)
-    {
-        *r_original_style = t_original_style;
-    }
+	if (r_original_style != nullptr)
+	{
+		*r_original_style = t_original_style;
+	}
     
-    return true;
+	return true;
 }
 
 static void __MCStringCheck(MCStringRef self)
@@ -7209,10 +7209,10 @@ static bool __MCStringMakeIndirect(__MCString *self)
     // If we are already indirect, there's nothing to do.
 	if (__MCStringIsIndirect(self))
 		return true;
-    
-    if (!__MCStringMakeImmutable(self))
-        return false;
-    
+
+	if (!__MCStringMakeImmutable(self))
+		return false;
+
 	// Create a new direct string for self to reference
 	MCStringRef t_string;
 	if (!__MCValueCreate(kMCValueTypeCodeString, t_string))

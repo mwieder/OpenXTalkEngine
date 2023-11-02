@@ -158,17 +158,17 @@ Parse_stat MCAnnuity::parse(MCScriptPoint &sp, Boolean the)
 
 void MCAnnuity::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    real64_t t_rate;
-    if (!ctxt . EvalExprAsDouble(rate, EE_ANNUITY_BADRATE, t_rate))
-        return;
-        
+	real64_t t_rate;
+	if (!ctxt . EvalExprAsDouble(rate, EE_ANNUITY_BADRATE, t_rate))
+		return;
+ 
 	real64_t t_periods;
-    if (!ctxt . EvalExprAsDouble(periods, EE_ANNUITY_BADPERIODS, t_periods))
-        return;
+	if (!ctxt . EvalExprAsDouble(periods, EE_ANNUITY_BADPERIODS, t_periods))
+		return;
 	
 
 	MCMathEvalAnnuity(ctxt, t_rate, t_periods, r_value . double_value);
-    r_value .type = kMCExecValueTypeDouble;
+	r_value .type = kMCExecValueTypeDouble;
 }
 
 MCAtan2::~MCAtan2()
@@ -191,17 +191,17 @@ Parse_stat MCAtan2::parse(MCScriptPoint &sp, Boolean the)
 
 void MCAtan2::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    real64_t t_y;
-    if (!ctxt . EvalExprAsDouble(s1, EE_ATAN2_BADS1, t_y))
-        return;
-	
+	real64_t t_y;
+	if (!ctxt . EvalExprAsDouble(s1, EE_ATAN2_BADS1, t_y))
+		return;
 
-    real64_t t_x;
-    if (!ctxt . EvalExprAsDouble(s2, EE_ATAN2_BADS2, t_x))
-        return;
-	
+
+	real64_t t_x;
+	if (!ctxt . EvalExprAsDouble(s2, EE_ATAN2_BADS2, t_x))
+		return;
+
 	MCMathEvalAtan2(ctxt, t_y, t_x, r_value . double_value);
-    r_value . type = kMCExecValueTypeDouble;
+	r_value . type = kMCExecValueTypeDouble;
 }
 
 MCCompound::~MCCompound()
@@ -224,17 +224,16 @@ Parse_stat MCCompound::parse(MCScriptPoint &sp, Boolean the)
 
 void MCCompound::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    real64_t t_rate;
-    if (!ctxt . EvalExprAsDouble(rate, EE_COMPOUND_BADRATE, t_rate))
-        return;
-	
-    real64_t t_periods;
-    if (!ctxt . EvalExprAsDouble(periods, EE_COMPOUND_BADRATE, t_periods))
-        return;
-	
+	real64_t t_rate;
+	if (!ctxt . EvalExprAsDouble(rate, EE_COMPOUND_BADRATE, t_rate))
+		return;
+
+	real64_t t_periods;
+	if (!ctxt . EvalExprAsDouble(periods, EE_COMPOUND_BADRATE, t_periods))
+		return;
 
 	MCMathEvalCompound(ctxt, t_rate, t_periods, r_value . double_value);
-    r_value . type = kMCExecValueTypeDouble;
+	r_value . type = kMCExecValueTypeDouble;
 }
 
 MCMatrixMultiply::~MCMatrixMultiply()
@@ -292,13 +291,13 @@ Parse_stat MCRound::parse(MCScriptPoint &sp, Boolean the)
 
 void MCRound::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    real64_t t_source;
-    if (!ctxt . EvalExprAsDouble(source, EE_RANDOM_BADSOURCE, t_source))
-        return;
+	real64_t t_source;
+	if (!ctxt . EvalExprAsDouble(source, EE_RANDOM_BADSOURCE, t_source))
+		return;
 
-    real64_t t_digit;
-    if (!ctxt . EvalOptionalExprAsDouble(digit, 0, EE_RANDOM_BADSOURCE, t_digit))
-        return;
+	real64_t t_digit;
+	if (!ctxt . EvalOptionalExprAsDouble(digit, 0, EE_RANDOM_BADSOURCE, t_digit))
+		return;
 
 	if (digit != nil)
 		MCMathEvalRoundToPrecision(ctxt, t_source, t_digit, r_value . double_value);

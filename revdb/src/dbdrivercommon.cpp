@@ -281,7 +281,7 @@ Bool CDBCursor::getIsOpen()
 	return fieldCount != 0;
 }
 
-int CDBCursor::getFieldCount()
+unsigned int CDBCursor::getFieldCount()
 {
 	return fieldCount;
 }
@@ -340,7 +340,7 @@ Bool CDBCursor::move(int p_record_index)
 		return True;
 
 	// The absolute value of the difference gives us the number of moves needed to reach the required record.
-	for (int i = 0; i < abs(t_gap); i++)
+	for (unsigned int i = 0; i < abs(t_gap); i++)
 	{
 		Bool t_result;
 		if (t_gap > 0)
@@ -365,7 +365,7 @@ Bool CDBCursor::move(int p_record_index)
 unsigned int CDBCursor::getFieldLength(unsigned int fieldnum)
 {
 	fieldnum--;
-	if ((int)fieldnum >= fieldCount)
+	if (fieldnum >= fieldCount)
 		return 0;
 
 	return (unsigned int)fields[fieldnum] -> maxlength;
@@ -377,7 +377,7 @@ char *CDBCursor::getFieldName(unsigned int fieldnum)
 {
 	fieldnum--;
 	//check that field is in range
-	if ((int)fieldnum >= fieldCount) 
+	if (fieldnum >= fieldCount) 
 		return NULL;
 
 	return fields[fieldnum] -> fieldName;
@@ -386,7 +386,7 @@ char *CDBCursor::getFieldName(unsigned int fieldnum)
 DBFieldType CDBCursor::getFieldType(unsigned int fieldnum)
 {
 	fieldnum--;
-	if ((int)fieldnum >= fieldCount) 
+	if (fieldnum >= fieldCount) 
 		return FT_NULL;
 
 	return fields[fieldnum] -> fieldType;
@@ -400,7 +400,7 @@ Output: pointer to fields data, NULL on error*/
 char *CDBCursor::getFieldDataBinary(unsigned int fieldnum,unsigned int &fdlength)
 {
 	fieldnum--;
-	if ((int)fieldnum >= fieldCount)
+	if (fieldnum >= fieldCount)
 		return NULL;
 
 	// MW-2010-10-01: [[ Bug 8980 ]] If the field is NULL, always return 0 length ""
@@ -442,7 +442,7 @@ Bool CDBCursor::getFieldIsNull(unsigned int fieldnum)
 	if (fieldnum > 0)
 		fieldnum--;
 
-	if ((int)fieldnum >= fieldCount) 
+	if (fieldnum >= fieldCount) 
 		return False;
 
 	return fields[fieldnum] -> isNull;
@@ -451,7 +451,7 @@ void CDBCursor::FreeFields()
 {
 	if (fields)
 	{
-		for (int i = 0; i < fieldCount; i++)
+		for (unsigned int i = 0; i < fieldCount; i++)
 		{
 			delete fields[i];
 		}

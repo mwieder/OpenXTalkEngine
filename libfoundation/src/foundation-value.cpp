@@ -268,8 +268,8 @@ bool MCValueIsEqualTo(MCValueRef p_value, MCValueRef p_other_value)
 		return false;
 
     // If both values are interred, then they can't be equal.
-    if (MCValueIsUnique(p_value) && MCValueIsUnique(p_other_value))
-        return false;
+	if (MCValueIsUnique(p_value) && MCValueIsUnique(p_other_value))
+		return false;
     
 	switch(__MCValueGetTypeCode(self))
 	{
@@ -401,8 +401,8 @@ bool MCValueIsMutable(MCValueRef p_value)
 	MCAssert(self != nil);
     __MCAssertIsValue(self);
     
-    if (__MCValueGetTypeCode(self) != kMCValueTypeCodeCustom)
-        return false;
+	if (__MCValueGetTypeCode(self) != kMCValueTypeCodeCustom)
+		return false;
 
 	MCTypeInfoRef t_typeinfo;
 	bool (*t_is_mutable_func)(MCValueRef);
@@ -421,8 +421,8 @@ bool MCValueMutableCopy(MCValueRef p_value, MCValueRef& r_mutable_copy)
 	MCAssert(self != nil);
     __MCAssertIsValue(self);
     
-    if (__MCValueGetTypeCode(self) != kMCValueTypeCodeCustom)
-        return false;
+	if (__MCValueGetTypeCode(self) != kMCValueTypeCodeCustom)
+		return false;
     
 	MCTypeInfoRef t_typeinfo;
 	bool (*t_mutable_copy_func)(MCValueRef, bool, MCValueRef &);
@@ -439,10 +439,10 @@ bool MCValueMutableCopyAndRelease(MCValueRef p_value, MCValueRef& r_mutable_copy
 	__MCValue *self = (__MCValue *)p_value;
     
 	MCAssert(self != nil);
-    __MCAssertIsValue(self);
-    
-    if (__MCValueGetTypeCode(self) != kMCValueTypeCodeCustom)
-        return false;
+	__MCAssertIsValue(self);
+
+	if (__MCValueGetTypeCode(self) != kMCValueTypeCodeCustom)
+		return false;
     
 	MCTypeInfoRef t_typeinfo;
 	bool (*t_mutable_copy_func)(MCValueRef, bool, MCValueRef &);
@@ -1155,8 +1155,8 @@ MC_DLLEXPORT_DEF MCBooleanRef kMCFalse;
 
 bool __MCValueInitialize(void)
 {
-    if (!MCMemoryNewArray(kMCValuePoolCount, s_value_pools))
-        return false;
+	if (!MCMemoryNewArray(kMCValuePoolCount, s_value_pools))
+		return false;
     
 	if (!__MCValueCreate(kMCValueTypeCodeNull, kMCNull))
 		return false;

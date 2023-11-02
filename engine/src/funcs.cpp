@@ -964,9 +964,9 @@ Parse_stat MCMatch::parse(MCScriptPoint &sp, Boolean the)
 	return PS_NORMAL;
 }
 
-bool MCStringsGetCachedPattern(MCStringRef p_pattern, regexp*& r_compiled);
-bool MCStringsCachePattern(MCStringRef p_pattern, regexp* p_compiled);
-bool MCStringsCompilePattern(MCStringRef p_pattern, regexp*& r_compiled);
+//bool MCStringsGetCachedPattern(MCStringRef p_pattern, regexCacheElement*& r_compiled);
+//bool MCStringsCachePattern(MCStringRef p_pattern, regexCacheElement* p_compiled);
+//bool MCStringsCompilePattern(MCStringRef p_pattern, regexCacheElement*& r_compiled);
 
 void MCMatch::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {

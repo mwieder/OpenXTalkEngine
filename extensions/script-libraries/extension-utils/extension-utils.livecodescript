@@ -578,6 +578,8 @@ command extensionBuildPackageAndExtractLCB pDocsParser, pTargetFolder, \
    if pLCCompile is empty then
       put __extensionCompilerPath() into pLCCompile
    end if
+
+	put false into pCommercialExtension # don't remove source
    
    # Items 7 onwards in 'the params' are quoted full paths to ext files
    # Construct the list of extensions to build
@@ -633,13 +635,15 @@ A list of paths to look for extra module interface files.
 command extensionBuildPackageAndExtract pProtectifyScript, \
       pProtectifyOutput, pGitHash, pDocsParser, \
       pSourceFolder, pSourceFileName, pTargetFolder, \
-      pCommercialExtension, pLCCompile, pLCIPath, pExtraLCIPaths
-   
-   if pCommercialExtension is true and \
-         not (pSourceFileName ends with ".lcb") then
-      extensionProtectStack pProtectifyScript, pSourceFolder, \ 
-            pSourceFileName, pProtectifyOutput, pGitHash
-   end if
+      pIsCommercialExtension, pLCCompile, pLCIPath, pExtraLCIPaths
+
+put false into pCommercialExtension
+
+#   if pIsCommercialExtension is true and \
+#         not (pSourceFileName ends with ".lcb") then
+#      extensionProtectStack pProtectifyScript, pSourceFolder, \ 
+#            pSourceFileName, pProtectifyOutput, pGitHash
+#   end if
    
    extensionExtractDocs pDocsParser, pSourceFolder, \
          pSourceFolder & slash & pSourceFileName
@@ -648,10 +652,10 @@ command extensionBuildPackageAndExtract pProtectifyScript, \
    if not (pSourceFileName ends with ".lcb") then
       extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
       extensionPackageScriptExtension pSourceFolder, \
-            pTargetFolder, pCommercialExtension
+     pTargetFolder, pIsCommercialExtension
    else
       extensionPackageBuilderExtension pSourceFolder, \
-            pTargetFolder, pCommercialExtension, pLCCompile, \
+            pTargetFolder, pIsCommercialExtension, pLCCompile, \
             pLCIPath, pExtraLCIPaths
    end if
    put the result into tPackage
@@ -787,6 +791,9 @@ private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemo
    local tFullPath
    put pFolder & slash & pDetailsA[kFileKey] into tFullPath
    
+#put "pFolder=" && pFolder & cr after msg # debugging
+#put "pDetailsA[kFileKey]=" && pDetailsA[kFileKey] & cr after msg # debugging
+
    if there is not a file tFullPath then
       return "Error: missing file" && tFullPath
    end if
@@ -837,10 +844,10 @@ private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemo
    
    # Don't include source if not required
    local tSourceFile, tSupportFiles
-   if not pRemoveSource then
+#   if not pRemoveSource then
       put tFullPath into tSourceFile
       put pDetailsA[kSupportFilesKey] into tSupportFiles
-   end if
+#   end if
    
    local tError
    put __extensionAddFilesToPackage(\
@@ -1164,8 +1171,9 @@ It: The location of the build package, or empty if there was an error.
 command extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
    __EnsureExternal "revzip"
    local tDetailsA
+
    put extensionFetchFolderDetails(pSourceFolder) into tDetailsA
-   
+
    local tTargetDir, tBuildTarget, tZip
    put tDetailsA[kNameKey] into tTargetDir
    put pTargetFolder & slash & tTargetDir into tBuildTarget
@@ -1254,6 +1262,7 @@ pRemoveSource: Whether to remove the source files or not
 */
 command extensionPackageScriptExtension pSourceFolder, \
       pTargetFolder, pRemoveSource   
+
    extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
    if the result is not empty then
       throw the result
@@ -1621,6 +1630,7 @@ private command __FilterFilesForExtension pFiles, @rResult, @rType
    local tExtFiles, tType
    filter pFiles with regex pattern \
          __RegexPatternForSource("lcb") into tExtFiles
+#put param(0) && "lcb" && "tExtFiles=" & tExtFiles & cr & "pFiles=" & pFiles & cr after msg # debugging
    if tExtFiles is not empty \
          or extensionBytecodeFilename("", true) is among the lines of pFiles \
          or extensionBytecodeFilename("", false) is among the lines of pFiles \
@@ -1631,6 +1641,7 @@ private command __FilterFilesForExtension pFiles, @rResult, @rType
    if tType is empty then
       filter pFiles with regex pattern \
             __RegexPatternForSource("lcs") into tExtFiles
+#put param(0) && "lcs" && tExtFiles & cr after msg # debugging
       if tExtFiles is not empty then
          put "lcs" into tType
       end if

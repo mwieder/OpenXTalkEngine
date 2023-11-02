@@ -1268,7 +1268,11 @@ public:
     // NOTE: 'GetTemporaryFileName' returns a standard (not native) path.
     virtual bool GetTemporaryFileName(MCStringRef& r_tmp_name)
     {
-        return MCStringCreateWithSysString(tmpnam(NULL), r_tmp_name);
+// mdw 2023.09.08 tmpnam has been deprecated
+		char filename[] = "/tmp/prefXXXXXX";
+		/* UNCHECKED */ mkstemp(filename);
+        return MCStringCreateWithSysString(filename, r_tmp_name);
+//        return MCStringCreateWithSysString(tmpnam(NULL), r_tmp_name);
     }
 
     virtual bool ListFolderEntries(MCStringRef p_folder, MCSystemListFolderEntriesCallback p_callback, void *x_context)

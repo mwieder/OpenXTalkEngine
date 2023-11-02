@@ -15,7 +15,8 @@
 			
 			'dependencies':
 			[
-				'../../prebuilt/thirdparty.gyp:thirdparty_prebuilt_ffi',
+#				'../../prebuilt/thirdparty.gyp:thirdparty_prebuilt_ffi',
+				'../../thirdparty/libffi/libffi.gyp:libffi',
 			],
 
 			'conditions':

@@ -906,8 +906,8 @@ Parse_stat MCFilter::parse(MCScriptPoint &sp)
     }
     
     // If there was no error and no chunk type then default to line
-    if (t_error == PE_UNDEFINED && chunktype == CT_UNDEFINED)
-        chunktype = CT_LINE;
+	if (t_error == PE_UNDEFINED && chunktype == CT_UNDEFINED)
+		chunktype = CT_LINE;
     
 	// Next parse the source container or expression
 	if (t_error == PE_UNDEFINED)
@@ -928,7 +928,7 @@ Parse_stat MCFilter::parse(MCScriptPoint &sp)
         }
 		else
             MCerrorlock--;
-    }
+	}
 
 	// Now look for the filter mode
 	if (t_error == PE_UNDEFINED)
@@ -962,8 +962,8 @@ Parse_stat MCFilter::parse(MCScriptPoint &sp)
 		sp.skip_token(SP_SUGAR, TT_UNDEFINED, SG_PATTERN);
 	}
     
-    if (matchmode == MA_UNDEFINED)
-        matchmode = MA_WILDCARD;
+	if (matchmode == MA_UNDEFINED)
+		matchmode = MA_WILDCARD;
 
 	// Now parse the pattern expression
 	if (t_error == PE_UNDEFINED && sp.parseexp(False, True, &pattern) != PS_NORMAL)
@@ -1144,8 +1144,8 @@ Parse_stat MCImport::parse(MCScriptPoint &sp)
         }
         format = EX_OBJECT;
 	}
-    else
-        format = (Export_format)te->which;
+	else
+		format = (Export_format)te->which;
 	if (format == EX_SNAPSHOT)
 	{
 		if (sp.skip_token(SP_FACTOR, TT_FROM) == PS_NORMAL)

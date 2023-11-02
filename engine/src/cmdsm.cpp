@@ -761,8 +761,8 @@ Parse_stat MCSetOp::parse(MCScriptPoint &sp)
             return PS_ERROR;
         }
     }
-    else
-        MCerrorlock--;
+	else
+		MCerrorlock--;
 
 	if (sp.skip_token(SP_REPEAT, TT_UNDEFINED, RF_WITH) == PS_ERROR
 	        && sp.skip_token(SP_FACTOR, TT_PREP, PT_BY) == PS_ERROR)

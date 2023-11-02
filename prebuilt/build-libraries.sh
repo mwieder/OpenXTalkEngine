@@ -29,6 +29,8 @@ export CUSTOM_CXX="${CXX}"
 export CUSTOM_EMMAKE="${EMMAKE}"
 export CUSTOM_EMCONFIGURE="${EMCONFIGURE}"
 
+echo "PLATFORM=" ${PLATFORM}
+
 # Set which libs to build for the target platform
 case "${PLATFORM}" in
 	android)
@@ -44,14 +46,19 @@ case "${PLATFORM}" in
 		PREBUILT_LIBS="openssl curl icu cef thirdparty"
 		;;
 	linux)
-		PREBUILT_LIBS="openssl curl icu cef thirdparty"
+#		PREBUILT_LIBS="openssl curl icu cef thirdparty"
+		PREBUILT_LIBS="openssl curl icu cef"
 		;;
 	emscripten)
 		PREBUILT_LIBS="icu thirdparty"
 		;;
 esac
 
+echo "PREBUILT_LIBS=" ${PREBUILT_LIBS}
+echo "BASEDIR=" ${BASEDIR}
+
 # Build all of the libraries that the target platform depends on
 for t_lib in ${PREBUILT_LIBS} ; do
+	echo "building ${t_lib} using ${BASEDIR}/scripts/build-${t_lib}.sh"
 	${BASEDIR}/scripts/build-${t_lib}.sh
 done

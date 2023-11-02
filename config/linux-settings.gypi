@@ -63,7 +63,7 @@
 					'-Werror=return-type',
 					'-Werror=uninitialized',
 					'-Wno-error=maybe-uninitialized',
-					'-Werror=conversion-null',
+#					'-Werror=conversion-null',
 					'-Werror=empty-body',
 				],
 
