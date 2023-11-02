@@ -1,0 +1,9 @@
+Chromium*
+*.bz2
+*.tgz
+*.gz
+lib/*
+bin/*
+share/*
+build/*
+
