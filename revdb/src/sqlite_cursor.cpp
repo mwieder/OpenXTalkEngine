@@ -111,7 +111,7 @@ Bool DBCursor_SQLITE::first()
 	ENTER;
 	try {
 		//exit if no more records
-		if (recordCount == 0)
+		if (0 == recordCount)
 			return False;
 		recordNum = 0;
 		mDataset->first();
@@ -134,7 +134,7 @@ Bool DBCursor_SQLITE::last()
 {
 	ENTER;
 	try {
-		if (recordCount == 0)
+		if (0 == recordCount)
 			return False;
 		recordNum = recordCount-1;
 		mDataset->last();
@@ -209,7 +209,7 @@ Bool DBCursor_SQLITE::prev()
 
 Bool DBCursor_SQLITE::move(int p_record_index)
 {
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	if (p_record_index < 0)
@@ -241,7 +241,7 @@ Bool DBCursor_SQLITE::getFieldsInformation()
 	Fields *t_fields_object;
 	t_fields_object = mDataset -> get_fields_object();
 
-	for(int i = 0 ; i < fieldCount; i++) {
+	for(unsigned int i = 0 ; i < fieldCount; i++) {
 		DBField *tfield = new (nothrow) DBField();
 		fields[i] = tfield;
 		
@@ -330,7 +330,7 @@ Bool DBCursor_SQLITE::getRowData()
 	Bool ret = true;
 
 	try {
-		for(int i = 0; i < fieldCount; i++) {
+		for(unsigned int i = 0; i < fieldCount; i++) {
 
 			const field_value fv = mDataset->get_field_value_by_index(i);
 

@@ -215,7 +215,7 @@ public:
 	virtual Bool next() = 0;
 	virtual Bool prev() = 0;
 
-	virtual int getFieldCount()  = 0;
+	virtual unsigned int getFieldCount()  = 0;
 	virtual int getRecordCount()  = 0;
 	virtual	int getRecordNumber()  = 0;
 
@@ -249,10 +249,10 @@ class DBString
 {
 public:
 	DBString(void);
-	DBString(char *somechar);
-	DBString(char *somechar, int tlength, Bool tbinary);
-	void Set(char *somechar);
-	void Set(char *somechar, int tlength, Bool tbinary);
+	DBString(const char *somechar);
+	DBString(const char *somechar, int tlength, Bool tbinary);
+	void Set(const char *somechar);
+	void Set(const char *somechar, int tlength, Bool tbinary);
 
 	const char *sptr;
 	int length;
@@ -266,23 +266,23 @@ inline DBString::DBString(void)
 	isbinary = False;
 }
 
-inline DBString::DBString(char *p_string)
+inline DBString::DBString(const char *p_string)
 {
 	Set(p_string);
 }
 
-inline DBString::DBString(char *p_string, int p_length, Bool p_binary)
+inline DBString::DBString(const char *p_string, int p_length, Bool p_binary)
 {
 	Set(p_string, p_length, p_binary);
 }
 
-inline void DBString::Set(char *p_string)
+inline void DBString::Set(const char *p_string)
 {
 	sptr = p_string;
 	length = strlen(p_string);
 }
 
-inline void DBString::Set(char *p_string, int p_length, Bool p_binary)
+inline void DBString::Set(const char *p_string, int p_length, Bool p_binary)
 {
 	sptr = p_string;
 	length = p_length;

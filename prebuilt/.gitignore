@@ -1,10 +1,8 @@
-fetched
-fetched/*
-Chromium*
-*.bz2
-*.tgz
-*.gz
-*.old
 lib/*
 bin/*
+*.bz2
+*.tgz
+share/*
+*.gz
 build/*
+

@@ -49,7 +49,7 @@ public:
 
 struct PlaceholderMap
 {
-	int length;
+	unsigned int length;
 	int *elements;
 };
 
@@ -232,7 +232,7 @@ public:
 	virtual Bool IsError();
 	virtual char* getErrorMessage();
 
-	virtual int	getFieldCount();
+	virtual unsigned int	getFieldCount();
 	virtual int	getRecordCount();
 	virtual	int	getRecordNumber();
 	virtual	Bool getEOF();
@@ -255,7 +255,7 @@ protected:
 	Bool isTransaction;
 	int recordNum;
 	int recordCount;
-	int fieldCount;
+	unsigned int fieldCount;
 	DBField **fields;
 	DBConnection *connection;
 	int maxrows;

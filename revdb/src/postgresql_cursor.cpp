@@ -86,7 +86,7 @@ void DBCursor_POSTGRESQL::close()
 Bool DBCursor_POSTGRESQL::first()
 {
 	//exit if no more records
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	recordNum = 0;
@@ -101,7 +101,7 @@ Bool DBCursor_POSTGRESQL::first()
 /// Move to end of query, setting isEOF to true and recordNum to recordCount - 1 (the last record)
 Bool DBCursor_POSTGRESQL::last()
 {
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	recordNum = recordCount - 1;
@@ -117,7 +117,7 @@ Bool DBCursor_POSTGRESQL::last()
 /// the last record then set isEOF to true, and remain on the last record. 
 Bool DBCursor_POSTGRESQL::next()
 {
-	if (recordCount == 0 || isEOF == True)
+	if (0 == recordCount || True == isEOF)
 		return False;
 
 	isBOF = False;
@@ -135,7 +135,7 @@ Bool DBCursor_POSTGRESQL::next()
 
 Bool DBCursor_POSTGRESQL::move(int p_record_index)
 {
-	if (recordCount == 0)
+	if (0 == recordCount)
 		return False;
 
 	if (p_record_index < 0)
