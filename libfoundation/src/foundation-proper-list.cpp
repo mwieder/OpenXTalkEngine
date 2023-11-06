@@ -766,16 +766,16 @@ bool MCProperListApply(MCProperListRef self, MCProperListApplyCallback p_callbac
 MC_DLLEXPORT_DEF
 bool MCProperListMap(MCProperListRef self, MCProperListMapCallback p_callback, MCProperListRef& r_new_list, void *context)
 {
-    if (MCProperListIsIndirect(self))
-        self = self -> contents;
-    
+	if (MCProperListIsIndirect(self))
+		self = self -> contents;
+
 	MCAutoValueRefArray t_values;
 	if (!t_values.New (self -> length))
 		return false;
 
-    bool t_success;
-    t_success = true;
-    
+	bool t_success;
+	t_success = true;
+
     for (uindex_t i = 0; t_success && i < self -> length; i++)
     {
         MCValueRef t_value;

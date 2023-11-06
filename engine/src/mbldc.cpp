@@ -565,7 +565,7 @@ MCMobileBitmap *MCMobileBitmapCreate(uint32_t width, uint32_t height, bool mono)
 	t_bitmap -> is_mono = mono;
 	t_bitmap -> is_swapped = false;
 	t_bitmap -> data = malloc(height * t_bitmap -> stride);
-	memset(t_bitmap -> data, 0, height * t_bitmap -> stride);
+	memset((void *)t_bitmap -> data, 0, height * t_bitmap -> stride);
 	return t_bitmap;
 }
 

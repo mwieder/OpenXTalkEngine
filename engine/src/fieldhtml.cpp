@@ -486,7 +486,7 @@ static void export_html_remove_tag(export_html_t& ctxt, export_html_tag_type_t p
 	while(ctxt . tag_depth > 0)
 	{
 		ctxt . tag_depth -= 1;
-		memset(&ctxt . tags[ctxt . tag_stack[ctxt . tag_depth]], 0, sizeof(export_html_tag_t));
+		memset((void *)&ctxt . tags[ctxt . tag_stack[ctxt . tag_depth]], 0, sizeof(export_html_tag_t));
 		/* UNCHECKED */ MCStringAppendFormat(ctxt.m_text, "</%s>", s_export_html_tag_strings[ctxt.tag_stack[ctxt.tag_depth]]);
 		
 		if (ctxt . tag_stack[ctxt . tag_depth] == p_tag &&
@@ -500,7 +500,7 @@ static void export_html_remove_all_tags(export_html_t& ctxt, bool p_keep_link)
 	while(ctxt . tag_depth > 0)
 	{
 		ctxt .  tag_depth -= 1;
-		memset(&ctxt . tags[ctxt . tag_stack[ctxt . tag_depth]], 0, sizeof(export_html_tag_t));
+		memset((void *)&ctxt . tags[ctxt . tag_stack[ctxt . tag_depth]], 0, sizeof(export_html_tag_t));
 		/* UNCHECKED */ MCStringAppendFormat(ctxt.m_text, "</%s>", s_export_html_tag_strings[ctxt.tag_stack[ctxt.tag_depth]]);
 		
 		if (ctxt . tag_stack[ctxt . tag_depth] == kExportHtmlTagLink && p_keep_link)
@@ -641,7 +641,7 @@ static bool export_html_emit_paragraphs(void *p_context, MCFieldExportEventType 
 	else if (p_event_type == kMCFieldExportEventUnicodeRun || p_event_type == kMCFieldExportEventNativeRun)
 	{
 		export_html_tag_list_t t_new_tags;
-		memset(t_new_tags, 0, sizeof(export_html_tag_list_t));
+		memset((void *)t_new_tags, 0, sizeof(export_html_tag_list_t));
 		if (ctxt . effective || p_event_data . has_character_style)
 			export_html_compute_tags(p_event_data . character_style, ctxt . effective, t_new_tags);
 		
@@ -681,7 +681,7 @@ bool MCField::exportashtmltext(uint32_t p_part_id, int32_t p_start_index, int32_
 bool MCField::exportashtmltext(MCParagraph *p_paragraphs, int32_t p_start_index, int32_t p_finish_index, bool p_effective, MCDataRef& r_text)
 {
 	export_html_t ctxt;
-	memset(&ctxt, 0, sizeof(export_html_t));
+	memset((void *)&ctxt, 0, sizeof(export_html_t));
 	/* UNCHECKED */ MCStringCreateMutable(0, ctxt.m_text);
 	
 	ctxt . effective = p_effective;
@@ -1299,7 +1299,7 @@ static bool import_html_parse_attr(const char*& x_ptr, const char *p_limit, impo
 static bool import_html_parse_tag(const char *& x_ptr, const char *p_limit, import_html_tag_t& r_tag)
 {
 	import_html_tag_t t_tag;
-	memset(&t_tag, 0, sizeof(import_html_tag_t));
+	memset((void *)&t_tag, 0, sizeof(import_html_tag_t));
 	
 	if (x_ptr + 1 < p_limit && x_ptr[1] == '/')
 	{
@@ -1366,7 +1366,7 @@ static void import_html_begin(import_html_t& ctxt, const MCFieldParagraphStyle *
 {
 	MCFieldParagraphStyle t_style;
 	if (p_style == nil)
-		memset(&t_style, 0, sizeof(MCFieldParagraphStyle));
+		memset((void *)&t_style, 0, sizeof(MCFieldParagraphStyle));
 	else
 		t_style = *p_style;
 	
@@ -2054,13 +2054,13 @@ MCParagraph *MCField::importhtmltext(MCValueRef p_text)
     }
     
 	import_html_t ctxt;
-	memset(&ctxt, 0, sizeof(import_html_t));
+	memset((void *)&ctxt, 0, sizeof(import_html_t));
 	ctxt . field = this;
 	ctxt . need_paragraph = true;
 	MCMemoryResizeArray(16, ctxt . styles, ctxt . style_capacity);
 	
 	MCFieldCharacterStyle t_char_style;
-	memset(&t_char_style, 0, sizeof(MCFieldCharacterStyle));
+	memset((void *)&t_char_style, 0, sizeof(MCFieldCharacterStyle));
 	import_html_push_tag(ctxt, kImportHtmlTagNone, t_char_style);
 	
     if (t_is_unicode_string)
@@ -2196,7 +2196,7 @@ MCParagraph *MCField::importhtmltext(MCValueRef p_text)
                             if (ctxt . list_depth == 0 || ctxt . list_in_li)
                             {
                                 MCFieldParagraphStyle t_style;
-                                memset(&t_style, 0, sizeof(MCFieldParagraphStyle));
+                                memset((void *)&t_style, 0, sizeof(MCFieldParagraphStyle));
                                 import_html_parse_paragraph_attrs(t_tag, t_style);
                                 import_html_begin(ctxt, &t_style);
                                 delete t_style . tabs;

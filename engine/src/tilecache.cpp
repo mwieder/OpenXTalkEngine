@@ -651,9 +651,9 @@ void MCTileCacheFlush(MCTileCacheRef self)
 		self -> compositor . flush(self -> compositor . context);
 	
 	// Clear the cells and sprites.
-	memset(self -> cells, 0, self -> tiles_across * self -> tiles_down * sizeof(MCTileCacheCell));
-	memset(self -> sprites, 0, self -> sprite_count * sizeof(MCTileCacheSprite));
-	memset(self -> tiles, 0, self -> tile_count * sizeof(MCTileCacheTile));
+	memset((void*)self -> cells, 0, self -> tiles_across * self -> tiles_down * sizeof(MCTileCacheCell));
+	memset((void*)self -> sprites, 0, self -> sprite_count * sizeof(MCTileCacheSprite));
+	memset((void*)self -> tiles, 0, self -> tile_count * sizeof(MCTileCacheTile));
 	
 	// Make sure the tile lists are empty.
 	self -> empty_tiles . first = 0;
@@ -1815,7 +1815,8 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 			if (*t_activity < 2)
 			{
 				for(uint32_t y = 0; y < self -> tile_size; y++)
-					memset((uint8_t*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y - t_required_tiles . top) * self -> tile_size) + (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t), 0, self -> tile_size * sizeof(uint32_t));
+//					memset((uint8_t*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y - t_required_tiles . top) * self -> tile_size) + (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t), 0, self -> tile_size * sizeof(uint32_t));
+					memset((void*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y - t_required_tiles . top) * self -> tile_size) + (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t), 0, self -> tile_size * sizeof(uint32_t));
 			}
 
 			// An active tile is marked with a 2.

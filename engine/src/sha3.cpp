@@ -42,7 +42,7 @@ static void rhash_keccak_init(sha3_ctx *ctx, unsigned bits)
 	/* NB: The Keccak capacity parameter = bits * 2 */
 	unsigned rate = 1600 - bits * 2;
 
-	memset(ctx, 0, sizeof(sha3_ctx));
+	memset((void*)ctx, 0, sizeof(sha3_ctx));
 	ctx->block_size = rate / 8;
 	assert(rate <= 1600 && (rate % 64) == 0);
 }
@@ -314,7 +314,8 @@ void rhash_sha3_final(sha3_ctx *ctx, unsigned char* result)
 	if (!(ctx->rest & SHA3_FINALIZED))
 	{
 		/* clear the rest of the data queue */
-		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+//		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+		memset((void*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
 		((char*)ctx->message)[ctx->rest] |= 0x06;
 		((char*)ctx->message)[block_size - 1] |= 0x80;
 
@@ -342,7 +343,8 @@ void rhash_keccak_final(sha3_ctx *ctx, unsigned char* result)
 	if (!(ctx->rest & SHA3_FINALIZED))
 	{
 		/* clear the rest of the data queue */
-		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+//		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+		memset((void*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
 		((char*)ctx->message)[ctx->rest] |= 0x01;
 		((char*)ctx->message)[block_size - 1] |= 0x80;
 

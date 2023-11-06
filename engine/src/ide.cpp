@@ -152,7 +152,7 @@ void MCIdeState::SetCommentDelta(uint4 p_line, int1 p_delta)
 	if (p_line > f_line_count)
 	{
 		f_line_properties = (int1 *)realloc(f_line_properties, sizeof(int1) * p_line);
-		memset(f_line_properties + f_line_count, 0, p_line - f_line_count);
+		memset((void *)(f_line_properties + f_line_count), 0, p_line - f_line_count);
 		f_line_count = p_line;
 	}
 	f_line_properties[p_line - 1] = p_delta; 
@@ -443,7 +443,7 @@ static uint1 commit_style(MCColourizeStyle& p_style)
 	{
 		s_script_style_count += 1; 
 		s_script_styles = (MCColourizeStyle *)realloc(s_script_styles, sizeof(MCColourizeStyle) * s_script_style_count);
-		memset(&s_script_styles[t_index], 0, sizeof(MCColourizeStyle));
+		memset((void *)&s_script_styles[t_index], 0, sizeof(MCColourizeStyle));
 	}
 	else if (t_index == s_script_style_count)
 		t_index = 0;
@@ -476,7 +476,7 @@ void MCIdeScriptConfigure::exec_ctxt(MCExecContext &ctxt)
             for(uint4 t_class = 0; t_class < __COLOURIZE_CLASS_COUNT__; ++t_class)
             {
                 MCColourizeStyle t_style;
-                memset(&t_style, 0, sizeof(MCColourizeStyle));
+                memset((void *)&t_style, 0, sizeof(MCColourizeStyle));
 
                 MCStringRef t_attr_key_string;
                 MCNewAutoNameRef t_attr_key;
@@ -528,7 +528,7 @@ void MCIdeScriptConfigure::exec_ctxt(MCExecContext &ctxt)
                     t_changed = true;
 
                 MCColourizeStyle t_style;
-                memset(&t_style, 0, sizeof(MCColourizeStyle));
+                memset((void *)&t_style, 0, sizeof(MCColourizeStyle));
 
 
                 MCStringRef t_attr_key_string;

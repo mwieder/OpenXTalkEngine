@@ -1631,12 +1631,12 @@ Parse_stat MCUniDecode::parse(MCScriptPoint &sp, Boolean the)
 void MCUniDecode::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	MCNewAutoNameRef t_language;
-    if (!ctxt . EvalOptionalExprAsNameRef(language, kMCEmptyName, EE_UNIDECODE_BADLANGUAGE, &t_language))
-        return;
-	
-    MCAutoDataRef t_source;
-    if (!ctxt .EvalExprAsDataRef(source, EE_UNIDECODE_BADSOURCE, &t_source))
-        return;
+	if (!ctxt . EvalOptionalExprAsNameRef(language, kMCEmptyName, EE_UNIDECODE_BADLANGUAGE, &t_language))
+	return;
+
+	MCAutoDataRef t_source;
+	if (!ctxt .EvalExprAsDataRef(source, EE_UNIDECODE_BADSOURCE, &t_source))
+		return;
 
 	if (language)
 	{
@@ -1676,17 +1676,17 @@ void MCUniEncode::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	
 	MCNewAutoNameRef t_language;
-    if (!ctxt . EvalOptionalExprAsNameRef(language, kMCEmptyName, EE_UNIENCODE_BADLANGUAGE, &t_language))
-        return;
+	if (!ctxt . EvalOptionalExprAsNameRef(language, kMCEmptyName, EE_UNIENCODE_BADLANGUAGE, &t_language))
+		return;
 
 
-	
+
 	MCAutoDataRef t_result;
 
 	MCAutoValueRef t_source_valueref;
-    if (!ctxt . EvalExprAsValueRef(source, EE_UNIENCODE_BADSOURCE, &t_source_valueref))
-        return;
-	
+	if (!ctxt . EvalExprAsValueRef(source, EE_UNIENCODE_BADSOURCE, &t_source_valueref))
+		return;
+
 	if (language)
 	{
 		// Explicit language, source is a data ref
@@ -1764,9 +1764,9 @@ void MCValue::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	MCAutoStringRef t_source;
 	MCAutoValueRef t_result;
-	
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(source, EE_VALUE_BADSOURCE, &t_source))
-        return;
+
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(source, EE_VALUE_BADSOURCE, &t_source))
+		return;
 
 	if (*t_source != nil && object != nil)
 	{
@@ -1779,7 +1779,7 @@ void MCValue::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 		}
 
 		MCEngineEvalValueWithObject(ctxt, *t_source, t_object, r_value . valueref_value);
-        r_value .type = kMCExecValueTypeValueRef;
+		r_value .type = kMCExecValueTypeValueRef;
 	}
 	else
     {
@@ -1958,13 +1958,13 @@ Parse_stat MCSetRegistry::parse(MCScriptPoint &sp, Boolean the)
 void MCSetRegistry::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	MCAutoStringRef t_key;
-    if (!ctxt . EvalExprAsStringRef(key, EE_SETREGISTRY_BADEXP, &t_key))
-        return;
-	
-    MCAutoStringRef t_value;
-    if (!ctxt . EvalExprAsStringRef(value, EE_SETREGISTRY_BADEXP, &t_value))
-        return;
-	
+	if (!ctxt . EvalExprAsStringRef(key, EE_SETREGISTRY_BADEXP, &t_key))
+		return;
+
+	MCAutoStringRef t_value;
+	if (!ctxt . EvalExprAsStringRef(value, EE_SETREGISTRY_BADEXP, &t_value))
+		return;
+
 	if (type != NULL)
 	{
         MCAutoStringRef t_type;
@@ -2051,19 +2051,19 @@ Parse_stat MCDeleteResource::parse(MCScriptPoint &sp, Boolean the)
 void MCDeleteResource::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	MCAutoStringRef t_source;
-    if (!ctxt . EvalExprAsStringRef(source, EE_RESOURCES_BADPARAM, &t_source))
-        return;
-	
-    MCAutoStringRef t_type;
-    if (!ctxt . EvalExprAsStringRef(type, EE_RESOURCES_BADPARAM, &t_type))
-        return;
-    
-    MCAutoStringRef t_name;
-    if (!ctxt . EvalExprAsStringRef(name, EE_RESOURCES_BADPARAM, &t_name))
-        return;
-	
+	if (!ctxt . EvalExprAsStringRef(source, EE_RESOURCES_BADPARAM, &t_source))
+		return;
+
+	MCAutoStringRef t_type;
+	if (!ctxt . EvalExprAsStringRef(type, EE_RESOURCES_BADPARAM, &t_type))
+		return;
+
+	MCAutoStringRef t_name;
+	if (!ctxt . EvalExprAsStringRef(name, EE_RESOURCES_BADPARAM, &t_name))
+		return;
+
 	MCFilesEvalDeleteResource(ctxt, *t_source, *t_type, *t_name, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 MCGetResource::~MCGetResource()
@@ -2085,21 +2085,21 @@ Parse_stat MCGetResource::parse(MCScriptPoint &sp, Boolean the)
 
 void MCGetResource::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-	
-    MCAutoStringRef t_source;
-    if (!ctxt . EvalExprAsStringRef(source, EE_RESOURCES_BADPARAM, &t_source))
-        return;
-    
-    MCAutoStringRef t_type;
-    if (!ctxt . EvalExprAsStringRef(type, EE_RESOURCES_BADPARAM, &t_type))
-        return;
-    
-    MCAutoStringRef t_name;
-    if (!ctxt . EvalExprAsStringRef(name, EE_RESOURCES_BADPARAM, &t_name))
-        return;
-	
+
+	MCAutoStringRef t_source;
+	if (!ctxt . EvalExprAsStringRef(source, EE_RESOURCES_BADPARAM, &t_source))
+		return;
+
+	MCAutoStringRef t_type;
+	if (!ctxt . EvalExprAsStringRef(type, EE_RESOURCES_BADPARAM, &t_type))
+		return;
+
+	MCAutoStringRef t_name;
+	if (!ctxt . EvalExprAsStringRef(name, EE_RESOURCES_BADPARAM, &t_name))
+		return;
+
 	MCFilesEvalGetResource(ctxt, *t_source, *t_type, *t_name, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 MCGetResources::~MCGetResources()
@@ -2121,19 +2121,19 @@ Parse_stat MCGetResources::parse(MCScriptPoint &sp, Boolean the)
 void MCGetResources::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	MCAutoStringRef t_source;
-    if (!ctxt . EvalExprAsStringRef(source, EE_RESOURCES_BADPARAM, &t_source))
-        return;
-    
-    MCAutoStringRef t_type;
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(type, EE_RESOURCES_BADPARAM, &t_type))
-        return;
-	
+	if (!ctxt . EvalExprAsStringRef(source, EE_RESOURCES_BADPARAM, &t_source))
+		return;
+
+	MCAutoStringRef t_type;
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(type, EE_RESOURCES_BADPARAM, &t_type))
+		return;
+
 	if (type != nil)
 		MCFilesEvalGetResourcesWithType(ctxt, *t_source, *t_type, r_value . stringref_value);
 	else
 		MCFilesEvalGetResources(ctxt, *t_source, r_value . stringref_value);
-    
-    r_value . type = kMCExecValueTypeStringRef;
+
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 MCSetResource::~MCSetResource()
@@ -2215,22 +2215,22 @@ Parse_stat MCHTTPProxyForURL::parse(MCScriptPoint &sp, Boolean the)
 void MCHTTPProxyForURL::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	MCAutoStringRef t_url;
-    if (!ctxt . EvalExprAsStringRef(url, EE_UNDEFINED, &t_url))
-        return;
+	if (!ctxt . EvalExprAsStringRef(url, EE_UNDEFINED, &t_url))
+		return;
 
 	MCAutoStringRef t_host;
-    if (!ctxt . EvalExprAsStringRef(host, EE_UNDEFINED, &t_host))
-        return;
-    
+	if (!ctxt . EvalExprAsStringRef(host, EE_UNDEFINED, &t_host))
+		return;
+
 	MCAutoStringRef t_pac;
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(pac, EE_UNDEFINED, &t_pac))
-        return;
-    
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(pac, EE_UNDEFINED, &t_pac))
+		return;
+
 	if (pac == nil)
 		MCNetworkEvalHTTPProxyForURL(ctxt, *t_url, *t_host, r_value . stringref_value);
 	else
 		MCNetworkEvalHTTPProxyForURLWithPAC(ctxt, *t_url, *t_host, *t_pac, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2252,21 +2252,21 @@ Parse_stat MCControlAtLoc::parse(MCScriptPoint &sp, Boolean the)
 
 void MCControlAtLoc::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    MCPoint t_location;
-    if (!ctxt . EvalExprAsPoint(location, EE_CONTROLATLOC_NAP, t_location))
-        return;
+	MCPoint t_location;
+	if (!ctxt . EvalExprAsPoint(location, EE_CONTROLATLOC_NAP, t_location))
+		return;
 
 	MCAutoStringRef t_result;
 	if (!is_screen)
 		MCInterfaceEvalControlAtLoc(ctxt, t_location, &t_result);
 	else
 		MCInterfaceEvalControlAtScreenLoc(ctxt, t_location, &t_result);
-    
-    if (!ctxt.HasError())
-    {
-        r_value . type = kMCExecValueTypeStringRef;
-        r_value . stringref_value = MCValueRetain(*t_result);
-    }
+
+	if (!ctxt.HasError())
+	{
+		r_value . type = kMCExecValueTypeStringRef;
+		r_value . stringref_value = MCValueRetain(*t_result);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

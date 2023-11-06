@@ -111,8 +111,8 @@ void gtk_init(void)
 		G_last_opened_path =(char*)g_malloc(1);
 		G_last_saved_path = (char*)g_malloc(1);
 		
-		memset ( G_last_opened_path, 0, sizeof(char) ) ;
-		memset ( G_last_saved_path, 0, sizeof(char) ) ;
+		memset ( (void *)G_last_opened_path, 0, sizeof(char) ) ;
+		memset ( (void *)G_last_saved_path, 0, sizeof(char) ) ;
 		
 		// TS 2007-31-10 Bug  5408 
 		// We need to reset the locale to the C portable one here, as GTK
@@ -145,7 +145,7 @@ char * get_filter_name (const char * p_type )
 	// MW-2010-10-14: Make sure we have enough room to do this.
 	char *ret;
 	ret = strdup(p_type);
-	memset(ret, 0, strlen(p_type));
+	memset((void *)ret, 0, strlen(p_type));
 
 	t_ptr = p_type ;
 	a = 0 ;
@@ -183,7 +183,7 @@ char * get_filter_masks (const char * p_type )
     // MW-2010-10-14: Make sure we have enough room to do this.
     char *ret;
     ret = strdup(p_type);
-    memset(ret, 0, strlen(p_type));
+    memset((void *)ret, 0, strlen(p_type));
     
 	while ( *t_ptr != '|' && *t_ptr != '\0' )
 		ret[a++] = *t_ptr++;
@@ -220,7 +220,7 @@ char * get_next_mask ( char *p_masks )
 	// MW-2010-10-14: Make sure we have enough room to do this.
 	char *ret;
 	ret = strdup(p_masks);
-	memset(ret, 0, strlen(p_masks));
+	memset((void *)ret, 0, strlen(p_masks));
 
 	a = 0 ;
 	t_ptr = p_masks ;

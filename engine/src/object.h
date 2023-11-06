@@ -1729,8 +1729,7 @@ public:
  * its target object. */
 class MCObjectPartHandle: public MCObjectHandle
 {
-    /* TODO[C++11] uint32_t m_part_id = 0; */
-    uint32_t m_part_id;
+    uint32_t m_part_id = 0;
 public:
     /* TODO[2017-04-27] These constructors should be constexpr */
     /* TODO[C++11] constexpr MCObjectPartHandle() = default; */
@@ -1740,7 +1739,7 @@ public:
 
     /* TODO[C++11] MCObjectPartHandle(const MCObjectPartHandle&) = default; */
     MCObjectPartHandle(const MCObjectPartHandle& other)
-      : MCObjectHandle(other), m_part_id(other.m_part_id) {}
+      : MCObjectHandle(other), m_part_id(other.m_part_id) {};
     /* TODO[C++11] MCObjectPartHandle(MCObjectPartHandle&& other) = deafult; */
     MCObjectPartHandle(MCObjectPartHandle&& other)
       : MCObjectHandle(nullptr), m_part_id(0)

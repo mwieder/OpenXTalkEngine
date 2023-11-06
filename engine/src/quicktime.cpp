@@ -1161,7 +1161,8 @@ bool MCQTEffectBegin(Visual_effects p_type, const char *p_name, Visual_effects p
 bool MCQTEffectStep(const MCRectangle &drect, MCStackSurface *p_target, uint4 p_delta, uint4 p_duration)
 {
 	ICMFrameTimeRecord t_frame_time;
-	memset((char *)&t_frame_time, 0, sizeof(ICMFrameTimeRecord));
+//	memset((char *)&t_frame_time, 0, sizeof(ICMFrameTimeRecord));
+	memset((void *)&t_frame_time, 0, sizeof(ICMFrameTimeRecord));
 	SetTimeBaseValue(s_qt_timebase, p_delta, p_duration);
 	
 	if (s_qt_reverse)

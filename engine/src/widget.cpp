@@ -1005,7 +1005,7 @@ void MCWidget::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool 
             t_gcontext = nil;
             if (t_success)
             {
-                memset(t_raster . pixels, 0, t_raster . height * t_raster . stride);
+                memset((void*)t_raster . pixels, 0, t_raster . height * t_raster . stride);
                 t_success = MCGContextCreateWithRaster(t_raster, t_gcontext);
             }
             
@@ -1027,7 +1027,7 @@ void MCWidget::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool 
             if (t_success)
             {
                 MCImageDescriptor t_descriptor;
-                memset(&t_descriptor, 0, sizeof(MCImageDescriptor));
+                memset((void*)&t_descriptor, 0, sizeof(MCImageDescriptor));
                 t_descriptor . image = t_image;
                 t_descriptor . x_scale = t_descriptor . y_scale = 1.0;
                 dc -> drawimage(t_descriptor, 0, 0, dirty . width, dirty . height, dirty . x, dirty . y);

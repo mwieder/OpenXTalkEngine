@@ -199,7 +199,7 @@ MCFontnode::MCFontnode(MCNameRef fname, uint2 &size, uint2 style, Boolean printe
 	font = new (nothrow) MCFontStruct;
 
 	LOGFONTW logfont;
-	memset(&logfont, 0, sizeof(LOGFONTW));
+	memset((void*)&logfont, 0, sizeof(LOGFONTW));
 
     // Is the font name one of the special UI font names?
     if (MCNameIsEqualToCaseless(fname, MCN_font_usertext))
@@ -258,7 +258,7 @@ MCFontnode::MCFontnode(MCNameRef fname, uint2 &size, uint2 style, Boolean printe
 	SelectObject(hdc, newfont);
 
 	unichar_t t_testname[LF_FACESIZE];
-	memset(t_testname, 0, LF_FACESIZE * sizeof(unichar_t));
+	memset((void*)t_testname, 0, LF_FACESIZE * sizeof(unichar_t));
 	GetTextFaceW(hdc, LF_FACESIZE, t_testname);
 
 	// MW-2012-02-13: If we failed to find an exact match then remap the font name and

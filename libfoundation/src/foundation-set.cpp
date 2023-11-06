@@ -409,9 +409,9 @@ bool __MCSetCopyDescription(__MCSet *self, MCStringRef& r_string)
 		t_success = MCStringAppendFormat(t_string, "}");
 	if (t_success)
 		t_success = MCStringCopyAndRelease(t_string, r_string);
-	
-    if (!t_success)
-        MCValueRelease(t_string);
+
+	if (!t_success)
+		MCValueRelease(t_string);
 
 	return t_success;
 }

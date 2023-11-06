@@ -1097,7 +1097,7 @@ MCControl *MCHcbutton::build(MCHcstak *hcsptr, MCStack *sptr)
 	if (iid != 0)
 	{
 		bptr->icons = new (nothrow) iconlist;
-		memset(bptr->icons, 0, sizeof(iconlist));
+		memset((void *)bptr->icons, 0, sizeof(iconlist));
 		bptr->icons->iconids[CI_DEFAULT] = iid;	
 		bptr->flags |= F_SHOW_ICON;
 

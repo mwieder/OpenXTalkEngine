@@ -413,7 +413,7 @@ int MCSystemElevatedMain(int argc, char* argv[])
 	// The arguments read from the FIFO are encoded in the system encoding
 	char **t_args;
 	t_args = (char **)malloc(sizeof(char *) * (t_arg_count + 1));
-	memset(t_args, 0, (t_arg_count + 1) * sizeof(char *));
+	memset((void *)t_args, 0, (t_arg_count + 1) * sizeof(char *));
 	for(uint32_t i = 0; i < t_arg_count; i++)
 	{
 		if (!read_cstring_from_fd(fileno(stdin), t_args[i]))

@@ -355,7 +355,7 @@ void MCMutableImageRep::drawsel(MCDC *dc)
 		if (state & CS_BEEN_MOVED)
 		{
 			MCImageDescriptor t_image;
-			memset(&t_image, 0, sizeof(MCImageDescriptor));
+			memset((void *)&t_image, 0, sizeof(MCImageDescriptor));
 
 			MCGRaster t_raster;
 			t_raster = MCImageBitmapGetMCGRaster(m_selection_image, true);

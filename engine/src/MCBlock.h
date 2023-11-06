@@ -49,7 +49,7 @@ typedef struct Blockatts
 	// MW-2006-04-21: [[ Purify ]] Ensure this is initialised to empty
 	Blockatts(void)
 	{
-		memset(this, 0, sizeof(Blockatts));
+		memset((void*)this, 0, sizeof(Blockatts));
 	}
 }
 Blockatts;

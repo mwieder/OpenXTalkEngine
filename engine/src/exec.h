@@ -1225,7 +1225,7 @@ class MCExecContext
 public:
     MCExecContext()
     {
-        memset(this, 0, sizeof(MCExecContext));
+        memset((void*)this, 0, sizeof(MCExecContext));
         m_itemdel = MCValueRetain(kMCCommaString);
         m_columndel = MCValueRetain(kMCTabString);
         m_rowdel = MCValueRetain(kMCLineEndString);
@@ -1250,7 +1250,7 @@ public:
 
     MCExecContext(MCObject *object, MCHandlerlist *hlist, MCHandler *handler)
     {
-        memset(this, 0, sizeof(MCExecContext));
+        memset((void*)this, 0, sizeof(MCExecContext));
         m_object . object = object;
         m_object . part_id = 0;
         m_hlist = hlist;

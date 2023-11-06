@@ -1054,7 +1054,8 @@ void MCS_write_socket(const MCStringRef d, MCSocket *s, MCObject *optr, MCNameRe
 			char *portptr = strchr(*t_name_copy, ':');
 			*portptr = '\0';
 			struct sockaddr_in to;
-			memset((char *)&to, 0, sizeof(to));
+//			memset((char *)&to, 0, sizeof(to));
+			memset((void *)&to, 0, sizeof(to));
 			to.sin_family = AF_INET;
 			uint2 port = atoi(portptr + 1);
 			to.sin_port = MCSwapInt16HostToNetwork(port);
@@ -1177,7 +1178,8 @@ MCSocket *MCS_accept(uint2 port, MCObject *object, MCNameRef message, Boolean da
 
 	mc_sockaddr_in_t addr;
 
-	memset((char *)&addr, 0, sizeof(addr));
+//	memset((char *)&addr, 0, sizeof(addr));
+	memset((void *)&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	
 	if (MCdefaultnetworkinterface != NULL)

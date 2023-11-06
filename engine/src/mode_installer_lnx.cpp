@@ -192,36 +192,36 @@ bool MCSystemCanDeleteKey(MCStringRef p_key)
 // be deleted.
 bool MCSystemCanDeleteFile(MCStringRef p_file)
 {
-    MCAutoStringRef t_resolved_file_str;
+	MCAutoStringRef t_resolved_file_str;
 
-    if (!MCS_resolvepath(p_file, &t_resolved_file_str))
-        return false;
-
-    uindex_t t_last_delimiter;
-
-    if (!MCStringLastIndexOfChar(*t_resolved_file_str, '/', UINDEX_MAX, kMCStringOptionCompareExact, t_last_delimiter))
-        return false;
-
-    // Now get the folder.
-    MCAutoStringRef t_folder_path;
-    MCAutoStringRefAsSysString t_folder_sys_str;
-
-    if (!MCStringCopySubstring(*t_resolved_file_str, MCRangeMake(0, t_last_delimiter), &t_folder_path)
-            || !t_folder_sys_str . Lock(*t_folder_path))
-        return false;
-	
-	struct stat64 t_stat;
-    if (stat64(*t_folder_sys_str, &t_stat) != 0)
+	if (!MCS_resolvepath(p_file, &t_resolved_file_str))
 		return false;
-	
+
+	uindex_t t_last_delimiter;
+
+	if (!MCStringLastIndexOfChar(*t_resolved_file_str, '/', UINDEX_MAX, kMCStringOptionCompareExact, t_last_delimiter))
+		return false;
+
+	// Now get the folder.
+	MCAutoStringRef t_folder_path;
+	MCAutoStringRefAsSysString t_folder_sys_str;
+
+	if (!MCStringCopySubstring(*t_resolved_file_str, MCRangeMake(0, t_last_delimiter), &t_folder_path)
+			|| !t_folder_sys_str . Lock(*t_folder_path))
+	return false;
+
+	struct stat64 t_stat;
+	if (stat64(*t_folder_sys_str, &t_stat) != 0)
+		return false;
+
 	// Check for user 'write' bit.
 	if (t_stat . st_uid == getuid() && (t_stat . st_mode & S_IWUSR) != 0)
 		return true;
-	
+
 	// Check for same group and group 'write' bit
 	if (t_stat . st_gid == getgid() && (t_stat . st_mode & S_IWGRP) != 0)
 		return true;
-	
+
 	// Check for other
 	if ((t_stat . st_mode & S_IWOTH) != 0)
 		return true;

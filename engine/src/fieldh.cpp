@@ -62,7 +62,7 @@ static uint32_t compute_paragraph_number(paragraph_numbering_t& ctxt, uint32_t p
 		if (!ctxt . seen_list_style)
 			return true;
 
-		memset(ctxt . list_styles, 0, sizeof(ctxt . list_styles));
+		memset((void *)ctxt . list_styles, 0, sizeof(ctxt . list_styles));
 		ctxt . seen_list_style = false;
 
 		return 0;
@@ -71,7 +71,7 @@ static uint32_t compute_paragraph_number(paragraph_numbering_t& ctxt, uint32_t p
 	// Terminate any lists whose depth is greater than the current paragraph.
 	if (ctxt . seen_list_style)
 	{
-		memset(ctxt . list_styles + p_list_depth + 1, 0, sizeof(ctxt . list_styles) - p_list_depth + 1);
+		memset((void *)ctxt . list_styles + p_list_depth + 1, 0, sizeof(ctxt . list_styles) - p_list_depth + 1);
 		ctxt . seen_list_style = false;
 	}
 
@@ -159,7 +159,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 	if ((p_flags & kMCFieldExportParagraphStyles) != 0 &&
 		(p_flags & kMCFieldExportFlattenStyles) != 0)
 	{
-		memset(&t_inherited_paragraph_style, 0, sizeof(MCFieldParagraphStyle));
+		memset((void *)&t_inherited_paragraph_style, 0, sizeof(MCFieldParagraphStyle));
 		t_inherited_paragraph_style . text_align = (getflags() & F_ALIGNMENT) >> F_ALIGNMENT_SHIFT;
 		t_inherited_paragraph_style . vgrid = getflag(F_VGRID);
 		t_inherited_paragraph_style . hgrid = getflag(F_HGRID);
@@ -178,7 +178,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 	if ((p_flags & kMCFieldExportCharacterStyles) != 0 &&
 		(p_flags & kMCFieldExportFlattenStyles) != 0)
 	{
-		memset(&t_inherited_character_style, 0, sizeof(MCFieldCharacterStyle));
+		memset((void *)&t_inherited_character_style, 0, sizeof(MCFieldCharacterStyle));
 		t_inherited_character_style . text_color = getcoloraspixel(DI_FORE);
 		t_inherited_character_style . link_text = kMCEmptyString;
 		t_inherited_character_style . image_source = kMCEmptyString;
@@ -201,7 +201,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 	paragraph_numbering_t t_numbering;
 	if ((p_flags & kMCFieldExportNumbering) != 0)
 	{
-		memset(&t_numbering, 0, sizeof(paragraph_numbering_t));
+		memset((void *)&t_numbering, 0, sizeof(paragraph_numbering_t));
 
 		if (t_first_offset == 0 && t_first_paragraph != t_paragraphs)
 			for(MCParagraph *t_paragraph = t_paragraphs; t_paragraph != t_first_paragraph -> prev(); t_paragraph = t_paragraph -> next())
@@ -235,7 +235,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 				if ((p_flags & kMCFieldExportFlattenStyles) != 0)
 					t_data . paragraph_style = t_inherited_paragraph_style;
 				else
-					memset(&t_data . paragraph_style, 0, sizeof(MCFieldParagraphStyle));
+					memset((void *)&t_data . paragraph_style, 0, sizeof(MCFieldParagraphStyle));
 
 				// MW-2013-02-21: [[ Bug 10685 ]] Originally the paragraph properties were only
 				//   applied if the first offset is 0. This seems unreasonable so have adjusted.
@@ -255,7 +255,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 				if ((p_flags & kMCFieldExportFlattenStyles) != 0)
 					t_data . character_style = t_inherited_character_style;
 				else
-					memset(&t_data . character_style, 0, sizeof(MCFieldCharacterStyle));
+					memset((void *)&t_data . character_style, 0, sizeof(MCFieldCharacterStyle));
 			}
 
 			// Generate a paragraph begin event.
@@ -345,7 +345,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 						if ((p_flags & kMCFieldExportFlattenStyles) != 0)
 							t_data . character_style = t_inherited_character_style;
 						else
-							memset(&t_data . character_style, 0, sizeof(MCFieldCharacterStyle));
+							memset((void *)&t_data . character_style, 0, sizeof(MCFieldCharacterStyle));
 					}
 					
 					// If the block has attrs to apply, do so.
@@ -774,7 +774,7 @@ MCParagraph *MCField::texttoparagraphs(MCStringRef p_text)
     t_text_length = MCStringGetLength(p_text);
 	
 	MCTextBlock t_block;
-	memset(&t_block, 0, sizeof(MCTextBlock));
+	memset((void *)&t_block, 0, sizeof(MCTextBlock));
     t_block . string_native = false;
 	t_block . foreground_color = 0xffffffff;
 	t_block . background_color = 0xffffffff;
@@ -842,7 +842,7 @@ bool MCField::converttoparagraphs(void *p_context, const MCTextParagraph *p_para
 			t_count = 0;
 
 			MCFieldParagraphStyle t_style;
-			memset(&t_style, 0, sizeof(MCFieldParagraphStyle));
+			memset((void *)&t_style, 0, sizeof(MCFieldParagraphStyle));
 			if (p_paragraph -> text_align != kMCTextTextAlignLeft)
 				t_style . text_align = p_paragraph -> text_align, t_style . has_text_align = true, t_count += 1;
 			if (p_paragraph -> border_width != 0)

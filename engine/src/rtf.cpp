@@ -1653,7 +1653,7 @@ RTFStatus RTFReader::Paragraph(void)
 	// MW-2012-03-14: [[ RtfParaStyles ]] Build the paragraph style record up
 	//   to apply to the new paragraph.
 	MCTextParagraph t_para;
-	memset(&t_para, 0, sizeof(MCTextParagraph));
+	memset((void*)&t_para, 0, sizeof(MCTextParagraph));
 	t_para . text_align = m_state . GetTextAlign();
 	t_para . border_width = twips_to_pixels(m_state . GetBorderWidth());
 	t_para . padding = twips_to_pixels(m_state . GetPadding());

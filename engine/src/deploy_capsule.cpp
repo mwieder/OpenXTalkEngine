@@ -289,7 +289,7 @@ struct MCDeployCapsuleFilterState
 
 static void MCDeployCapsuleFilterInitialize(MCDeployCapsuleFilterState& self)
 {
-	memset(&self, 0, sizeof(MCDeployCapsuleFilterState));
+	memset((void *)&self, 0, sizeof(MCDeployCapsuleFilterState));
 }
 
 static void MCDeployCapsuleFilterFinalize(MCDeployCapsuleFilterState& self)
@@ -301,7 +301,7 @@ static void MCDeployCapsuleFilterFinalize(MCDeployCapsuleFilterState& self)
 
 static bool MCDeployCapsuleFilterStart(MCDeployCapsuleFilterState& self, MCDeployFileRef p_output, MCDeployFileRef p_spill_output, uint32_t p_offset)
 {
-	memset(&self, 0, sizeof(MCDeployCapsuleFilterState));
+	memset((void *)&self, 0, sizeof(MCDeployCapsuleFilterState));
 
 	self . file = p_output;
 	self . spill_file = p_spill_output;

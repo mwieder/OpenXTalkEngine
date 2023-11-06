@@ -843,7 +843,7 @@ static void init_utf8_converters(void)
 	if (texttoutf8info != nil)
 		return;
 	
-	memset(unicodeconvertors, 0, sizeof(unicodeconvertors));
+	memset((void *)unicodeconvertors, 0, sizeof(unicodeconvertors));
 	UnicodeMapping ucmapping;
 	ucmapping.unicodeEncoding = CreateTextEncoding(kTextEncodingUnicodeDefault,
 												   kTextEncodingDefaultVariant,
@@ -2770,7 +2770,8 @@ struct MCMacDesktop: public MCSystemInterface, public MCMacSystemService
         IO_stdout = MCsystem -> OpenFd(1, kMCOpenFileModeWrite);
         IO_stderr = MCsystem -> OpenFd(2, kMCOpenFileModeWrite);
         struct sigaction action;
-        memset((char *)&action, 0, sizeof(action));
+//        memset((char *)&action, 0, sizeof(action));
+        memset((void *)&action, 0, sizeof(action));
         action.sa_handler = handle_signal;
         action.sa_flags = SA_RESTART;
         sigaction(SIGHUP, &action, NULL);
@@ -4505,7 +4506,8 @@ struct MCMacDesktop: public MCSystemInterface, public MCMacSystemService
     virtual void KillAll(void)
     {
         struct sigaction action;
-        memset((char *)&action, 0, sizeof(action));
+ //       memset((char *)&action, 0, sizeof(action));
+        memset((void *)&action, 0, sizeof(action));
         action.sa_handler = (void (*)(int))SIG_IGN;
         sigaction(SIGCHLD, &action, NULL);
         while (MCnprocesses--)

@@ -1437,9 +1437,9 @@ bool MCStringCopySubstring(MCStringRef self, MCRange p_range, MCStringRef& r_sub
 {
 	__MCAssertIsString(self);
 
-    if (__MCStringIsIndirect(self))
-        self = self -> string;
-    
+	if (__MCStringIsIndirect(self))
+		self = self -> string;
+
 	// Avoid copying in case the substring is actually the whole string
 	if (p_range . offset == 0 && self -> char_count < p_range . length)
 		return MCStringCopy(self, r_substring);
@@ -3045,12 +3045,12 @@ bool MCStringSubstringIsEqualTo(MCStringRef self, MCRange p_sub, MCStringRef p_o
 		p_other = p_other -> string;
     
 	__MCStringClampRange(self, p_sub);
-    
+
 	bool self_native = __MCStringIsNative(self);
 	if (self_native)
 	{
-        if (__MCStringIsNative(p_other))
-		return __MCNativeOp_IsEqualTo(self -> native_chars + p_sub . offset,
+		if (__MCStringIsNative(p_other))
+			return __MCNativeOp_IsEqualTo(self -> native_chars + p_sub . offset,
 										p_sub . length,
 										p_other -> native_chars,
 										p_other -> char_count,
@@ -4554,20 +4554,20 @@ MC_DLLEXPORT_DEF
 bool MCStringPrepend(MCStringRef self, MCStringRef p_prefix)
 {
 	MCAssert(MCStringIsMutable(self));
-    
-    if (__MCStringIsIndirect(p_prefix))
-        p_prefix = p_prefix -> string;
-    
- 	// Only do the prepend now if self != prefix.
+
+	if (__MCStringIsIndirect(p_prefix))
+		p_prefix = p_prefix -> string;
+
+	// Only do the prepend now if self != prefix.
 	if (self != p_prefix)
 	{
-        if (__MCStringIsNative(p_prefix))
-            return MCStringPrependNativeChars(self, p_prefix -> native_chars, p_prefix -> char_count);
-        
-        return MCStringPrependChars(self, p_prefix -> chars, p_prefix -> char_count);
-    }
+		if (__MCStringIsNative(p_prefix))
+			return MCStringPrependNativeChars(self, p_prefix -> native_chars, p_prefix -> char_count);
+
+		return MCStringPrependChars(self, p_prefix -> chars, p_prefix -> char_count);
+	}
     
-    // Otherwise copy and recurse.
+	// Otherwise copy and recurse.
 	MCAutoStringRef t_prefix_copy;
 	MCStringCopy(p_prefix, &t_prefix_copy);
 	return MCStringPrepend(self, *t_prefix_copy);

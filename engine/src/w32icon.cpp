@@ -215,7 +215,7 @@ static void clear_menu(HMENU p_menu)
 	for(int t_index = 0; t_index < GetMenuItemCount(p_menu); t_index++)
 	{
 		MENUITEMINFOW t_info;
-		memset(&t_info, 0, sizeof(MENUITEMINFOW));
+		memset((void*)&t_info, 0, sizeof(MENUITEMINFOW));
 		t_info . cbSize = sizeof(MENUITEMINFOW);
 		t_info . fMask = MIIM_DATA;
 		GetMenuItemInfoW(p_menu, t_index, TRUE, &t_info);
@@ -402,7 +402,7 @@ static void destroy_icon_menu(HMENU p_menu)
 void MCScreenDC::configurestatusicon(uint32_t p_icon_id, MCStringRef p_menu, MCStringRef p_tooltip)
 {
 	NOTIFYICONDATAW t_nidata;
-	memset(&t_nidata, 0, sizeof(NOTIFYICONDATAW));
+	memset((void*)&t_nidata, 0, sizeof(NOTIFYICONDATAW));
 	t_nidata . cbSize = sizeof(NOTIFYICONDATAW);
 	t_nidata . hWnd = invisiblehwnd;
 	t_nidata . uID = 1;
@@ -454,7 +454,7 @@ bool build_pick_string(HMENU p_menu, UINT32 p_command, MCStringRef x_mutable)
 		t_success = false;
 	
 		MENUITEMINFOW t_info;
-		memset(&t_info, 0, sizeof(MENUITEMINFOW));
+		memset((void*)&t_info, 0, sizeof(MENUITEMINFOW));
 		t_info . cbSize = sizeof(MENUITEMINFOW);
 		t_info . fMask = MIIM_DATA | MIIM_ID | MIIM_SUBMENU;
 		GetMenuItemInfoW(p_menu, t_index, TRUE, &t_info);

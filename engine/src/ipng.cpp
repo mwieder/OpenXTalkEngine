@@ -474,7 +474,7 @@ bool MCImageEncodePNG(MCImageIndexedBitmap *p_indexed, MCImageMetadata *p_metada
 			t_success = MCMemoryAllocate(p_indexed->palette_size, t_png_transparency);
 		if (t_success)
 		{
-			memset(t_png_transparency, 0xFF, p_indexed->palette_size);
+			memset((void *)t_png_transparency, 0xFF, p_indexed->palette_size);
 			t_png_transparency[p_indexed->transparent_index] = 0x00;
 			png_set_tRNS(t_png_ptr, t_info_ptr, t_png_transparency, p_indexed->palette_size, NULL);
 		}

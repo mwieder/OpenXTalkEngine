@@ -696,7 +696,8 @@ public:
         MCinfinity = HUGE_VAL;
 
         struct sigaction action;
-        memset((char *)&action, 0, sizeof(action));
+//        memset((char *)&action, 0, sizeof(action));
+        memset((void *)&action, 0, sizeof(action));
         action.sa_handler = handle_signal;
         action.sa_flags = SA_RESTART;
         action.sa_flags |= SA_NOCLDSTOP;
@@ -1935,7 +1936,8 @@ public:
     virtual void KillAll(void)
     {
         struct sigaction action;
-        memset((char *)&action, 0, sizeof(action));
+//        memset((char *)&action, 0, sizeof(action));
+        memset((void *)&action, 0, sizeof(action));
         action.sa_handler = (void (*)(int))SIG_IGN;
 
         sigaction(SIGCHLD, &action, NULL);

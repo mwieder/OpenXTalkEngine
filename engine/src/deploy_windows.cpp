@@ -804,7 +804,7 @@ struct MCWindowsResources
 
 static void MCWindowsResourcesInitialize(MCWindowsResources& self)
 {
-	memset(&self, 0, sizeof(MCWindowsResources));
+	memset((void *)&self, 0, sizeof(MCWindowsResources));
 }
 
 static void MCWindowsResourcesFinalize(MCWindowsResources& self);
@@ -1332,7 +1332,7 @@ static bool MCWindowsResourcesAddVersionInfo(MCWindowsResources& self, MCArrayRe
 		{
 			uint32_t t_offset;
 			t_offset = 0;
-			memset(t_data, 0, t_data_size);
+			memset((void *)t_data, 0, t_data_size);
 			MCWindowsVersionInfoBuild(t_version_info, t_data, t_offset);
 		}
 		else

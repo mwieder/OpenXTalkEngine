@@ -77,7 +77,7 @@ MCScreenDC::MCScreenDC()
 	backdrop_active = false;
 	backdrop_hard = false;
 	backdrop_window = NULL;
-	memset(&backdrop_colour, 0, sizeof(MCColor));
+	memset((void*)&backdrop_colour, 0, sizeof(MCColor));
 	backdrop_pattern = NULL;
 	backdrop_badge = NULL;
 
@@ -88,7 +88,7 @@ MCScreenDC::MCScreenDC()
 	/* Initialize metrics with sensible defaults. */
 	m_metrics_x_dpi = 96;
 	m_metrics_y_dpi = 96;
-	memset(&m_metrics_non_client, 0, sizeof(m_metrics_non_client));
+	memset((void*)&m_metrics_non_client, 0, sizeof(m_metrics_non_client));
 }
 
 MCScreenDC::~MCScreenDC()
@@ -317,7 +317,7 @@ void MCScreenDC::updatemetrics(void)
 	m_metrics_non_client.cbSize = sizeof(m_metrics_non_client);
 	if (!SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(m_metrics_non_client), &m_metrics_non_client, 0))
 	{
-		memset(&m_metrics_non_client, 0, sizeof(m_metrics_non_client));
+		memset((void*)&m_metrics_non_client, 0, sizeof(m_metrics_non_client));
 	}
 }
 

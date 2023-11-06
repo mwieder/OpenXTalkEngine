@@ -442,8 +442,8 @@ static void scaleimage_bicubic(void *p_src_ptr, uint4 p_src_stride, void *p_dst_
 	uint1* const tmp_data = new (nothrow) uint1[tmp_bytes_per_line * p_src_height];
 
 	// Clearing temp and destination data
-	memset(tmp_data, 0, tmp_bytes_per_line * p_src_height);
-	memset(p_dst_ptr, 0, p_dst_stride * p_dst_height);
+	memset((void *)tmp_data, 0, tmp_bytes_per_line * p_src_height);
+	memset((void *)p_dst_ptr, 0, p_dst_stride * p_dst_height);
 
 	// Temporary derivative arrays
 	real8* aa;

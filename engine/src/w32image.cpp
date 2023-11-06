@@ -461,7 +461,7 @@ bool MCImageBitmapToDragImage(MCImageBitmap *p_bitmap, MCDataRef &r_dragimage)
 
 		BITMAPINFOHEADER *t_header;
 		t_header = (BITMAPINFOHEADER *)t_data;
-		memset(t_header, 0, sizeof(BITMAPINFOHEADER));
+		memset((void*)t_header, 0, sizeof(BITMAPINFOHEADER));
 		t_header -> biSize = sizeof(BITMAPINFOHEADER);
 		t_header -> biWidth = p_bitmap->width;
 		t_header -> biHeight = -(int32_t)p_bitmap->height;

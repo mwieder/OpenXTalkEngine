@@ -597,7 +597,7 @@ void MCImage::magredrawrect(MCContext *dest_context, const MCRectangle &drect)
 		
 		// Render the scanline into the destination context.
 		MCImageDescriptor t_image;
-		memset(&t_image, 0, sizeof(MCImageDescriptor));
+		memset((void *)&t_image, 0, sizeof(MCImageDescriptor));
 		t_image . image = t_line_img;
 
 		dest_context -> drawimage(t_image, 0, 0, linewidth, MCmagnification, 0, dy);

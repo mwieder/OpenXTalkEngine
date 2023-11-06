@@ -156,7 +156,7 @@ bool create_temporary_mono_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP&
 	char t_info_data[sizeof(BITMAPINFOHEADER) + 2 * sizeof(RGBQUAD)];
 	BITMAPINFO *t_info = (BITMAPINFO *)t_info_data;
 	HBITMAP t_bitmap;
-	memset(t_info, 0, sizeof(BITMAPINFOHEADER));
+	memset((void*)t_info, 0, sizeof(BITMAPINFOHEADER));
 	t_info -> bmiHeader . biSize = sizeof(BITMAPINFOHEADER);
 	t_info -> bmiHeader . biCompression = BI_RGB;
 	t_info -> bmiColors[0] . rgbRed = t_info -> bmiColors[0] . rgbGreen = t_info -> bmiColors[0] . rgbBlue = 0;
@@ -182,7 +182,7 @@ bool create_temporary_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP& r_bi
 {
 	HBITMAP t_bitmap;
 	BITMAPV4HEADER t_bitmap_info;
-	memset(&t_bitmap_info, 0, sizeof(BITMAPV4HEADER));
+	memset((void*)&t_bitmap_info, 0, sizeof(BITMAPV4HEADER));
 	t_bitmap_info . bV4Size = sizeof(BITMAPV4HEADER);
 	t_bitmap_info . bV4Width = p_width;
 	t_bitmap_info . bV4Height = -(int4)p_height;
@@ -421,7 +421,7 @@ bool create_temporary_mask_dib(HDC p_dc, uint4 p_width, uint4 p_height, HBITMAP&
 	char t_info_data[sizeof(BITMAPINFOHEADER) + 2 * sizeof(RGBQUAD)];
 	BITMAPINFO *t_info = (BITMAPINFO *)t_info_data;
 	HBITMAP t_bitmap;
-	memset(t_info, 0, sizeof(BITMAPINFOHEADER));
+	memset((void*)t_info, 0, sizeof(BITMAPINFOHEADER));
 	t_info -> bmiHeader . biSize = sizeof(BITMAPINFOHEADER);
 	t_info -> bmiHeader . biCompression = BI_RGB;
 	// GDI mask bitmaps should be white == transparent, black == opaque so we can easily "erase" the occupied pixels

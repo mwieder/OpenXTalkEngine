@@ -1548,7 +1548,7 @@ struct MCWindowsDesktop: public MCSystemInterface, public MCWindowsSystemService
 
 		// MW-2005-05-26: Store a global variable containing major OS version...
 		OSVERSIONINFOA osv;
-		memset(&osv, 0, sizeof(OSVERSIONINFOA));
+		memset((void *)&osv, 0, sizeof(OSVERSIONINFOA));
 		osv.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
 		GetVersionExA(&osv);
 		MCmajorosversion = MCOSVersionMake(osv.dwMajorVersion, osv.dwMinorVersion, 0);
@@ -2209,7 +2209,7 @@ struct MCWindowsDesktop: public MCSystemInterface, public MCWindowsSystemService
 				return NULL;
 			}
 			COMMTIMEOUTS timeout;         //set timeout to prevent blocking
-			memset(&timeout, 0, sizeof(COMMTIMEOUTS));
+			memset((void *)&timeout, 0, sizeof(COMMTIMEOUTS));
 			timeout.ReadIntervalTimeout = MAXDWORD;
 			timeout.WriteTotalTimeoutConstant = 2000;
 			if (!SetCommTimeouts(t_file_handle, (LPCOMMTIMEOUTS)&timeout))
@@ -2752,7 +2752,7 @@ struct MCWindowsDesktop: public MCSystemInterface, public MCWindowsSystemService
         
         PROCESS_INFORMATION piProcInfo;
         STARTUPINFOW siStartInfo;
-        memset(&siStartInfo, 0, sizeof(STARTUPINFOA));
+        memset((void *)&siStartInfo, 0, sizeof(STARTUPINFOA));
         siStartInfo.cb = sizeof(STARTUPINFOA);
         siStartInfo.dwFlags = STARTF_USESTDHANDLES;
         siStartInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
@@ -3027,7 +3027,7 @@ struct MCWindowsDesktop: public MCSystemInterface, public MCWindowsSystemService
                 {
                     PROCESS_INFORMATION piProcInfo;
                     STARTUPINFOW siStartInfo;
-                    memset(&siStartInfo, 0, sizeof(STARTUPINFOW));
+                    memset((void *)&siStartInfo, 0, sizeof(STARTUPINFOW));
                     siStartInfo.cb = sizeof(STARTUPINFOW);
                     siStartInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
                     if (MChidewindows)
@@ -3160,7 +3160,7 @@ struct MCWindowsDesktop: public MCSystemInterface, public MCWindowsSystemService
 		// First we run the engine itself as administrator, passing to it our
 		// thread-id as part of the command-line arguments.
         SHELLEXECUTEINFOW t_info;
-        memset(&t_info, 0, sizeof(SHELLEXECUTEINFOW));
+        memset((void *)&t_info, 0, sizeof(SHELLEXECUTEINFOW));
         t_info . cbSize = sizeof(SHELLEXECUTEINFOW);
         t_info . fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI | SEE_MASK_NO_CONSOLE ;
         t_info . hwnd = (HWND)MCdefaultstackptr -> getrealwindow();
@@ -3739,7 +3739,7 @@ int MCS_windows_elevation_bootstrap_main(HINSTANCE hInstance, HINSTANCE hPrevIns
 	{
 		PROCESS_INFORMATION piProcInfo;
 		STARTUPINFOW siStartInfo;
-		memset(&siStartInfo, 0, sizeof(STARTUPINFOW));
+		memset((void *)&siStartInfo, 0, sizeof(STARTUPINFOW));
 		siStartInfo.cb = sizeof(STARTUPINFOW);
 		siStartInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
 		siStartInfo.wShowWindow = SW_HIDE;

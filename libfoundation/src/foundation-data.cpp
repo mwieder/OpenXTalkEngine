@@ -224,9 +224,9 @@ bool MCDataIsEmpty(MCDataRef p_data)
 {
 	__MCAssertIsData(p_data);
 
-    if (__MCDataIsIndirect(p_data))
-        p_data = p_data -> contents;
-    
+	if (__MCDataIsIndirect(p_data))
+		p_data = p_data -> contents;
+
 	return p_data -> byte_count == 0;
 }
 
@@ -603,10 +603,10 @@ bool MCDataRemove(MCDataRef self, MCRange p_range)
 {
 	MCAssert(MCDataIsMutable(self));
     
-    // Ensure the data ref is not indirect.
-    if (__MCDataIsIndirect(self))
-        if (!__MCDataResolveIndirect(self))
-            return false;
+	// Ensure the data ref is not indirect.
+	if (__MCDataIsIndirect(self))
+		if (!__MCDataResolveIndirect(self))
+			return false;
     
 	__MCDataClampRange(self, p_range);
     
@@ -622,21 +622,21 @@ bool MCDataReplace(MCDataRef r_data, MCRange p_range, MCDataRef p_new_data)
 {
 	MCAssert(MCDataIsMutable(r_data));
 	__MCAssertIsData(p_new_data);
-    
-    if (__MCDataIsIndirect(p_new_data))
-        p_new_data = p_new_data -> contents;
-    
+
+	if (__MCDataIsIndirect(p_new_data))
+		p_new_data = p_new_data -> contents;
+
 	if (r_data == p_new_data)
 	{
-        MCAutoDataRef t_new_data;
-        
-        if (!MCDataCopy(p_new_data, &t_new_data))
-            return false;
-        
-        return MCDataReplace(r_data, p_range, *t_new_data);
-    }
-    
-    return MCDataReplaceBytes(r_data, p_range, p_new_data -> bytes, p_new_data -> byte_count);
+		MCAutoDataRef t_new_data;
+
+		if (!MCDataCopy(p_new_data, &t_new_data))
+			return false;
+
+		return MCDataReplace(r_data, p_range, *t_new_data);
+	}
+
+	return MCDataReplaceBytes(r_data, p_range, p_new_data -> bytes, p_new_data -> byte_count);
 }
 
 MC_DLLEXPORT_DEF
@@ -679,16 +679,16 @@ bool MCDataReplaceBytes(MCDataRef self, MCRange p_range, const byte_t *p_bytes, 
 MC_DLLEXPORT_DEF
 bool MCDataPad(MCDataRef self, byte_t p_byte, uindex_t p_count)
 {
-    MCAssert(MCDataIsMutable(self));
-    
-    // Ensure the data ref is not indirect.
-    if (__MCDataIsIndirect(self))
-        if (!__MCDataResolveIndirect(self))
-            return false;
-    
+	MCAssert(MCDataIsMutable(self));
+
+	// Ensure the data ref is not indirect.
+	if (__MCDataIsIndirect(self))
+		if (!__MCDataResolveIndirect(self))
+			return false;
+
 	if (!__MCDataExpandAt(self, self -> byte_count, p_count))
 		return false;
-	
+
 	memset(self -> bytes + self -> byte_count - p_count, p_byte, p_count);
 	return true;
 }

@@ -478,12 +478,12 @@ char *SSL_encode(Boolean isdecrypt, const char *ciphername,
 	//get new keylength in bytes
 	int4 curkeylength = EVP_CIPHER_CTX_key_length(*ctx);
 	//zero key and iv
-	memset(key,0,EVP_MAX_KEY_LENGTH);
-	memset(iv,0,EVP_MAX_IV_LENGTH);
+	memset((void *)key,0,EVP_MAX_KEY_LENGTH);
+	memset((void *)iv,0,EVP_MAX_IV_LENGTH);
 	//if password combine with salt value to generate key
 
 	unsigned char saltbuf[PKCS5_SALT_LEN];
-	memset(saltbuf,0,sizeof(saltbuf));
+	memset((void *)saltbuf,0,sizeof(saltbuf));
 
 	char *tend = (char *)data + inlen;
 
@@ -524,8 +524,8 @@ char *SSL_encode(Boolean isdecrypt, const char *ciphername,
 
 	if (ivstr != NULL && ivlen > 0)
 	{
-		memset(iv,0,EVP_MAX_IV_LENGTH);
-		memcpy(iv,ivstr,MCU_min(ivlen,EVP_MAX_IV_LENGTH));
+		memset((void *)iv,0,EVP_MAX_IV_LENGTH);
+		memcpy((void *)iv,ivstr,MCU_min(ivlen,EVP_MAX_IV_LENGTH));
 	}
 
 	

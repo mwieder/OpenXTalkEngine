@@ -1358,7 +1358,7 @@ IO_stat MCDispatch::startup(void)
 	
 	// The info structure that will be filled in while parsing the capsule.
 	MCStandaloneCapsuleInfo t_info;
-	memset(&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
+	memset((void *)&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
 
 	// Create a capsule and fill with the standalone data
 	MCCapsuleRef t_capsule;
@@ -1508,9 +1508,9 @@ IO_stat MCModeCheckSaveStack(MCStack *sptr, const MCStringRef filename)
 // In installer mode, the environment depends on the command line args
 MCNameRef MCModeGetEnvironment(void)
 {
-    if (MCnoui)
-        return MCN_installer_cmdline;
-    
+	if (MCnoui)
+		return MCN_installer_cmdline;
+
 	return MCN_installer;
 }
 

@@ -527,7 +527,7 @@ bool MCAndroidSystem::ListFolderEntries(MCStringRef p_folder, MCSystemListFolder
 		return false;
 	
 	MCSystemFolderEntry t_entry;
-	memset(&t_entry, 0, sizeof(MCSystemFolderEntry));
+	memset((void *)&t_entry, 0, sizeof(MCSystemFolderEntry));
 	
 	/* For each directory entry, we need to construct a path that can
 	 * be passed to stat(2).  Allocate a buffer large enough for the

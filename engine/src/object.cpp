@@ -4366,7 +4366,7 @@ static MCRectangle compute_objectshape_rect(MCObjectShape& p_shape)
 static void compute_objectshape_mask(MCObject *p_object, const MCObjectShape& p_shape, const MCRectangle& p_rect, uint32_t p_threshold, object_mask_info& r_mask)
 {
 	// Make sure everything is 0.
-	memset(&r_mask, 0, sizeof(r_mask));
+	memset((void *)&r_mask, 0, sizeof(r_mask));
 	
 	// IM-2013-10-17: [[ FullscreenMode ]] Only compute the mask for images & complex shapes
 	MCAssert(p_shape . type != kMCObjectShapeRectangle);

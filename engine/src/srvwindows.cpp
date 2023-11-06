@@ -870,7 +870,7 @@ struct MCWindowsSystem: public MCSystemInterface
 	bool ListFolderEntries(MCStringRef p_folder, MCSystemListFolderEntriesCallback p_callback, void *p_context)
 	{
 		MCSystemFolderEntry t_entry;
-		memset(&t_entry, 0, sizeof(MCSystemFolderEntry));
+		memset((void*)&t_entry, 0, sizeof(MCSystemFolderEntry));
 		
 		WIN32_FIND_DATAA data;
 		HANDLE ffh;            //find file handle

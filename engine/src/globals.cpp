@@ -588,11 +588,11 @@ void X_clear_globals(void)
 	MCvisualid = 0;
 	MCgamma = 2.2;
 	MCproportionalthumbs = True;
-	memset(&MCzerocolor, 0, sizeof(MCColor));
-	memset(&MConecolor, 0, sizeof(MCColor));
-	memset(&MCpencolor, 0, sizeof(MCColor));
+	memset((void *)&MCzerocolor, 0, sizeof(MCColor));
+	memset((void *)&MConecolor, 0, sizeof(MCColor));
+	memset((void *)&MCpencolor, 0, sizeof(MCColor));
 	MCpencolorname = nil;
-	memset(&MCbrushcolor, 0, sizeof(MCColor));
+	memset((void *)&MCbrushcolor, 0, sizeof(MCColor));
 	MCbrushcolorname = nil;
 	MCpenpmid = PI_PATTERNS;
 	MCpenpattern = nil;
@@ -601,14 +601,14 @@ void X_clear_globals(void)
 	MCbackdroppmid = 0;
 	MCbackdroppattern = nil;
 	MCpatternlist = nil;
-	memset(&MCaccentcolor, 0, sizeof(MCColor));
+	memset((void *)&MCaccentcolor, 0, sizeof(MCColor));
 	MCaccentcolorname = nil;
-	memset(&MChilitecolor, 0, sizeof(MCColor));
+	memset((void *)&MChilitecolor, 0, sizeof(MCColor));
 	MChilitecolor . blue = 0x8080;
 	MChilitecolorname = nil;
-	memset(&MCselectioncolor, 0, sizeof(MCColor));
+	memset((void *)&MCselectioncolor, 0, sizeof(MCColor));
 	MCselectioncolorname = nil;
-	memset(&MClinkatts, 0, sizeof(Linkatts));
+	memset((void *)&MClinkatts, 0, sizeof(Linkatts));
 	MClinkatts . color . blue = 0xEFBE;
 	MClinkatts . hilitecolor . red = 0xFFFF;
 	MClinkatts . visitedcolor . red = 0x5144;
@@ -618,7 +618,7 @@ void X_clear_globals(void)
 	MCrelayergrouped = False;
 	MCselectgrouped = False;
 	MCselectintersect = True;
-	memset(&MCwbr, 0, sizeof(MCRectangle));
+	memset((void *)&MCwbr, 0, sizeof(MCRectangle));
 	MCjpegquality = 100;
 	MCpaintcompression = EX_PBM;
 	MCrecordformat = 0;
@@ -653,7 +653,7 @@ void X_clear_globals(void)
 	MCdragaction = 0;
 	MCallowabledragactions = 0;
 	MCdragimageid = 0;
-	memset(&MCdragimageoffset, 0, sizeof(MCPoint));
+	memset((void *)&MCdragimageoffset, 0, sizeof(MCPoint));
 	MCdragtargetptr = nil;
 	MCdragdelta = 4;
 	MCundos = nil;
@@ -856,7 +856,7 @@ void X_clear_globals(void)
     
     MChooks = nil;
 
-    memset(&MClicenseparameters, 0, sizeof(MCLicenseParameters));
+    memset((void *)&MClicenseparameters, 0, sizeof(MCLicenseParameters));
     
 #if defined(MCSSL)
     MCSocketsInitialize();

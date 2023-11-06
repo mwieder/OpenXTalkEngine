@@ -285,7 +285,7 @@ static void measure_filter(MCStringRef p_filter, uint4& r_length, uint4& r_count
 static void filter_to_spec(const wchar_t *p_filter, uint4 p_filter_count, COMDLG_FILTERSPEC*& r_types)
 {
 	r_types = new (nothrow) COMDLG_FILTERSPEC[p_filter_count];
-	memset(r_types, 0, sizeof(COMDLG_FILTERSPEC) * p_filter_count);
+	memset((void*)r_types, 0, sizeof(COMDLG_FILTERSPEC) * p_filter_count);
 
 	uint4 t_count;
 	t_count = 0;
@@ -607,7 +607,7 @@ static int MCA_do_file_dialog(MCStringRef p_title, MCStringRef p_prompt, MCStrin
 	else
 	{
 		OPENFILENAMEW t_open_dialog;
-		memset(&t_open_dialog, 0, sizeof(OPENFILENAMEW));
+		memset((void*)&t_open_dialog, 0, sizeof(OPENFILENAMEW));
 		t_open_dialog . lStructSize = sizeof(OPENFILENAMEW);
 
 		MCAutoStringRefAsWString t_initial_folder_wstr;
@@ -872,7 +872,7 @@ int MCA_folder(MCStringRef p_title, MCStringRef p_prompt, MCStringRef p_initial,
 	bool sheet = (p_options & MCA_OPTION_SHEET) != 0;
 
 	BROWSEINFOW bi;
-	memset(&bi, 0, sizeof(BROWSEINFOW));
+	memset((void*)&bi, 0, sizeof(BROWSEINFOW));
 
 	Window pw;
 	pw = MCModeGetParentWindow();
@@ -972,7 +972,7 @@ bool MCA_color(MCStringRef p_title, MCColor p_initial_color, bool p_as_sheet, bo
 {
 	CHOOSECOLORW chooseclr ;
 
-	memset(&chooseclr, 0, sizeof(CHOOSECOLORW));
+	memset((void*)&chooseclr, 0, sizeof(CHOOSECOLORW));
 	chooseclr.lStructSize = sizeof (CHOOSECOLORW);
 	chooseclr.lpCustColors = (LPDWORD)s_colordialogcolors;
 

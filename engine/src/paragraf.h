@@ -127,7 +127,7 @@ struct MCParagraphAttrs
 
 	MCParagraphAttrs(void)
 	{
-		memset(this, 0, sizeof(MCParagraphAttrs));
+		memset((void*)this, 0, sizeof(MCParagraphAttrs));
 	}
 };
 

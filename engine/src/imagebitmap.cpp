@@ -623,7 +623,8 @@ bool MCImageConvertBitmapToIndexed(MCImageBitmap *p_bitmap, bool p_ignore_transp
 	MCImageIndexedBitmap *t_indexed = nil;
 
 	MCimagehash *hashtable[COLOR_HASH_SIZE];
-	memset((char *)hashtable, 0, COLOR_HASH_SIZE * sizeof(MCimagehash *));
+//	memset((char *)hashtable, 0, COLOR_HASH_SIZE * sizeof(MCimagehash *));
+	memset((void *)hashtable, 0, COLOR_HASH_SIZE * sizeof(MCimagehash *));
 
 	t_success = MCImageCreateIndexedBitmap(p_bitmap->width, p_bitmap->height, t_indexed);
 

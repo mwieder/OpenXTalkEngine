@@ -234,7 +234,7 @@ HRESULT ActiveScriptDispatch::Invoke(DISPID p_member, REFIID p_interface, LCID p
 
 	char **t_str_parameters;
 	t_str_parameters = new (nothrow) char *[p_parameters -> cArgs];
-	memset(t_str_parameters, 0, sizeof(char *) * p_parameters -> cArgs);
+	memset((void*)t_str_parameters, 0, sizeof(char *) * p_parameters -> cArgs);
 	for(unsigned int i = 0; i < p_parameters -> cArgs; ++i)
 	{
 		VARIANT t_dst_variant;
@@ -698,7 +698,7 @@ char *MCWindowsActiveScriptEnvironment::Call(const char *p_method, const char **
 	{
 		t_ole_arguments = new (nothrow) VARIANTARG[p_argument_count];
 		if (t_ole_arguments != NULL)
-			memset(t_ole_arguments, 0, sizeof(VARIANTARG) * p_argument_count);
+			memset((void*)t_ole_arguments, 0, sizeof(VARIANTARG) * p_argument_count);
 		else
 			t_result = E_OUTOFMEMORY;
 	}

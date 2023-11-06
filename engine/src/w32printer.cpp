@@ -934,7 +934,7 @@ void MCGDIMetaContext::domark(MCMark *p_mark)
 					t_test == 1)
 				{
 					BITMAPINFO t_bitmap;
-					memset(&t_bitmap, 0, sizeof(t_bitmap));
+					memset((void*)&t_bitmap, 0, sizeof(t_bitmap));
 					t_bitmap . bmiHeader . biSize = sizeof(BITMAPINFOHEADER);
 					t_bitmap . bmiHeader . biWidth = t_src_width;
 					t_bitmap . bmiHeader . biHeight = -(signed)t_src_height; // top-down image
@@ -1454,7 +1454,7 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 	{
 		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
 		PRINTDLGEXW t_dlg;
-		memset(&t_dlg, 0, sizeof(PRINTDLGEXW));
+		memset((void*)&t_dlg, 0, sizeof(PRINTDLGEXW));
 		t_dlg . lStructSize = sizeof(PRINTDLGEXW);
 		t_dlg . Flags = PD_USEDEVMODECOPIESANDCOLLATE;
 		t_dlg . nStartPage = START_PAGE_GENERAL;
@@ -1553,7 +1553,7 @@ MCPrinterDialogResult MCWindowsPrinter::DoPrinterSetup(bool p_window_modal, Wind
 	{
 		// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
 		PRINTDLGW t_dlg;
-		memset(&t_dlg, 0, sizeof(PRINTDLGW));
+		memset((void*)&t_dlg, 0, sizeof(PRINTDLGW));
 		t_dlg . lStructSize = sizeof(PRINTDLGW);
 		t_dlg . Flags = PD_USEDEVMODECOPIESANDCOLLATE;
 		t_dlg . hDevMode = t_devmode_handle;
@@ -1643,7 +1643,7 @@ MCPrinterDialogResult MCWindowsPrinter::DoPageSetup(bool p_window_modal, Window 
 	// SN-2014-08-07: [[ Bug 13084 ]] Update the Windows structures to the Unicode ones
 	MCPrinterDialogResult t_result;
 	PAGESETUPDLGW t_dlg;
-	memset(&t_dlg, 0, sizeof(PAGESETUPDLGW));
+	memset((void*)&t_dlg, 0, sizeof(PAGESETUPDLGW));
 	t_dlg . lStructSize = sizeof(PAGESETUPDLGW);
 	t_dlg . Flags = PSD_INTHOUSANDTHSOFINCHES | PSD_MARGINS | PSD_MINMARGINS;
 	t_dlg . hDevMode = t_devmode_handle;

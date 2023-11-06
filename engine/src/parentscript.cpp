@@ -172,7 +172,7 @@ void MCParentScriptUse::PreserveVars(uint32_t *p_map, MCValueRef *p_new_var_init
 	t_new_locals = new (nothrow) MCVariable *[p_new_var_count];
 	
 	// Initialize it to NULL
-	memset(t_new_locals, 0, sizeof(MCVariable *) * p_new_var_count);
+	memset((void *)t_new_locals, 0, sizeof(MCVariable *) * p_new_var_count);
 
 	// Now use the map to move across the old variables
 	for(uint32_t i = 0; i < m_local_count; ++i)
@@ -447,7 +447,7 @@ MCParentScriptUse *MCParentScript::Acquire(MCObject *p_referrer, uint32_t p_id, 
 		if (s_table == NULL)
 			return NULL;
 
-		memset(s_table, 0, sizeof(MCParentScript *) * 1024);
+		memset((void *)s_table, 0, sizeof(MCParentScript *) * 1024);
 
 		s_table_occupancy = 0;
 		s_table_capacity = 1024;
@@ -709,7 +709,7 @@ void MCParentScript::Grow(void)
 		return;
 
 	// Now zero out the new half of the table.
-	memset(t_new_table + s_table_capacity, 0, s_table_capacity * sizeof(MCParentScript *));
+	memset((void *)t_new_table + s_table_capacity, 0, s_table_capacity * sizeof(MCParentScript *));
 
 	// Update the table variables.
 	s_table = t_new_table;

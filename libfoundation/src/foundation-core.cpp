@@ -36,59 +36,59 @@ const char *__MCSysCharset;
 
 bool MCInitialize(void)
 {
-    if (!__MCUnicodeInitialize())
-        return false;
-    
+	if (!__MCUnicodeInitialize())
+		return false;
+
     if (!__MCValueInitialize())
 		return false;
-    
+
 	if (!__MCStringInitialize())
 		return false;
-    
+
 	if (!__MCNameInitialize())
 		return false;
-    
-    if (!__MCErrorInitialize())
-        return false;
-    
-    if (!__MCTypeInfoInitialize())
-        return false;
-    
-    if (!__MCForeignValueInitialize())
-        return false;
-    
-    if (!__MCNumberInitialize())
-        return false;
-    
+
+	if (!__MCErrorInitialize())
+		return false;
+
+	if (!__MCTypeInfoInitialize())
+		return false;
+
+	if (!__MCForeignValueInitialize())
+		return false;
+
+	if (!__MCNumberInitialize())
+		return false;
+
 	if (!__MCArrayInitialize())
 		return false;
     
 	if (!__MCListInitialize())
 		return false;
-    
+
 	if (!__MCSetInitialize())
 		return false;
-    
-    if (!__MCDataInitialize())
-        return false;
-    
-    if (!__MCRecordInitialize())
-        return false;
+
+	if (!__MCDataInitialize())
+		return false;
+
+	if (!__MCRecordInitialize())
+		return false;
     
     if (!__MCLocaleInitialize())
         return false;
 
-    if (!__MCProperListInitialize())
-        return false;
-    
-    if (!__MCStreamInitialize())
-        return false;
-    
-    if (!__MCJavaInitialize())
-        return false;
-    
-    if (!__MCObjcInitialize())
-        return false;
+	if (!__MCProperListInitialize())
+		return false;
+
+	if (!__MCStreamInitialize())
+		return false;
+
+	if (!__MCJavaInitialize())
+		return false;
+
+	if (!__MCObjcInitialize())
+		return false;
 
 	return true;
 }

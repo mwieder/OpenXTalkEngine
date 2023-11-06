@@ -1728,9 +1728,9 @@ static bool __is_valid_handler_definition(MCScriptModuleBuilderRef self, uindex_
 
 void MCScriptEmitBytecodeInModuleA(MCScriptModuleBuilderRef self, uindex_t p_opcode, uindex_t *p_arguments, uindex_t p_argument_count)
 {
-    if (self == nil || !self -> valid)
-        return;
-	
+	if (self == nil || !self -> valid)
+		return;
+
 	const MCScriptBytecodeOpInfo *t_info;
 	if (!MCScriptDescribeBytecodeOp(p_opcode, t_info) ||
 		!MCScriptCheckBytecodeParameterCount(p_opcode, p_argument_count))

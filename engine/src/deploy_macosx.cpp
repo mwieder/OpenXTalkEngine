@@ -1444,8 +1444,8 @@ template<typename T> bool MCDeployToMacOSXMainBody(const MCDeployParameters& p_p
             swap_mach_header(p_big_endian, t_header);
         
         typename T::mach_header t_actual_header;
-        memset(&t_actual_header, 0, sizeof(t_actual_header));
-        memcpy(&t_actual_header, &t_header, sizeof(t_header));
+        memset((void *)&t_actual_header, 0, sizeof(t_actual_header));
+        memcpy((void *)&t_actual_header, &t_header, sizeof(t_header));
         
 		t_success = MCDeployFileWriteAt(p_output, &t_actual_header, sizeof(t_actual_header), x_offset);
 	}

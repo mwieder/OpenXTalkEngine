@@ -454,7 +454,7 @@ Parse_stat MCHandlerlist::parse(MCObject *objptr, MCDataRef script_utf8)
 
 			// We initialize the map to all 0xffffffff's - this indicates that the existing
 			// value should not be brought forward.
-			memset(s_old_variable_map, 255, sizeof(uint32_t) * nvars);
+			memset((void *)s_old_variable_map, 255, sizeof(uint32_t) * nvars);
 		}
 	}
 	else

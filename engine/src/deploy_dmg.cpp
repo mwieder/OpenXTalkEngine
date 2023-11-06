@@ -951,7 +951,8 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		t_rec -> attributes = kBTBigKeysMask | kBTVariableIndexKeysMask;
 		swap_bt_header_rec(*t_rec);
 
-		memset((uint8_t *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
+//		memset((uint8_t *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
+		memset((void *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
 
 		*(uint16_t *)((uint8_t *)t_btree -> nodes[0] + t_btree -> node_size - 2) = htons(14);
 		*(uint16_t *)((uint8_t *)t_btree -> nodes[0] + t_btree -> node_size - 4) = htons(14 + sizeof(BTHeaderRec));
@@ -992,7 +993,8 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		t_rec -> attributes = kBTBigKeysMask;
 		swap_bt_header_rec(*t_rec);
 
-		memset((uint8_t *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+//		memset((uint8_t *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+		memset((void *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
 
 		*(uint16_t *)(t_extents + 4096 - 2) = htons(14);
 		*(uint16_t *)(t_extents + 4096 - 4) = htons(14 + sizeof(BTHeaderRec));
@@ -1033,7 +1035,8 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		t_rec -> attributes = 6;
 		swap_bt_header_rec(*t_rec);
 
-		memset((uint8_t *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+//		memset((uint8_t *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+		memset((void *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
 
 		*(uint16_t *)(t_attrs + 8192 - 2) = htons(14);
 		*(uint16_t *)(t_attrs + 8192 - 4) = htons(14 + sizeof(BTHeaderRec));
@@ -1103,7 +1106,7 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 	if (t_success)
 	{
 		MCMemoryClear(t_empty, sizeof(t_empty));
-		memset(t_full, 255, sizeof(t_full));
+		memset((void *)t_full, 255, sizeof(t_full));
 
 		MCMemoryClear(&t_device_header, sizeof(DeviceHeader));
 		t_device_header . sbSig = kDeviceHeaderSignature;

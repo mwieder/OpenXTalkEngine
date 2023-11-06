@@ -1118,7 +1118,7 @@ void MCNativeTheme::drawSlider(MCDC *dc, const MCWidgetInfo &winfo,
 	                  sbinctrackrect, sbdectrackrect);
 	getwidgetrect(winfo, WTHEME_METRIC_DRAWSIZE, drect, rangerect);
 	uint4 sbpartdefaultstate = winfo.state & WTHEME_STATE_DISABLED ? WTHEME_STATE_DISABLED : WTHEME_STATE_CLEAR;
-	memset(&twinfo, 0, sizeof(MCWidgetInfo));	//clear widget info
+	memset((void *)&twinfo, 0, sizeof(MCWidgetInfo));	//clear widget info
 	twinfo.type = winfo.attributes & WTHEME_ATT_SBVERTICAL
 	              ? WTHEME_TYPE_SLIDER_TRACK_VERTICAL
 	              : WTHEME_TYPE_SLIDER_TRACK_HORIZONTAL;
@@ -1174,7 +1174,7 @@ void MCNativeTheme::drawScrollbar(MCDC *dc, const MCWidgetInfo &winfo,
 	getwidgetrect(winfo, WTHEME_METRIC_DRAWSIZE, drect, rangerect);
 
 	uint4 sbpartdefaultstate = winfo.state & WTHEME_STATE_DISABLED ? WTHEME_STATE_DISABLED : WTHEME_STATE_CLEAR;
-	memset(&twinfo, 0, sizeof(MCWidgetInfo));	//clear widget info
+	memset((void *)&twinfo, 0, sizeof(MCWidgetInfo));	//clear widget info
 
 	// Crux needs the track to be the same size as the actual scroll bar, so we
 	// paint that first.

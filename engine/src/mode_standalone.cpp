@@ -647,7 +647,7 @@ IO_stat MCDispatch::startup(void)
 	
 	// The info structure that will be filled in while parsing the capsule.
 	MCStandaloneCapsuleInfo t_info;
-	memset(&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
+	memset((void *)&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
 
 	// Create a capsule and fill with the standalone data
 	MCCapsuleRef t_capsule;
@@ -751,7 +751,7 @@ MCDispatch::startup()
 
 	// The info structure that will be filled in while parsing the capsule.
 	MCStandaloneCapsuleInfo t_info;
-	memset(&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
+	memset((void *)&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
 
 	// Create a capsule and fill with the standalone data
 	MCCapsuleRef t_capsule;
@@ -871,7 +871,7 @@ IO_stat MCDispatch::startup(void)
 	
 	// The info structure that will be filled in while parsing the capsule.
 	MCStandaloneCapsuleInfo t_info;
-	memset(&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
+	memset((void*)&t_info, 0, sizeof(MCStandaloneCapsuleInfo));
 	
 	if (MCcapsule . size != 0)
 	{

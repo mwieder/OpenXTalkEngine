@@ -660,7 +660,7 @@ uint1 MCScreenDC::fontnametocharset(MCStringRef p_font)
 {
 	HDC hdc = f_src_dc;
 	LOGFONTW logfont;
-	memset(&logfont, 0, sizeof(LOGFONTW));
+	memset((void*)&logfont, 0, sizeof(LOGFONTW));
 
 	MCAutoStringRefAsWString t_font_wstr;
 	/* UNCHECKED */ t_font_wstr.Lock(p_font);
@@ -684,7 +684,7 @@ char *MCScreenDC::charsettofontname(uint1 charset, const char *oldfontname)
 	HDC hdc = f_src_dc;
 	char *fontname = new (nothrow) char[LF_FACESIZE];
 	LOGFONTA logfont;
-	memset(&logfont, 0, sizeof(LOGFONTA));
+	memset((void*)&logfont, 0, sizeof(LOGFONTA));
 	uint4 maxlength = MCU_min(LF_FACESIZE - 1U, strlen(oldfontname));
 	strncpy(logfont.lfFaceName, oldfontname, maxlength);
 	logfont.lfFaceName[maxlength] = '\0';
@@ -707,7 +707,7 @@ char *MCScreenDC::charsettofontname(uint1 charset, const char *oldfontname)
 		logfont.lfCharSet = DEFAULT_CHARSET;
 	HFONT newfont = CreateFontIndirectA(&logfont);
 	HFONT oldfont = (HFONT)SelectObject(hdc, newfont);
-	memset(fontname, 0, LF_FACESIZE);
+	memset((void*)fontname, 0, LF_FACESIZE);
 	GetTextFaceA(hdc, LF_FACESIZE, fontname);
 	SelectObject(hdc, oldfont);
 	return fontname;

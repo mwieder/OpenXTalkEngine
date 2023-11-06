@@ -969,7 +969,7 @@ Boolean MCNativeTheme::drawslider(MCDC *dc, const MCWidgetInfo &winfo, const MCR
 	MCRectangle sbincarrowrect,sbdecarrowrect, sbthumbrect, sbinctrackrect, sbdectrackrect;
 	getscrollbarrects(winfo, drect, sbincarrowrect, sbdecarrowrect, sbthumbrect,sbinctrackrect,sbdectrackrect);
 	uint4 sbpartdefaultstate = winfo.state & WTHEME_STATE_DISABLED? WTHEME_STATE_DISABLED: WTHEME_STATE_CLEAR;
-	memset(&twinfo,0,sizeof(MCWidgetInfo)); //clear widget info
+	memset((void*)&twinfo,0,sizeof(MCWidgetInfo)); //clear widget info
 	//draw upper and lower tracks first
 	twinfo.type = winfo.attributes & WTHEME_ATT_SBVERTICAL ? WTHEME_TYPE_SLIDER_TRACK_VERTICAL: WTHEME_TYPE_SLIDER_TRACK_HORIZONTAL;
 	twinfo.state = sbpartdefaultstate;
@@ -1013,7 +1013,7 @@ Boolean MCNativeTheme::drawscrollcontrols(MCDC *dc, const MCWidgetInfo &winfo, c
 	if ((winfo . state & WTHEME_STATE_CONTROL_HOVER) != 0 && MCmajorosversion >= MCOSVersionMake(6,0,0))
 		sbpartdefaultstate |= WTHEME_STATE_CONTROL_HOVER;
 	
-	memset(&twinfo,0,sizeof(MCWidgetInfo)); //clear widget info
+	memset((void*)&twinfo,0,sizeof(MCWidgetInfo)); //clear widget info
 
 	bool t_vertical;
 	t_vertical = (winfo . attributes & WTHEME_ATT_SBVERTICAL) != 0;
@@ -1083,7 +1083,7 @@ void MCNativeTheme::getsliderrects(const MCWidgetInfo &winfo, const MCRectangle 
 
 	MCWidgetScrollBarInfo *sbinfo = (MCWidgetScrollBarInfo *)winfo.data;
 	MCWidgetInfo twinfo;
-	memset(&twinfo,0,sizeof(MCWidgetInfo));
+	memset((void*)&twinfo,0,sizeof(MCWidgetInfo));
 	
 	bool t_vertical;
 	t_vertical = (winfo . attributes & WTHEME_ATT_SBVERTICAL) != 0;

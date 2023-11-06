@@ -201,9 +201,10 @@ bool rle_run_decode(const uint8_t *sptr, uindex_t ssize, uint8_t *dptr, uindex_t
 			return false;
 
 		if (t_repeat)
-			memset((char *)dptr, *sptr, count);
+//			memset((char *)dptr, *sptr, count);
+			memset((void *)dptr, *sptr, count);
 		else
-			memcpy(dptr, sptr, count);
+			memcpy((void *)dptr, sptr, count);
 
 		sptr += t_consumed;
 		dptr += count;

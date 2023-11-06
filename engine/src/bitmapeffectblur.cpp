@@ -647,7 +647,7 @@ bool MCBitmapEffectBoxBlur::Initialize(const MCBitmapEffectBlurParameters& param
 		t_pass->height = t_pass->bottom - t_pass->top;
 		t_pass->buffer_height = t_pass->height + 1;
 		t_pass->buffer = new (nothrow) uint32_t[(t_pass->stride) * t_pass->buffer_height];
-		memset(pass_info[i].buffer, 0, (t_pass->stride) * t_pass->buffer_height * sizeof(uint32_t));
+		memset((void *)pass_info[i].buffer, 0, (t_pass->stride) * t_pass->buffer_height * sizeof(uint32_t));
 
 		t_pass->buffer_nextrow = t_pass->top;
 		t_pass->buffer_needrow = t_pass->buffer_nextrow - 1;

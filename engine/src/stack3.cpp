@@ -278,7 +278,7 @@ IO_stat MCStack::load_stack(IO_handle stream, uint32_t version)
 	if (flags & F_LINK_ATTS)
 	{
 		linkatts = new (nothrow) Linkatts;
-		memset(linkatts, 0, sizeof(Linkatts));
+		memset((void*)linkatts, 0, sizeof(Linkatts));
 		
 		// MW-2013-11-20: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 		if ((stat = IO_read_mccolor(linkatts->color, stream)) != IO_NORMAL

@@ -1383,15 +1383,11 @@ enum Chunk_term {
 
 struct MCObjectPtr
 {
-    /* TODO[C++11] MCObject *object = nullptr; */
-    /* TODO[C++11] uint32_t part_id = 0; */
-	MCObject *object;
-	uint32_t part_id;
+	MCObject *object = nullptr;
+	uint32_t part_id = 0;
 
-    /* TODO[C++11] constexpr MCObjectPtr() = default; */
-    MCObjectPtr() : object(nullptr), part_id(0) {}
-    /* TODO[C++11] constexpr */
-    MCObjectPtr(MCObject *p_object, uint32_t p_part_id)
+	constexpr MCObjectPtr() = default;
+    constexpr MCObjectPtr(MCObject *p_object, uint32_t p_part_id)
         : object(p_object), part_id(p_part_id)
     {}
 
@@ -1401,6 +1397,7 @@ struct MCObjectPtr
         part_id = p_obj_ptr . part_id;
         return *this;
     }
+//	constexpr MCObjectPtr(const MCObjectPtr&);
 };
 
 // NOTE: the indices in this structure are UTF-16 code unit indices if the value is a stringref,

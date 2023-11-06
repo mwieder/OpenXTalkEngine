@@ -3514,7 +3514,7 @@ IO_stat MCButton::extendedload(MCObjectInputStream& p_stream, uint32_t p_version
 		if (t_stat == IO_NORMAL)
 		{
 			icons = new (nothrow) iconlist;
-			memset(icons, 0, sizeof(iconlist));
+			memset((void*)icons, 0, sizeof(iconlist));
 			icons -> iconids[CI_HOVER] = t_hover_icon_id;
 		}
 
@@ -3714,7 +3714,7 @@ IO_stat MCButton::load(IO_handle stream, uint32_t version)
 		{
 			flags |= F_HAS_ICONS;
 			icons = new (nothrow) iconlist;
-			memset(icons, 0, sizeof(iconlist));
+			memset((void*)icons, 0, sizeof(iconlist));
 			icons->iconids[CI_DEFAULT] = iconid;
 			icons->iconids[CI_HILITED] = hiliteiconid;
 		}
@@ -3730,7 +3730,7 @@ IO_stat MCButton::load(IO_handle stream, uint32_t version)
 			if (icons == NULL)
 			{
 				icons = new (nothrow) iconlist;
-				memset(icons, 0, sizeof(iconlist));
+				memset((void*)icons, 0, sizeof(iconlist));
 			}
 
 			icons->curicon = NULL;

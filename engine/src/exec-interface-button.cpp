@@ -453,7 +453,7 @@ void MCButton::DoSetIcon(MCExecContext& ctxt, Current_icon which, const MCInterf
 	if (icons == NULL)
 	{
 		icons = new (nothrow) iconlist;
-		memset(icons, 0, sizeof(iconlist));
+		memset((void *)icons, 0, sizeof(iconlist));
 	}
     
 	if (p_icon . type == kMCInterfaceButtonIconCustom)

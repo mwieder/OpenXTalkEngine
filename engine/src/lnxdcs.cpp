@@ -916,7 +916,7 @@ MCBitmap *MCScreenDC::createimage(uint16_t depth, uint16_t width, uint16_t heigh
     t_image = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8, width, height);
     
     if (set && t_image != nil)
-        memset(gdk_pixbuf_get_pixels(t_image), value, gdk_pixbuf_get_byte_length(t_image));
+        memset((void *)gdk_pixbuf_get_pixels(t_image), value, gdk_pixbuf_get_byte_length(t_image));
     
     return (MCBitmap*)t_image;
 }

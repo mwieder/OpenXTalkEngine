@@ -52,17 +52,21 @@ function buildCEF {
 	local ARCH=$2
 	
 	CEF_LIB_DIR="${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF"
+	CEF_SRC_DIR="/thirdparty/libcef/"
 	mkdir -p "${CEF_LIB_DIR}"
 	cp -a "${CEF_UNPACKED_DIR}/Release/"* "${CEF_LIB_DIR}"
 	cp -a "${CEF_UNPACKED_DIR}/Resources/"* "${CEF_LIB_DIR}"
-	rm -r "../../thirdparty/libcef/include/*"
-	rm -r "../../thirdparty/libcef/libcef_dll/*"
-	cp -al "${CEF_UNPACKED_DIR}/include" "../../thirdparty/libcef"
-	cp -al "${CEF_UNPACKED_DIR}/libcef_dll" "../../thirdparty/libcef"
-#	cp -av "${CEF_UNPACKED_DIR}/*.txt" "../../thirdparty/libcef"
+cd "../..${CEF_SRC_DIR}"
+pwd > pwd.txt
+CEF_THIRDPARTY=`cat pwd.txt`
+	rm -r "${CEF_THIRDPARTY}/include"
+	rm -r "${CEF_THIRDPARTY}/libcef_dll"
+cd "${BUILDDIR}"
+	cp -as "${BUILDDIR}/${CEF_UNPACKED_DIR}/include" "${CEF_THIRDPARTY}"
+	cp -as "${BUILDDIR}/${CEF_UNPACKED_DIR}/libcef_dll" "${CEF_THIRDPARTY}"
+	cp "${BUILDDIR}/${CEF_UNPACKED_DIR}/*.txt" "${CEF_THIRDPARTY}"
 	strip --strip-unneeded "${CEF_LIB_DIR}/libcef.so"
 }
 
-#echo "building from ${BUILDDIR}/${CEF_DST}" 
 buildCEF "${PLATFORM}" "${ARCH}"
 

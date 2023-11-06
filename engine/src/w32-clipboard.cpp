@@ -236,7 +236,7 @@ MCDataRef MCWin32RawClipboardCommon::EncodeFileListForTransfer(MCStringRef p_lis
 
 	// Generate the DROPFILES structure
 	DROPFILES t_header;
-	memset(&t_header, 0, sizeof(DROPFILES));
+	memset((void*)&t_header, 0, sizeof(DROPFILES));
 	t_header.pFiles = sizeof(DROPFILES);		// Offset to the path list
 	t_header.fWide = true;						// We're using UTF-16
 
@@ -1090,7 +1090,7 @@ MCWin32RawClipboardItemRep::MCWin32RawClipboardItemRep(MCWin32RawClipboardItem* 
   m_bytes()
 {
 	// Clear the format structure
-	memset(&m_format, 0, sizeof(m_format));
+	memset((void*)&m_format, 0, sizeof(m_format));
 	
 	// Retain a reference to the type and data
 	m_type = p_type;
@@ -1430,7 +1430,7 @@ HRESULT MCWin32DataObject::GetData(FORMATETC* pformatetcIn, STGMEDIUM* pmedium)
 	GlobalUnlock(t_handle);
 
 	// Fill in the output storage medium structure.
-	memset(pmedium, 0, sizeof(STGMEDIUM));
+	memset((void*)pmedium, 0, sizeof(STGMEDIUM));
 	pmedium->tymed = TYMED_HGLOBAL;
 	pmedium->hGlobal = t_handle;
 
@@ -1569,7 +1569,7 @@ HRESULT MCWin32DataObjectFormatEnum::Next(ULONG celt, FORMATETC* rgelt, ULONG* p
 	{
 		// Synthesize the FORMATETC structure for this representation
 		FORMATETC* t_entry = &rgelt[i];
-		memset(t_entry, 0, sizeof(FORMATETC));
+		memset((void*)t_entry, 0, sizeof(FORMATETC));
 		t_entry->cfFormat = MCWin32RawClipboardCommon::CopyAtomForType(m_object->m_types[i + m_index]);
 		t_entry->dwAspect = DVASPECT_CONTENT;
 		t_entry->tymed = TYMED_HGLOBAL;

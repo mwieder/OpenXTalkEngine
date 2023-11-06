@@ -209,7 +209,7 @@ IO_stat MCParagraph::load_block(IO_handle stream, const char *version, uint4& r_
 	if (stat == IO_NORMAL && t_block_length > 0)
 	{
 		MCParagraphCharStyle t_style_info;
-		memset(&t_style_info, 0, sizeof(MCParagraphCharStyle));
+		memset((void *)&t_style_info, 0, sizeof(MCParagraphCharStyle));
 
 		t_style_info . has_foreground = (t_flags & F_HAS_COLOR) != 0;
 		t_style_info . foreground = t_foreground_color;
@@ -1163,7 +1163,7 @@ const MCParagraphCharStyle *MCParagraph::FetchCharStyle(uint4 p_index)
 	if (p_index == 0 && m_styles_table_size == 0)
 	{
 		MCParagraphCharStyle t_empty;
-		memset(&t_empty, 0, sizeof(MCParagraphCharStyle));
+		memset((void *)&t_empty, 0, sizeof(MCParagraphCharStyle));
 		return m_styles_table[AcquireCharStyle(t_empty)];
 	}
 	
