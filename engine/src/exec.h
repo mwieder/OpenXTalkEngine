@@ -1237,7 +1237,8 @@ public:
         m_string_options = kMCStringOptionCompareCaseless;
     }
 
-	
+	MCExecContext& operator=(const MCExecContext&) = default;
+
     MCExecContext(const MCExecContext& p_ctxt)
         : m_stat(ES_NORMAL)
 	{

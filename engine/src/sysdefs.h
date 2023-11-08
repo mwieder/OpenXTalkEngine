@@ -1397,7 +1397,8 @@ struct MCObjectPtr
         part_id = p_obj_ptr . part_id;
         return *this;
     }
-//	constexpr MCObjectPtr(const MCObjectPtr&);
+	constexpr MCObjectPtr(const MCObjectPtr&) = default;
+	virtual ~MCObjectPtr() = default;
 };
 
 // NOTE: the indices in this structure are UTF-16 code unit indices if the value is a stringref,

@@ -1152,10 +1152,10 @@ static bool _aggregate_query_prim_type(MCForeignPrimitiveType p_type, MCTypeInfo
     return true;
 }
 
-static bool _aggregate_initialize(void *contents)
-{
-    return true;
-}
+//static bool _aggregate_initialize(void *contents)
+//{
+//    return true;
+//}
 
 static void _aggregate_finalize(void *contents)
 {

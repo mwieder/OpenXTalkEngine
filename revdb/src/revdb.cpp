@@ -378,7 +378,7 @@ void REVDB_QUIT()
 //get column number by name
 int findcolumn(DBCursor *thecursor, char *colname)
 {
-	int i;
+	unsigned int i;
 	for (i = 1; i <= thecursor->getFieldCount();i++)
 		if (util_stringcompare(colname,thecursor->getFieldName(i),strlen(colname)+1) == 0)
 			return i;
@@ -2007,7 +2007,7 @@ void REVDB_ColumnByNumber(char *args[], int nargs, char **retstring, Bool *pass,
 	int t_column_id;
 	t_column_id = atoi(args[1]);
 
-	if (t_column_id < 1 || t_column_id > (t_cursor -> getFieldCount()))
+	if (t_column_id < 1 || (unsigned int)t_column_id > (t_cursor -> getFieldCount()))
 	{
 		*retstring = istrdup(errors[REVDBERR_BADCOLUMNNUM]);
 		return;
@@ -2015,8 +2015,8 @@ void REVDB_ColumnByNumber(char *args[], int nargs, char **retstring, Bool *pass,
 
 	char *t_result;
 	t_result = NULL;
-	GetColumnByNumber(t_cursor, t_result, t_column_id, nargs == 3? args[2]: NULL);
-	*retstring = (t_result != NULL ? t_result : (char *)calloc(1,1));
+	GetColumnByNumber(t_cursor, t_result, t_column_id, 3 == nargs? args[2]: NULL);
+	*retstring = (NULL != t_result ? t_result : (char *)calloc(1,1));
 }
 
 

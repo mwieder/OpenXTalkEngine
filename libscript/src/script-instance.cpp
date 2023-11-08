@@ -1797,8 +1797,8 @@ MCScriptEvaluateHandlerInInstanceInternal(MCScriptInstanceRef p_instance,
 		return true;
 	}
 	
-	MCTypeInfoRef t_signature;
-	t_signature = p_instance->module->types[p_handler_def->type]->typeinfo;
+//	MCTypeInfoRef t_signature;
+//	t_signature = p_instance->module->types[p_handler_def->type]->typeinfo;
 	
 	MCAutoValueRefBase<MCHandlerRef> t_handler;
 	if (!__MCScriptInternalHandlerCreate(p_instance,

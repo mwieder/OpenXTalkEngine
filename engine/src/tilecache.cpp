@@ -947,7 +947,7 @@ static void MCTileCacheFillTile(MCTileCacheRef self, uint32_t p_index, MCImageBi
 		t_tile -> alpha = t_or_bits >> 24;
 
 		// IM-2013-08-23: [[ RefactorGraphics ]] Use MCGPixelUnpackNative to fix color swap issues
-		t_tile -> data = (void *)t_or_bits;
+		t_tile -> data = (void*)t_or_bits;
 	}
 	else if (MCTileCacheEnsureTile(self))
 	{
@@ -1972,6 +1972,7 @@ static void MCTileCacheRenderListPush(MCTileCacheRef self, MCTileCacheRenderList
 //  DISPLAY LIST MANAGEMENT
 //
 
+/*
 static void MCTileCacheDestroyDisplayList(MCTileCacheRef self)
 {
 	MCMemoryDeallocate(self -> display_list);
@@ -1979,11 +1980,13 @@ static void MCTileCacheDestroyDisplayList(MCTileCacheRef self)
 	self -> display_list_frontier = 0;
 	self -> display_list_capacity = 0;
 }
-
+*/
+/*
 static void MCTileCacheResetDisplayList(MCTileCacheRef self)
 {
 	self -> display_list_frontier = 0;
 }
+*/
 
 static bool MCTileCacheEnsureDisplayList(MCTileCacheRef self, uint32_t p_amount)
 {

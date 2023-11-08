@@ -46,20 +46,23 @@ typedef unsigned short uint2;
 int UTF8ToUnicode(const char * lpSrcStr, int cchSrc, uint2 * lpDestStr, int cchDest);
 int UnicodeToUTF8(uint2 *lpSrcStr, int cchSrc, char *lpDestStr, int cchDest);
 
+/*
 static char *unidecode(char *unistring, int tsize)
 {
-  int length = tsize >> 1;
-  char *sansiptr = new (nothrow) char[tsize];
-  char *ansiptr = sansiptr;
-  char *uniptr = unistring;  
-  while (length--)
-  {
-    *ansiptr++ = *++uniptr;
-    uniptr++;
-  }
-  *ansiptr++ = '\0';
-  return sansiptr;
+	int length = tsize >> 1;
+	char *sansiptr = new (nothrow) char[tsize];
+	char *ansiptr = sansiptr;
+	char *uniptr = unistring;  
+	while (length--)
+	{
+		*ansiptr++ = *++uniptr;
+		uniptr++;
+	}
+	*ansiptr++ = '\0';
+	return sansiptr;
 }
+*/
+
 /*Open - opens cursor and retrieves resultset from connection
 Output: False on error*/
 Bool DBCursor_ODBC::open(DBConnection *p_connection, SQLHSTMT p_statement, int p_rows)
@@ -467,7 +470,7 @@ Bool DBCursor_ODBC::getRowData()
 
 		buf_ind = 0;
 		retcode = SQLGetData(ODBC_res, i + 1, ofield -> fieldType == FT_BLOB ? SQL_C_BINARY : (ofield -> fieldType == FT_WSTRING ? SQL_C_WCHAR : SQL_C_CHAR), (SQLPOINTER) ofield -> data, ofield -> maxlength, &buf_ind);
-		if (buf_ind == SQL_NULL_DATA)
+		if (SQL_NULL_DATA == buf_ind)
 			ofield -> isNull = true;
 		else
 		{
@@ -479,16 +482,32 @@ Bool DBCursor_ODBC::getRowData()
 			// OK-2010-02-23: MS SQL Server returns wrong data length for converted numeric types when "Use regional settings when outputting currency, numbers, dates and times" is checked.
 			// Seems that the only way around this is to ignore the buf_ind for all non-binary types and instead search for nulls.
 
-			if (!(ofield -> fieldType == FT_BIT || ofield -> fieldType == FT_BLOB || ofield -> fieldType == FT_WSTRING || ofield -> fieldType == FT_WORD))
+			switch (ofield -> fieldType)
 			{
-				int t_length;
-				for(t_length = 0; t_length < ofield -> maxlength; ++t_length)
-					if (ofield -> data[t_length] == '\0')
-						break;
-				ofield -> dataSize = t_length;
+				case FT_BIT:
+				case FT_BLOB:
+				case FT_WSTRING:
+				case FT_WORD:
+					ofield -> dataSize = buf_ind;
+					break;
+				default:
+					long unsigned int t_length;
+					for(t_length = 0; t_length < ofield -> maxlength; ++t_length)
+						if (ofield -> data[t_length] == '\0')
+							break;
+					ofield -> dataSize = t_length;
 			}
-			else
-				ofield -> dataSize = buf_ind;
+
+//			if (!(ofield -> fieldType == FT_BIT || ofield -> fieldType == FT_BLOB || ofield -> fieldType == FT_WSTRING || FT_WORD == ofield -> fieldType))
+//			{
+//				int t_length;
+//				for(t_length = 0; t_length < ofield -> maxlength; ++t_length)
+//					if (ofield -> data[t_length] == '\0')
+//						break;
+//				ofield -> dataSize = t_length;
+//			}
+//			else
+//				ofield -> dataSize = buf_ind;
 
 			if (retcode != SQL_SUCCESS)
 			{
@@ -514,12 +533,12 @@ Bool DBCursor_ODBC::getRowData()
 					// Allocate 64k buffer initially
 					ofield -> extraData = (char *)malloc(RAWSIZE + 1);
 					offset = 0;
-					unsigned int bytestocopy;
+					long unsigned int bytestocopy;
 					while (retcode == SQL_SUCCESS || retcode == SQL_SUCCESS_WITH_INFO )
 					{   
 						// If the amount of data is greater than the buffer allocated, then put the buffer size into bytestocopy,
 						// otherwise put the data length into it
-						if (buf_ind > ofield -> maxlength)
+						if ((long unsigned int)buf_ind > ofield -> maxlength)
 							bytestocopy = ofield->maxlength;
 						else
 							bytestocopy = buf_ind;

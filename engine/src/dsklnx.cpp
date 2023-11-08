@@ -1959,7 +1959,7 @@ public:
     {
         Boolean readinput = False;
         int4 n;
-        uint2 i;
+//        uint2 i;
         Boolean wasalarm = alarmpending;
         Boolean handled = False;
         if (alarmpending)

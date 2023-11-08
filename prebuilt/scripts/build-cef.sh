@@ -52,20 +52,27 @@ function buildCEF {
 	local ARCH=$2
 	
 	CEF_LIB_DIR="${OUTPUT_DIR}/lib/${PLATFORM}/${ARCH}/CEF"
-	CEF_SRC_DIR="/thirdparty/libcef/"
 	mkdir -p "${CEF_LIB_DIR}"
 	cp -a "${CEF_UNPACKED_DIR}/Release/"* "${CEF_LIB_DIR}"
 	cp -a "${CEF_UNPACKED_DIR}/Resources/"* "${CEF_LIB_DIR}"
-cd "../..${CEF_SRC_DIR}"
-pwd > pwd.txt
-CEF_THIRDPARTY=`cat pwd.txt`
+
+	# create a pointer to the thirdparty directory
+	# "cp -as" needs an absolute reference, not relative
+	CEF_SRC_DIR="/thirdparty/libcef/"
+#	cd "../..${CEF_SRC_DIR}"
+	pushd "../..${CEF_SRC_DIR}"
+	pwd > pwd.txt
+	CEF_THIRDPARTY=`cat pwd.txt`
+
 	rm -r "${CEF_THIRDPARTY}/include"
 	rm -r "${CEF_THIRDPARTY}/libcef_dll"
-cd "${BUILDDIR}"
+	popd
+#	cd "${BUILDDIR}"
 	cp -as "${BUILDDIR}/${CEF_UNPACKED_DIR}/include" "${CEF_THIRDPARTY}"
 	cp -as "${BUILDDIR}/${CEF_UNPACKED_DIR}/libcef_dll" "${CEF_THIRDPARTY}"
 	cp "${BUILDDIR}/${CEF_UNPACKED_DIR}/*.txt" "${CEF_THIRDPARTY}"
 	strip --strip-unneeded "${CEF_LIB_DIR}/libcef.so"
+	rm "${CEF_THIRDPARTY}/pwd.txt"	# clean up the mess afterwards
 }
 
 buildCEF "${PLATFORM}" "${ARCH}"

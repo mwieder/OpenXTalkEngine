@@ -200,28 +200,28 @@ void MCArraysExecCombineByRow(MCExecContext& ctxt, MCArrayRef p_array, MCStringR
 		t_lisctxt . elements = t_elements.Ptr();
 		t_lisctxt . index = 0;
 	}
-	
-    if (t_success)
-        t_success = MCArrayApply(p_array, list_array_elements, &t_lisctxt);
-	
+
+	if (t_success)
+		t_success = MCArrayApply(p_array, list_array_elements, &t_lisctxt);
+
 	if (t_success)
 	{
-        qsort(t_lisctxt . elements, t_count, sizeof(array_element_t), compare_array_element);
+		qsort(t_lisctxt . elements, t_count, sizeof(array_element_t), compare_array_element);
 
-        for (uindex_t i = 0; i < t_count && t_success; ++i)
-        {
-            MCAutoStringRef t_string;
-            if (ctxt . ConvertToString(t_lisctxt . elements[i] . value, &t_string))
-                t_success = MCListAppend(*t_list, *t_string);
-            else
-                t_success = false;
-        }
-    }
+		for (uindex_t i = 0; i < t_count && t_success; ++i)
+		{
+			MCAutoStringRef t_string;
+			if (ctxt . ConvertToString(t_lisctxt . elements[i] . value, &t_string))
+				t_success = MCListAppend(*t_list, *t_string);
+			else
+				t_success = false;
+		}
+	}
 
-    if (t_success && MCListCopyAsString(*t_list, r_string))
-        return;
+	if (t_success && MCListCopyAsString(*t_list, r_string))
+		return;
 
-    ctxt . Throw();
+	ctxt . Throw();
 }
 
 // SN-2014-09-01: [[ Bug 13297 ]] Combining by column deserves its own function as it is too

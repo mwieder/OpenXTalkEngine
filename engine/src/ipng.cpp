@@ -89,8 +89,8 @@ extern "C" void stream_read(png_structp png_ptr, png_bytep data, png_size_t leng
 {
 	IO_handle t_stream = (IO_handle)png_get_io_ptr(png_ptr);
 
-	uint4 t_length;
-	t_length = length;
+//	uint4 t_length;
+//	t_length = length;
 	if (IO_read(data, length, t_stream) != IO_NORMAL)
 		png_error(png_ptr, (char *)"pnglib read error");
 }
@@ -326,7 +326,7 @@ bool MCPNGImageLoader::LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count)
 
 	if (t_success)
 	{
-		for (uindex_t t_pass = 0; t_pass < t_interlace_passes; t_pass++)
+		for (uindex_t t_pass = 0; t_pass < (unsigned int)t_interlace_passes; t_pass++)
 		{
 			png_bytep t_data_ptr = (png_bytep)t_frame->image->data;
 			for (uindex_t i = 0; i < t_height; i++)
@@ -448,10 +448,10 @@ bool MCImageEncodePNG(MCImageIndexedBitmap *p_indexed, MCImageMetadata *p_metada
 		png_set_gAMA(t_png_ptr, t_info_ptr, 1/MCgamma);
 	}
 
-    // MERG-2014-07-16: [[ ImageMetadata ]] Parse the metadata array
-    if (t_success)
-        parsemetadata(t_png_ptr, t_info_ptr, p_metadata);
-    
+	// MERG-2014-07-16: [[ ImageMetadata ]] Parse the metadata array
+	if (t_success)
+		parsemetadata(t_png_ptr, t_info_ptr, p_metadata);
+
 	if (t_success)
 		t_success = MCMemoryNewArray(p_indexed->palette_size, t_png_palette);
 
@@ -565,10 +565,10 @@ bool MCImageEncodePNG(MCImageBitmap *p_bitmap, MCImageMetadata *p_metadata, IO_h
 			PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 		png_set_gAMA(t_png_ptr, t_info_ptr, 1/MCgamma);
 	}
-    
-    // MERG-2014-07-16: [[ ImageMetadata ]] Parse the metadata array
-    if (t_success)
-        parsemetadata(t_png_ptr, t_info_ptr, p_metadata);
+
+	// MERG-2014-07-16: [[ ImageMetadata ]] Parse the metadata array
+	if (t_success)
+		parsemetadata(t_png_ptr, t_info_ptr, p_metadata);
 
 	if (t_success)
 	{

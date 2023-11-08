@@ -5641,8 +5641,8 @@ bool MCStringSplitByDelimiter(MCStringRef self, MCStringRef p_elem_del, MCString
 	t_to_end = self -> char_count;
 	t_offset = 0;
 
-	bool t_success;
-    t_success = true;
+//	bool t_success;
+//    t_success = true;
     
     MCAutoStringRefArray t_strings;
     for(;;)
@@ -7067,16 +7067,16 @@ MCStringNormalizeLineEndings(MCStringRef p_input,
     // AL-2014-07-21: [[ Bug 12162 ]] Convert PS to LF, and LS to VT on text import.
 	if (((p_options & kMCStringLineEndingOptionNormalizeLSToVT) != 0) &&
         !MCStringFindAndReplaceChar(*t_mutable_input, 
-                                   (const codepoint_t)0x2028, 
-                                   (const codepoint_t)0x0B, 
+                                   (codepoint_t)0x2028, 
+                                   (codepoint_t)0x0B, 
                                     kMCStringOptionCompareExact))
 	{
 		return false;
 	}
 	if (((p_options & kMCStringLineEndingOptionNormalizePSToLineEnding) != 0) &&
         !MCStringFindAndReplaceChar(*t_mutable_input, 
-                                   (const codepoint_t)0x2029, 
-                                   (const codepoint_t)0x0A, 
+                                   (codepoint_t)0x2029, 
+                                   (codepoint_t)0x0A, 
                                     kMCStringOptionCompareExact))
 	{
 		return false;

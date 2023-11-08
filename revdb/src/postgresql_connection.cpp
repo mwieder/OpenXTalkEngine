@@ -174,22 +174,22 @@ Bool DBConnection_POSTGRESQL::connect(char **args, int numargs)
 	// OK-2008-05-16 : Bug where failed connections to postgres databases would
 	// not return any error information. According to the postgres docs, dbconn
 	// will only be null if there was not enough memory to allocate it.
-	if (dbconn == NULL)
+	if (NULL == dbconn)
 	{
 		errorMessageSet("revdb,insufficient memory to connect to database");
 		return false;
 	}
 
 	// If the connection failed, return the standard postgres error message.
-	if (PQstatus(dbconn) == CONNECTION_BAD)
+	if (CONNECTION_BAD == PQstatus(dbconn))
 	{
 		errorMessageSet(PQerrorMessage(dbconn));
 		return false;
 	}
 
 
-	if (PQstatus(dbconn) == CONNECTION_BAD || !dbconn)
-		return False;
+	if (CONNECTION_BAD == PQstatus(dbconn) || !dbconn)
+		return false;
 
 	isConnected = true;  
 	connectionType = CT_POSTGRESQL,
@@ -197,7 +197,7 @@ Bool DBConnection_POSTGRESQL::connect(char **args, int numargs)
 	// OK-2007-09-10 : Bug 5360
 	errorMessageSet(NULL);
 
-	return True;
+	return true;
 }
 
 const char *DBConnection_POSTGRESQL::getconnectionstring()
@@ -280,16 +280,7 @@ PGresult *DBConnection_POSTGRESQL::ExecuteQuery(char *p_query, DBString *p_argum
 	char *t_parsed_query;
 	t_parsed_query = p_query;
 
-	int *t_placeholders;
-	t_placeholders = NULL;
-
-	int t_placeholder_count;
-	t_placeholder_count = 0;
-
-	bool t_success;
-	t_success = true;
-
-	if (p_argument_count != 0)
+	if (0 != p_argument_count)
 	{
 		QueryMetadata t_query_metadata;
 		t_query_metadata . argument_count = p_argument_count;
@@ -298,6 +289,7 @@ PGresult *DBConnection_POSTGRESQL::ExecuteQuery(char *p_query, DBString *p_argum
 
 		DBBuffer t_query_buffer(t_query_length + 1);
 
+		bool t_success;
 		t_success = processQuery(p_query, t_query_buffer, queryCallback, &t_query_metadata);
 
 		t_query_buffer . ensure(1);

@@ -306,45 +306,45 @@ __utf8string_export (const MCForeignTypeDescriptor*,
 
 static bool __build_typeinfo(const char *p_name, MCForeignTypeDescriptor *p_desc, MCTypeInfoRef& r_typeinfo)
 {
-    MCAutoStringRef t_name_string;
-    if (!MCStringCreateWithCString(p_name, &t_name_string))
-        return false;
-    MCNewAutoNameRef t_name_name;
-    if (!MCNameCreate(*t_name_string, &t_name_name))
-        return false;
-	
+	MCAutoStringRef t_name_string;
+	if (!MCStringCreateWithCString(p_name, &t_name_string))
+		return false;
+	MCNewAutoNameRef t_name_name;
+	if (!MCNameCreate(*t_name_string, &t_name_name))
+		return false;
+
 	if (!MCNamedForeignTypeInfoCreate(*t_name_name, p_desc, r_typeinfo))
 		return false;
-    
-    return true;
+
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern "C" bool com_livecode_foreign_Initialize(void)
 {
-    MCForeignPrimitiveType p;
-    MCForeignTypeDescriptor d;
-    d . size = sizeof(char *);
-    d . basetype = kMCNullTypeInfo;
-    d . bridgetype = kMCStringTypeInfo;
-    p = kMCForeignPrimitiveTypePointer;
-    d . layout = &p;
-    d . layout_size = 1;
-    d . initialize = __cbuffer_initialize;
-    d . finalize = __cbuffer_finalize;
-    d . defined = __cbuffer_defined;
-    d . move = __cbuffer_move;
-    d . copy = __cstring_copy;
-    d . equal = __cstring_equal;
-    d . hash = __cstring_hash;
-    d . doimport = __nativecstring_import;
-    d . doexport = __nativecstring_export;
-    d . describe = nullptr;
-    d . promotedtype = kMCNullTypeInfo;
-    d . promote = nullptr;
-    if (!__build_typeinfo("com.livecode.foreign.NativeCString", &d, kMCNativeCStringTypeInfo))
-        return false;
+	MCForeignPrimitiveType p;
+	MCForeignTypeDescriptor d;
+	d . size = sizeof(char *);
+	d . basetype = kMCNullTypeInfo;
+	d . bridgetype = kMCStringTypeInfo;
+	p = kMCForeignPrimitiveTypePointer;
+	d . layout = &p;
+	d . layout_size = 1;
+	d . initialize = __cbuffer_initialize;
+	d . finalize = __cbuffer_finalize;
+	d . defined = __cbuffer_defined;
+	d . move = __cbuffer_move;
+	d . copy = __cstring_copy;
+	d . equal = __cstring_equal;
+	d . hash = __cstring_hash;
+	d . doimport = __nativecstring_import;
+	d . doexport = __nativecstring_export;
+	d . describe = nullptr;
+	d . promotedtype = kMCNullTypeInfo;
+	d . promote = nullptr;
+	if (!__build_typeinfo("com.livecode.foreign.NativeCString", &d, kMCNativeCStringTypeInfo))
+		return false;
 
 	d . size = sizeof(unichar_t *);
 	d . basetype = kMCNullTypeInfo;
@@ -361,9 +361,9 @@ extern "C" bool com_livecode_foreign_Initialize(void)
 	d . hash = __wstring_hash;
 	d . doimport = __wstring_import;
 	d . doexport = __wstring_export;
-    d . describe = nullptr;
-    d . promotedtype = kMCNullTypeInfo;
-    d . promote = nullptr;
+	d . describe = nullptr;
+	d . promotedtype = kMCNullTypeInfo;
+	d . promote = nullptr;
 	if (!__build_typeinfo("com.livecode.foreign.WString", &d, kMCWStringTypeInfo))
 		return false;
 
@@ -382,18 +382,18 @@ extern "C" bool com_livecode_foreign_Initialize(void)
 	d . hash = __cstring_hash;
 	d . doimport = __utf8string_import;
 	d . doexport = __utf8string_export;
-    d . describe = nullptr;
-    d . promotedtype = kMCNullTypeInfo;
-    d . promote = nullptr;
+	d . describe = nullptr;
+	d . promotedtype = kMCNullTypeInfo;
+	d . promote = nullptr;
 	if (!__build_typeinfo("com.livecode.foreign.UTF8String", &d, kMCUTF8StringTypeInfo))
 		return false;
-	
+
 	/* ---------- */
 
 	if (!MCNamedErrorTypeInfoCreate (MCNAME("com.livecode.foreign.NullInZStringError"), MCNAME("foreign"), MCSTR("cannot export char U+0000 in nul-terminated string buffer"), kMCForeignZStringNullErrorTypeInfo))
 		return false;
 
-    return true;
+	return true;
 }
 
 extern "C" void com_livecode_foreign_Finalize(void)

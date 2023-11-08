@@ -113,6 +113,8 @@ public:
         return *this;
     }
 
+	virtual ~MCSpanIterator() = default;
+
     /* ---------- Element access */
     constexpr reference operator*() const
     {

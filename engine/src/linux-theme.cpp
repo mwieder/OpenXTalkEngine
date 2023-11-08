@@ -170,6 +170,13 @@ static GtkWidget* getWidgetForControlType(MCPlatformControlType p_type, MCPlatfo
             
         case kMCPlatformControlTypeMessageBox:
             break;
+		// TODO: these enumeration values are not handled in this switch statement
+		case kMCPlatformControlTypeRichText:
+		case kMCPlatformControlTypeTooltip:
+//		case kMCPlatformThemePropertyTextFont: // = kMCPlatformControlTypeGeneric:
+//		case kMCPlatformThemePropertyTextSize: // = kMCPlatformControlTypeCheckbox:
+//		case kMCPlatformThemePropertyAlpha: // = kMCPlatformControlTypeTabButton
+			break;
     }
     
     if (t_the_widget == NULL)

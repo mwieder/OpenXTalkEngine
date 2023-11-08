@@ -945,22 +945,22 @@ static bool EvalExprAsStrictNumber(MCExecContext* self, MCExpression *p_expr, Ex
     MCExecValue t_value;
 	
 	p_expr -> eval_ctxt(*self, t_value);
-    
-    if (t_value . type == kMCExecValueTypeNone
+
+	if (t_value . type == kMCExecValueTypeNone
         || (MCExecTypeIsValueRef(t_value . type) && MCValueIsEmpty(t_value . valueref_value)))
-    {
-        self -> LegacyThrow(p_error);
-        return false;
-    }
-    
-    if (!self -> HasError())
-        MCExecTypeConvertAndReleaseAlways(*self, t_value . type, &t_value, p_type, &r_value);
-	
+	{
+		self -> LegacyThrow(p_error);
+		return false;
+	}
+
+	if (!self -> HasError())
+		MCExecTypeConvertAndReleaseAlways(*self, t_value . type, &t_value, p_type, &r_value);
+
 	if (!self -> HasError())
 		return true;
-	
+
 	self -> LegacyThrow(p_error);
-	
+
 	return false;
 }
 
@@ -972,19 +972,19 @@ template <typename T>
 static bool EvalExprAsNumber(MCExecContext* self, MCExpression *p_expr, Exec_errors p_error, MCExecValueType p_type, T& r_value)
 {
 	MCAssert(p_expr != nil);
-	
-    MCExecValue t_value;
-    
+
+	MCExecValue t_value;
+
 	p_expr -> eval_ctxt(*self, t_value);
-    
-    if (!self -> HasError())
-        MCExecTypeConvertAndReleaseAlways(*self, t_value . type, &t_value, p_type, &r_value);
-	
+
+	if (!self -> HasError())
+		MCExecTypeConvertAndReleaseAlways(*self, t_value . type, &t_value, p_type, &r_value);
+
 	if (!self -> HasError())
 		return true;
-	
+
 	self -> LegacyThrow(p_error);
-	
+
 	return false;
 }
 
@@ -1461,12 +1461,12 @@ static bool MCPropertyFormatList(Formatter p_format,
                                  char_t p_delimiter,
                                  MCStringRef &r_string)
 {
-    if (p_count == 0)
-        return MCStringCopy(kMCEmptyString, r_string);
+	if (p_count == 0)
+		return MCStringCopy(kMCEmptyString, r_string);
 
-    MCAutoListRef t_list;
-    if (!MCListCreateMutable(p_delimiter, &t_list))
-        return false;
+	MCAutoListRef t_list;
+	if (!MCListCreateMutable(p_delimiter, &t_list))
+		return false;
 
 	for (uindex_t i = 0; i < p_count; ++i)
 	{
@@ -1477,7 +1477,7 @@ static bool MCPropertyFormatList(Formatter p_format,
 			return false;
 	}
 
-    return MCListCopyAsString(*t_list, r_string);
+	return MCListCopyAsString(*t_list, r_string);
 }
 
 static bool MCPropertyFormatUIntList(uinteger_t *p_list, uindex_t p_count, char_t p_delimiter, MCStringRef& r_string)

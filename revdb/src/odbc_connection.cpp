@@ -75,8 +75,8 @@ Bool DBConnection_ODBC::connect(char **args, int numargs)
 	char *t_host;
 	t_host = args[0];
 
-	char *t_dbname;
-	t_dbname = args[1];
+//	char *t_dbname;
+//	t_dbname = args[1];
 
 	// OK-2008-01-18 : Bug 5440. Used the fifth argument to allow users to specify which type
 	// of cursors should be used for ODBC. This is to solve the speed issues reported in this bug.
@@ -229,8 +229,8 @@ Bool DBConnection_ODBC::sqlExecute(char *p_query, DBString *p_arguments, int p_a
 	SQLRETURN t_query_result;
 	t_success = ExecuteQuery(p_query, p_arguments, p_argument_count, t_statement, t_query_result);
 
-	DBCursor_ODBC *t_cursor;
-	t_cursor = NULL;
+//	DBCursor_ODBC *t_cursor;
+//	t_cursor = NULL;
 
 	SQLLEN t_affected_rows;
 	t_affected_rows = 0;
@@ -461,11 +461,11 @@ bool DBConnection_ODBC::handleDataAtExecutionParameters(SQLHSTMT p_statement)
 		if (t_result != SQL_NEED_DATA)
 			continue;
 
-		if (t_value -> length > 8000)
-		{
-			int t_test;
-			t_test = 1;
-		}
+//		if (t_value -> length > 8000)
+//		{
+//			int t_test;
+//			t_test = 1;
+//		}
 
 		char *t_current_position;
 		const char *t_end;

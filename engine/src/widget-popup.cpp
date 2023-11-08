@@ -299,33 +299,33 @@ private:
 
 extern "C" MC_DLLEXPORT_DEF MCStringRef MCWidgetExecPopupMenuAtLocation(MCStringRef p_menu, MCCanvasPointRef p_at)
 {
-    if (!MCWidgetEnsureCurrentWidget())
-        return nil;
-	
+	if (!MCWidgetEnsureCurrentWidget())
+		return nil;
+
 	MCButton *t_button;
 	t_button = nil;
-	
+
 	t_button = (MCButton*)MCtemplatebutton->clone(True, OP_NONE, true);
 	if (t_button == nil)
 	{
 		MCErrorThrowOutOfMemory();
 		return nil;
 	}
-	
+
 	MCPopupMenuHandler t_handler;
-	
+
 	MCExecContext ctxt;
-	
+
 	t_button->setmenuhandler(&t_handler);
-	
+
 	t_button->SetStyle(ctxt, F_MENU);
 	t_button->SetMenuMode(ctxt, WM_POPUP);
 	t_button->SetText(ctxt, p_menu);
-	
+
 	MCPoint t_at;
 	MCPoint *t_at_ptr;
 	t_at_ptr = nil;
-	
+
 	if (p_at != nil)
 	{
 		MCGPoint t_point;
@@ -334,9 +334,9 @@ extern "C" MC_DLLEXPORT_DEF MCStringRef MCWidgetExecPopupMenuAtLocation(MCString
 		t_at = MCGPointToMCPoint(MCWidgetMapPointToGlobal(MCcurrentwidget, t_point));
 		t_at_ptr = &t_at;
 	}
-	
+
 	MCInterfaceExecPopupButton(ctxt, t_button, t_at_ptr);
-    
+
 	while (t_button->menuisopen() && !MCquit)
 	{
 		MCU_resetprops(True);
@@ -345,7 +345,7 @@ extern "C" MC_DLLEXPORT_DEF MCStringRef MCWidgetExecPopupMenuAtLocation(MCString
 		MCscreen->siguser();
 		MCscreen->wait(REFRESH_INTERVAL, True, True);
 	}
-	
+
 	t_button->SetVisible(ctxt, 0, false);
     MCerrorlock++;
     if (t_button->del(false))
@@ -417,26 +417,26 @@ bool MCWidgetPopupAtLocationWithProperties(MCNameRef p_kind, const MCPoint &p_at
 
 extern "C" MC_DLLEXPORT_DEF MCValueRef MCWidgetExecPopupAtLocationWithProperties(MCStringRef p_kind, MCCanvasPointRef p_at, MCArrayRef p_properties)
 {
-    if (!MCWidgetEnsureCurrentWidget())
-        return nil;
-	
+	if (!MCWidgetEnsureCurrentWidget())
+		return nil;
+
 	MCGPoint t_point;
 	MCCanvasPointGetMCGPoint(p_at, t_point);
-	
-    MCWidget *t_host;
-    t_host = MCWidgetGetHost(MCcurrentwidget);
-    
-    if (!t_host->getstack()->getopened() || !t_host->getstack()->isvisible())
-    {
-        return nil;
-    }
-    
-    MCPoint t_at;
+
+	MCWidget *t_host;
+	t_host = MCWidgetGetHost(MCcurrentwidget);
+
+	if (!t_host->getstack()->getopened() || !t_host->getstack()->isvisible())
+	{
+		return nil;
+	}
+
+	MCPoint t_at;
 	t_at = t_host->getstack()->stacktogloballoc(MCGPointToMCPoint(MCWidgetMapPointToGlobal(MCcurrentwidget, t_point)));
-    
+
 	MCNewAutoNameRef t_kind;
 	/* UNCHECKED */ MCNameCreate(p_kind, &t_kind);
-	
+
 	MCValueRef t_result;
 	if (MCWidgetPopupAtLocationWithProperties(*t_kind, t_at, p_properties, t_result))
 		return t_result;
@@ -451,20 +451,20 @@ extern "C" MC_DLLEXPORT_DEF MCValueRef MCWidgetExecPopupAtLocation(MCStringRef p
 
 extern "C" MC_DLLEXPORT_DEF void MCWidgetEvalIsPopup(bool &r_popup)
 {
-    if (!MCWidgetEnsureCurrentWidget())
-        return;
-	
+	if (!MCWidgetEnsureCurrentWidget())
+		return;
+
 	r_popup = s_widget_popup != nil && MCWidgetGetHost(MCcurrentwidget) == s_widget_popup->getpopupwidget();
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCWidgetExecClosePopupWithResult(MCValueRef p_result)
 {
-    if (!MCWidgetEnsureCurrentWidget())
-        return;
-	
+	if (!MCWidgetEnsureCurrentWidget())
+		return;
+
 	bool t_is_popup = false;
 	MCWidgetEvalIsPopup(t_is_popup);
-	
+
 	if (!t_is_popup)
 	{
 		// TODO - throw error

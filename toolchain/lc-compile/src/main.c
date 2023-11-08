@@ -150,9 +150,9 @@ static void full_main(int argc, char *argv[])
 {
     /* Process options. */
     int have_input_file = 0;
-    int have_output_file = 0;
-	int have_interface_file = 0;
-	int have_manifest_file = 0;
+//    int have_output_file = 0;
+//	int have_interface_file = 0;
+//	int have_manifest_file = 0;
     int end_of_args = 0;
     int argi;
 
@@ -196,7 +196,7 @@ static void full_main(int argc, char *argv[])
                 OutputFileAsBytecode = 1;
                 OutputFileAsC = 0;
                 OutputFileAsAuxC = 0;
-                have_output_file = 1;
+//                have_output_file = 1;
                 continue;
             }
             if (0 == strcmp(opt, "--outputc") && optarg)
@@ -205,7 +205,7 @@ static void full_main(int argc, char *argv[])
                 OutputFileAsC = 1;
                 OutputFileAsAuxC = 0;
                 OutputFileAsBytecode = 0;
-                have_output_file = 1;
+//                have_output_file = 1;
                 continue;
             }
             if (0 == strcmp(opt, "--outputauxc") && optarg)
@@ -214,19 +214,19 @@ static void full_main(int argc, char *argv[])
                 OutputFileAsC = 1;
                 OutputFileAsAuxC = 1;
                 OutputFileAsBytecode = 0;
-                have_output_file = 1;
+//                have_output_file = 1;
                 continue;
             }
             if (0 == strcmp(opt, "--manifest") && optarg)
             {
                 SetManifestOutputFile(argv[++argi]);
-				have_manifest_file = 1;
+//				have_manifest_file = 1;
                 continue;
             }
             if (0 == strcmp(opt, "--interface") && optarg)
             {
                 SetInterfaceOutputFile(argv[++argi]);
-				have_interface_file = 1;
+//				have_interface_file = 1;
                 continue;
             }
             /* FIXME This should be expanded to support "-W error",

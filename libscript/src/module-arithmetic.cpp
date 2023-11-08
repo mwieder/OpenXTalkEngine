@@ -242,19 +242,19 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberOverNumber(MCNumberRef p_
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerModInteger(integer_t p_left, integer_t p_right, integer_t& r_output)
 {
-    if (p_right == 0)
-        return;
-    
-    r_output = fmod(double(p_left), double(p_right));
+	if (p_right == 0)
+		return;
+
+	r_output = fmod(double(p_left), double(p_right));
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealModReal(double p_left, double p_right, double& r_output)
 {
-    double n = 0.0;
-    n = p_left / p_right;
-    //if (n == MCinfinity)
-    
-    r_output = fmod(p_left, p_right);
+	double n = 0.0;
+	n = p_left / p_right;
+	//if (n == MCinfinity)
+
+	r_output = fmod(p_left, p_right);
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberModNumber(MCNumberRef p_left, MCNumberRef p_right, MCNumberRef& r_output)
@@ -284,11 +284,11 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerWrapInteger(integer_t p_
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealWrapReal(double p_left, double p_right, double& r_output)
 {
-    double n = 0.0;
-    n = p_left / p_right;
-    //if (n == MCinfinity)
-    
-    double t_y;
+	double n = 0.0;
+	n = p_left / p_right;
+	//if (n == MCinfinity)
+
+	double t_y;
 	t_y = p_left > 0 ? p_right : -p_right;
 	if (p_left >= 0)
 		r_output = (fmod(p_left - 1, t_y) + 1);

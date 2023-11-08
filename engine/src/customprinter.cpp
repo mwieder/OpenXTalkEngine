@@ -617,6 +617,7 @@ bool MCCustomMetaContext::begincomposite(const MCRectangle &p_mark_clip, MCGCont
 	return t_success;
 }
 
+/*
 static void surface_merge_with_mask_preserve(void *p_pixels, uint4 p_pixel_stride, void *p_mask, uint4 p_mask_stride, uint4 p_offset, uint4 p_width, uint4 p_height)
 {
 	uint4 *t_pixel_ptr;
@@ -652,6 +653,7 @@ static void surface_merge_with_mask_preserve(void *p_pixels, uint4 p_pixel_strid
 		}
 	}
 }
+*/
 
 void MCCustomMetaContext::endcomposite(MCRegionRef p_clip_region)
 {

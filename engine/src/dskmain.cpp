@@ -176,13 +176,13 @@ bool X_init(const X_init_options& p_options)
 	delete MCresult;
 #endif
 
-    // Create the basic locale and the system locale
-    if (!MCLocaleCreateWithName(MCSTR("en_US"), kMCBasicLocale))
-        return false;
-    kMCSystemLocale = MCS_getsystemlocale();
-    if (kMCSystemLocale == nil)
-        return false;
-		
+	// Create the basic locale and the system locale
+	if (!MCLocaleCreateWithName(MCSTR("en_US"), kMCBasicLocale))
+		return false;
+	kMCSystemLocale = MCS_getsystemlocale();
+	if (kMCSystemLocale == nil)
+		return false;
+
 	MCSCommandLineSetName (argv[0]);
 
 	if (MCModeIsExecutableFirstArgument())
@@ -193,9 +193,9 @@ bool X_init(const X_init_options& p_options)
 	MCAutoProperListRef t_arguments;
 	/* UNCHECKED */ MCProperListCreateMutable (&t_arguments);
 
-    MCAutoStringRefAsUTF8String t_mccmd_utf8;
-    /* UNCHECKED */ t_mccmd_utf8 . Lock(MCcmd);
-    
+	MCAutoStringRefAsUTF8String t_mccmd_utf8;
+	/* UNCHECKED */ t_mccmd_utf8 . Lock(MCcmd);
+
 	for (int i = 1; i < argc; i++)
 	{
 		if (MCStringIsEqualToCString(argv[i], "-d", kMCCompareExact)

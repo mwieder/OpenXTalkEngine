@@ -74,9 +74,9 @@ bool MCInitialize(void)
 
 	if (!__MCRecordInitialize())
 		return false;
-    
-    if (!__MCLocaleInitialize())
-        return false;
+
+	if (!__MCLocaleInitialize())
+		return false;
 
 	if (!__MCProperListInitialize())
 		return false;

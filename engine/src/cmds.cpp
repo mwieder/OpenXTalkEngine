@@ -1275,68 +1275,68 @@ Parse_stat MCSort::parse(MCScriptPoint &sp)
 
 void MCSort::exec_ctxt(MCExecContext& ctxt)
 {
-    
-    MCObjectPtr t_object;
-    MCAutoStringRef t_target;
-    
-    // SN-2014-03-21: [[ Bug 11953 ]] sort card does not work
-    t_object . object = nil;
-    t_object . part_id = 0;
-    
+
+	MCObjectPtr t_object;
+	MCAutoStringRef t_target;
+
+	// SN-2014-03-21: [[ Bug 11953 ]] sort card does not work
+	t_object . object = nil;
+	t_object . part_id = 0;
+
 	if (of != NULL)
 	{
 		MCerrorlock++;
-        of->getoptionalobj(ctxt, t_object, False);
+		of->getoptionalobj(ctxt, t_object, False);
 		if (t_object . object == nil || t_object . object->gettype() == CT_BUTTON)
 		{
 			MCerrorlock--;
 
-            if (!ctxt . EvalExprAsStringRef(of, EE_SORT_BADTARGET, &t_target))
-                return;
+			if (!ctxt . EvalExprAsStringRef(of, EE_SORT_BADTARGET, &t_target))
+				return;
 		}
 		else
-        {
+		{
 			MCerrorlock--;
-        }
+		}
 		if (t_object . object != nil && t_object . object->gettype() > CT_GROUP && chunktype <= CT_GROUP)
 			chunktype = CT_LINE;
-    }
-    // SN-2015-04-01: [[ Bug 14885 ]] Make sure that the default stack is used
-    //  if none is specified.
-    else
-        t_object . object = MCdefaultstackptr;
-    
+	}
+	// SN-2015-04-01: [[ Bug 14885 ]] Make sure that the default stack is used
+	//  if none is specified.
+	else
+		t_object . object = MCdefaultstackptr;
+
 	if (chunktype == CT_CARD || chunktype == CT_MARKED)
-    {
-        if (t_object . object == nil ||
-            t_object . object -> gettype() != CT_STACK)
+	{
+		if (t_object . object == nil ||
+			t_object . object -> gettype() != CT_STACK)
 		{
-            ctxt . LegacyThrow(EE_SORT_CANTSORT);
+			ctxt . LegacyThrow(EE_SORT_CANTSORT);
 			return;
 		}
-        
-        MCInterfaceExecSortCardsOfStack(ctxt, (MCStack *)t_object . object, direction == ST_ASCENDING, format, by, chunktype == CT_MARKED);
-    }
+
+		MCInterfaceExecSortCardsOfStack(ctxt, (MCStack *)t_object . object, direction == ST_ASCENDING, format, by, chunktype == CT_MARKED);
+	}
 	else if (t_object . object == nil || t_object . object->gettype() == CT_BUTTON)
 	{
-        MCStringRef t_sorted_target;
+		MCStringRef t_sorted_target;
 
-        if (*t_target == nil)
-            t_sorted_target = MCValueRetain(kMCEmptyString);
-        else
-            t_sorted_target = MCValueRetain(*t_target);
+		if (*t_target == nil)
+			t_sorted_target = MCValueRetain(kMCEmptyString);
+		else
+			t_sorted_target = MCValueRetain(*t_target);
 
-        MCInterfaceExecSortContainer(ctxt, t_sorted_target, chunktype, direction == ST_ASCENDING, format, by);
-        if (!ctxt . HasError())
-            of -> set(ctxt, PT_INTO, t_sorted_target);
+		MCInterfaceExecSortContainer(ctxt, t_sorted_target, chunktype, direction == ST_ASCENDING, format, by);
+		if (!ctxt . HasError())
+			of -> set(ctxt, PT_INTO, t_sorted_target);
 
-        MCValueRelease(t_sorted_target);
+		MCValueRelease(t_sorted_target);
 	}
 	else
 	{
 		if (t_object . object->gettype() != CT_FIELD || !of->notextchunks())
 		{
-            ctxt . LegacyThrow(EE_SORT_CANTSORT);
+			ctxt . LegacyThrow(EE_SORT_CANTSORT);
 			return;
 		}
 		MCInterfaceExecSortField(ctxt, t_object, chunktype, direction == ST_ASCENDING, format, by);

@@ -159,21 +159,21 @@ static int CompareNodePrecedence(Node *p_left, Node *p_right)
 	// Now fetch the operators for both syntax trees.
     t_left_operator = p_left -> kind;
     t_right_operator = p_right -> kind;
-    
+
 	// A nil pointer indicates a non-operator.
 	if (t_left_operator == kNodeKindOperand)
 		return 1;
 	if (t_right_operator == kNodeKindOperand)
 		return -1;
-    
-    if (t_left_operator == kNodeKindPrefixOperator &&
-        t_right_operator == kNodeKindPrefixOperator)
-        return -1;
-    
-    if (t_left_operator == kNodeKindPostfixOperator &&
-        t_right_operator == kNodeKindPostfixOperator)
-        return 1;
-    
+
+	if (t_left_operator == kNodeKindPrefixOperator &&
+		t_right_operator == kNodeKindPrefixOperator)
+		return -1;
+
+	if (t_left_operator == kNodeKindPostfixOperator &&
+		t_right_operator == kNodeKindPostfixOperator)
+		return 1;
+
 	// Handle the prefix rules:
 	//   T <- L for all T
 	//   L -> T if p(L) > p(T)
@@ -210,6 +210,7 @@ static int CompareNodePrecedence(Node *p_left, Node *p_right)
 	return 0;
 }
 
+/*
 static intptr_t GetNodeArity(Node *p_node)
 {
     if (p_node -> kind == kNodeKindOperand)
@@ -220,6 +221,7 @@ static intptr_t GetNodeArity(Node *p_node)
     
     return 1;
 }
+*/
 
 static void PrintNodeList(Node *p_node)
 {

@@ -260,14 +260,14 @@ Boolean MCWidgetEventManager::event_kup(MCWidget* p_widget, MCStringRef p_text, 
 
 Boolean MCWidgetEventManager::event_mdown(MCWidget* p_widget, uint2 p_which)
 {
-    // Prevent the IDE from breaking
-    if (!widgetIsInRunMode(p_widget))
-        return p_widget->MCControl::mdown(p_which);
-	
+	// Prevent the IDE from breaking
+	if (!widgetIsInRunMode(p_widget))
+		return p_widget->MCControl::mdown(p_which);
+
 	if (!check_mouse_focus(p_widget, "event_mdown"))
 		return False;
-	
-    return mouseDown(m_mouse_focus, p_which);
+
+	return mouseDown(m_mouse_focus, p_which);
 }
 
 Boolean MCWidgetEventManager::event_mup(MCWidget* p_widget, uint2 p_which, bool p_release)
@@ -295,7 +295,7 @@ Boolean MCWidgetEventManager::event_mfocus(MCWidget* p_widget, int2 p_x, int2 p_
     MCWidgetRef t_focused_widget;
     t_focused_widget = hitTest(p_widget -> getwidget(), p_x, p_y);
 
-    if (t_focused_widget == nil)
+    if (nil == t_focused_widget)
     {
         // We can still be focused if the mouse is within the resize handles
         if (p_widget -> getstate(CS_SELECTED)
@@ -305,9 +305,9 @@ Boolean MCWidgetEventManager::event_mfocus(MCWidget* p_widget, int2 p_x, int2 p_
         }
     }
     
-    if (t_focused_widget == nil)
+    if (nil == t_focused_widget)
     {
-        if (m_mouse_focus != nil &&
+        if (nil != m_mouse_focus &&
             MCWidgetGetHost(m_mouse_focus) != p_widget)
             return False;
         
@@ -330,7 +330,7 @@ Boolean MCWidgetEventManager::event_mfocus(MCWidget* p_widget, int2 p_x, int2 p_
     m_mouse_y = p_y;
     
     // Now what we do depends on whether the mouse is grabbed.
-    if (m_mouse_grab != nil)
+    if (nil != m_mouse_grab)
     {
         if (t_focused_changed)
         {
@@ -353,12 +353,12 @@ Boolean MCWidgetEventManager::event_mfocus(MCWidget* p_widget, int2 p_x, int2 p_
         
         return True;
     }
-    else if (t_focused_widget != nil)
+    else if (nil != t_focused_widget)
     {
         // The mouse has moved into a widget within this control.
         if (t_focused_changed)
         {
-            if (m_mouse_focus != nil)
+            if (nil != m_mouse_focus)
                 mouseLeave(m_mouse_focus);
         
             MCValueAssignOptional(m_mouse_focus, t_focused_widget);
@@ -373,7 +373,7 @@ Boolean MCWidgetEventManager::event_mfocus(MCWidget* p_widget, int2 p_x, int2 p_
         if (t_pos_changed)
             mouseMove(m_mouse_focus);
     }
-    else if (t_focused_widget == nil)
+    else if (nil == t_focused_widget)
     {
         // The mouse has moved out of this widget.
         if (t_focused_changed)
@@ -385,7 +385,7 @@ Boolean MCWidgetEventManager::event_mfocus(MCWidget* p_widget, int2 p_x, int2 p_
     }
     
     // If we are the focused widget, then we handled it.
-    return t_focused_widget != nil;
+    return nil != t_focused_widget;
 }
 
 void MCWidgetEventManager::event_munfocus(MCWidget* p_widget)
