@@ -17,6 +17,13 @@
 #ifndef __MC_FOUNDATION_UNICODE_PRIVATE__
 #define __MC_FOUNDATION_UNICODE_PRIVATE__
 
+#ifndef TRUE
+#define TRUE true
+#endif
+#ifndef FALSE
+#define FALSE false
+#endif
+
 #include "foundation-locale.h"
 #include "foundation-unicode.h"
 

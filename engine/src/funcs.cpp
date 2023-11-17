@@ -639,15 +639,15 @@ Parse_stat MCFontStyles::parse(MCScriptPoint &sp, Boolean the)
 
 void MCFontStyles::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    MCAutoStringRef t_fontname;
-    if (!ctxt . EvalExprAsStringRef(fontname, EE_FONTSTYLES_BADFONTNAME, &t_fontname))
-        return;
-    uinteger_t fsize;
-    if (!ctxt . EvalExprAsStrictUInt(fontsize, EE_FONTSTYLES_BADFONTSIZE, fsize))
-        return;
-    
+	MCAutoStringRef t_fontname;
+	if (!ctxt . EvalExprAsStringRef(fontname, EE_FONTSTYLES_BADFONTNAME, &t_fontname))
+		return;
+	uinteger_t fsize;
+	if (!ctxt . EvalExprAsStrictUInt(fontsize, EE_FONTSTYLES_BADFONTSIZE, fsize))
+		return;
+
 	MCTextEvalFontStyles(ctxt, *t_fontname, fsize, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 MCFormat::~MCFormat()
@@ -727,16 +727,16 @@ Parse_stat MCHostNtoA::parse(MCScriptPoint &sp, Boolean the)
 
 void MCHostNtoA::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    MCAutoStringRef t_hostname;
-    if (!ctxt . EvalExprAsStringRef(name, EE_HOSTNTOA_BADNAME, &t_hostname))
-        return;
-    
+	MCAutoStringRef t_hostname;
+	if (!ctxt . EvalExprAsStringRef(name, EE_HOSTNTOA_BADNAME, &t_hostname))
+		return;
+
 	MCNewAutoNameRef t_message;
-    if (!ctxt . EvalOptionalExprAsNameRef(message, kMCEmptyName, EE_OPEN_BADMESSAGE, &t_message))
-        return;
+	if (!ctxt . EvalOptionalExprAsNameRef(message, kMCEmptyName, EE_OPEN_BADMESSAGE, &t_message))
+		return;
 
 	MCNetworkEvalHostNameToAddress(ctxt, *t_hostname, *t_message, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 void MCInsertScripts::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
@@ -1076,11 +1076,11 @@ Parse_stat MCMouse::parse(MCScriptPoint &sp, Boolean the)
 void MCMouse::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
 	uinteger_t b;
-    if (!ctxt . EvalOptionalExprAsUInt(which, 0, EE_MOUSE_BADSOURCE, b))
-        return;
-	
+	if (!ctxt . EvalOptionalExprAsUInt(which, 0, EE_MOUSE_BADSOURCE, b))
+		return;
+
 	MCInterfaceEvalMouse(ctxt, b, r_value . nameref_value);
-    r_value . type = kMCExecValueTypeNameRef;
+	r_value . type = kMCExecValueTypeNameRef;
 }
 
 Parse_stat MCParamCount::parse(MCScriptPoint &sp, Boolean the)
@@ -1113,20 +1113,20 @@ Parse_stat MCReplaceText::parse(MCScriptPoint &sp, Boolean the)
 
 void MCReplaceText::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
 {
-    MCAutoStringRef t_source;
-    if (!ctxt . EvalExprAsStringRef(source, EE_REPLACETEXT_BADSOURCE, &t_source))
-        return;
+	MCAutoStringRef t_source;
+	if (!ctxt . EvalExprAsStringRef(source, EE_REPLACETEXT_BADSOURCE, &t_source))
+		return;
 
-    MCAutoStringRef t_pattern;
-    if (!ctxt . EvalExprAsStringRef(pattern, EE_REPLACETEXT_BADPATTERN, &t_pattern))
-        return;
-	
-    MCAutoStringRef t_replacement;
-    if (!ctxt . EvalExprAsStringRef(replacement, EE_REPLACETEXT_BADSOURCE, &t_replacement))
-        return;
-    
+	MCAutoStringRef t_pattern;
+	if (!ctxt . EvalExprAsStringRef(pattern, EE_REPLACETEXT_BADPATTERN, &t_pattern))
+		return;
+
+	MCAutoStringRef t_replacement;
+	if (!ctxt . EvalExprAsStringRef(replacement, EE_REPLACETEXT_BADSOURCE, &t_replacement))
+		return;
+
 	MCStringsEvalReplaceText(ctxt, *t_source, *t_pattern, *t_replacement, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 // MW-2010-12-15: [[ Bug ]] Make sure the value of 'the result' is grabbed, otherwise

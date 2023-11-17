@@ -17,11 +17,18 @@
 #include "foundation-unicode.h"
 #include "foundation-unicode-private.h"
 
-#include "unicode/uchar.h"
+#include "unicode/uset.h"
+//#include "unicode/uchar.h"
 #include "unicode/ustring.h"
 #include "unicode/brkiter.h"
 #include "unicode/coll.h"
+
+//#include "unicode/unistr.h"
+//#include "unicode/stringoptions.h"
+//#include "unicode/localpointer.h"
+
 #include "unicode/normalizer2.h"
+#include "unicode/unorm.h"
 #include "unicode/udata.h"
 #include "unicode/uclean.h"
 
@@ -554,24 +561,21 @@ bool MCUnicodeIsIdentifierContinue(codepoint_t p_codepoint)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool MCUnicodeNormaliseNFC(const unichar_t *p_in, uindex_t p_in_length,
-                           unichar_t *&r_out, uindex_t &r_out_length)
+static bool MDWUnicodeNormalize(const icu::Normalizer2 *p_normalizer, const unichar_t *p_in, uindex_t p_in_length,
+                           										unichar_t * &r_out, uindex_t &r_out_length)
 {
-    // Get the instance of the NFC normaliser
-    UErrorCode t_error;
-    const Normalizer2 *t_normaliser;
-    t_error = U_ZERO_ERROR;
-    t_normaliser = icu::Normalizer2::getNFCInstance(t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
+    UErrorCode t_error = U_ZERO_ERROR;
+
     // Create an ICU string for the input string
-    icu::UnicodeString t_input(p_in, p_in_length);
+    const icu::UnicodeString t_input(p_in, p_in_length);
     
+    // Create an ICU string for the output string
+	icu::UnicodeString t_output(p_in, 0, p_in_length);
+
     // Normalise
-    icu::UnicodeString t_output;
-    t_output = t_normaliser->normalize(t_input, t_error);
-    if (U_FAILURE(t_error))
+	t_output = p_normalizer->normalize(t_input, t_error);
+
+	if (U_FAILURE(t_error))
         return false;
     
     // Allocate the output buffer
@@ -586,187 +590,125 @@ bool MCUnicodeNormaliseNFC(const unichar_t *p_in, uindex_t p_in_length,
     
     // All done
     t_buffer.Take(r_out, r_out_length);
+
     return true;
+}
+
+bool MCUnicodeNormaliseNFC(const unichar_t *p_in, uindex_t p_in_length,
+                           unichar_t * &r_out, uindex_t &r_out_length)
+{
+	// Get the instance of the NFC normaliser
+	UErrorCode t_error = U_ZERO_ERROR;
+	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFCInstance(t_error);
+	if (U_FAILURE(t_error))
+		return false;
+
+	return MDWUnicodeNormalize(t_normalizer, p_in, p_in_length, r_out, r_out_length);
 }
 
 bool MCUnicodeNormaliseNFKC(const unichar_t *p_in, uindex_t p_in_length,
-                            unichar_t *&r_out, uindex_t &r_out_length)
+                           unichar_t * &r_out, uindex_t &r_out_length)
 {
-    // Get the instance of the NFKC normaliser
-    UErrorCode t_error;
-    const Normalizer2 *t_normaliser;
-    t_error = U_ZERO_ERROR;
-    t_normaliser = icu::Normalizer2::getNFKCInstance(t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Create an ICU string for the input string
-    icu::UnicodeString t_input(p_in, p_in_length);
-    
-    // Normalise
-    icu::UnicodeString t_output;
-    t_output = t_normaliser->normalize(t_input, t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Allocate the output buffer
-    MCAutoArray<unichar_t> t_buffer;
-    if (!t_buffer.New(t_output.length()))
-        return false;
-    
-    // Copy the normalised string to the buffer
-    t_output.extract(t_buffer.Ptr(), t_buffer.Size(), t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // All done
-    t_buffer.Take(r_out, r_out_length);
-    return true;
+	// Get the instance of the NFKC normaliser
+	UErrorCode t_error = U_ZERO_ERROR;
+	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFKCInstance(t_error);
+	if (U_FAILURE(t_error))
+		return false;
+
+	return MDWUnicodeNormalize(t_normalizer, p_in, p_in_length, r_out, r_out_length);
 }
 
 bool MCUnicodeNormaliseNFD(const unichar_t *p_in, uindex_t p_in_length,
-                           unichar_t *&r_out, uindex_t &r_out_length)
+                           unichar_t * &r_out, uindex_t &r_out_length)
 {
-    
-    // Get the instance of the NFD normaliser
-    UErrorCode t_error;
-    const Normalizer2 *t_normaliser;
-    t_error = U_ZERO_ERROR;
-    t_normaliser = icu::Normalizer2::getNFDInstance(t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Create an ICU string for the input string
-    icu::UnicodeString t_input(p_in, p_in_length);
-    
-    // Normalise
-    icu::UnicodeString t_output;
-    t_output = t_normaliser->normalize(t_input, t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Allocate the output buffer
-    MCAutoArray<unichar_t> t_buffer;
-    if (!t_buffer.New(t_output.length()))
-        return false;
-    
-    // Copy the normalised string to the buffer
-    t_output.extract(t_buffer.Ptr(), t_buffer.Size(), t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // All done
-    t_buffer.Take(r_out, r_out_length);
-    return true;
+	// Get the instance of the NFD normaliser
+	UErrorCode t_error = U_ZERO_ERROR;
+	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFDInstance(t_error);
+	if (U_FAILURE(t_error))
+		return false;
+
+	return MDWUnicodeNormalize(t_normalizer, p_in, p_in_length, r_out, r_out_length);
 }
 
 bool MCUnicodeNormaliseNFKD(const unichar_t *p_in, uindex_t p_in_length,
-                            unichar_t *&r_out, uindex_t &r_out_length)
+                           unichar_t * &r_out, uindex_t &r_out_length)
 {
-    // Get the instance of the NFC normaliser
-    UErrorCode t_error;
-    const Normalizer2 *t_normaliser;
-    t_error = U_ZERO_ERROR;
-    t_normaliser = icu::Normalizer2::getNFCInstance(t_error);
-    if (U_FAILURE(t_error))
-        return false;
+	// Get the instance of the NFKD normaliser
+	UErrorCode t_error = U_ZERO_ERROR;
+	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFKDInstance(t_error);
+	if (U_FAILURE(t_error))
+		return false;
     
-    // Create an ICU string for the input string
-    icu::UnicodeString t_input(p_in, p_in_length);
-    
-    // Normalise
-    icu::UnicodeString t_output;
-    t_output = t_normaliser->normalize(t_input, t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Allocate the output buffer
-    MCAutoArray<unichar_t> t_buffer;
-    if (!t_buffer.New(t_output.length()))
-        return false;
-    
-    // Copy the normalised string to the buffer
-    t_output.extract(t_buffer.Ptr(), t_buffer.Size(), t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // All done
-    t_buffer.Take(r_out, r_out_length);
-    return true;
+	return MDWUnicodeNormalize(t_normalizer, p_in, p_in_length, r_out, r_out_length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static bool MDWUnicodeIsNormalized(const UNormalizer2 *p_normalizer, const unichar_t *p_string, const uindex_t p_length)
+{
+    // Get the instance of the NFC normaliser
+    UErrorCode t_error = U_ZERO_ERROR;
+    
+    // Check for normalisation
+    UBool t_result;
+//	t_result = p_normalizer->isNormalized(p_string, t_error);
+    t_result = unorm2_isNormalized(p_normalizer, (const UChar*)p_string, p_length, &t_error);
+    if (U_FAILURE(t_error))
+        return false;
+    return t_result;
+}
+
 bool MCUnicodeIsNormalisedNFC(const unichar_t *p_string, uindex_t p_length)
 {
     // Get the instance of the NFC normaliser
-    UErrorCode t_error;
-    const UNormalizer2 *t_normalizer;
-    t_error = U_ZERO_ERROR;
-    t_normalizer = unorm2_getNFCInstance(&t_error);
+    UErrorCode t_error = U_ZERO_ERROR;
+    const UNormalizer2 *t_normalizer = unorm2_getNFCInstance(&t_error);
     if (U_FAILURE(t_error))
         return false;
     
     // Check for normalisation
-    UBool t_result;
-    t_result = unorm2_isNormalized(t_normalizer, p_string, p_length, &t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    return !!t_result;
+
+	return MDWUnicodeIsNormalized(t_normalizer, p_string, p_length);
 }
 
 bool MCUnicodeIsNormalisedNFKC(const unichar_t *p_string, uindex_t p_length)
 {
     // Get the instance of the NFKC normaliser
-    UErrorCode t_error;
-    const UNormalizer2 *t_normalizer;
-    t_error = U_ZERO_ERROR;
-    t_normalizer = unorm2_getNFKCInstance(&t_error);
+    UErrorCode t_error = U_ZERO_ERROR;
+//	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFKCInstance(t_error);
+    const UNormalizer2 *t_normalizer = unorm2_getNFKCInstance(&t_error);
     if (U_FAILURE(t_error))
         return false;
     
     // Check for normalisation
-    UBool t_result;
-    t_result = unorm2_isNormalized(t_normalizer, p_string, p_length, &t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    return !!t_result;
+
+	return MDWUnicodeIsNormalized(t_normalizer, p_string, p_length);
 }
 
 bool MCUnicodeIsNormalisedNFD(const unichar_t *p_string, uindex_t p_length)
 {
-    // Get the instance of the NFD normaliser
-    UErrorCode t_error;
-    const UNormalizer2 *t_normalizer;
-    t_error = U_ZERO_ERROR;
-    t_normalizer = unorm2_getNFDInstance(&t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Check for normalisation
-    UBool t_result;
-    t_result = unorm2_isNormalized(t_normalizer, p_string, p_length, &t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    return !!t_result;
+	// Get the instance of the NFD normaliser
+	UErrorCode t_error = U_ZERO_ERROR;
+//	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFDInstance(t_error);
+    const UNormalizer2 *t_normalizer = unorm2_getNFDInstance(&t_error);
+	if (U_FAILURE(t_error))
+		return false;
+
+	// Check for normalisation
+
+	return MDWUnicodeIsNormalized(t_normalizer, p_string, p_length);
 }
 
 bool MCUnicodeIsNormalisedNKD(const unichar_t *p_string, uindex_t p_length)
 {
-    // Get the instance of the NFKD normaliser
-    UErrorCode t_error;
-    const UNormalizer2 *t_normalizer;
-    t_error = U_ZERO_ERROR;
-    t_normalizer = unorm2_getNFKDInstance(&t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    
-    // Check for normalisation
-    UBool t_result;
-    t_result = unorm2_isNormalized(t_normalizer, p_string, p_length, &t_error);
-    if (U_FAILURE(t_error))
-        return false;
-    return !!t_result;
+	// Get the instance of the NFKD normaliser
+	UErrorCode t_error = U_ZERO_ERROR;
+//	const icu::Normalizer2 *t_normalizer = icu::Normalizer2::getNFKDInstance(t_error);
+    const UNormalizer2 *t_normalizer = unorm2_getNFKDInstance(&t_error);
+	if (U_FAILURE(t_error))
+		return false;
+
+	return MDWUnicodeIsNormalized(t_normalizer, p_string, p_length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1415,7 +1357,7 @@ bool MCUnicodeCreateSortKeyWithCollator(MCUnicodeCollatorRef p_collator,
     
     // Find the length of the sort key that will be generated
     uindex_t t_key_length;
-    t_key_length = (unsigned)t_collator->getSortKey(p_string, (signed)p_string_length, NULL, 0);
+    t_key_length = (unsigned)t_collator->getSortKey((const UChar*)p_string, (signed)p_string_length, NULL, 0);
     
     // Allocate memory for the sort key
     MCAutoArray<byte_t> t_key;
@@ -1423,7 +1365,7 @@ bool MCUnicodeCreateSortKeyWithCollator(MCUnicodeCollatorRef p_collator,
         return false;
     
     // Generate the sort key
-    t_collator->getSortKey(p_string, (signed)p_string_length, t_key.Ptr(), (signed)t_key.Size());
+    t_collator->getSortKey((const UChar*)p_string, (signed)p_string_length, t_key.Ptr(), (signed)t_key.Size());
     
     t_key.Take(r_key, r_key_length);
     
@@ -1442,7 +1384,7 @@ int32_t MCUnicodeCollateWithCollator(MCUnicodeCollatorRef p_collator,
     
     // Do the comparison
     UCollationResult t_result;
-    t_result = t_collator->compare(p_first, (signed)p_first_length, p_second, (signed)p_second_length, t_error);
+    t_result = t_collator->compare((const UChar*)p_first, (signed)p_first_length, (const UChar*)p_second, (signed)p_second_length, t_error);
     
     // The UCollationResult type maps UCOL_{GREATER,EQUAL,LESS} to +1,0,-1
     return int32_t(t_result);

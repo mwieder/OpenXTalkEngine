@@ -144,7 +144,7 @@ public:
         return t_iter;
     }
 
-    MCSpanIterator& operator--()
+    constexpr MCSpanIterator& operator--()
     {
         return
             MCAssert(m_span != nullptr &&
@@ -153,14 +153,14 @@ public:
             *this;
     }
 
-    MCSpanIterator operator--(int)
+    constexpr MCSpanIterator operator--(int)
     {
         auto t_iter = *this;
         --(*this);
         return t_iter;
     }
 
-    MCSpanIterator operator+(difference_type p_offset) const
+    constexpr MCSpanIterator operator+(difference_type p_offset) const
     {
         auto t_iter = *this;
         return t_iter += p_offset;
@@ -176,13 +176,13 @@ public:
             *this;
     }
 
-    MCSpanIterator operator-(difference_type p_offset) const
+    constexpr MCSpanIterator operator-(difference_type p_offset) const
     {
         auto t_iter = *this;
         return t_iter -= p_offset;
     }
 
-    MCSpanIterator& operator-=(difference_type p_offset)
+    constexpr MCSpanIterator& operator-=(difference_type p_offset)
     {
         return *this += -p_offset;
     }

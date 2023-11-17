@@ -276,7 +276,9 @@
 					'action_name': 'list_icu_data',
 					'inputs':
 					[
-						'>(prebuilt_icu_share_dir)/icudt58l.dat',
+#						'>(prebuilt_icu_share_dir)/icudt58l.dat',
+						'>(prebuilt_icu_share_dir)/icudt63l.dat',
+#						'>(prebuilt_icu_share_dir)/icudt65l.dat',
 					],
 					'outputs':
 					[
@@ -286,7 +288,9 @@
 					[
 						'>(prebuilt_icu_bin_dir)/icupkg',
 						'--list',
-						'>(prebuilt_icu_share_dir)/icudt58l.dat',
+#						'>(prebuilt_icu_share_dir)/icudt58l.dat',
+						'>(prebuilt_icu_share_dir)/icudt63l.dat',
+#						'>(prebuilt_icu_share_dir)/icudt65l.dat',
 						'--auto_toc_prefix',
 						'--outlist',
 						'<(INTERMEDIATE_DIR)/data/icudata-full-list.txt',
@@ -331,7 +335,9 @@
 						'--remove',
 						'<(INTERMEDIATE_DIR)/data/icudata-remove-list.txt',
 						'--auto_toc_prefix',
-						'>(prebuilt_icu_share_dir)/icudt58l.dat',
+#						'>(prebuilt_icu_share_dir)/icudt58l.dat',
+						'>(prebuilt_icu_share_dir)/icudt63l.dat',
+#						'>(prebuilt_icu_share_dir)/icudt65l.dat',
 						'<(SHARED_INTERMEDIATE_DIR)/data/icudata-minimal.dat',
 					],
 				},

@@ -9,10 +9,12 @@ source "${BASEDIR}/scripts/util.inc"
 ICU_CONFIG="--disable-shared --enable-static --prefix=/ --sbindir=/bin --with-data-packaging=archive --disable-samples --disable-tests --disable-extras"
 ICU_CFLAGS="-DU_USING_ICU_NAMESPACE=0 -DUNISTR_FROM_CHAR_EXPLICIT=explicit -DUNISTR_FROM_STRING_EXPLICIT=explicit"
 
-ICU_VERSION_ALT=$(echo "${ICU_VERSION}" | sed 's/\./_/g')
+ICU_VERSION_DASH=$(echo "${ICU_VERSION}" | sed 's/\./-/g')
+ICU_VERSION_UNDERSCORE=$(echo "${ICU_VERSION}" | sed 's/\./_/g')
 ICU_VERSION_MAJOR=$(echo "${ICU_VERSION}" | sed 's/\..*//g')
 
-ICU_URL="https://downloads.sourceforge.net/project/icu/ICU4C/"
+# mdw 2023.11.10 new download url
+ICU_URL="https://github.com/unicode-org/icu/releases/download/release-"
 
 # Grab the source for the library
 ICU_TGZ="icu-${ICU_VERSION}.tar.gz"
@@ -35,7 +37,7 @@ esac
 if [ ! -d "$ICU_SRC" ] ; then
 	if [ ! -e "$ICU_TGZ" ] ; then
 		echo "Fetching ICU source"
-		fetchUrl "${ICU_URL}${ICU_VERSION}/icu4c-${ICU_VERSION_ALT}-src.tgz" "${ICU_TGZ}"
+		fetchUrl "${ICU_URL}${ICU_VERSION_DASH}/icu4c-${ICU_VERSION_UNDERSCORE}-src.tgz" "${ICU_TGZ}"
 		if [ $? != 0 ] ; then
 			echo "    failed"
 			if [ -e "${ICU_TGZ}" ] ; then 
@@ -49,6 +51,13 @@ if [ ! -d "$ICU_SRC" ] ; then
 	tar -xf "${ICU_TGZ}"
 	mv icu "${ICU_SRC}"
 fi
+
+# copy header files from prebuilt/build/icu-58-2/source/common to prebuilt/include/unicode
+echo source = ${BUILDDIR}/${ICU_SRC}/source/common
+echo dest = ${BUILDDIR}/../include/unicode
+mkdir -p ${BUILDDIR}/../include/unicode
+cp ${BUILDDIR}/${ICU_SRC}/source/common/*.h ${BUILDDIR}/../include/unicode
+cp ${BUILDDIR}/${ICU_SRC}/source/common/unicode/*.h ${BUILDDIR}/../include/unicode
 
 ICU_LIBS="data i18n io le lx tu uc"
 ICU_BINARIES="icupkg pkgdata"
@@ -114,7 +123,7 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	# Copy the source to a target-specific directory
 	if [ ! -d "${ICU_ARCH_SRC}" ] ; then
 		echo "Creating ICU build directory for ${NAME}"
-		mkdir "${ICU_ARCH_SRC}"
+		mkdir -p "${ICU_ARCH_SRC}"
 	fi
 
 	# Get the command used to build a previous copy, if any
@@ -220,8 +229,8 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	
 	# Copy over the headers, if it has not yet been done
 	if [ ! -e "${OUTPUT_DIR}/include/unicode" ] ; then
-		echo "Copying ICU headers"
-		mkdir -p "${OUTPUT_DIR}/include"
+		echo "Copying ICU headers from ${INSTALL_DIR}/${NAME}/include"
+		mkdir -p "${OUTPUT_DIR}/include/unicode"
 		cp -r "${INSTALL_DIR}/${NAME}/include"/* "${OUTPUT_DIR}/include/"
 		
 		# Some header massaging is required in order to avoid Win32 link errors

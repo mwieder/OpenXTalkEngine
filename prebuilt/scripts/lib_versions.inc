@@ -1,5 +1,5 @@
 # This file sets the libraries version variables to the version defined in versions/
-# note that there should NOT be a trailing blank line
+# grab the first line in the appropriate file
 
 script_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
@@ -7,19 +7,16 @@ function readVersion {
 	local LIBNAME=$1
 	local LIBNAME_LC=$(tr "[:upper:]" "[:lower:]" <<< $LIBNAME)
 	
-#	local VERSION=$(tail --lines=1 "${script_dir}/../versions/${LIBNAME_LC}")
 	local VERSION=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}")
 	eval ${LIBNAME}_VERSION='"${VERSION}"'
 	export ${LIBNAME}_VERSION="${VERSION}"
 
 	if [ -f "${script_dir}/../versions/${LIBNAME_LC}_buildrevision" ] ; then
-#		local BUILDREVISION=$(tail --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_buildrevision")
 		local BUILDREVISION=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_buildrevision")
 		eval ${LIBNAME}_BUILDREVISION='"${BUILDREVISION}"'
 	fi
 
 	if [ -f "${script_dir}/../versions/${LIBNAME_LC}_buildversion" ] ; then
-#		local BUILDVERSION=$(tail --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_buildversion")
 		local BUILDVERSION=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_buildversion")
 		eval ${LIBNAME}_BUILDVERSION='"${BUILDVERSION}"'
 	fi

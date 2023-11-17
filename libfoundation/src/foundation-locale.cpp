@@ -231,7 +231,7 @@ const icu::Locale& MCLocaleGetICULocale(MCLocaleRef p_locale)
 
 bool MCStringCreateWithICUString(icu::UnicodeString& p_string, MCStringRef &r_string)
 {
-    return MCStringCreateWithChars(p_string.getBuffer(), p_string.length(), r_string);
+    return MCStringCreateWithChars((const unichar_t*)p_string.getBuffer(), p_string.length(), r_string);
 }
 
 bool MCStringConvertToICUString(MCStringRef p_string, icu::UnicodeString &r_string)
