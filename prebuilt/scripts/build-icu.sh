@@ -12,13 +12,15 @@ ICU_CFLAGS="-DU_USING_ICU_NAMESPACE=0 -DUNISTR_FROM_CHAR_EXPLICIT=explicit -DUNI
 ICU_VERSION_DASH=$(echo "${ICU_VERSION}" | sed 's/\./-/g')
 ICU_VERSION_UNDERSCORE=$(echo "${ICU_VERSION}" | sed 's/\./_/g')
 ICU_VERSION_MAJOR=$(echo "${ICU_VERSION}" | sed 's/\..*//g')
+ICU_CHECKSUM=$(echo "${ICU_CHECKSUM}")
 
 # mdw 2023.11.10 new download url
-ICU_URL="https://github.com/unicode-org/icu/releases/download/release-"
+ICU_ROOT="https://github.com/unicode-org/icu/releases/download/release-"
 
 # Grab the source for the library
 ICU_TGZ="icu-${ICU_VERSION}.tar.gz"
 ICU_SRC="icu-${ICU_VERSION}"
+ICU_MD5="icu-${ICU_VERSION}.md5"
 cd "${BUILDDIR}"
 
 # Needed for cross-compiles
@@ -34,10 +36,13 @@ case $(uname) in
 		;;
 esac
 
+ICU_URL="${ICU_ROOT}${ICU_VERSION_DASH}/icu4c-${ICU_VERSION_UNDERSCORE}-src.tgz"
+ICU_MD5_URL="${ICU_URL}.asc"
+
 if [ ! -d "$ICU_SRC" ] ; then
 	if [ ! -e "$ICU_TGZ" ] ; then
 		echo "Fetching ICU source"
-		fetchUrl "${ICU_URL}${ICU_VERSION_DASH}/icu4c-${ICU_VERSION_UNDERSCORE}-src.tgz" "${ICU_TGZ}"
+		fetchUrl ${ICU_URL} "${ICU_TGZ}"
 		if [ $? != 0 ] ; then
 			echo "    failed"
 			if [ -e "${ICU_TGZ}" ] ; then 
@@ -46,7 +51,17 @@ if [ ! -d "$ICU_SRC" ] ; then
 			exit
 		fi
 	fi
-	
+
+	# validate the checksum
+echo downloading "${ICU_MD5_URL}"
+	if [ 0 != "${ICU_CHECKSUM}" ] ; then
+		fetchUrl ${ICU_MD5_URL} "${ICU_MD5}"
+		if [ ! `gpg --verify "${ICU_MD5}"` == ${ICU_TGZ} ] ; then
+			echo "checksum failed"
+			exit
+		fi
+	fi
+
 	echo "Unpacking ICU source"
 	tar -xf "${ICU_TGZ}"
 	mv icu "${ICU_SRC}"

@@ -16,9 +16,16 @@ function readVersion {
 		eval ${LIBNAME}_BUILDREVISION='"${BUILDREVISION}"'
 	fi
 
+	# grab the buildversion file if it exists (cef only)
 	if [ -f "${script_dir}/../versions/${LIBNAME_LC}_buildversion" ] ; then
 		local BUILDVERSION=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_buildversion")
 		eval ${LIBNAME}_BUILDVERSION='"${BUILDVERSION}"'
+	fi
+
+	# grab the checksum file if it exists
+	if [ -f "${script_dir}/../versions/${LIBNAME_LC}_checksum" ] ; then
+		local BUILDVERSION=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_checksum")
+		eval ${LIBNAME}_CHECKSUM='"${CHECKSUM}"'
 	fi
 }
 

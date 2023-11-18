@@ -1,5 +1,6 @@
-63.1
-65.1
+63.2
+65.1 # 65 dumps core during ACTION Generating full lc-compile grammar out/Debug/obj.target/lc-compile-stage2/geni/stage2/grammar_full.g
+64.1 # 64 needs distutils which has disappeared in python 3.12
 74.1
 60.2
 58.2
