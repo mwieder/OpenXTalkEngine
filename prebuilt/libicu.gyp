@@ -9,13 +9,21 @@
 		'conditions':
 		[
 			[
+				'1 == 1',
+				{
+					'variables':
+					{
+						'icu_version': '63',
+					},
+				},
+			],
+			[
 				'host_os == "mac"',
 				{
 					'variables':
 					{
 						'prebuilt_icu_bin_dir': 'bin/mac',
 						'prebuilt_icu_share_dir': 'share',
-						'icu_version': '63',
 					},
 				},
 			],
@@ -29,7 +37,6 @@
 						# Gyp doesn't seem to handle non-absolute paths here properly...
 						'prebuilt_icu_bin_dir': 'bin/linux/<(target_arch)',
 						'prebuilt_icu_share_dir': 'share',
-						'icu_version': '63',
 					},
 				},
 			],
@@ -41,7 +48,6 @@
 						# Gyp doesn't seem to handle non-absolute paths here properly...
 						'prebuilt_icu_bin_dir': 'bin/linux/<(host_arch)',
 						'prebuilt_icu_share_dir': 'share',
-						'icu_version': '63',
 					},
 				},
 			],
@@ -279,8 +285,6 @@
 					'action_name': 'list_icu_data',
 					'inputs':
 					[
-#						'>(prebuilt_icu_share_dir)/icudt58l.dat',
-#						'>(prebuilt_icu_share_dir)/icudt63l.dat',
 						'>(prebuilt_icu_share_dir)/icudt>(icu_version)l.dat',
 					],
 					'outputs':
@@ -291,8 +295,6 @@
 					[
 						'>(prebuilt_icu_bin_dir)/icupkg',
 						'--list',
-#						'>(prebuilt_icu_share_dir)/icudt58l.dat',
-#						'>(prebuilt_icu_share_dir)/icudt63l.dat',
 						'>(prebuilt_icu_share_dir)/icudt>(icu_version)l.dat',
 						'--auto_toc_prefix',
 						'--outlist',
@@ -338,8 +340,6 @@
 						'--remove',
 						'<(INTERMEDIATE_DIR)/data/icudata-remove-list.txt',
 						'--auto_toc_prefix',
-#						'>(prebuilt_icu_share_dir)/icudt58l.dat',
-#						'>(prebuilt_icu_share_dir)/icudt63l.dat',
 						'>(prebuilt_icu_share_dir)/icudt>(icu_version)l.dat',
 						'<(SHARED_INTERMEDIATE_DIR)/data/icudata-minimal.dat',
 					],

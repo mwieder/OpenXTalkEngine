@@ -438,15 +438,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 //  C++ COMPATIBILITY
 //
 
-#ifndef __has_feature
-#  define __has_feature(x)	0
-#endif
-#ifndef __has_extension
-#  define __has_extension(x) __has_feature(x)
-#endif
+// __has_feature was removed from icu 65
+//#ifndef __has_feature
+//#  define __has_feature(x)	0
+//#endif
+//#ifndef __has_extension
+//#  define __has_extension(x) __has_feature(x)
+//#endif
 
 // Ensure we have alignof(...) available
-#if defined(__cplusplus) && !__has_feature(cxx_alignof)
+//#if defined(__cplusplus) && !__has_feature(cxx_alignof)
 // Testing __cplusplus isn't sufficient as some compilers changed the value before being fully-conforming
 #  if defined(__clang__)
      // No need for a version check; Clang supports __has_feature as a built-in
@@ -465,7 +466,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #  else
 #    error Do not know how to get alignof(x) on this compiler
 #  endif
-#endif
+//#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //

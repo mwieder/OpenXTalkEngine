@@ -356,8 +356,8 @@ enum MCBreakIteratorType
     kMCBreakIteratorTypeCharacter,  // Grapheme boundaries
     kMCBreakIteratorTypeWord,       // Word boundaries
     kMCBreakIteratorTypeLine,       // Line boundaries
-    kMCBreakIteratorTypeSentence,   // Sentence boundaries
-    kMCBreakIteratorTypeTitle       // Title casing boundaries
+    kMCBreakIteratorTypeSentence   // Sentence boundaries
+//    kMCBreakIteratorTypeTitle       // Title casing boundaries
 };
 
 ////////////////////////////////////////////////////////////////////////////////

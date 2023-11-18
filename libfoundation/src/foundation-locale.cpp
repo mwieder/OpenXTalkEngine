@@ -1021,13 +1021,13 @@ bool MCLocaleBreakIteratorCreate(MCLocaleRef p_locale, MCBreakIteratorType p_typ
                 p_locale->m_sentence = icu::BreakIterator::createSentenceInstance(p_locale->m_icu_locale, t_error);
             t_iter = p_locale->m_sentence;
             break;
-            
+ /* deprecated by icu 64           
         case kMCBreakIteratorTypeTitle:
             if (p_locale->m_title == nil)
                 p_locale->m_title = icu::BreakIterator::createTitleInstance(p_locale->m_icu_locale, t_error);
             t_iter = p_locale->m_title;
             break;
-            
+ */           
         default:
             // Shouldn't get here
             MCAssert(false);
