@@ -362,7 +362,7 @@ bool DBConnection_ODBC::ExecuteQuery(char *p_query, DBString *p_arguments, int p
 			t_cursor_type = SQL_CURSOR_FORWARD_ONLY;
 
 		t_result = SQLSetStmtAttr(t_statement, SQL_ATTR_CURSOR_TYPE, (SQLPOINTER)t_cursor_type, 0);
-		if (t_result != SQL_SUCCESS && t_result != SQL_SUCCESS_WITH_INFO)
+		if (SQL_SUCCESS != t_result && SQL_SUCCESS_WITH_INFO != t_result)
 		{
 			SQLFreeStmt(t_statement, SQL_CLOSE);
 			return false;
@@ -488,7 +488,7 @@ bool DBConnection_ODBC::handleDataAtExecutionParameters(SQLHSTMT p_statement)
 
 	
 		
-		if (t_put_result != SQL_SUCCESS)
+		if (SQL_SUCCESS != t_put_result)
 		{
 			char *t_error;
 			t_error = getDiagnosticRecord(p_statement);
@@ -497,7 +497,7 @@ bool DBConnection_ODBC::handleDataAtExecutionParameters(SQLHSTMT p_statement)
 		}
 	}
 
-	return (t_result == SQL_SUCCESS);
+	return (SQL_SUCCESS == t_result);
 }
 
 
@@ -514,14 +514,14 @@ void DBConnection_ODBC::SetError(SQLHSTMT p_statement)
 		SQLCHAR t_state[6];
 
 		SQLRETURN err = SQLErrorA(henv, hdbc, p_statement, t_state, &t_error, (SQLCHAR *)errmsg, SQL_MAX_MESSAGE_LENGTH-1, &t_errormsgsize);
-		if (err != SQL_SUCCESS)
+		if (SQL_SUCCESS != err)
 			errmsg[0] = '\0';
 }
 
 /*getErrorMessage- return error string*/
 char *DBConnection_ODBC::getErrorMessage(Bool p_last)
 {
-	if (IsError() == True) return errmsg;
+	if (True == IsError()) return errmsg;
 	else return (char *)DBNullValue;
 }
 
@@ -529,7 +529,7 @@ char *DBConnection_ODBC::getErrorMessage(Bool p_last)
 /*BindVariables-parses querystring and binds variables*/
 Bool DBConnection_ODBC::BindVariables(SQLHSTMT p_cursor, DBString *p_arguments, int p_argument_count, SQLLEN *p_argument_sizes, PlaceholderMap *p_placeholder_map)
 {
-	if (p_argument_count == 0)
+	if (0 == p_argument_count)
 		return True;
 	
 	DBString t_default("", 0, False);

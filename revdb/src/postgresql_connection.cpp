@@ -292,6 +292,10 @@ PGresult *DBConnection_POSTGRESQL::ExecuteQuery(char *p_query, DBString *p_argum
 		bool t_success;
 		t_success = processQuery(p_query, t_query_buffer, queryCallback, &t_query_metadata);
 
+		// MDW 2023.11.20
+		if (!t_success)
+			return NULL;
+
 		t_query_buffer . ensure(1);
 		*t_query_buffer . getFrontier() = '\0';
 		t_query_buffer . advance(1);
@@ -303,7 +307,7 @@ PGresult *DBConnection_POSTGRESQL::ExecuteQuery(char *p_query, DBString *p_argum
 	PGresult *t_query_result;
 	t_query_result = PQexec(dbconn, t_parsed_query);
 
-	if (p_argument_count != 0)
+	if (0 != p_argument_count)
 	{
 		free(t_parsed_query);
 	}

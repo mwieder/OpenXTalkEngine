@@ -2,6 +2,7 @@
 # 63.2 is as far as I can get without dumping core
 65.1 # 65 dumps core during ACTION Generating full lc-compile grammar out/Debug/obj.target/lc-compile-stage2/geni/stage2/grammar_full.g
 64.1 # 64 needs distutils which has disappeared in python 3.12
-74.1
-58.2
+58.2 # LC original value
 
+# only the first line counts
+# change the variable in libicu.gyp if you change this value

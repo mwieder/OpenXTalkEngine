@@ -684,8 +684,8 @@ static bool InterfaceGenerateImports(InterfaceRef self, CoderRef p_coder)
 	const char *t_extern;
 	t_extern = InterfaceGetExternPrefix(self);
 	
-	const char *t_reference;
-	t_reference = InterfaceGetReferenceSuffix(self);
+//	const char *t_reference;
+//	t_reference = InterfaceGetReferenceSuffix(self);
 	
 	if (self -> startup_hook != nil)
 		CoderWriteLine(p_coder, "%s bool %s(void);", t_extern, NameGetCString(self -> startup_hook));
@@ -1211,8 +1211,8 @@ static void map_parameter(InterfaceRef self, HandlerMapping p_mapping, HandlerPa
 
 static void InterfaceGenerateVariant(InterfaceRef self, CoderRef p_coder, Handler *p_handler, HandlerVariant *p_variant, HandlerMapping p_mapping)
 {
-	Handler *t_handler;
-	t_handler = p_handler;
+//	Handler *t_handler;
+//	t_handler = p_handler;
 	
 	HandlerVariant *t_variant;
 	t_variant = p_variant;

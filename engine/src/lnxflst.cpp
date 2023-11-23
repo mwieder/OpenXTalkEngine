@@ -217,10 +217,10 @@ MCFontStruct *MCNewFontlist::getfont(MCNameRef p_family, uint2& p_size, uint2 p_
 	FT_Face t_face;
 	t_face = pango_fc_font_lock_face((PangoFcFont*)t_p_font);
 
-	int32_t t_ascent, t_descent, t_height;
-	t_ascent = t_face -> size -> metrics . ascender / 64;
-	t_descent = t_face -> size -> metrics . descender / 64;
-	t_height = t_face -> size -> metrics . height / 64.0;
+//	int32_t t_ascent, t_descent, t_height;
+//	t_ascent = t_face -> size -> metrics . ascender / 64;
+//	t_descent = t_face -> size -> metrics . descender / 64;
+//	t_height = t_face -> size -> metrics . height / 64.0;
 
     t_font -> m_ascent = t_face -> size -> metrics.ascender / 64.0f;
     t_font -> m_descent = t_face -> size -> metrics.descender / -64.0f; // Note: descender is negative in FT!

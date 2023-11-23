@@ -4344,8 +4344,8 @@ static MCRectangle compute_objectshape_rect(MCObjectShape& p_shape)
 	
 	if (p_shape . type == kMCObjectShapeMask)
 	{
-		MCImageBitmap *t_mask;
-		t_mask = p_shape . mask . bits;
+//		MCImageBitmap *t_mask;
+//		t_mask = p_shape . mask . bits;
 		
 		// IM-2013-10-17: [[ ResIndependence ]] Apply image scale factor when computing rect
 		MCGFloat t_scale;
@@ -4761,17 +4761,17 @@ bool MCObject::mapfont(bool recursive)
 	{
 		t_mapped_parent = true;
 	}
-    if (parent)
-        t_explicit_font = parent -> mapfont(true);
-	
+	if (parent)
+		t_explicit_font = parent -> mapfont(true);
+
 	// MW-2013-12-19: [[ Bug 11606 ]] Make sure we check for a stack using ideal layout
 	//   as this requires new font computation.
 	// If we have a font setting, then we create a new font. Otherwise we just
 	// copy the parent's font.
 	if (!inheritfont() || (gettype() == CT_STACK && static_cast<MCStack *>(this) -> getuseideallayout()))
 	{
-        t_explicit_font = true;
-        
+		t_explicit_font = true;
+
         // MW-2012-02-19: [[ SplitTextAttrs ]] Compute the attrs to write out. If we don't
 		//   have all of the attrs, fetch the inherited ones.
 		MCNameRef t_textfont;
@@ -4793,20 +4793,20 @@ bool MCObject::mapfont(bool recursive)
 
         // If the font is explicitly requesting the default font for this
         // control type, use the themed font
-        if (MCNameIsEqualToCaseless(t_textfont, MCN_font_default))
-        {
-            // Don't inherit the parent's themed font
-            if (recursive)
-                return false;
-            
-            // Get the appropriate themed font
-            MCPlatformGetControlThemePropFont(getcontroltype(), getcontrolsubpart(), getcontrolstate(), kMCPlatformThemePropertyTextFont, m_font);
-        }
-        else
-        {
-            // Explicit non-default font
-            /* UNCHECKED */ MCFontCreate(t_textfont, t_font_style, t_textsize, m_font);
-        }
+		if (MCNameIsEqualToCaseless(t_textfont, MCN_font_default))
+		{
+			// Don't inherit the parent's themed font
+			if (recursive)
+				return false;
+
+			// Get the appropriate themed font
+			MCPlatformGetControlThemePropFont(getcontroltype(), getcontrolsubpart(), getcontrolstate(), kMCPlatformThemePropertyTextFont, m_font);
+		}
+		else
+		{
+			// Explicit non-default font
+			/* UNCHECKED */ MCFontCreate(t_textfont, t_font_style, t_textsize, m_font);
+		}
 	}
 	else if (parent && t_explicit_font)
 	{
@@ -4817,25 +4817,25 @@ bool MCObject::mapfont(bool recursive)
 		else
 			m_font = MCFontRetain(parent -> m_font);
 	}
-    else if (recursive)
-    {
-        // No font style font - it will be resolved after unwinding
-        return false;
-    }
-    else
-    {
+	else if (recursive)
+	{
+		// No font style font - it will be resolved after unwinding
+		return false;
+	}
+	else
+	{
         // No font style was found. Use the themed font
         MCPlatformGetControlThemePropFont(getcontroltype(), getcontrolsubpart(), getcontrolstate(), kMCPlatformThemePropertyTextFont, m_font);
     }
-	
+
 	// MW-2012-03-02: [[ Bug 10044 ]] If we had to temporarily map the parent's font
 	//   then unmap it here.
 	// MW-2012-03-12: [[ Bug 10078 ]] Only unmap the parent if we mapped it in the
 	//   first place.
 	if (t_mapped_parent)
 		parent -> unmapfont();
-    
-    return t_explicit_font;
+
+	return t_explicit_font;
 }
 
 // MW-2012-02-14: [[ FontRefs ]] New method which unmaps the object's concrete font

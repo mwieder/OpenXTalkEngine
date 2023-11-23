@@ -329,6 +329,10 @@ bool MCPlatformGetControlThemePropColor(MCPlatformControlType p_type, MCPlatform
             t_found = true;
             t_color = t_style->dark[t_gtk_state];
             break;
+		case kMCPlatformThemePropertyTextFont:
+		case kMCPlatformThemePropertyTextSize:
+		case kMCPlatformThemePropertyAlpha:
+			break;
     }
     
     if (t_found)

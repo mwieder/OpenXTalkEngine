@@ -446,8 +446,8 @@ template <typename ElementType>
 inline hash_t MCHashSpan(MCSpan<ElementType> p_span)
 {
     /* TODO[C++11] Enable this assertion once all our C++ compilers support it. */
-    /* static_assert(std::is_trivially_copyable<ElementType>::value,
-           "MCHashObjectSpan can only be used with trivially copyable types"); */
+    static_assert(std::is_trivially_copyable<ElementType>::value,
+           "MCHashObjectSpan can only be used with trivially copyable types");
     return MCHashBytes(p_span.data(), p_span.sizeBytes());
 }
 
@@ -456,8 +456,8 @@ inline hash_t MCHashSpanStream(hash_t p_previous,
                                MCSpan<ElementType> p_span)
 {
     /* TODO[C++11] Enable this assertion once all our C++ compilers support it. */
-    /* static_assert(std::is_trivially_copyable<ElementType>::value,
-           "MCHashObjectSpanStream can only be used with trivially copyable types"); */
+    static_assert(std::is_trivially_copyable<ElementType>::value,
+           "MCHashObjectSpanStream can only be used with trivially copyable types");
     return MCHashBytesStream(p_previous,
                              p_span.data(), p_span.sizeBytes());
 }

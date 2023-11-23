@@ -228,86 +228,85 @@ Parse_errors MCAsk::parse_file(MCScriptPoint& sp)
 
 void MCAsk::exec_ctxt(class MCExecContext& ctxt)
 {
-    
-    MCAutoStringRef t_title;
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(title, EE_ANSWER_BADTITLE, &t_title))
-        return;
+	MCAutoStringRef t_title;
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(title, EE_ANSWER_BADTITLE, &t_title))
+	return;
 
 	switch(mode)
 	{
-        case AT_PASSWORD:
-        case AT_CLEAR:
-        {
-            MCAutoStringRef t_prompt, t_answer;
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(password . prompt, EE_ASK_BADREPLY, &t_prompt))
-                return;
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(password . answer, EE_ASK_BADREPLY, &t_answer))
-                return;
-            MCDialogExecAskPassword(ctxt, mode == AT_CLEAR, *t_prompt, *t_answer, password . hint, *t_title, sheet == True);
-        }
-            break;
+		case AT_PASSWORD:
+		case AT_CLEAR:
+		{
+			MCAutoStringRef t_prompt, t_answer;
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(password . prompt, EE_ASK_BADREPLY, &t_prompt))
+				return;
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(password . answer, EE_ASK_BADREPLY, &t_answer))
+				return;
+			MCDialogExecAskPassword(ctxt, mode == AT_CLEAR, *t_prompt, *t_answer, password . hint, *t_title, sheet == True);
+		}
+			break;
             
-        case AT_FILE:
-        {
-            MCAutoStringRef t_prompt, t_initial, t_filter;
-            MCAutoStringRefArray t_types;
-            
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(file.prompt, EE_ANSWER_BADQUESTION, &t_prompt))
-                return;
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(file.initial, EE_ANSWER_BADQUESTION, &t_initial))
-                return;
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(file.filter, EE_ANSWER_BADQUESTION, &t_filter))
-                return;
-            
-            MCAutoStringRef t_initial_resolved;
-            if (*t_initial != nil)
-            {
-                // We only want to resolve the path if it is relative
-                // (otherwise it will be created where LiveCode is located)
-                if (MCStringContains(*t_initial, MCSTR("/"), kMCStringOptionCompareExact))
-                {
-                    // IM-2014-08-06: [[ Bug 13096 ]] Allow file dialogs to work with relative paths by resolving to absolute
-                    if (!MCS_resolvepath(*t_initial, &t_initial_resolved))
-                    {
-                        ctxt . LegacyThrow(EE_NO_MEMORY);
-                        return;
-                    }
-                }
-                else
-                {
-                    // We simply take the initial path as it is
-                    t_initial_resolved = *t_initial;
-                }
-            }
-            
-            if (file . type_count > 0)
-            {
-                /* UNCHECKED */ t_types.Extend(file.type_count);
-                for (uindex_t i = 0; i < file.type_count; i++)
-                {
-                    if (!ctxt . EvalOptionalExprAsNullableStringRef(file.types[i], EE_ANSWER_BADQUESTION, t_types[i]))
-                        return;
-                }
-            }
-            
-            if (t_types.Count() > 0)
-                MCDialogExecAskFileWithTypes(ctxt, *t_prompt, *t_initial_resolved, *t_types, t_types . Count(), *t_title, sheet == True);
-            else if (*t_filter != nil)
-                MCDialogExecAskFileWithFilter(ctxt, *t_prompt, *t_initial_resolved, *t_filter, *t_title, sheet == True);
-            else
-                MCDialogExecAskFile(ctxt, *t_prompt, *t_initial_resolved, *t_title, sheet == True);
-        }
-            break;
-            
-        default:
-        {
-            MCAutoStringRef t_prompt, t_answer;
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(question . prompt, EE_ASK_BADREPLY, &t_prompt))
-                return;
-            if (!ctxt . EvalOptionalExprAsNullableStringRef(question . answer, EE_ASK_BADREPLY, &t_answer))
-                return;
-            MCDialogExecAskQuestion(ctxt, mode, *t_prompt, *t_answer, question . hint, *t_title, sheet == True);
-        }
-            break;
+		case AT_FILE:
+		{
+			MCAutoStringRef t_prompt, t_initial, t_filter;
+			MCAutoStringRefArray t_types;
+
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(file.prompt, EE_ANSWER_BADQUESTION, &t_prompt))
+				return;
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(file.initial, EE_ANSWER_BADQUESTION, &t_initial))
+				return;
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(file.filter, EE_ANSWER_BADQUESTION, &t_filter))
+				return;
+
+			MCAutoStringRef t_initial_resolved;
+			if (*t_initial != nil)
+			{
+				// We only want to resolve the path if it is relative
+				// (otherwise it will be created where LiveCode is located)
+				if (MCStringContains(*t_initial, MCSTR("/"), kMCStringOptionCompareExact))
+				{
+					// IM-2014-08-06: [[ Bug 13096 ]] Allow file dialogs to work with relative paths by resolving to absolute
+					if (!MCS_resolvepath(*t_initial, &t_initial_resolved))
+					{
+						ctxt . LegacyThrow(EE_NO_MEMORY);
+						return;
+					}
+				}
+				else
+				{
+					// We simply take the initial path as it is
+					t_initial_resolved = *t_initial;
+				}
+			}
+
+			if (file . type_count > 0)
+			{
+				/* UNCHECKED */ t_types.Extend(file.type_count);
+				for (uindex_t i = 0; i < file.type_count; i++)
+				{
+					if (!ctxt . EvalOptionalExprAsNullableStringRef(file.types[i], EE_ANSWER_BADQUESTION, t_types[i]))
+						return;
+				}
+			}
+
+			if (t_types.Count() > 0)
+				MCDialogExecAskFileWithTypes(ctxt, *t_prompt, *t_initial_resolved, *t_types, t_types . Count(), *t_title, sheet == True);
+			else if (*t_filter != nil)
+				MCDialogExecAskFileWithFilter(ctxt, *t_prompt, *t_initial_resolved, *t_filter, *t_title, sheet == True);
+			else
+				MCDialogExecAskFile(ctxt, *t_prompt, *t_initial_resolved, *t_title, sheet == True);
+		}
+			break;
+
+		default:
+		{
+			MCAutoStringRef t_prompt, t_answer;
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(question . prompt, EE_ASK_BADREPLY, &t_prompt))
+				return;
+			if (!ctxt . EvalOptionalExprAsNullableStringRef(question . answer, EE_ASK_BADREPLY, &t_answer))
+				return;
+			MCDialogExecAskQuestion(ctxt, mode, *t_prompt, *t_answer, question . hint, *t_title, sheet == True);
+		}
+			break;
 	}
 }

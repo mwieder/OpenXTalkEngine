@@ -24,7 +24,7 @@ function readVersion {
 
 	# grab the checksum file if it exists
 	if [ -f "${script_dir}/../versions/${LIBNAME_LC}_checksum" ] ; then
-		local BUILDVERSION=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_checksum")
+		local CHECKSUM=$(head --lines=1 "${script_dir}/../versions/${LIBNAME_LC}_checksum")
 		eval ${LIBNAME}_CHECKSUM='"${CHECKSUM}"'
 	fi
 }

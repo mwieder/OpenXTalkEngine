@@ -537,37 +537,37 @@ bool InterfaceDefineHandlerParameter(InterfaceRef self, Position p_where, Parame
 			s_param_types[p_param_type],
 			StringGetCStringPtr(NameGetString(p_name)), 
 			StringGetCStringPtr(NameGetString(p_type)));
-	
+
 	HandlerVariant *t_variant;
 	t_variant = &self -> current_handler -> variants[self -> current_handler -> variant_count - 1];
-	
+
 	// RULE: Type must be defined
 	InterfaceCheckType(self, p_where, p_type);
-	
+
 	// RULE: 'ref' not currently supported
 	if (p_param_type == kParameterTypeRef)
 		InterfaceReport(self, p_where, kInterfaceErrorInvalidParameterType, nil);
-    
-    NativeType t_native_type;
-    t_native_type = NativeTypeFromName(p_type);
-    
-    // RULE: only pointer types may not have a default value
-    if (p_optional && p_default == nil &&
-        (t_native_type == kNativeTypeBoolean ||
-         t_native_type == kNativeTypeInteger ||
-         t_native_type == kNativeTypeReal ||
-         t_native_type == kNativeTypeCData))
-        InterfaceReport(self, p_where, kInterfaceErrorNonPointerOptionalParameterMustHaveDefaultValue, nil);
+
+	NativeType t_native_type;
+	t_native_type = NativeTypeFromName(p_type);
+
+	// RULE: only pointer types may not have a default value
+	if (p_optional && p_default == nil &&
+		(t_native_type == kNativeTypeBoolean ||
+		t_native_type == kNativeTypeInteger ||
+		t_native_type == kNativeTypeReal ||
+		t_native_type == kNativeTypeCData))
+		InterfaceReport(self, p_where, kInterfaceErrorNonPointerOptionalParameterMustHaveDefaultValue, nil);
     
 	// RULE: default values not supported for c-data, objc-data, objc-dictionary, objc-array types
 	if (p_optional && p_default != nil &&
 		(t_native_type == kNativeTypeCData ||
-         t_native_type == kNativeTypeLCArray ||
-         t_native_type == kNativeTypeObjcData ||
-         t_native_type == kNativeTypeObjcArray ||
-         t_native_type == kNativeTypeObjcDictionary))
-        InterfaceReport(self, p_where, kInterfaceErrorDefaultValueNotSupportedForType, nil);
-	
+		t_native_type == kNativeTypeLCArray ||
+		t_native_type == kNativeTypeObjcData ||
+		t_native_type == kNativeTypeObjcArray ||
+		t_native_type == kNativeTypeObjcDictionary))
+		InterfaceReport(self, p_where, kInterfaceErrorDefaultValueNotSupportedForType, nil);
+
     // MERG-2013-06-14: [[ ExternalsApiV5 ]] Check that the type of the constant is
 	//   correct for the type of the parameter.
     // RULE: wrong default type

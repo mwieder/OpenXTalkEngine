@@ -13,6 +13,7 @@ echo "Thirdparty_LIBS_linux=${Thirdparty_LIBS_linux}"
 source "${BASEDIR}/scripts/util.inc"
 
 # Grab the source for the library
+OPENSSL_ROOT="https://www.openssl.org/source/openssl-"
 OPENSSL_TGZ="openssl-${OpenSSL_VERSION}.tar.gz"
 OPENSSL_SRC="openssl-${OpenSSL_VERSION}"
 
@@ -23,7 +24,7 @@ if [ ! -d "$OPENSSL_SRC" ] ; then
 	if [ ! -e "$OPENSSL_TGZ" ] ; then
 		echo "no openssl .gz file found"
 		echo "Fetching OpenSSL source"
-		fetchUrl "https://www.openssl.org/source/openssl-${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+		fetchUrl "${OPENSSL_ROOT}${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
 		if [ $? != 0 ] ; then
 			echo "    failed"
 			if [ -e "${OPENSSL_TGZ}" ] ; then 

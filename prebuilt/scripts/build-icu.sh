@@ -14,11 +14,12 @@ ICU_VERSION_UNDERSCORE=$(echo "${ICU_VERSION}" | sed 's/\./_/g')
 ICU_VERSION_MAJOR=$(echo "${ICU_VERSION}" | sed 's/\..*//g')
 ICU_CHECKSUM=$(echo "${ICU_CHECKSUM}")
 
+echo icu checksum is ${ICU_CHECKSUM}
+
 # mdw 2023.11.10 new download url
 ICU_ROOT="https://github.com/unicode-org/icu/releases/download/release-"
 
 # Grab the source for the library
-ICU_TGZ="icu-${ICU_VERSION}.tar.gz"
 ICU_SRC="icu-${ICU_VERSION}"
 ICU_MD5="icu-${ICU_VERSION}.md5"
 cd "${BUILDDIR}"
@@ -37,7 +38,7 @@ case $(uname) in
 esac
 
 ICU_URL="${ICU_ROOT}${ICU_VERSION_DASH}/icu4c-${ICU_VERSION_UNDERSCORE}-src.tgz"
-ICU_MD5_URL="${ICU_URL}.asc"
+ICU_TGZ="icu4c-${ICU_VERSION_UNDERSCORE}-src.tgz"
 
 if [ ! -d "$ICU_SRC" ] ; then
 	if [ ! -e "$ICU_TGZ" ] ; then
@@ -53,13 +54,45 @@ if [ ! -d "$ICU_SRC" ] ; then
 	fi
 
 	# validate the checksum
-echo downloading "${ICU_MD5_URL}"
+	ICU_SHASUM_URL="${ICU_ROOT}${ICU_VERSION_DASH}/icu4c-SHASUM512.txt.asc"
+	ICU_MD5_URL="icu4c-SHASUM512.txt.asc"
 	if [ 0 != "${ICU_CHECKSUM}" ] ; then
-		fetchUrl ${ICU_MD5_URL} "${ICU_MD5}"
-		if [ ! `gpg --verify "${ICU_MD5}"` == ${ICU_TGZ} ] ; then
-			echo "checksum failed"
+		fetchUrl ${ICU_CHECKSUM} "KEYS"
+		if [ $? != 0 ] ; then
+			echo "downloading checksum file failed"
+			if [ -e "${ICU_TGZ}" ] ; then 
+				rm ${ICU_TGZ} 
+			fi
 			exit
 		fi
+		gpg --import KEYS
+
+		fetchUrl ${ICU_SHASUM_URL} "${ICU_MD5_URL}"
+		if [ $? != 0 ] ; then
+			echo "downloading shasum file failed"
+			if [ -e "${ICU_TGZ}" ] ; then 
+				rm ${ICU_TGZ} 
+			fi
+			exit
+		fi
+
+#		if [ ! `gpg --verify KEYS` == ${ICU_TGZ} ] ; then
+#			echo "checksum verification failed"
+#			if [ -e "${ICU_TGZ}" ] ; then 
+#				rm ${ICU_TGZ} 
+#			fi
+#			exit
+#		fi
+
+		shasum -c -s --ignore-missing ${ICU_MD5_URL}
+		if [ $? != 0 ] ; then
+			echo "checksum verification failed"
+			if [ -e "${ICU_TGZ}" ] ; then 
+				rm ${ICU_TGZ} 
+			fi
+			exit
+		fi
+
 	fi
 
 	echo "Unpacking ICU source"

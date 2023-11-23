@@ -24,7 +24,7 @@
 #define FALSE false
 #endif
 
-#include "foundation-locale.h"
+//#include "foundation-locale.h" loaded by foundation-unicode.h anyway
 #include "foundation-unicode.h"
 
 #include "unicode/uloc.h"

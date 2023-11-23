@@ -44,7 +44,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 class DBCursor_SQLITE : public CDBCursor
 {
 	public:
-		DBCursor_SQLITE(SqliteDatabase &db, bool enable_binary);
+		DBCursor_SQLITE (SqliteDatabase &db, bool enable_binary);
 		virtual ~DBCursor_SQLITE();
 		
 		Bool open(DBConnection *newconnection);

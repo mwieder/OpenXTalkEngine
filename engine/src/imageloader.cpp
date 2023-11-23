@@ -143,17 +143,17 @@ bool MCImageLoader::EnsureHeader()
 {
 	if (m_header_loaded)
 		return true;
-	
+
 	if (!m_valid)
 		return false;
-	
-    // AL-2014-09-29: [[ Bug 13353 ]] We initialize m_name to the empty string, so use MCValueAssign here.
-    MCAutoStringRef t_name;
+
+	// AL-2014-09-29: [[ Bug 13353 ]] We initialize m_name to the empty string, so use MCValueAssign here.
+	MCAutoStringRef t_name;
 	m_valid = m_header_loaded = LoadHeader(m_width, m_height, m_xhot, m_yhot, &t_name, m_frame_count, m_metadata);
-    
-    if (m_valid)
-        MCValueAssign(m_name, *t_name);
-	
+
+	if (m_valid)
+		MCValueAssign(m_name, *t_name);
+
 	return m_valid;
 }
 
@@ -161,12 +161,12 @@ bool MCImageLoader::EnsureFrames()
 {
 	if (m_frames_loaded)
 		return true;
-	
+
 	if (!EnsureHeader())
 		return false;
-	
+
 	m_valid = m_frames_loaded = LoadFrames(m_frames, m_frame_count);
-	
+
 	return m_valid;
 }
 

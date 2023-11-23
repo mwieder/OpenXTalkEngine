@@ -340,34 +340,49 @@ void XML_Init(char *args[], int nargs, char **retstring,
 	char *buffer;
 	int passkey = 0;
 	char lencode[] = "clubfvhsqkjpymziadgxonrev";
-    *pass = False;
-	if (nargs == 2){*error = False;
-	buffer = istrdup(args[0]);
-	strlwr(buffer);
-	
-	_strrev(buffer);
-	int keylen = strlen(buffer);
-	if (simpleparse(keylen,5,40) == True || littlecheat == True)
-	{*retstring = istrdup("FALSE"); free(buffer);return;}
-	for (count=0;count<keylen;count++) 
-		if (simpleparse(buffer[count]-97,0,26) == True){
-			*retstring = istrdup("FALSE"); 
+
+	*pass = False;
+	if (2 == nargs)
+	{
+		*error = False;
+		buffer = istrdup(args[0]);
+		strlwr(buffer);
+
+		_strrev(buffer);
+		int keylen = strlen(buffer);
+		if (True == simpleparse(keylen,5,40) || True == littlecheat)
+		{
+			*retstring = istrdup("FALSE");
 			free(buffer);
 			return;
 		}
-		else buffer[count] = lencode[buffer[count]-97];
-		passkey = computehash(buffer);
-		free(buffer);
-		if (atoi(args[1]) == passkey || REVXMLinited == True) {
+		for (count=0;count<keylen;count++) 
+			if (True == simpleparse(buffer[count]-97,0,26))
+			{
+				*retstring = istrdup("FALSE"); 
+				free(buffer);
+				return;
+			}
+			else
+				buffer[count] = lencode[buffer[count]-97];
+			passkey = computehash(buffer);
+			free(buffer);
+		if (atoi(args[1]) == passkey || True == REVXMLinited)
+		{
 			*retstring = istrdup("TRUE");
 			REVXMLinited = True;
 		}
-		else {
+		else
+		{
 			*retstring = istrdup("FALSE");
 			littlecheat = True;
 		}
 	}
-	else *error = True; *retstring = (char *)calloc(1, 1);
+	else
+	{
+		*error = True;
+		*retstring = (char *)calloc(1, 1);
+	}
 }
 
 //------------------------------------DOCUMENT CALLBACKS--------------------------------------
@@ -727,7 +742,7 @@ void XML_Documents(char *args[], int nargs, char **retstring,
 	if (!vdoclist->empty()){
 		result = (char *)malloc(vdoclist->size() * INTSTRSIZE);
 		result[0] = '\0';
-		int numdocs = 0;
+		long unsigned int numdocs = 0;
 		for (theIterator = vdoclist->begin(); theIterator != vdoclist->end(); theIterator++){
 			CXMLDocument *tdoc = (CXMLDocument *)(*theIterator);
 			char idbuffer[INTSTRSIZE];
@@ -2501,13 +2516,13 @@ xpathNodeBufGetContent(xmlBufferPtr buffer, xmlNodePtr cur, char *cDelimiter)
  */
 static char *XML_ObjectPtr_to_Xpaths(xmlXPathObjectPtr pObject, char *pLineDelimiter)
 {
-	int iBufferSize = 8192;
+	long unsigned int iBufferSize = 8192;
 	if (NULL != pObject)
 	{
 		xmlNodeSetPtr nodes = XML_Object_to_NodeSet(pObject);
 		if (NULL != nodes)
 		{
-    			int i;
+			int i;
 			xmlNodePtr cur;
 		    	int size = (nodes) ? nodes->nodeNr : 0;
 			char *buffer = (char*)malloc(iBufferSize);
@@ -2557,7 +2572,7 @@ static char *XML_ObjectPtr_to_Data(xmlXPathObjectPtr pObject, char *pElementDeli
 		xmlNodeSetPtr nodes = XML_Object_to_NodeSet(pObject);
 		if (NULL != nodes)
 		{
-    			int i;
+    		long unsigned int i;
 			xmlNodePtr cur;
 		    	int size = (nodes) ? nodes->nodeNr : 0;
 			char *buffer = (char*)malloc(iBufferSize);

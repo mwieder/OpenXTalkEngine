@@ -10,8 +10,8 @@
 		[
             'src/revdb.h',
             'src/revdbapi.h',
-            'src/database.h',
-            'src/dbcursor.h',
+#            'src/database.h',
+#            'src/dbcursor.h',
             'src/dbdriver.h',
             'src/iossupport.h',
             'src/osxsupport.h',

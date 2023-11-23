@@ -17,7 +17,7 @@
 #ifndef __MC_FOUNDATION_UNICODE__
 #define __MC_FOUNDATION_UNICODE__
 
-#include "foundation.h"
+//#include "foundation.h" loaded by foundation-locale.h anyway
 #include "foundation-locale.h"
 #include "unicode/unistr.h"
 

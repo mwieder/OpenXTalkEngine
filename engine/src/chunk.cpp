@@ -2551,26 +2551,26 @@ bool MCChunk::setcustomprop(MCExecContext& ctxt, MCNameRef p_prop_name, MCNameRe
 
 Chunk_term MCChunk::getlastchunktype(void)
 {
-    if (byte != nil)
-        return CT_BYTE;
-    if (codeunit != nil)
-        return CT_CODEUNIT;
-    if (codepoint != nil)
-        return CT_CODEPOINT;
+	if (byte != nil)
+		return CT_BYTE;
+	if (codeunit != nil)
+		return CT_CODEUNIT;
+	if (codepoint != nil)
+		return CT_CODEPOINT;
 	if (character != nil)
 		return CT_CHARACTER;
 	if (item != nil)
 		return CT_ITEM;
-    if (trueword != nil)
-        return CT_TRUEWORD;
+	if (trueword != nil)
+		return CT_TRUEWORD;
 	if (word != nil)
 		return CT_WORD;
 	if (token != nil)
 		return CT_TOKEN;
-    if (sentence != nil)
-        return CT_SENTENCE;
-    if (paragraph != nil)
-        return CT_PARAGRAPH;
+	if (sentence != nil)
+		return CT_SENTENCE;
+	if (paragraph != nil)
+		return CT_PARAGRAPH;
 	if (cline != nil)
 		return CT_LINE;
 	return CT_UNDEFINED;
@@ -2578,49 +2578,49 @@ Chunk_term MCChunk::getlastchunktype(void)
 
 bool MCChunk::evalvarchunk(MCExecContext& ctxt, bool p_whole_chunk, bool p_force, MCVariableChunkPtr& r_chunk)
 {
-    if (isstringchunk() || isdatachunk())
-        MCEngineMarkVariable(ctxt, destvar, isdatachunk(), r_chunk . mark);
+	if (isstringchunk() || isdatachunk())
+		MCEngineMarkVariable(ctxt, destvar, isdatachunk(), r_chunk . mark);
 
-    mark(ctxt, p_force, p_whole_chunk, r_chunk . mark);
+	mark(ctxt, p_force, p_whole_chunk, r_chunk . mark);
 
-    if (ctxt . HasError())
-    {
-        ctxt . LegacyThrow(EE_CHUNK_CANTMARK);
-        return false;
+	if (ctxt . HasError())
+	{
+		ctxt . LegacyThrow(EE_CHUNK_CANTMARK);
+		return false;
 	}
 
 	r_chunk . variable = destvar;
-    r_chunk . chunk = getlastchunktype();
+	r_chunk . chunk = getlastchunktype();
 
-    return true;
+	return true;
 }
 
 bool MCChunk::evalurlchunk(MCExecContext &ctxt, bool p_whole_chunk, bool p_force, int p_type, MCUrlChunkPtr &r_chunk)
 {
-    MCAutoStringRef t_url;
+	MCAutoStringRef t_url;
 
-    if (!ctxt . EvalExprAsStringRef(url -> startpos, EE_CHUNK_BADEXPRESSION, &t_url))
-        return false;
+	if (!ctxt . EvalExprAsStringRef(url -> startpos, EE_CHUNK_BADEXPRESSION, &t_url))
+		return false;
     
     // AL-2014-09-10: Don't fetch the url if this is a simple 'put into url...'
-    if (p_type != PT_INTO || getlastchunktype() != CT_UNDEFINED)
-    {
-        MCNetworkMarkUrl(ctxt, *t_url, r_chunk . mark);
-        mark(ctxt, p_force, p_whole_chunk, r_chunk . mark);
-    }
-    else
-        r_chunk . mark . text = nil;
+	if (p_type != PT_INTO || getlastchunktype() != CT_UNDEFINED)
+	{
+		MCNetworkMarkUrl(ctxt, *t_url, r_chunk . mark);
+		mark(ctxt, p_force, p_whole_chunk, r_chunk . mark);
+	}
+	else
+		r_chunk . mark . text = nil;
 
-    if (ctxt . HasError())
-    {
-        ctxt . LegacyThrow(EE_CHUNK_CANTMARK);
-        return false;
-    }
+	if (ctxt . HasError())
+	{
+		ctxt . LegacyThrow(EE_CHUNK_CANTMARK);
+		return false;
+	}
 
-    r_chunk . url = MCValueRetain(*t_url);
-    r_chunk . chunk = getlastchunktype();
+	r_chunk . url = MCValueRetain(*t_url);
+	r_chunk . chunk = getlastchunktype();
 
-    return true;
+	return true;
 }
 
 bool MCChunk::evalobjectchunk(MCExecContext &ctxt, bool p_whole_chunk, bool p_force, MCObjectChunkPtr &r_chunk)

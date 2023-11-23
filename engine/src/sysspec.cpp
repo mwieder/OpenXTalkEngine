@@ -475,33 +475,33 @@ uint32_t MCS_getpid(void)
 // Fixed by using MCServiceInterface
 bool MCS_query_registry(MCStringRef p_key, MCValueRef& r_value, MCStringRef& r_type, MCStringRef& r_error)
 {
-    MCWindowsSystemServiceInterface *t_service;
-    t_service = (MCWindowsSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeWindowsSystem);
-    
-    if (t_service != nil)
-        return t_service -> QueryRegistry(p_key, r_value, r_type, r_error);
-    
+	MCWindowsSystemServiceInterface *t_service;
+	t_service = (MCWindowsSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeWindowsSystem);
+
+	if (nil != t_service)
+		return t_service -> QueryRegistry(p_key, r_value, r_type, r_error);
+
 	return MCStringCreateWithCString("not supported", r_error);
 }
 
 bool MCS_set_registry(MCStringRef p_key, MCValueRef p_value, MCSRegistryValueType p_type, MCStringRef& r_error)
 {
-    MCWindowsSystemServiceInterface *t_service;
-    t_service = (MCWindowsSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeWindowsSystem);
-    
-if (t_service != nil)
-        return t_service -> SetRegistry(p_key, p_value, p_type, r_error);
-    
+	MCWindowsSystemServiceInterface *t_service;
+	t_service = (MCWindowsSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeWindowsSystem);
+
+	if (nil != t_service)
+		return t_service -> SetRegistry(p_key, p_value, p_type, r_error);
+
 	return MCStringCreateWithCString("not supported", r_error);
 }
 
 bool MCS_delete_registry(MCStringRef p_key, MCStringRef& r_error)
 {
-    MCWindowsSystemServiceInterface *t_service;
-    t_service = (MCWindowsSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeWindowsSystem);
+	MCWindowsSystemServiceInterface *t_service;
+	t_service = (MCWindowsSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeWindowsSystem);
     
-    if (t_service != nil)
-        return t_service -> DeleteRegistry(p_key, r_error);
+	if (t_service != nil)
+		return t_service -> DeleteRegistry(p_key, r_error);
 		
 	return MCStringCreateWithCString("not supported", r_error);
 }
@@ -622,78 +622,78 @@ bool MCS_unlink(const char *p_path)
 {
 	MCAutoStringRef t_resolved_path;
 	if (!MCStringCreateWithCString(p_path, &t_resolved_path))
-        return false;
-	
+		return false;
+
 	return MCS_unlink(*t_resolved_path) == True;
 }
 
 Boolean MCS_unlink(MCStringRef p_path)
 {
 	MCAutoStringRef t_resolved_path;
-    MCAutoStringRef t_native_path;
-    
+	MCAutoStringRef t_native_path;
+
 	if (!MCS_resolvepath(p_path, &t_resolved_path))
-        return False;
-    
-    if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
-        return False;
-	
+		return False;
+
+	if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
+		return False;
+
 	return MCsystem -> DeleteFile(*t_native_path);
 }
 
 Boolean MCS_backup(MCStringRef p_old_name, MCStringRef p_new_name)
 {
-    MCAutoStringRef t_old_resolved, t_new_resolved;
-    MCAutoStringRef t_old_native, t_new_native;
-    
-    if (!MCS_resolvepath(p_old_name, &t_old_resolved) || !MCS_resolvepath(p_new_name, &t_new_resolved))
-        return False;
-    
-    if (!MCS_pathtonative(*t_old_resolved, &t_old_native) || !MCS_pathtonative(*t_new_resolved, &t_new_native))
-        return False;
-        
+	MCAutoStringRef t_old_resolved, t_new_resolved;
+	MCAutoStringRef t_old_native, t_new_native;
+
+	if (!MCS_resolvepath(p_old_name, &t_old_resolved) || !MCS_resolvepath(p_new_name, &t_new_resolved))
+		return False;
+
+	if (!MCS_pathtonative(*t_old_resolved, &t_old_native) || !MCS_pathtonative(*t_new_resolved, &t_new_native))
+		return False;
+
 	return MCsystem -> BackupFile(*t_old_native, *t_new_native);
 }
 
 Boolean MCS_unbackup(MCStringRef p_old_name, MCStringRef p_new_name)
 {
-    MCAutoStringRef t_old_resolved, t_new_resolved;
-    MCAutoStringRef t_old_native, t_new_native;
-    
-    if (!MCS_resolvepath(p_old_name, &t_old_resolved) || !MCS_resolvepath(p_new_name, &t_new_resolved))
-        return False;
-    
-    if (!MCS_pathtonative(*t_old_resolved, &t_old_native) || !MCS_pathtonative(*t_new_resolved, &t_new_native))
-        return False;
-    
+	MCAutoStringRef t_old_resolved, t_new_resolved;
+	MCAutoStringRef t_old_native, t_new_native;
+
+	if (!MCS_resolvepath(p_old_name, &t_old_resolved) || !MCS_resolvepath(p_new_name, &t_new_resolved))
+		return False;
+
+	if (!MCS_pathtonative(*t_old_resolved, &t_old_native) || !MCS_pathtonative(*t_new_resolved, &t_new_native))
+		return False;
+
 	return MCsystem -> UnbackupFile(*t_old_resolved, *t_new_resolved);
 }
 
 Boolean MCS_createalias(MCStringRef p_target, MCStringRef p_alias)
 {
-    MCAutoStringRef t_target_resolved, t_alias_resolved;
-    MCAutoStringRef t_target_native, t_alias_native;
+	MCAutoStringRef t_target_resolved, t_alias_resolved;
+	MCAutoStringRef t_target_native, t_alias_native;
     
-    if (!MCS_resolvepath(p_target, &t_target_resolved) || !MCS_resolvepath(p_alias, &t_alias_resolved))
-        return False;
-    
-    if (!MCS_pathtonative(*t_target_resolved, &t_target_native) || !MCS_pathtonative(*t_alias_resolved, &t_alias_native))
-        return False;
-    
+	if (!MCS_resolvepath(p_target, &t_target_resolved) || !MCS_resolvepath(p_alias, &t_alias_resolved))
+		return False;
+
+	if (!MCS_pathtonative(*t_target_resolved, &t_target_native) || !MCS_pathtonative(*t_alias_resolved, &t_alias_native))
+		return False;
+
 	return MCsystem -> CreateAlias(*t_target_native, *t_alias_native);
 }
 
 Boolean MCS_resolvealias(MCStringRef p_path, MCStringRef& r_resolved)
 {
-    MCAutoStringRef t_resolved_path;
-    MCAutoStringRef t_native_path;
-    
-    if (!MCS_resolvepath(p_path, &t_resolved_path))
-        return False;
-    
-    if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
-        return False;
-    
+	MCAutoStringRef t_resolved_path;
+	MCAutoStringRef t_native_path;
+
+	if (!MCS_resolvepath(p_path, &t_resolved_path))
+		return False;
+
+	if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
+		return False;
+
 	return MCsystem -> ResolveAlias(*t_native_path, r_resolved);
 }
 
@@ -915,14 +915,14 @@ static bool MCS_getentries_callback(void *p_context, const MCSystemFolderEntry *
 	MCS_getentries_state *t_state;
 	t_state = static_cast<MCS_getentries_state *>(p_context);
 
-    // We never list '..', if the OS / filesystem lets us get it
-    if (MCStringIsEqualToCString(p_entry -> name, "..", kMCStringOptionCompareExact))
-        return true;
-	
+	// We never list '..', if the OS / filesystem lets us get it
+	if (MCStringIsEqualToCString(p_entry -> name, "..", kMCStringOptionCompareExact))
+		return true;
+
 	// If we're looking for files and entry is a folder (or vice versa) then skip to next entry.
-    if (t_state -> files == p_entry -> is_folder)
-        return true;
-	
+	if (t_state -> files == p_entry -> is_folder)
+		return true;
+
 	if (t_state -> details)
 	{
         MCAutoStringRef t_details;
@@ -1038,13 +1038,13 @@ bool MCS_getentries(MCStringRef p_folder,
 
 Boolean MCS_chmod(MCStringRef p_path, uint2 p_mask)
 {
-    MCAutoStringRef t_resolved;
-    MCAutoStringRef t_native;
-    
-    if (!(MCS_resolvepath(p_path, &t_resolved) &&
-          MCS_pathtonative(*t_resolved, &t_native)))
-        return False;
-    
+	MCAutoStringRef t_resolved;
+	MCAutoStringRef t_native;
+
+	if (!(MCS_resolvepath(p_path, &t_resolved) &&
+			MCS_pathtonative(*t_resolved, &t_native)))
+		return False;
+
 	return MCsystem -> ChangePermissions(*t_native, p_mask);
 }
 
@@ -1088,11 +1088,11 @@ Boolean MCS_exists(MCStringRef p_path, bool p_is_file)
 
 Boolean MCS_noperm(MCStringRef p_path)
 {
-    MCAutoStringRef t_resolved;
-    MCAutoStringRef t_native;
-    if (!(MCS_resolvepath(p_path, &t_resolved) && MCS_pathtonative(*t_resolved, &t_native)))
-        return False;
-    
+	MCAutoStringRef t_resolved;
+	MCAutoStringRef t_native;
+	if (!(MCS_resolvepath(p_path, &t_resolved) && MCS_pathtonative(*t_resolved, &t_native)))
+		return False;
+
 	return MCsystem -> FileNotAccessible(*t_native);
 }
 
@@ -1108,21 +1108,21 @@ Boolean MCS_getdevices(MCStringRef& r_devices)
 
 bool MCS_resolvepath(MCStringRef p_path, MCStringRef& r_resolved)
 {
-    MCAutoStringRef t_native;
-    MCAutoStringRef t_native_resolved;
-    MCAutoStringRef t_std_resolved;
-    
-    if (!MCS_pathtonative(p_path, &t_native))
-        return false;
-    
+	MCAutoStringRef t_native;
+	MCAutoStringRef t_native_resolved;
+	MCAutoStringRef t_std_resolved;
+
+	if (!MCS_pathtonative(p_path, &t_native))
+		return false;
+
 	if (!MCsystem -> ResolvePath(*t_native, &t_native_resolved))
-        return false;
-    
-    if (!MCS_pathfromnative(*t_native_resolved, &t_std_resolved))
-        return false;
-    
-    MCU_fix_path(*t_std_resolved, r_resolved);
-    return true;
+		return false;
+
+	if (!MCS_pathfromnative(*t_native_resolved, &t_std_resolved))
+		return false;
+
+	MCU_fix_path(*t_std_resolved, r_resolved);
+	return true;
 }
 
 bool MCS_pathtonative(MCStringRef p_livecode_path, MCStringRef& r_native_path)
@@ -1153,15 +1153,15 @@ IO_handle MCS_fakeopenwrite(void)
 
 IO_stat MCS_closetakingbuffer(IO_handle& p_stream, void*& r_buffer, size_t& r_length)
 {
-    bool t_success;
+	bool t_success;
 
-    t_success = p_stream -> TakeBuffer(r_buffer, r_length);
-	
+	t_success = p_stream -> TakeBuffer(r_buffer, r_length);
+
 	MCS_close(p_stream);
-	
-    if (!t_success)
-        return IO_ERROR;
-    
+
+	if (!t_success)
+		return IO_ERROR;
+
 	return IO_NORMAL;
 }
 
@@ -1250,11 +1250,11 @@ IO_handle MCS_open(MCStringRef path, intenum_t p_mode, Boolean p_map, Boolean p_
 	if (t_handle == NULL)
 		return NULL;
 
-    if (p_mode == kMCOpenFileModeAppend)
-        t_handle -> Seek(0, kMCSystemFileSeekEnd);
-    else if (p_offset > 0)
-        t_handle -> Seek(p_offset, kMCSystemFileSeekSet);
-	
+	if (p_mode == kMCOpenFileModeAppend)
+		t_handle -> Seek(0, kMCSystemFileSeekEnd);
+	else if (p_offset > 0)
+		t_handle -> Seek(p_offset, kMCSystemFileSeekSet);
+
 	return t_handle;
 }
 
@@ -1702,7 +1702,7 @@ void MCS_request_ae(MCStringRef p_message, uint2 p_ae, MCStringRef& r_value)
     MCMacSystemServiceInterface *t_service;
     t_service = (MCMacSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeMacSystem);
     
-    if (t_service != nil)
+    if (nil != t_service)
     {
 	    t_service -> RequestAE(p_message, p_ae, r_value);
 		return;
@@ -1713,12 +1713,12 @@ void MCS_request_ae(MCStringRef p_message, uint2 p_ae, MCStringRef& r_value)
 
 bool MCS_request_program(MCStringRef p_message, MCStringRef p_program, MCStringRef& r_result)
 {
-    MCMacSystemServiceInterface *t_service;
-    t_service = (MCMacSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeMacSystem);
-    
-    if (t_service != nil)
-        return t_service -> RequestProgram(p_message, p_program, r_result);
-    
+	MCMacSystemServiceInterface *t_service;
+	t_service = (MCMacSystemServiceInterface *)MCsystem -> QueryService(kMCServiceTypeMacSystem);
+
+	if (nil != t_service)
+		return t_service -> RequestProgram(p_message, p_program, r_result);
+
 	MCresult->sets("not supported");
 	return true;
 }

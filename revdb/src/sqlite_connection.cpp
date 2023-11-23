@@ -653,7 +653,7 @@ int DBConnection_SQLITE::basicExec(const char *q, unsigned int *rows)
 			*rows = t_changed_row_count;
 	}
 
-	if (t_return_value != SQLITE_OK) 
+	if (SQLITE_OK != t_return_value) 
 	{
 		mIsError = true;
 		setErrorStr(err);

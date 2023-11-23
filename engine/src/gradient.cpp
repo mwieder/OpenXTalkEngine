@@ -660,12 +660,12 @@ IO_stat MCGradientFillSerialize(MCGradientFill *p_gradient, MCObjectOutputStream
 	if (t_stat == IO_NORMAL)
 		t_stat = p_stream . WriteU8(p_gradient -> ramp_length);
 
-    if (t_stat == IO_NORMAL)
-        t_stat = p_stream.WritePoint(p_gradient->origin);
-    if (t_stat == IO_NORMAL)
-        t_stat = p_stream.WritePoint(p_gradient->primary);
-    if (t_stat == IO_NORMAL)
-        t_stat = p_stream.WritePoint(p_gradient->secondary);
+	if (t_stat == IO_NORMAL)
+		 t_stat = p_stream.WritePoint(p_gradient->origin);
+	if (t_stat == IO_NORMAL)
+		t_stat = p_stream.WritePoint(p_gradient->primary);
+	if (t_stat == IO_NORMAL)
+		t_stat = p_stream.WritePoint(p_gradient->secondary);
 
 	for(int i = 0; i < p_gradient -> ramp_length; ++i)
 	{

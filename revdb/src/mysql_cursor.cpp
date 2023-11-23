@@ -312,9 +312,9 @@ Bool DBCursor_MYSQL::getRowData()
 
 	// MW-2008-07-29: [[ Bug 6853 ]] Make sure we set isNull to true for columns
 	//   that are truely NULL and not just empty.
-	for(int i = 0; i < fieldCount; i++)
+	for(unsigned int i = 0; i < fieldCount; i++)
 	{
-		if (row_data[i] == NULL)
+		if (NULL == row_data[i])
 		{
 			fields[i] -> data = (char *)DBNullValue;
 			fields[i] -> freeBuffer = False;
