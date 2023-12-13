@@ -2109,29 +2109,29 @@ public:
         GList * p_args = NULL;
         GnomeVFSMimeApplication * p_gvfs ;
 
-        if (MCuselibgnome)
-        {
-            if (gnome_vfs_initialized())
-            {
-                MCAutoStringRefAsSysString t_document_sys;
-                /* UNCHECKED */ t_document_sys.Lock(p_document);
+//        if (MCuselibgnome)
+//        {
+//            if (gnome_vfs_initialized())
+//            {
+//                MCAutoStringRefAsSysString t_document_sys;
+//                /* UNCHECKED */ t_document_sys.Lock(p_document);
 
-                p_mime_type = gnome_vfs_get_mime_type_for_name(*t_document_sys);
-                p_gvfs = gnome_vfs_mime_get_default_application_for_uri(*t_document_sys, p_mime_type);
-                if (p_gvfs != NULL)
-                {
-                    p_args = g_list_append(p_args, (gpointer)*t_document_sys);
-                    gnome_vfs_mime_application_launch(p_gvfs, p_args);
-                    g_list_free(p_args);
-                }
-            }
-            else
-                MCresult -> sets("not supported");
-        }
-        else
-        {
+//                p_mime_type = gnome_vfs_get_mime_type_for_name(*t_document_sys);
+//                p_gvfs = gnome_vfs_mime_get_default_application_for_uri(*t_document_sys, p_mime_type);
+//                if (p_gvfs != NULL)
+//                {
+//                    p_args = g_list_append(p_args, (gpointer)*t_document_sys);
+//                    gnome_vfs_mime_application_launch(p_gvfs, p_args);
+//                    g_list_free(p_args);
+//                }
+//            }
+//            else
+//                MCresult -> sets("not supported");
+//        }
+//        else
+//        {
             LaunchUrl(p_document);
-        }
+//        }
 #endif
     }
 
@@ -2142,19 +2142,21 @@ public:
         return;
 #else
         GError *err = NULL;
-        if (MCuselibgnome)
-        {
-            MCAutoStringRefAsSysString t_document_sys;
-            /* UNCHECKED */ t_document_sys.Lock(p_document);
-            if (!gnome_url_show(*t_document_sys, &err))
-                MCresult -> sets(err->message);
-        }
-        else
-        {
+
+//        if (MCuselibgnome)
+//        {
+//            MCAutoStringRefAsSysString t_document_sys;
+//            /* UNCHECKED */ t_document_sys.Lock(p_document);
+//            if (!gnome_url_show(*t_document_sys, &err))
+//                MCresult -> sets(err->message);
+//        }
+//        else
+//        {
+
             MCAutoStringRef t_handler;
             /* UNCHECKED */ MCStringFormat(&t_handler, LAUNCH_URL_SCRIPT, p_document);
             MCdefaultstackptr->domess(*t_handler);
-        }
+//        }
 #endif
     }
 

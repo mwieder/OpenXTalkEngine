@@ -204,8 +204,8 @@ on showUpdater
          set the statusIconTooltip to "LiveCode Updater"         
          if the environment is "installer" then 
             local tTitle, tMsg
-            put "A new version of LiveCode is available" into tTitle
-            put "Your version of LiveCode is out of date.  Click to here to begin updating." into tMsg
+            put "A new version of XTALK is available" into tTitle
+            put "Your version of XTALK is out of date.  Click to here to begin updating." into tMsg
             do "_internal showBalloon tTitle tMsg"
             send "showUpdater" to me in kAnnoyInterval seconds
             put the result into sAnnoyMessage
@@ -281,7 +281,8 @@ private command checkForUpdates @rUpdateData
    --
    get getLicensesFolderLocation() & "/livecode.lcld"
    if there is no file it then
-      get getLicensesFolderLocation() & "/livecode-community.lcld"
+      --get getLicensesFolderLocation() & "/livecode-community.lcld"
+      get getLicensesFolderLocation() & "/xtalk.lcld"
    end if
    if there is no file it then
       --return "no lcld file"
@@ -289,8 +290,8 @@ private command checkForUpdates @rUpdateData
    
    local tActivationDetails
    put url ("file:" & it) into tActivationDetails
-   if the first line of tActivationDetails is not "---- LIVECODE ACTIVATION DETAILS (R1) ----" or \
-         the last line of tActivationDetails is not "---- LIVECODE ACTIVATION DETAILS (R1) ----" then
+   if the first line of tActivationDetails is not "---- XTALK ACTIVATION DETAILS (R1) ----" or \
+         the last line of tActivationDetails is not "---- XTALK ACTIVATION DETAILS (R1) ----" then
       --return "invalid lcld file"
    end if
    delete the first line of tActivationDetails
@@ -522,7 +523,7 @@ private command uiPopulateNavButtons
       
       -- We use the default state to indicate that this is the currently selected update.
       --
-      --set the uLabel of group ("update_" & tNavButtonIndex) of me to "LiveCode" & return & tVersion
+      --set the uLabel of group ("update_" & tNavButtonIndex) of me to "XTALK" & return & tVersion
       set the uLabel of group ("update_" & tNavButtonIndex) of me to tVersion
       set the uType of group ("update_" & tNavButtonIndex) of me to tType
       set the uDefault of group ("update_" & tNavButtonIndex) of me to (tNavButtonIndex is 1)
@@ -672,11 +673,11 @@ private function getVersionInstalled pVersion, pBuildNumber
       put item 1 of pVersion into pVersion
       set the itemDel to comma
    end if
-   if getInstallerType() is "community" then
-      return there is a file (getLicensesFolderLocation()  & "/livecode-community-" & pVersion & "-" & pBuildNumber & ".lclk")
-   else
-      return there is a file (getLicensesFolderLocation()  & "/livecode-" & pVersion & "-" & pBuildNumber & ".lclk")
-   end if
+   --if getInstallerType() is "community" then
+      --return there is a file (getLicensesFolderLocation()  & "/livecode-community-" & pVersion & "-" & pBuildNumber & ".lclk")
+   --else
+      return there is a file (getLicensesFolderLocation()  & "/xtalk" & ".lclk")
+   --end if
 end getVersionInstalled
 
 private function getLicensesFolderLocation

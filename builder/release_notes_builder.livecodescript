@@ -283,11 +283,8 @@ private command OutputNotesPdf
    local tCommand
    
    -- Use wkhtmltopdf to convert the HTML representation
-   if $WKHTMLTOPDF is not empty then
-      put $WKHTMLTOPDF into tCommand
-   else
-      put builderRepoFolder() & "/builder/wkhtmltopdf" into tCommand
-   end if
+   put "wkhtmltopdf" into tCommand
+   #end if
    
    local tTitle, tDate, tHtmlPath, tPdfPath
    put OutputGetNotesTitle() into tTitle
@@ -302,6 +299,7 @@ private command OutputNotesPdf
    put "--footer-center [page] --footer-font-size 8 --footer-spacing 5 " after tArgs
    put "--margin-top 30 --margin-bottom 20 --margin-left 20 --margin-right 20 " after tArgs
    put "--enable-internal-links --encoding UTF-8 " after tArgs
+   put "--enable-local-file-access " after tArgs
    
    local tExitCode
    builderLog "report", merge("Generating [[tPdfPath]] with [[tCommand]]")
@@ -1259,7 +1257,7 @@ private function GitRunInPath pPath, pCommand
    put shell(merge("cd '[[pPath]]' && git [[pCommand]]")) into tOutput
    put the result into tExitCode
    if tExitCode is not 0 then
-      throw merge("Failed to run 'git [[pCommand]]'") & return & tOutput
+      throw merge("Failed to run 'git [[pCommand]]'") & cr & tOutput
    end if
    return tOutput
 end GitRunInPath

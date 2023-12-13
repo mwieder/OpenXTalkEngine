@@ -98,6 +98,7 @@
 							'revdb/revdb.gyp:dbsqlite-server',
 							'revxml/revxml.gyp:external-revxml-server',
 							'revzip/revzip.gyp:external-revzip-server',
+							'thirdparty/libopenssl/libopenssl.gyp:revsecurity',
 						],
 					},
 				],

@@ -226,11 +226,11 @@ void MCLicenseGetRevLicenseInfo(MCExecContext& ctxt, MCStringRef& r_info)
         t_first = true;
         for(uint32_t i = 0; t_success && i < sizeof(s_deploy_targets) / sizeof(s_deploy_targets[0]); i++)
         {
-            if ((MClicenseparameters . deploy_targets & (1 << i)) != 0)
-            {
+//            if ((MClicenseparameters . deploy_targets & (1 << i)) != 0)
+//            {
                 t_success = MCStringAppendFormat(*t_info, t_first ? "%s" : ",%s", s_deploy_targets[i]);
                 t_first = false;
-            }
+//            }
         }
     }
     

@@ -539,11 +539,11 @@ Boolean MCScreenDC::open()
         g_signal_connect(m_im_context, "retrieve-surrounding", G_CALLBACK(&on_retrieve_surrounding), this);
     }
 		
-	if ( initialise_weak_link_gnome_vfs() != 0 )
-	{
-		MCuselibgnome = initialise_weak_link_libgnome();
-		gnome_vfs_init();
-	}
+//	if ( initialise_weak_link_gnome_vfs() != 0 )
+//	{
+//		MCuselibgnome = initialise_weak_link_libgnome();
+//		gnome_vfs_init();
+//	}
     
     // There are also some atoms that we need to set up
     MCworkareaatom = gdk_atom_intern_static_string("_NET_WORKAREA");

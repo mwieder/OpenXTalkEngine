@@ -68,11 +68,11 @@ function buildCEF {
 	rm -r "${CEF_THIRDPARTY}/libcef_dll"
 	popd
 #	cd "${BUILDDIR}"
-	cp -as "${BUILDDIR}/${CEF_UNPACKED_DIR}/include" "${CEF_THIRDPARTY}"
-	cp -as "${BUILDDIR}/${CEF_UNPACKED_DIR}/libcef_dll" "${CEF_THIRDPARTY}"
-	cp "${BUILDDIR}/${CEF_UNPACKED_DIR}/*.txt" "${CEF_THIRDPARTY}"
-	strip --strip-unneeded "${CEF_LIB_DIR}/libcef.so"
-	rm "${CEF_THIRDPARTY}/pwd.txt"	# clean up the mess afterwards
+	cp -as ${BUILDDIR}/${CEF_UNPACKED_DIR}/include ${CEF_THIRDPARTY}
+	cp -as ${BUILDDIR}/${CEF_UNPACKED_DIR}/libcef_dll ${CEF_THIRDPARTY}
+	cp ${BUILDDIR}/${CEF_UNPACKED_DIR}/*.txt ${CEF_THIRDPARTY}
+	strip --strip-unneeded ${CEF_LIB_DIR}/libcef.so
+	rm ${CEF_THIRDPARTY}/pwd.txt	# clean up the mess afterwards
 }
 
 buildCEF "${PLATFORM}" "${ARCH}"

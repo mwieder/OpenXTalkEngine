@@ -597,17 +597,17 @@ gtk_color_dialog libgtk-x11-2.0.so.0
 	gtk_color_selection_dialog_get_type: () -> (integer)
 	gtk_color_selection_get_type: () -> (integer)
 
-gnome_vfs libgnomevfs-2.so.0
-	gnome_vfs_init: () -> (integer)
-	gnome_vfs_initialized: () -> (integer)
-	gnome_vfs_get_mime_type_for_name: (pointer) -> (pointer)
-	gnome_vfs_mime_get_default_application: (pointer) -> (pointer)
-	gnome_vfs_mime_get_default_application_for_uri: (pointer,pointer) -> (pointer)
-	gnome_vfs_mime_application_get_exec: (pointer) -> (pointer)
-	gnome_vfs_mime_application_launch: (pointer,pointer) -> (integer)
-	gnome_vfs_get_mime_type_from_uri: (pointer) -> (pointer)
-	gnome_vfs_uri_new: (pointer) -> (pointer)
-	gnome_vfs_make_uri_from_input: (pointer) -> (pointer)
+#gnome_vfs libgnomevfs-2.so.0
+#	gnome_vfs_init: () -> (integer)
+#	gnome_vfs_initialized: () -> (integer)
+#	gnome_vfs_get_mime_type_for_name: (pointer) -> (pointer)
+#	gnome_vfs_mime_get_default_application: (pointer) -> (pointer)
+#	gnome_vfs_mime_get_default_application_for_uri: (pointer,pointer) -> (pointer)
+#	gnome_vfs_mime_application_get_exec: (pointer) -> (pointer)
+#	gnome_vfs_mime_application_launch: (pointer,pointer) -> (integer)
+#	gnome_vfs_get_mime_type_from_uri: (pointer) -> (pointer)
+#	gnome_vfs_uri_new: (pointer) -> (pointer)
+#	gnome_vfs_make_uri_from_input: (pointer) -> (pointer)
 
 libgnome libgnome-2.so.0
 	gnome_url_show: (pointer,pointer) -> (integer)

@@ -24,12 +24,14 @@ local sActivateSession
 local sActivateChallenge
 local sActivateToken
 
+constant kLiveCode="LiveCode"
 constant kActivationUrl="http://www.runrev.com/activation-community/livecode"
 
 on startup pTest
    put pTest into sTest   
    
-   put the version & "-" & the buildNumber into sVersion   
+   --put the version & "-" & the buildNumber into sVersion   
+   put the version & "-" & "xtalk" into sVersion   
    put false into sUnlocked
    put false into sDevelopment
    
@@ -124,16 +126,16 @@ on startup pTest
    -- Now start the licensing process
    /*local tActivationDetails, tFirstRun
    fetchActivationDetails  tActivationDetails
-   if the result is "not found" then
-      put true into tFirstRun
-   else
+   --if the result is "not found" then
+      --put true into tFirstRun
+   --else
       put false into tFirstRun
       
-      if the result is not "found" then
-         put "automatic" into tActivationDetails["type"]
-         put empty into tActivationDetails["email"]
-         put empty into tActivationDetails["password"]
-      end if
+      --if the result is not "found" then
+         --put "automatic" into tActivationDetails["type"]
+         --put empty into tActivationDetails["email"]
+         --put empty into tActivationDetails["password"]
+      --end if
    end if
    
    -- Compute the token
@@ -145,12 +147,12 @@ on startup pTest
    fetchLicenseForVersion sVersion, tLicense
    licenseUnlock tLicense
    
-   if firstRun() then
-      go to card "AccountSignUp"
-      return empty
-   else
+   --if firstRun() then
+      --go to card "AccountSignUp"
+      --return empty
+   --else
       return sHomePath
-   end if
+   --end if
    
    /*local tLicense
    fetchLicenseForVersion sVersion, tLicense
@@ -436,27 +438,27 @@ command performFacelessActivation
    -- Actually do the activation
    licenseUnlock tLicense, tPassphrase, true
    switch the result
-      case "wrong challenge"
-         write "Incorrect passphrase for that license." & return to stdout
-         quit 6
-      case "wrong version"
-         write "The provided license was generated for a different version of LiveCode." & return to stdout
-         quit 7
-      case "invalid"
-         write "The provided file is not a valid LiveCode license." & return to stdout
-         quit 8
-      case "lapsed"
-         write "The provided license is no longer valid." & return to stdout
-         quit 9
+#      case "wrong challenge"
+#         write "Incorrect passphrase for that license." & return to stdout
+#         quit 6
+#      case "wrong version"
+#         write "The provided license was generated for a different version of LiveCode." & return to stdout
+#         quit 7
+#      case "invalid"
+#         write "The provided file is not a valid LiveCode license." & return to stdout
+#         quit 8
+#      case "lapsed"
+#         write "The provided license is no longer valid." & return to stdout
+#         quit 9
          
-      case "trial licensed"
-      case "trial expired"
-         write "Trial licenses cannot be used with faceless activation." & return to stdout
-         quit 10
+#      case "trial licensed"
+#      case "trial expired"
+#         write "Trial licenses cannot be used with faceless activation." & return to stdout
+#         quit 10
          
-      case "prerelease expired"
-         write "The pre-release you are trying to activate has expired. Please download a newer version." & return to stdout
-         quit 11
+#      case "prerelease expired"
+#         write "The pre-release you are trying to activate has expired. Please download a newer version." & return to stdout
+#         quit 11
          
       case "prerelease licensed"
       case "licensed"
@@ -474,7 +476,7 @@ end performFacelessActivation
 command performFacelessDeactivation
    -- Check we can faceless activate
    if sGlobalLicensePath is empty then
-      write "All-user activation not supported on this platform." & return to stdout
+      write "All-user deactivation not supported on this platform." & return to stdout
       quit 1
    end if
    
@@ -533,17 +535,17 @@ command performAutomaticActivation pEmail, pPassword, pHashedPassword
    
    -- First do a 'login' request to fetch session and challenge
    local tSession, tChallenge
-   automaticActivationLogin pEmail
-   if the result is not "success" then
-      return "error"
-   end if
+   --automaticActivationLogin pEmail
+   --if the result is not "success" then
+      --return "error"
+   --end if
    
    -- Build up the token for authentication purposes
    local tToken
    put hexEncode(the md5Digest of (pHashedPassword & the md5Digest of sActivateChallenge)) into sActivateToken
    
    -- Now do a 'list' request to fetch the licenses the user can choose from
-   local tListResponse
+   --local tListResponse
    automaticActivationList
    if the result is not "success" then
       return "error"
@@ -667,9 +669,9 @@ private command automaticActivationList
          exit to top   
       default
          -- Some other error occurred, so fall through to activation.
-         automaticActivationSetProtocolError "invalid"
-         return "error"
-         break
+         --automaticActivationSetProtocolError "invalid"
+         --return "error"
+         --break
    end switch   
 end automaticActivationList
 
@@ -748,13 +750,13 @@ end encodeForPost
 ################################################################################
 
 function activationDetailsFile
-   return sLicensePath & slash & "livecode-community.lcld"
+   return sLicensePath & slash & "xtalk-community.lcld"
 end activationDetailsFile
 
 function activationLicenseFileForVersion pVersion, pForceGlobal
    local tLeaf
    replace "." with "_" in pVersion
-   put "livecode-community-" & pVersion & ".lclk" into tLeaf
+   put "xtalk.lclk" into tLeaf
    
    local tPath
    if sGlobalLicensePath is not empty then
@@ -777,8 +779,8 @@ command fetchActivationDetails @rDetails
    
    local tDetails
    put url ("file:" & tDetailsFile) into tDetails
-   if the first line of tDetails is not "---- LIVECODE ACTIVATION DETAILS (R1) ----" or \
-          the last line of tDetails is not "---- LIVECODE ACTIVATION DETAILS (R1) ----" then
+   if the first line of tDetails is not "---- XTALK ACTIVATION DETAILS (R1) ----" or \
+          the last line of tDetails is not "---- XTALK ACTIVATION DETAILS (R1) ----" then
       return "invalid"
    end if
    
@@ -801,8 +803,8 @@ command fetchLicenseForVersion pVersion, @rLicense
    local tKey
    put url ("file:" & tLicenseFile) into tKey
    
-   if the first line of tKey is not "---- LIVECODE ACTIVATION KEY (R1) ----" or \
-          the last line of tKey is not "---- LIVECODE ACTIVATION KEY (R1) ----" then
+   if the first line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" or \
+          the last line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" then
       return "invalid"
    end if
    
@@ -812,22 +814,22 @@ end fetchLicenseForVersion
 
 command storeActivationDetails
    local tDetails
-   put "---- LIVECODE ACTIVATION DETAILS (R1) ----" & return into tDetails
+   put "---- XTALK ACTIVATION DETAILS (R1) ----" & return into tDetails
    put "email=" & sActivateEmail & return after tDetails
    if sActivateHashedPassword is not empty then
       put "password=" & hexEncode(sActivateHashedPassword) & return after tDetails
    else
       put "password=" & hexEncode(the md5Digest of sActivatePassword) & return after tDetails
    end if
-   put "---- LIVECODE ACTIVATION DETAILS (R1) ----" after tDetails
+   put "---- XTALK ACTIVATION DETAILS (R1) ----" after tDetails
    put tDetails into url ("file:" & activationDetailsFile())
 end storeActivationDetails
 
 command storeLicenseForVersion pVersion, pLicense, pForceGlobal
    local tKey
-   put "---- LIVECODE ACTIVATION KEY (R1) ----" & return into tKey
+   put "---- XTALK ACTIVATION KEY (R1) ----" & return into tKey
    put pLicense & return after tKey
-   put "---- LIVECODE ACTIVATION KEY (R1) ----" after tKey
+   put "---- XTALK ACTIVATION KEY (R1) ----" after tKey
    put tKey into url ("file:" & activationLicenseFileForVersion(pVersion, pForceGlobal))
 end storeLicenseForVersion
 
@@ -838,12 +840,6 @@ command licenseUnlock pLicense
    local tSettings
    split pLicense by return and "="
    
-   --   if "name" is not among the lines of the keys of pLicense or \
-         --         "organization" is not among the lines of the keys of pLicense or \
-         --         "time" is not among the lines of the keys of pLicense then
-   --      return "invalid"
-   --   end if
-   
    -- Only include the token if it is not global
    if sGlobalLicensePath is not empty and sToken begins with sGlobalLicensePath then
       put empty into tSettings["token"]
@@ -853,7 +849,8 @@ command licenseUnlock pLicense
    
    put pLicense["name"] into tSettings["name"]
    put pLicense["organization"] into tSettings["organization"]
-   put "community" into tSettings["class"]
+--   put "community" into tSettings["class"]
+   put "commercial" into tSettings["class"]
    put 1 into tSettings["multiplicity"]   
    put "macosx,windows,linux,ios,android,html5" into tSettings["deploy"]
    
@@ -974,13 +971,13 @@ function firstRun
    -- this version has been installed.
    --
    local tLicense
-   put "name=LiveCode Community User" & return & "organization=" & return & "time=" & the seconds into tLicense
+   put "name=Xtalk Community User" & return & "organization=" & return & "time=" & the seconds into tLicense
    storeLicenseForVersion sVersion, tLicense   
    
    local tFirstRunPath, tCommunityLCLD, tCommercialLCLD  
-   put sLicensePath & slash & "livecode-firstrun.lcf" into tFirstRunPath
-   put sLicensePath & slash & "livecode-community.lcld" into tCommunityLCLD
-   put sLicensePath & slash & "livecode.lcld" into tCommercialLCLD   
+   put sLicensePath & slash & "Xtalk-firstrun.lcf" into tFirstRunPath
+   put sLicensePath & slash & "Xtalk-community.lcld" into tCommunityLCLD
+   put sLicensePath & slash & "Xtalk.lcld" into tCommercialLCLD   
    if there is a file tFirstRunPath or there is a file  tCommunityLCLD or there is a file tCommercialLCLD then
       return false
    else

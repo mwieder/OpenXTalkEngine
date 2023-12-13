@@ -28,9 +28,12 @@ on extensionInitialize
       set the _ideoverride of me to true
       local tName
       put the short name of me into tName
-      revSBAddDependencyForInclusion "extensions", tName, "scriptLibraries", "Internet"
-      revSBAddDependencyForInclusion "extensions", tName, "externals", "mergJSON"
-      revSBAddDependencyForInclusion "extensions", tName, "extensions", "com.livecode.widget.browser"
+#      revSBAddDependencyForInclusion "extensions", tName, "scriptLibraries", "Internet"
+#      revSBAddDependencyForInclusion "extensions", tName, "externals", "mergJSON"
+#      revSBAddDependencyForInclusion "extensions", tName, "extensions", "com.livecode.widget.browser"
+      dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "extensions", tName, "scriptLibraries", "Internet"
+      dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "extensions", tName, "externals", "mergJSON"
+      dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "extensions", tName, "extensions", "com.livecode.widget.browser"
    end if
 end extensionInitialize
 

@@ -1,5 +1,8 @@
 ﻿script "EditionUtilities"
 constant kEditionNames="community,communityplus,indy,business,commercial"
+constant kCommercialBaseEditions="communityplus,indy,business,commercial"
+#constant kPrivateRepoEditions="communityplus,indy,business,commercial"
+
 function editionNames
    return kEditionNames
 end editionNames
@@ -42,17 +45,16 @@ function editionCompare pA, pB
 	return tA - tB
 end editionCompare
 
-constant kCommercialBaseEditions="communityplus,indy,business,commercial"
 function editionBaseEditionType pEdition
-	if pEdition is among the items of kCommercialBaseEditions then
+	if editionIsInPrivateRepo(pEdition) then
+#	if pEdition is among the items of kCommercialBaseEditions then
 		return "Commercial"
 	else
 		return "Community"
 	end if
 end editionBaseEditionType
 
-constant kPrivateRepoEditions="communityplus,indy,business,commercial"
 function editionIsInPrivateRepo pEdition
-   return pEdition is among the items of kPrivateRepoEditions
+   return pEdition is among the items of kCommercialBaseEditions
 end editionIsInPrivateRepo
 

@@ -308,6 +308,7 @@
 					'inputs':
 					[
 						'<(INTERMEDIATE_DIR)/data/icudata-full-list.txt',
+#						'<(INTERMEDIATE_DIR)/data/out/tmp/icudata.lst',
 						'rsrc/icudata-minimal-list.txt',
 					],
 					'outputs':
@@ -319,6 +320,7 @@
 						'python',
 						'../util/remove_matching.py',
 						'<(INTERMEDIATE_DIR)/data/icudata-full-list.txt',
+#						'<(INTERMEDIATE_DIR)/data/out/tmp/icudata.lst',
 						'rsrc/icudata-minimal-list.txt',
 						'<(INTERMEDIATE_DIR)/data/icudata-remove-list.txt',
 					],

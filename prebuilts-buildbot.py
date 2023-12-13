@@ -77,7 +77,8 @@ def get_buildtype():
     return os.environ.get('BUILDTYPE', 'Debug')
 
 def get_build_edition():
-    return os.environ.get('BUILD_EDITION', 'community')
+    return os.environ.get('BUILD_EDITION', 'commercial')
+    #return os.environ.get('BUILD_EDITION', 'community')
 
 def check_target_triple():
     # Check that this branch can actually be built for the specified platform
@@ -230,12 +231,12 @@ def buildbot_task(target):
         return do_configure()
     elif target == 'compile':
         return do_compile()
-    elif target == 'bin-archive':
-        return do_bin_archive()
+    #elif target == 'bin-archive':
+        #return do_bin_archive()
     elif target == 'bin-extract':
         return do_bin_extract()
-    elif target == 'prebuilts-upload':
-        return do_prebuilts_upload()
+    #elif target == 'prebuilts-upload':
+        #return do_prebuilts_upload()
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:

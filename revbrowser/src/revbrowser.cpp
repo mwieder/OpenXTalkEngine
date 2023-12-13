@@ -828,14 +828,14 @@ void commonBrowserOpen(bool p_is_xbrowser, bool p_is_cef_browser, char *args[], 
 			t_browser = InstantiateBrowser(atoi(args[0]));
 
 
-		if (t_browser != NULL)
+		if (NULL != t_browser)
 		{
 			s_browsers . Add(t_browser, p_is_xbrowser);
 			sprintf(inID, "%i", s_browsers . GetActiveInstanceId());
 			result = istrdup(inID);
 			CB_CreateInstance(s_browsers . GetActiveInstanceId());
 
-			if (nargs == 2)
+			if (2 == nargs)
 			{
 				t_browser -> GoURL(args[1]);
 				t_browser -> SetVisible(TRUE);
@@ -853,7 +853,7 @@ void commonBrowserOpen(bool p_is_xbrowser, bool p_is_cef_browser, char *args[], 
 	*error = False;
 	*pass = False;
 
-	*retstring = result != NULL ? result : (char *)calloc(1,0);
+	*retstring = NULL != result ? result : (char *)calloc(1,0);
 }
 
 void revBrowserOpen(char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
@@ -883,7 +883,7 @@ void XBrowserInit(char *args[], int nargs, char **retstring, Bool *pass, Bool *e
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result : (char *)calloc(1,0);
+	*retstring = NULL != result ? result : (char *)calloc(1,0);
 }
 
 // Command:
@@ -900,9 +900,9 @@ void revBrowserNavigate(CWebBrowserBase *p_instance, char *args[], int nargs, ch
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 	
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 	{
-		if (nargs == 2)
+		if (2 == nargs)
 			t_browser -> GoURL(args[0], args[1]);
 		else
 			t_browser -> GoURL(args[0]);
@@ -910,7 +910,7 @@ void revBrowserNavigate(CWebBrowserBase *p_instance, char *args[], int nargs, ch
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -927,12 +927,12 @@ void revBrowserBack(CWebBrowserBase *p_instance, char *args[], int nargs, char *
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> GoBack();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 void revBrowserFind(CWebBrowserBase *p_instance, char *args[], int nargs, char **retstring, Bool *pass, Bool *error)
@@ -941,25 +941,25 @@ void revBrowserFind(CWebBrowserBase *p_instance, char *args[], int nargs, char *
 	t_result = NULL;
 	
 	CWebBrowserBase *t_browser;
-	if (t_result == NULL)		
+	if (NULL == t_result)		
 		t_browser = p_instance;
 	
-	if (t_result == NULL)
-		if (nargs != 2)
+	if (NULL == t_result)		
+		if (2 != nargs)
 			t_result = "incorrect number of arguments";
 	
 	bool t_search_up;
 	t_search_up = false;
-	if (t_result == NULL)
-		t_search_up = strcmp(args[1], "up") == 0;
+	if (NULL == t_result)
+		t_search_up = 0 == strcmp(args[1], "up");
 	
-	if (t_result == NULL && t_browser != NULL)
+	if (NULL == t_result && NULL != t_browser)
 		if (!t_browser -> FindString(args[0], t_search_up))
 			t_result = "not found";
 			
 	*error = False;		
 	*pass = False;		
-	if (t_result == NULL)
+	if (NULL == t_result)
 		*retstring = strdup("");
 	else
 		*retstring = strdup(t_result);
@@ -992,7 +992,7 @@ void revBrowserCallScript(CWebBrowserBase *p_instance, char *p_arguments[], int 
 	if (!*r_error)
 	{
 		t_result = t_browser -> CallScript(p_arguments[0], &p_arguments[1], (p_argument_count - 1));
-		if (t_result == NULL)
+		if (NULL == t_result)
 		{
 			*r_result = strdup("error in script");
 			*r_error = True;
@@ -1001,7 +1001,7 @@ void revBrowserCallScript(CWebBrowserBase *p_instance, char *p_arguments[], int 
 			*r_result = strdup(t_result);
 	}
 
-	if (t_result != NULL)
+	if (NULL != t_result)
 		free(t_result);
 
 	*r_pass = False;
@@ -1038,7 +1038,7 @@ void revBrowserExecuteScript(CWebBrowserBase *p_instance, char *args[], int narg
 			*retstring = strdup(t_result);
 	}
 
-	if (t_result != NULL)
+	if (NULL != t_result)
 		free(t_result);
 	
 	*pass = False;
@@ -1059,12 +1059,12 @@ void revBrowserForward(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> GoForward();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1081,12 +1081,12 @@ void revBrowserRefresh(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> Refresh();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1103,12 +1103,12 @@ void revBrowserStop(CWebBrowserBase *p_instance, char *args[], int nargs, char *
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> Stop();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1125,7 +1125,7 @@ void revBrowserClose(CWebBrowserBase *p_instance, char *args[], int nargs, char 
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;	
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 	{
 		if (s_browsers . GetCallbackDepth(t_browser -> GetInst()) > 0)
 		{
@@ -1141,7 +1141,7 @@ void revBrowserClose(CWebBrowserBase *p_instance, char *args[], int nargs, char 
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1160,10 +1160,10 @@ void revBrowserFocus(CWebBrowserBase *p_instance, char *args[], int nargs, char 
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> Focus();
 
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1182,10 +1182,10 @@ void revBrowserUnfocus(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> Unfocus();
 
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1202,12 +1202,12 @@ void revBrowserPrint(CWebBrowserBase *p_instance, char *args[], int nargs, char 
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> Print();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1224,12 +1224,12 @@ void revBrowserRedraw(CWebBrowserBase *p_instance, char *args[], int nargs, char
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> Redraw();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1246,12 +1246,12 @@ void revBrowserMakeTextBigger(CWebBrowserBase *p_instance, char *args[], int nar
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> MakeTextBigger();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1268,12 +1268,12 @@ void revBrowserMakeTextSmaller(CWebBrowserBase *p_instance, char *args[], int na
 	CWebBrowserBase *t_browser;
 	t_browser = p_instance;
 
-	if (t_browser != NULL)
+	if (NULL != t_browser)
 		t_browser -> MakeTextSmaller();
 
 	*error = False;
 	*pass = False;
-	*retstring = result != NULL ? result: (char *)calloc(1,0);
+	*retstring = NULL != result ? result: (char *)calloc(1,0);
 }
 
 // Command:
@@ -1406,9 +1406,9 @@ void revBrowserGetProp(CWebBrowserBase *p_instance, char *args[], int nargs, cha
 
 	BrowserProperty whichprop = BROWSERPROP_UNDEFINED;
 
-	for (int i = 0; i < sizeof(browserProperties) / sizeof(BrowserProp); i++)
+	for (long unsigned int i = 0; i < sizeof(browserProperties) / sizeof(BrowserProp); i++)
 	{
-		if (strcasecmp(args[0], browserProperties[i].str) == 0)
+		if (0 == strcasecmp(args[0], browserProperties[i].str))
 		{
 			whichprop = browserProperties[i].prop;
 			break;

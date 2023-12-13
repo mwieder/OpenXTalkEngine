@@ -3028,12 +3028,12 @@ end revCheckObject
 
 function revSBEnginePath pPlatform
    local tEdition
-   put the editionType into tEdition
+   --put the editionType into tEdition
    // SN-2015-07-09: [[ StandaloneDeployment ]] Gypified Standalone-<edition>.app building does not
    //  allow to create broken applications, so that the executable file in it bears the edition.
    if tEdition is not "community" then
       put "Commercial" into tEdition
-   end if
+   --end if
    
    -- MW-2013-06-13: [[ CloneAndRun ]] If not installed, then fetch the engine locally.
    if revEnvironmentIsInstalled() then
@@ -3109,9 +3109,9 @@ function revSBLicensedToDeployToTarget pTarget
    -- We can only check the license parameters in development mode,
    -- and they are only set in UI mode. So just return true unless
    -- the mode is development.
-   if the environment is not "development" then
+   --if the environment is not "development" then
       return true
-   end if
+   --end if
    
    -- In development mode, check the revLicenseInfo
    local tLicensedTargets

@@ -42,6 +42,7 @@ server-install:
 	install -m 0644 -D $(BUILD_DIR)/server-revdb.so $(INSTALL_DIR)/externals/revdb.so
 	install -m 0644 -D $(BUILD_DIR)/server-revxml.so $(INSTALL_DIR)/externals/revxml.so
 	install -m 0644 -D $(BUILD_DIR)/server-revzip.so $(INSTALL_DIR)/externals/revzip.so
+	install -m 0644 -D $(BUILD_DIR)/server-revsecurity.so $(INSTALL_DIR)/externals/server-revsecurity.so
 	# DB drivers
 	install -m 0644 -D $(BUILD_DIR)/server-dbmysql.so $(INSTALL_DIR)/drivers/dbmysql.so
 	install -m 0644 -D $(BUILD_DIR)/server-dbodbc.so $(INSTALL_DIR)/drivers/dbodbc.so

@@ -27,7 +27,8 @@ on extensionInitialize
       set the _ideoverride of me to true
       local tName
       put the short name of me into tName
-      revSBAddDependencyForInclusion "extensions", tName, "externals", "XML"
+#      revSBAddDependencyForInclusion "extensions", tName, "externals", "XML"
+      dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "extensions", tName, "externals", "XML"
    end if
 
    svgSpecLoad

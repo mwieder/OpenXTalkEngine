@@ -31,7 +31,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 void MCStackSecurityInit(void)
 {
 	// MW-2013-11-07: [[ CmdLineStack ]] Mark the license type as community.
-	MClicenseparameters . license_class = kMCLicenseClassCommunity;  
+//	MClicenseparameters . license_class = kMCLicenseClassCommunity; 
+	MClicenseparameters . license_class =  kMCLicenseClassCommercial; 
 }
 
 ///////////

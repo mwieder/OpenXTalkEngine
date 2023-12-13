@@ -17,6 +17,9 @@ command serverBuilderRun pPlatform, pEdition
    
    local tVersionFile, tVersion
    put url ("file:" & builderRepoFolder() & slash & "version") into tVersionFile
+
+   #builderLog "report", "tVersionFile =" && tVersionFile
+
    replace space with empty in tVersionFile
    split tVersionFile by return and "="
    put tVersionFile["BUILD_SHORT_VERSION"] into tVersion
@@ -30,6 +33,8 @@ command serverBuilderRun pPlatform, pEdition
    put builderOutputFolder() into tOutputDir
    builderEnsureFolder tOutputDir
 
+   #builderLog "report", "Output directory =" && tOutputDir
+
    local tOutputFile
    put tOutputDir & slash & getZipFilenameStub(tVersion, pPlatform, pEdition) into tOutputFile
 
@@ -37,7 +42,7 @@ command serverBuilderRun pPlatform, pEdition
    delete file tOutputFile
    
    if pPlatform begins with "win-" then
-      repeat for each word tExternal in "revdb revzip revxml dbsqlite dbmysql dbpostgresql dbodbc"
+      repeat for each word tExternal in "revdb revzip revxml dbsqlite dbmysql dbpostgresql dbodbc revsecurity"
          get "server-" & tExternal & ".dll"
          if there is not a file (tEngineFolder & slash & it) then
             get tExternal & ".dll"
@@ -81,7 +86,7 @@ command serverBuilderRun pPlatform, pEdition
          put ".so" into tLibExtension
       end if
       
-      repeat for each word tExternal in "revdb revzip revxml"
+      repeat for each word tExternal in "revdb revzip revxml revsecurity"
          get tEngineFolder & slash & "server-" & tExternal & tLibExtension
          if there is a file it then
             builderLog "message", "Adding external '" & tExternal & "'"
@@ -90,7 +95,7 @@ command serverBuilderRun pPlatform, pEdition
                throw the result
             end if
          else
-            builderLog "warning", "Could not find external '" & tExternal & "'"
+            builderLog "warning", "Could not find external '" & tExternal & tLibExtension & "'" && "in folder" && tEngineFolder
          end if
       end repeat
       
@@ -105,7 +110,7 @@ command serverBuilderRun pPlatform, pEdition
                throw the result
             end if
          else
-            builderLog "message", "Warning - could not find driver '" & tDriver & "'"
+            builderLog "message", "Warning - could not find driver '" & tDriver & tLibExtension & "'" && "in folder" && tEngineFolder
          end if
       end repeat
       
@@ -159,6 +164,7 @@ command serverBuilderRun pPlatform, pEdition
       builderLog "error", "Server archive building failed - " & tError
       throw "failure"
    end try
+         builderLog "message", "Finished building server"
 end serverBuilderRun
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,18 +177,38 @@ function getZipFilenameStub pVersion, pPlatform, pEdition
    end if   
    replace "-" with "_" in pVersion
    replace "." with "_" in pVersion
-   if pPlatform is "macosx" then
-      put "Mac" into pPlatform
-   else if pPlatform is "win-x86" then
-      put "Windows-x86" into pPlatform
-   else if pPlatform is "win-x86_64" then
-      put "Windows-x86_64" into pPlatform
-   else if pPlatform is "linux-x86" then
-      put "Linux" into pPlatform
-   else if pPlatform is "linux-x86_64" then
-      put "Linux-x86_64" into pPlatform
-   else if pPlatform is "linux-armv6hf" then
-      put "Linux-armv6hf" into pPlatform
-   end if
+	switch pPlatform
+		case "macosx"
+			put "Mac" into pPlatform
+			break
+		case "win-x86"
+			put "Windows-x86" into pPlatform
+			break
+		case "win-x86_64"
+			put "Windows-x86_64" into pPlatform
+			break
+		case "linux-x86"
+			put "Linux" into pPlatform
+			break
+		case "linux-x86_64"
+			put "Linux-x86_64" into pPlatform
+			break
+		case "linux-armv6hf"
+			put "Linux-arm6hf" into pPlatform
+			break
+	end switch
+#   if pPlatform is "macosx" then
+#      put "Mac" into pPlatform
+#  else if pPlatform is "win-x86" then
+#      put "Windows-x86" into pPlatform
+#   else if pPlatform is "win-x86_64" then
+#      put "Windows-x86_64" into pPlatform
+#   else if pPlatform is "linux-x86" then
+#      put "Linux" into pPlatform
+#   else if pPlatform is "linux-x86_64" then
+#      put "Linux-x86_64" into pPlatform
+#   else if pPlatform is "linux-armv6hf" then
+#      put "Linux-armv6hf" into pPlatform
+#   end if
    return "LiveCode" & editionTitleCase(pEdition) & "Server-" & pVersion & "-" & pPlatform & ".zip"
 end getZipFilenameStub

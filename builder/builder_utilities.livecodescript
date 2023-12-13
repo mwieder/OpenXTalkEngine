@@ -189,31 +189,32 @@ command builderFetchEngine pVersion, pPlatform
       end switch
       return empty
    end if
-   local tPlatform
-   switch pPlatform
-      case "win-x86"
-      case "win-x86_64"
-         get "windows/release"
-         break
-      case "linux-x86"
-      case "linux-x86_64"
-      case "linux-armv6hf"
-         get "linux"
-         break
-      case "macosx"
-         get "mac/Release"
-         break
-      case "ios"
-         get "ios"
-         break
-      case "android-armeabi-v7a"
-      case "android-arm64-v8a"
-      case "android-x86"
-      case "android-x86_64"
-         get "android/release"
-         break
-   end switch
-   return builderRepoFolder() & "/_build/" & it
+   #   local tPlatform
+   #   switch pPlatform
+   #      case "win-x86"
+   #      case "win-x86_64"
+   #         get "windows/release"
+   #         break
+   #      case "linux-x86"
+   #      case "linux-x86_64"
+   #      case "linux-armv6hf"
+   #         get "linux"
+   #         break
+   #      case "macosx"
+   #         get "mac/Release"
+   #         break
+   #      case "ios"
+   #         get "ios"
+   #         break
+   #      case "android-armeabi-v7a"
+   #      case "android-arm64-v8a"
+   #      case "android-x86"
+   #      case "android-x86_64"
+   #         get "android/release"
+   #         break
+   #   end switch
+   return builderRepoFolder() & "/" & pPlatform & "-bin"
+   #   return builderRepoFolder() & "/_build/" & it
 end builderFetchEngine
 
 ////////////////////////////////////////////////////////////////////////////////

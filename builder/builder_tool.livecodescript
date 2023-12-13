@@ -23,7 +23,8 @@ on startup
    local tPlatforms, tStage, tEdition, tBuild
    put empty into tPlatforms
    put "tools" into tStage
-   put "community" into tEdition
+--   put "community" into tEdition
+	put "commercial" into tEdition
    put "stable" into tBuild
    
    local tEngineDir, tPrivateDir, tOutputDir, tWorkDir, tDocsDir, tBuiltDocsDir, tArch
@@ -118,9 +119,9 @@ on startup
       __builderLog "error", "No platforms specified"
    end if
    
-   if tEdition is "commercial" and tStage is not "server" then
-      __builderLog "error", "Commercial is only a valid edition for server packages"
-   end if
+--   if tEdition is "commercial" and tStage is not "server" then
+--      __builderLog "error", "Commercial is only a valid edition for server packages"
+--   end if
    
    if tStage is "environment" then
       put empty into tPlatforms

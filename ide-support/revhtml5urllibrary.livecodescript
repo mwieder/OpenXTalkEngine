@@ -23,7 +23,8 @@ on extensionInitialize
    end if
 
    if the environment is "development" then
-      revSBAddDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url", "emscripten"
+#      revSBAddDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url", "emscripten"
+      dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "scriptLibraries", "Internet", "scriptLibraries", "html5url", "emscripten"
    end if
 
    if the platform is "HTML5" then
