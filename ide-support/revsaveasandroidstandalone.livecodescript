@@ -1622,7 +1622,9 @@ private function doShellCommand pCommand, pArguments
       replace slash with backslash in tCommandPath
       put tCommandPath & ";" & sJavaRoot & "\bin" & ";" before $PATH
    else if the platform is "macos" then
-      put tCommandPath & ":" before $PATH
+		# this change may be necessary for M1 Macs
+      # put tCommandPath & ":" before $PATH
+		put tCommandPath & ":" & sJavaRoot & "/bin:" before $PATH
    else if the platform is "linux" then
       put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
    end if

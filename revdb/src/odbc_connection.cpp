@@ -455,10 +455,10 @@ bool DBConnection_ODBC::handleDataAtExecutionParameters(SQLHSTMT p_statement)
 	DBString *t_value;
 	t_value = NULL;
 
-	while (t_result == SQL_NEED_DATA)
+	while (SQL_NEED_DATA == t_result)
 	{
 		t_result = SQLParamData(p_statement, (SQLPOINTER *)&t_value);
-		if (t_result != SQL_NEED_DATA)
+		if (SQL_NEED_DATA != t_result)
 			continue;
 
 //		if (t_value -> length > 8000)
@@ -490,8 +490,7 @@ bool DBConnection_ODBC::handleDataAtExecutionParameters(SQLHSTMT p_statement)
 		
 		if (SQL_SUCCESS != t_put_result)
 		{
-			char *t_error;
-			t_error = getDiagnosticRecord(p_statement);
+			char *t_error = getDiagnosticRecord(p_statement);	// UNCHECKED
 
 			return false;
 		}

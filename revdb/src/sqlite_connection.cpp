@@ -91,20 +91,20 @@ Bool DBConnection_SQLITE::connect(char **args, int numargs)
 				// Find the end of the item (delimited by ',').
 				const char *t_end;
 				t_end = strchr(t_start, ',');
-				if (t_end == NULL)
+				if (NULL == t_end)
 					t_end = t_start + strlen(t_start);
 				
 				// Check to see if we recognise the option (ignoring ones we don't know
 				// anything about).
-				if ((t_end - t_start) == 6 && strncasecmp(t_start, "binary", 6) == 0)
+				if (6 == (t_end - t_start) && 0 == strncasecmp(t_start, "binary", 6))
 					m_enable_binary = true;
-				if ((t_end - t_start) == 10 && strncasecmp(t_start, "extensions", 10) == 0)
+				if (10 == (t_end - t_start) && 0 == strncasecmp(t_start, "extensions", 10))
 					m_enable_extensions = true;
-                if ((t_end - t_start) == 3 && strncasecmp(t_start, "uri", 3) == 0)
+                if (3 == (t_end - t_start) && 0 == strncasecmp(t_start, "uri", 3))
                     t_use_uri = true;
 				
 				// If the end points to NUL we are done.
-				if (*t_end == '\0')
+				if ('\0' == *t_end)
 					break;
 				
 				// Start is the char after the separating ','.
@@ -177,7 +177,7 @@ Bool DBConnection_SQLITE::sqlExecute(char *query, DBString *args, int numargs, u
 		char *newquery = query;
 		int qlength = strlen(query);
 
-		MDEBUG("args=%d, numargs=%d\n", args != 0);
+		MDEBUG("args=%d, numargs=%d\n", 0 != args);
 
 		if(numargs > 0)
 		{
@@ -292,7 +292,7 @@ char *DBConnection_SQLITE::getErrorMessage(Bool p_last)
     // AL-2013-11-08 [[ Bug 11149 ]] Make sure most recent error string is available to revDatabaseConnectResult
 	if(p_last || mIsError)
     {
-        if (mErrorStr != 0)
+        if (0 != mErrorStr)
         {
             mIsError = false;
             return mErrorStr;
@@ -320,7 +320,7 @@ char *replaceString(char *p_string, const char *p_find, const char *p_replace)
 	while (t_current_string != NULL)
 	{
 		t_matched_string = strstr(t_current_string, p_find);
-		if (t_matched_string == NULL)
+		if (NULL == t_matched_string)
 			break;
 
 		t_matches++;
@@ -329,7 +329,7 @@ char *replaceString(char *p_string, const char *p_find, const char *p_replace)
 
 	int t_buffer_length;
 	char *t_output_buffer;
-	if (t_matches == 0)
+	if (0 == t_matches)
 	{
 		t_buffer_length = strlen(p_string + 1);
 		t_output_buffer = strdup(p_string);
@@ -350,7 +350,7 @@ char *replaceString(char *p_string, const char *p_find, const char *p_replace)
 	t_output_buffer_copy = t_output_buffer;
 	
 	bool t_matches_present;
-	t_matches_present = (t_matches != 0);
+	t_matches_present = (0 != t_matches);
 	
 	while (t_matches > 0)
 	{
@@ -505,8 +505,7 @@ char *DBConnection_SQLITE::BindVariables(char *p_query, int p_query_length, DBSt
 	int t_parsed_query_length;
 	t_parsed_query_length = p_query_length;
 
-	bool t_success;
-	t_success = true;
+	bool t_success = true;
 
 	if (p_argument_count != 0)
 	{
@@ -517,6 +516,7 @@ char *DBConnection_SQLITE::BindVariables(char *p_query, int p_query_length, DBSt
 
 		DBBuffer t_query_buffer(t_parsed_query_length + 1);
 
+		// bool t_success set but unchecked
 		t_success = processQuery(p_query, t_query_buffer, queryCallback, &t_query_metadata);
 
 		t_query_buffer . ensure(1);
@@ -637,8 +637,8 @@ int DBConnection_SQLITE::basicExec(const char *q, unsigned int *rows)
 		*rows = 0;
 		t_return_value = sqlite3_exec(mDB.getHandle(), q, exec_callback, rows, &err);
 
-		int t_changed_rows;
-		t_changed_rows = sqlite3_changes(mDB.getHandle());
+		// t_changed_rows not checked, but not used
+		int t_changed_rows = sqlite3_changes(mDB.getHandle());
 
 		sqlite3_update_hook(mDB.getHandle(), NULL, NULL);
 		
@@ -647,7 +647,7 @@ int DBConnection_SQLITE::basicExec(const char *q, unsigned int *rows)
 
 		// If *rows != 0 then rows was populated by the exec_callback function, which implies that the query
 		// has returned a result set. As we are only executing the query here, we return 0 as the number of affected rows.
-		if (*rows != 0)
+		if (0 != *rows)
 			*rows = 0;
 		else
 			*rows = t_changed_row_count;

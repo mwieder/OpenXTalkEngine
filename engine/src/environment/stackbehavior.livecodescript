@@ -971,18 +971,21 @@ function firstRun
    -- this version has been installed.
    --
    local tLicense
-   put "name=Xtalk Community User" & return & "organization=" & return & "time=" & the seconds into tLicense
+   put "name=LiveCode Community User" & return & "organization=" & return & "time=" & the seconds into tLicense
    storeLicenseForVersion sVersion, tLicense   
    
    local tFirstRunPath, tCommunityLCLD, tCommercialLCLD  
-   put sLicensePath & slash & "Xtalk-firstrun.lcf" into tFirstRunPath
-   put sLicensePath & slash & "Xtalk-community.lcld" into tCommunityLCLD
-   put sLicensePath & slash & "Xtalk.lcld" into tCommercialLCLD   
+   put sLicensePath & slash & "livecode-firstrun.lcf" into tFirstRunPath
+   put sLicensePath & slash & "livecode-community.lcld" into tCommunityLCLD
+   put sLicensePath & slash & "livecode.lcld" into tCommercialLCLD   
    if there is a file tFirstRunPath or there is a file  tCommunityLCLD or there is a file tCommercialLCLD then
       return false
    else
       put empty into url ("file:" & tFirstRunPath)
-      return true
+      return false
+	  -- make the firstrun file anyway (tperry)
+	  open file tFirstRunPath
+      close file tFirstRunPath
    end if
 end firstRun
 
