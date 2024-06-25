@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# this is no longer needed
+
 # Versions
 source "scripts/lib_versions.inc"
 
