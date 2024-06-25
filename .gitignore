@@ -55,6 +55,7 @@ util/perfect/perfect.linux-*
 *.tar
 *.zip
 *.bz2
+*.tgz
 
 # Logs and databases #
 ######################
@@ -119,14 +120,14 @@ sdks/
 
 # Ignore prebuilts #
 ###################
-#prebuilt/bin
-#prebuilt/lib
+prebuilt/lib
+prebuilt/bin
+prebuilt/share
+prebuilt/build
 #prebuilt/docs
 #prebuilt/include
 #prebuilt/lib/mac
-#prebuilt/share
-#prebuilt/build
-prebuilt/
+#prebuilt/
 
 # Stamp files and generated C files
 ###################################
