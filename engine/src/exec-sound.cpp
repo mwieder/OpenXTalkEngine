@@ -86,20 +86,20 @@ MCExecEnumTypeInfo* kMCSoundChannelPlayType = &_kMCSoundChannelPlayTypeInfo;
 
 void MCSoundExecPlaySoundOnChannel(MCExecContext& ctxt, MCStringRef p_channel, MCStringRef p_file, intenum_t p_type)
 {
-    bool t_success;
+	bool t_success;
 	t_success = true;
-    
-    MCObjectHandle t_handle;
-    t_handle = nil;
-    if (t_success)
-        t_handle = ctxt.GetObjectHandle();
-    
+
+	MCObjectHandle t_handle;
+	t_handle = nil;
 	if (t_success)
-        t_success = MCSystemPlaySoundOnChannel(p_channel, p_file, (MCSoundChannelPlayType)p_type, t_handle);
+		t_handle = ctxt.GetObjectHandle();
+
+	if (t_success)
+		t_success = MCSystemPlaySoundOnChannel(p_channel, p_file, (MCSoundChannelPlayType)p_type, t_handle);
 	if (!t_success)
-    {
+	{
 		ctxt.SetTheResultToStaticCString("could not play sound");
-    }
+	}
 }
 
 void MCSoundExecStopPlayingOnChannel(MCExecContext& ctxt, MCStringRef p_channel)

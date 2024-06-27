@@ -163,10 +163,10 @@ bool MCFiltersUrlEncode(MCStringRef p_source, bool p_use_utf8, MCStringRef& r_re
         buffer . Shrink(dptr - buffer . Chars());
     }
 
-    MCMemoryDeleteArray(t_chars);
-    if (!t_success)
-        return false;
-    
+	MCMemoryDeleteArray(t_chars);
+	if (!t_success)
+		return false;
+
 	return buffer . CreateStringAndRelease(r_result);
 }
 

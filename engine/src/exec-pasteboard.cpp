@@ -327,9 +327,9 @@ MCTransferType MCPasteboardTransferTypeFromName(MCNameRef p_key, bool p_legacy =
 	if (MCNameIsEqualToCaseless(p_key, MCN_styles))
 		return TRANSFER_TYPE_STYLED_TEXT;
 
-    if (MCNameIsEqualToCaseless(p_key, MCN_styledtext))
-        return TRANSFER_TYPE_STYLED_TEXT_ARRAY;
-    
+	if (MCNameIsEqualToCaseless(p_key, MCN_styledtext))
+		return TRANSFER_TYPE_STYLED_TEXT_ARRAY;
+
 	if (MCNameIsEqualToCaseless(p_key, MCN_rtf))
         return p_legacy ? TRANSFER_TYPE_RTF_TEXT : TRANSFER_TYPE_RTF;
 
@@ -351,17 +351,17 @@ MCTransferType MCPasteboardTransferTypeFromName(MCNameRef p_key, bool p_legacy =
     if (MCNameIsEqualToCaseless(p_key, MCN_rtftext))
         return TRANSFER_TYPE_RTF_TEXT;
     
-    if (MCNameIsEqualToCaseless(p_key, MCN_htmltext))
-        return TRANSFER_TYPE_HTML_TEXT;
-    
-    if (MCNameIsEqualToCaseless(p_key, MCN_png))
-        return TRANSFER_TYPE_PNG;
-    
-    if (MCNameIsEqualToCaseless(p_key, MCN_gif))
-        return TRANSFER_TYPE_GIF;
-    
-    if (MCNameIsEqualToCaseless(p_key, MCN_jpeg))
-        return TRANSFER_TYPE_JPEG;
+	if (MCNameIsEqualToCaseless(p_key, MCN_htmltext))
+		return TRANSFER_TYPE_HTML_TEXT;
+
+	if (MCNameIsEqualToCaseless(p_key, MCN_png))
+		return TRANSFER_TYPE_PNG;
+
+	if (MCNameIsEqualToCaseless(p_key, MCN_gif))
+		return TRANSFER_TYPE_GIF;
+
+	if (MCNameIsEqualToCaseless(p_key, MCN_jpeg))
+		return TRANSFER_TYPE_JPEG;
 
 	if (MCNameIsEqualToCaseless(p_key, MCN_win_bitmap))
 		return TRANSFER_TYPE_BMP;
@@ -752,18 +752,18 @@ void MCPasteboardEvalFullClipboardOrDragKeys(MCExecContext& ctxt, const MCClipbo
                     && MCListAppend(*t_list, MCN_styles)
                     && MCListAppend(*t_list, MCN_styledtext);
     }
-    
-    // Check for any image type
-    if (t_success && p_clipboard->HasImage())
-        t_success = MCListAppend(*t_list, MCN_image);
-    
-    // Check for specific image types
-    if (t_success && p_clipboard->HasPNG())
-        t_success = MCListAppend(*t_list, MCN_png);
-    if (t_success && p_clipboard->HasGIF())
-        t_success = MCListAppend(*t_list, MCN_gif);
-    if (t_success && p_clipboard->HasJPEG())
-        t_success = MCListAppend(*t_list, MCN_jpeg);
+
+	// Check for any image type
+	if (t_success && p_clipboard->HasImage())
+		t_success = MCListAppend(*t_list, MCN_image);
+
+	// Check for specific image types
+	if (t_success && p_clipboard->HasPNG())
+		t_success = MCListAppend(*t_list, MCN_png);
+	if (t_success && p_clipboard->HasGIF())
+		t_success = MCListAppend(*t_list, MCN_gif);
+	if (t_success && p_clipboard->HasJPEG())
+		t_success = MCListAppend(*t_list, MCN_jpeg);
 	if (t_success && p_clipboard->HasBMP())
 		t_success = MCListAppend(*t_list, MCN_win_bitmap);
 	if (t_success && p_clipboard->HasWinMetafile())
@@ -1161,11 +1161,11 @@ void MCPasteboardGetClipboardOrDragDataLegacy(MCExecContext& ctxt, MCNameRef p_i
 			ctxt . SetTheResultToStaticCString("format not available");
 		}
     }
-	
-    // Unlock the clipboard.
-    if (t_clipboard_locked)
-        t_clipboard->Unlock();
-    
+
+	// Unlock the clipboard.
+	if (t_clipboard_locked)
+		t_clipboard->Unlock();
+
 	if (!t_success)
 	{
 		r_data = MCValueRetain(kMCEmptyData);

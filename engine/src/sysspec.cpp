@@ -111,13 +111,13 @@ static void handle_backtrace()
 				t_symbol = __cxa_demangle(t_info . dli_sname, NULL, NULL, &t_status);
 				if (t_status == 0)
 				{
-					fprintf(stderr, "  in %s @ %u\n", t_symbol, (char *)t_callstack[i] - (char *)t_info . dli_saddr);
+					fprintf(stderr, "  in %s @ %u\n", t_symbol, (unsigned int)((char *)t_callstack[i] - (char *)t_info . dli_saddr));
 					t_handled = true;
 				}
 			}
 			
 			if (!t_handled)
-				fprintf(stderr, "  in %s @ %u\n", t_info . dli_sname, (char *)t_callstack[i] - (char *)t_info . dli_saddr);
+				fprintf(stderr, "  in %s @ %u\n", t_info . dli_sname, (unsigned int)((char *)t_callstack[i] - (char *)t_info . dli_saddr));
 		}
 		else
 			fprintf(stderr, "  in <unknown> @ %p\n", t_callstack[i]);

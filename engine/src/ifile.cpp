@@ -62,9 +62,10 @@ bool MCImageCompress(MCImageBitmap *p_bitmap, bool p_dither, MCImageCompressedBi
 {
 	bool t_success = true;
 
-	bool t_mask, t_alpha;
+	bool /* t_mask, */ t_alpha;
 
-	t_mask = MCImageBitmapHasTransparency(p_bitmap, t_alpha);
+//	t_mask = MCImageBitmapHasTransparency(p_bitmap, t_alpha);
+	/* UNCHECKED */ MCImageBitmapHasTransparency(p_bitmap, t_alpha);
 
 	if (!t_alpha && MCpaintcompression == EX_PBM)
 	{

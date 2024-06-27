@@ -1337,7 +1337,7 @@ bool MCUIDC::addusermessage(MCObject* optr, MCNameRef name, real8 time, MCParame
 
 bool MCUIDC::hasmessagestodispatch(void)
 {
-    if (m_messages.GetCount() == 0)
+    if (0 == m_messages.GetCount())
     {
         return false;
     }
@@ -1359,13 +1359,13 @@ Boolean MCUIDC::handlepending(real8& curtime, real8& eventtime, Boolean dispatch
         if (t_msg.m_time > curtime)
             break;
         
-        if (!dispatch && t_msg.m_id == 0 && MCNameIsEqualToCaseless(*t_msg.m_message, MCM_idle))
+        if (!dispatch && 0 == t_msg.m_id && MCNameIsEqualToCaseless(*t_msg.m_message, MCM_idle))
         {
             doshiftmessage(i, curtime + MCidleRate / 1000.0);
             continue;
         }
         
-        if (dispatch || t_msg.m_id == 0)
+        if (dispatch || 0 == t_msg.m_id)
         {
             // Remove this message from the queue
             cancelmessageindex(i, false);
@@ -1389,19 +1389,19 @@ Boolean MCUIDC::handlepending(real8& curtime, real8& eventtime, Boolean dispatch
             
             t_handled = True;
             break;
-        }
-    }
-    
-    if (moving != NULL)
-        handlemoves(curtime, eventtime);
+		}
+	}
+
+	if (NULL != moving)
+		handlemoves(curtime, eventtime);
     
 	real8 stime = IO_cleansockets(curtime);
-    if (stime < eventtime)
-        eventtime = stime;
+	if (stime < eventtime)
+		eventtime = stime;
     
     // SN-2014-12-12: [[ Bug 13360 ]] We don't want to change the eventtime if the message is not forced to be dispatched nor internal
     if (m_messages.GetCount() > 0
-            && (dispatch || m_messages[0].m_id == 0)
+            && (dispatch || 0 == m_messages[0].m_id)
             && m_messages[0].m_time < eventtime)
         eventtime = m_messages[0].m_time;
     
@@ -1428,7 +1428,7 @@ void MCUIDC::setlockmoves(Boolean b)
 	} else {
 		// adjust the start time of each movement.
 		real8 offset = MCS_time() - locktime;
-		if (moving != NULL)	{
+		if (NULL != moving)	{
 			MCMovingList *mptr = moving;
 			do {
 				mptr->starttime += offset;
@@ -1462,11 +1462,11 @@ void MCUIDC::addmove(MCObject *optr, MCPoint *pts, uint2 npts,
 		real8 dy = pts[i + 1].y - pts[i].y;
 		distance += sqrt(dx * dx + dy * dy);
 	}
-	if (duration == 0.0)
+	if (0.0 == duration)
 	{
 		// MW-2009-10-31: [[ Bug 8176 ]] Make sure we use a minimum of 1 in the divide!
-		mptr->speed = MCmovespeed == 0 ? 1 : MCmovespeed;
-		duration = distance / (MCmovespeed == 0 ? 1 : MCmovespeed);
+		mptr->speed = 0 == MCmovespeed ? 1 : MCmovespeed;
+		duration = distance / (0 == MCmovespeed ? 1 : MCmovespeed);
 	}
 	else
 		mptr->speed = distance / duration;

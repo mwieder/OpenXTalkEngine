@@ -1493,8 +1493,8 @@ void MCStack::SetStackFiles(MCExecContext& ctxt, MCStringRef p_files)
 	}
 	delete[] stackfiles; /* Allocated with new[] */
 
-    if (stringtostackfiles(p_files, &stackfiles, nstackfiles))
-        return;
+	if (stringtostackfiles(p_files, &stackfiles, nstackfiles))
+		return;
 
 	ctxt . Throw();
 }
@@ -2241,8 +2241,8 @@ void MCStack::SetTheme(MCExecContext& ctxt, intenum_t p_theme)
 
 void MCStack::GetShowInvisibleObjects(MCExecContext &ctxt, bool *&r_show_invisibles)
 {
-	MCStackObjectVisibility t_visibility;
-	t_visibility = gethiddenobjectvisibility();
+//	MCStackObjectVisibility t_visibility;
+//	t_visibility = gethiddenobjectvisibility(); // not used
 	
 	switch (gethiddenobjectvisibility())
 	{

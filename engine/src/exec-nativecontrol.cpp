@@ -116,18 +116,18 @@ void MCNativeControlColorParse(MCExecContext& ctxt, MCStringRef p_input, MCNativ
 
 void MCNativeControlColorFormat(MCExecContext& ctxt, const MCNativeControlColor& p_input, MCStringRef& r_output)
 {
-    uint16_t t_r, t_g, t_b, t_a;
-    t_r = p_input . r >> 8;
-    t_g = p_input . g >> 8;
-    t_b = p_input . b >> 8;
-    t_a = p_input . a >> 8;
-    
-    if (t_a != 255 && MCStringFormat(r_output, "%u,%u,%u,%u", t_r, t_g, t_b, t_a))
-        return;
-    
-    if (MCStringFormat(r_output, "%u,%u,%u", t_r, t_g, t_b))
-        return;
-    
+	uint16_t t_r, t_g, t_b, t_a;
+	t_r = p_input . r >> 8;
+	t_g = p_input . g >> 8;
+	t_b = p_input . b >> 8;
+	t_a = p_input . a >> 8;
+
+	if (t_a != 255 && MCStringFormat(r_output, "%u,%u,%u,%u", t_r, t_g, t_b, t_a))
+		return;
+
+	if (MCStringFormat(r_output, "%u,%u,%u", t_r, t_g, t_b))
+		return;
+
 	ctxt . Throw();
 }
 
@@ -607,13 +607,17 @@ void MCNativeControlExecCreateControl(MCExecContext& ctxt, MCStringRef p_type_na
             return;
     }
     
-    MCNativeControlType t_type;
-    if (!MCLookupNativeControlType(p_type_name, (intenum_t&)t_type))
-        return;
-    
+//    MCNativeControlType t_type;
+//    if (!MCLookupNativeControlType(p_type_name, (intenum_t&)t_type))
+//        return;
+
+	intenum_t t_type;
+	if (!MCLookupNativeControlType(p_type_name, t_type))
+		return;
+
     MCNativeControl *t_new_control;
     t_new_control = nil;
-    if (MCNativeControl::CreateWithType(t_type, t_new_control))
+    if (MCNativeControl::CreateWithType((MCNativeControlType)t_type, t_new_control))
     {
         extern MCExecContext *MCECptr;
         t_new_control -> SetOwner(MCECptr -> GetObject());
@@ -695,20 +699,24 @@ void MCNativeControlExecGet(MCExecContext& ctxt, MCStringRef p_control_name, MCS
     if (!MCNativeControl::FindByNameOrId(p_control_name, t_native_control))
         return;
     
-    Properties t_property;
-    if (!MCLookupNativeControlProperty(p_property_name, (intenum_t&)t_property))
-        return;
+//    Properties t_property;
+//    if (!MCLookupNativeControlProperty(p_property_name, (intenum_t&)t_property))
+//        return;
 
-    MCPropertyInfo *t_info;
-    t_info = lookup_control_property(t_native_control -> getpropertytable(), t_property);
+	intenum_t t_property;
+	if (!MCLookupNativeControlProperty(p_property_name, t_property))
+		return;
+
+	MCPropertyInfo *t_info;
+	t_info = lookup_control_property(t_native_control -> getpropertytable(), (Properties)t_property);
     
-    if (t_info != nil && t_info -> getter == nil)
+    if (nil != t_info && nil == t_info -> getter)
     {
         ctxt . LegacyThrow(EE_OBJECT_GETNOPROP);
         return;
     }
-    
-    if (t_info != nil)
+
+    if (nil != t_info)
     {
         MCNativeControlPtr t_control;
         t_control . control = t_native_control;
@@ -725,12 +733,16 @@ void MCNativeControlExecSet(MCExecContext& ctxt, MCStringRef p_control_name, MCS
     if (!MCNativeControl::FindByNameOrId(p_control_name, t_native_control))
         return;
     
-    Properties t_property;
-    if (!MCLookupNativeControlProperty(p_property_name, (intenum_t&)t_property))
+//    Properties t_property;
+//    if (!MCLookupNativeControlProperty(p_property_name, (intenum_t&)t_property))
+//        return;
+    
+    intenum_t t_property;
+    if (!MCLookupNativeControlProperty(p_property_name, t_property))
         return;
     
     MCPropertyInfo *t_info;
-    t_info = lookup_control_property(t_native_control -> getpropertytable(), t_property);
+    t_info = lookup_control_property(t_native_control -> getpropertytable(), (Properties)t_property);
     
     if (t_info != nil && t_info -> setter == nil)
     {
@@ -939,12 +951,16 @@ void MCNativeControlExecDo(MCExecContext& ctxt, MCStringRef p_control_name, MCSt
 	if (!MCNativeControl::FindByNameOrId(p_control_name, t_native_control))
 		return;
 	
-	MCNativeControlAction t_action;
-    if (!MCLookupNativeControlAction(p_action_name, (intenum_t&)t_action))
+//	MCNativeControlAction t_action;
+//    if (!MCLookupNativeControlAction(p_action_name, (intenum_t&)t_action))
+//		return;
+	
+	intenum_t t_action;
+    if (!MCLookupNativeControlAction(p_action_name, t_action))
 		return;
 	
 	MCNativeControlActionInfo *t_info;
-	t_info = lookup_control_action(t_native_control -> getactiontable(), t_action);
+	t_info = lookup_control_action(t_native_control -> getactiontable(), (MCNativeControlAction)t_action);
 	if (t_info != nil)
 	{
 		MCNativeControlPtr t_control;

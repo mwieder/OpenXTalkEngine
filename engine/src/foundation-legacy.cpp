@@ -1121,7 +1121,7 @@ bool MCArrayIsSequence(MCArrayRef self)
     int32_t t_start_index;
     
     // IsSequence returns true if the sequence starts with 1 only
-    return MCArrayIsNumericSequence(self, t_start_index) && t_start_index == 1;
+    return MCArrayIsNumericSequence(self, t_start_index) && 1 == t_start_index;
 }
 
 bool MCArrayIsNumericSequence(MCArrayRef self, int32_t &r_start_index)
@@ -1131,7 +1131,7 @@ bool MCArrayIsNumericSequence(MCArrayRef self, int32_t &r_start_index)
     ctxt . maximum = INDEX_MIN;
 
 	if (MCArrayApply(self, get_array_extent, &ctxt) &&
-		(ctxt . maximum - ctxt . minimum + 1) == MCArrayGetCount(self))
+		(unsigned int)(ctxt . maximum - ctxt . minimum + 1) == MCArrayGetCount(self))
 	{
 		r_start_index = ctxt . minimum;
 		return true;
@@ -1177,7 +1177,7 @@ static uint32_t measure_array_entry(MCNameRef p_key, MCValueRef p_value)
 	case kMCValueTypeCodeNull:
 		break;
 	case kMCValueTypeCodeBoolean:
-		t_size += 4 + (p_value == kMCTrue ? 4 : 5);
+		t_size += 4 + (kMCTrue == p_value ? 4 : 5);
 		break;
 	case kMCValueTypeCodeString:
 		t_size += 4 + MCStringGetLength((MCStringRef)p_value);
@@ -1208,7 +1208,7 @@ static bool measure_array(void *p_context, MCArrayRef p_array, MCNameRef p_key, 
 	ctxt = (measure_array_context_t *)p_context;
 
 	if (ctxt -> nested_only &&
-		MCValueGetTypeCode(p_value) != kMCValueTypeCodeArray)
+		kMCValueTypeCodeArray != MCValueGetTypeCode(p_value))
 		return true;
 
 	ctxt -> size += measure_array_entry(p_key, p_value);
@@ -1234,7 +1234,7 @@ uint32_t MCArrayMeasureForStreamLegacy(MCArrayRef self, bool p_nested_only)
 
 static bool is_array_nested(void *p_context, MCArrayRef p_array, MCNameRef p_key, MCValueRef p_value)
 {
-	if (MCValueGetTypeCode(p_value) == kMCValueTypeCodeArray)
+	if (kMCValueTypeCodeArray == MCValueGetTypeCode(p_value))
 		return false;
 
 	return true;

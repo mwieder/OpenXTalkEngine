@@ -43,7 +43,7 @@ class MCSemaphore
 #endif /* DEBUG_LOCKS */
 	}
 
-//	MCSemaphore& operator=(const MCSemaphore&);
+	MCSemaphore& operator=(const MCSemaphore&) = default;
 
 	~MCSemaphore() {}
 

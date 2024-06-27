@@ -749,26 +749,26 @@ void MCInterfaceGetBrushPattern(MCExecContext& ctxt, uinteger_t*& r_pattern)
 
 void MCInterfaceSetBrushPattern(MCExecContext& ctxt, uinteger_t* pattern)
 {
-    MCPatternRef newpm;
-    newpm = nil;
-    
-    // Setting to 0 should clear
-    if (pattern != nil && *pattern != 0)
-    {
-        if (*pattern <= PI_END - PI_PATTERNS)
-            *pattern += PI_PATTERNS;
-        
-        newpm = MCpatternlist->allocpat(*pattern, ctxt . GetObject());
-        if (newpm == None)
-        {
-            ctxt . LegacyThrow(EE_PROPERTY_BRUSHPATNOIMAGE);
-            return;
-        }
-        MCbrushpmid = *pattern;
-    }
-    else
-        MCbrushpmid = PI_PATTERNS;
-    
+	MCPatternRef newpm;
+	newpm = nil;
+
+	// Setting to 0 should clear
+	if (pattern != nil && *pattern != 0)
+	{
+		if (*pattern <= PI_END - PI_PATTERNS)
+			*pattern += PI_PATTERNS;
+
+		newpm = MCpatternlist->allocpat(*pattern, ctxt . GetObject());
+		if (None == newpm)
+		{
+			ctxt . LegacyThrow(EE_PROPERTY_BRUSHPATNOIMAGE);
+			return;
+		}
+		MCbrushpmid = *pattern;
+	}
+	else
+		MCbrushpmid = PI_PATTERNS;
+
 	MCeditingimage = nil;
 	MCpatternlist->freepat(MCbrushpattern);
 	MCbrushpattern = newpm;
@@ -787,26 +787,26 @@ void MCInterfaceGetPenPattern(MCExecContext& ctxt, uinteger_t*& r_pattern)
 
 void MCInterfaceSetPenPattern(MCExecContext& ctxt, uinteger_t* pattern)
 {
-    MCPatternRef newpm;
-    newpm = nil;
-    
-    // Setting to 0 should clear
-    if (pattern != nil && *pattern != 0)
-    {
-        if (*pattern <= PI_END - PI_PATTERNS)
-            *pattern += PI_PATTERNS;
-        
-        newpm = MCpatternlist->allocpat(*pattern, ctxt . GetObject());
-        if (newpm == nil)
-        {
-            ctxt . LegacyThrow(EE_PROPERTY_PENPATNOIMAGE);
-            return;
-        }
-        MCpenpmid = *pattern;
-    }
-    else
-        MCpenpmid = PI_PATTERNS;
-    
+	MCPatternRef newpm;
+	newpm = nil;
+
+	// Setting to 0 should clear
+	if (pattern != nil && *pattern != 0)
+	{
+		if (*pattern <= PI_END - PI_PATTERNS)
+			*pattern += PI_PATTERNS;
+
+		newpm = MCpatternlist->allocpat(*pattern, ctxt . GetObject());
+		if (newpm == nil)
+		{
+			ctxt . LegacyThrow(EE_PROPERTY_PENPATNOIMAGE);
+			return;
+		}
+		MCpenpmid = *pattern;
+	}
+	else
+		MCpenpmid = PI_PATTERNS;
+
 	MCeditingimage = nil;
 	MCpatternlist->freepat(MCpenpattern);
 	MCpenpattern = newpm;

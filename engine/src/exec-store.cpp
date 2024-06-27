@@ -126,24 +126,24 @@ void MCStoreGetPurchaseState(MCExecContext& ctxt, int p_id, MCStringRef& r_state
 
 void MCStoreGetPurchaseError(MCExecContext& ctxt, int p_id, MCStringRef& r_error)
 {
-    bool t_success = true;
+	bool t_success = true;
 	MCAutoStringRef t_error;
 	MCPurchase *t_purchase = nil;
-    
-    t_success = MCPurchaseFindById(p_id, t_purchase);
-	
-    // PM-2015-01-19: [[ Bug 14401 ]] Fixed mismerge issue that caused mobileStorePurchaseError to return empty 
-    if (t_success)
-        t_success = (t_purchase != nil && t_purchase->state == kMCPurchaseStateError);
-    
+
+	t_success = MCPurchaseFindById(p_id, t_purchase);
+
+	// PM-2015-01-19: [[ Bug 14401 ]] Fixed mismerge issue that caused mobileStorePurchaseError to return empty 
+	if (t_success)
+		t_success = (t_purchase != nil && t_purchase->state == kMCPurchaseStateError);
+
 	if (t_success)
 		t_success = MCPurchaseGetError(t_purchase, &t_error);
 	
 	if (t_success)
-        if (MCStringCopy(*t_error, r_error))
-            return;
-    
-    ctxt.Throw();
+		if (MCStringCopy(*t_error, r_error))
+			return;
+
+	ctxt.Throw();
 }
 
 MCPropertyInfo *lookup_purchase_property(const MCPurchasePropertyTable *p_table, Properties p_which)
@@ -158,47 +158,44 @@ MCPropertyInfo *lookup_purchase_property(const MCPurchasePropertyTable *p_table,
 
 void MCStoreExecGet(MCExecContext& ctxt, integer_t p_id, MCStringRef p_prop_name, MCValueRef& r_value)
 {
-    MCPurchase *t_purchase = nil;
+	MCPurchase *t_purchase = nil;
 	Properties t_property;
-    
-    MCPropertyInfo *t_info;
-    t_info = nil;
-    
-    if (MCPurchaseFindById(p_id, t_purchase) && MCPurchaseLookupProperty(p_prop_name, t_property))
-        t_info = lookup_purchase_property(getpropertytable(), t_property);
+
+	MCPropertyInfo *t_info;
+	t_info = nil;
+
+	if (MCPurchaseFindById(p_id, t_purchase) && MCPurchaseLookupProperty(p_prop_name, t_property))
+		t_info = lookup_purchase_property(getpropertytable(), t_property);
     
 	if (t_info != nil)
 	{
-
 		MCExecValue t_value;
-        MCExecFetchProperty(ctxt, t_info, t_purchase, t_value);
+		MCExecFetchProperty(ctxt, t_info, t_purchase, t_value);
 		MCExecTypeConvertAndReleaseAlways(ctxt, t_value . type, &t_value, kMCExecValueTypeValueRef, &r_value);
-        return;
-    }
-    
-    ctxt .Throw();
+		return;
+	}
+	ctxt .Throw();
 }
 
 void MCStoreExecSet(MCExecContext& ctxt, integer_t p_id, MCStringRef p_prop_name, MCValueRef p_value)
 {
-    MCPurchase *t_purchase = nil;
+	MCPurchase *t_purchase = nil;
 	Properties t_property;
-    
-    MCPropertyInfo *t_info;
-    t_info = nil;
-    
-    if (MCPurchaseFindById(p_id, t_purchase) && MCPurchaseLookupProperty(p_prop_name, t_property))
-        t_info = lookup_purchase_property(getpropertytable(), t_property);
-	
+
+	MCPropertyInfo *t_info;
+	t_info = nil;
+
+	if (MCPurchaseFindById(p_id, t_purchase) && MCPurchaseLookupProperty(p_prop_name, t_property))
+		t_info = lookup_purchase_property(getpropertytable(), t_property);
+
 	if (t_info != nil)
 	{
 		MCExecValue t_value;
 		MCExecValueTraits<MCValueRef>::set(t_value, MCValueRetain(p_value));
-        MCExecStoreProperty(ctxt, t_info, t_purchase, t_value);
+		MCExecStoreProperty(ctxt, t_info, t_purchase, t_value);
         return;
 	}
-    
-    ctxt . Throw();
+	ctxt . Throw();
 }
 
 void MCStoreExecSendPurchaseRequest(MCExecContext& ctxt, uint32_t p_id)
@@ -253,20 +250,20 @@ void MCStoreExecProductSetType(MCExecContext &ctxt, MCStringRef p_product_id, MC
 void MCStoreExecConfirmPurchaseDelivery(MCExecContext& ctxt, uint32_t p_id)
 {
 	MCPurchase *t_purchase = nil;
-    bool t_success = true;
-    
-    t_success = MCPurchaseFindById(p_id, t_purchase);
-    
-    if (t_success)
-        t_success = (t_purchase->state == kMCPurchaseStatePaymentReceived || t_purchase->state == kMCPurchaseStateRefunded || t_purchase->state == kMCPurchaseStateRestored);
-	
+	bool t_success = true;
+
+	t_success = MCPurchaseFindById(p_id, t_purchase);
+
+	if (t_success)
+		t_success = (kMCPurchaseStatePaymentReceived == t_purchase->state || kMCPurchaseStateRefunded == t_purchase->state || kMCPurchaseStateRestored == t_purchase->state);
+
 	if (t_success)
 		t_success = MCPurchaseConfirmDelivery(t_purchase);
     
-    if (t_success)
-        return;
-    else
-        ctxt.Throw();
+	if (t_success)
+		return;
+	else
+		ctxt.Throw();
 }
 
 void MCStoreExecRequestProductDetails(MCExecContext& ctxt, MCStringRef p_product_id)

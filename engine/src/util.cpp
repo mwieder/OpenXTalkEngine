@@ -2721,7 +2721,7 @@ void MCDictionary::Pickle(void*& r_buffer, uint4& r_length)
 {
 	uint4 t_size;
 	t_size = 4 + 4 + 4;
-	for(Node *t_node = m_nodes; t_node != NULL; t_node = t_node -> next)
+	for(Node *t_node = m_nodes; NULL != t_node; t_node = t_node -> next)
 		t_size += ((t_node -> length + 3) & ~3) + 8;
 
 	char *t_buffer;
@@ -2734,7 +2734,7 @@ void MCDictionary::Pickle(void*& r_buffer, uint4& r_length)
 	((uint4 *)t_buffer_ptr)[2] = 0;
 	t_buffer_ptr += 12;
 
-	for(Node *t_node = m_nodes; t_node != NULL; t_node = t_node -> next)
+	for(Node *t_node = m_nodes; NULL != t_node; t_node = t_node -> next)
 	{
 		((uint4 *)t_buffer_ptr)[0] = MCSwapInt32HostToNetwork(t_node -> key);
 		((uint4 *)t_buffer_ptr)[1] = MCSwapInt32HostToNetwork(t_node -> length);

@@ -810,12 +810,12 @@ void MCFilesExecPerformOpen(MCExecContext& ctxt, MCNameRef p_name, int p_mode, i
 		{
 			t_encoding = (Encoding_type)kMCFileEncodingNative;
 		}
-    }
-    // FG-2014-09-23: [[ Bugfix 12545 ]] "text" is not valid when performing I/O
-    else if (p_encoding == kMCFileEncodingText && p_is_driver)
-        t_encoding = (Encoding_type)kMCFileEncodingNative;
-    else
-        t_encoding = (Encoding_type)p_encoding;
+	}
+	// FG-2014-09-23: [[ Bugfix 12545 ]] "text" is not valid when performing I/O
+	else if (p_encoding == kMCFileEncodingText && p_is_driver)
+		t_encoding = (Encoding_type)kMCFileEncodingNative;
+	else
+		t_encoding = (Encoding_type)p_encoding;
 
 	switch (p_mode)
 	{
@@ -1973,10 +1973,11 @@ void MCFilesExecReadGetStream(MCExecContext& ctxt, MCNameRef p_name, bool p_is_e
 void MCFilesExecReadFromFileOrDriverFor(MCExecContext& ctxt, bool p_driver, bool p_is_end, MCNameRef p_file, int64_t p_at, bool p_has_at, uint4 p_count, int p_unit_type, double p_max_wait, int p_time_units)
 {
 	IO_handle t_stream = NULL;
-    MCFileEncodingType t_encoding;
+//    MCFileEncodingType t_encoding;
+    intenum_t t_encoding;
 	IO_stat t_stat = IO_NORMAL;
 	
-    MCFilesExecReadGetStream(ctxt, p_file, p_is_end, p_at, p_has_at, t_stream, (intenum_t&)t_encoding, t_stat);
+    MCFilesExecReadGetStream(ctxt, p_file, p_is_end, p_at, p_has_at, t_stream, t_encoding, t_stat);
 	
 	if (t_stream == NULL)
 		return;
@@ -1989,8 +1990,8 @@ void MCFilesExecReadFromFileOrDriverFor(MCExecContext& ctxt, bool p_driver, bool
 
 	MCAutoValueRef t_output;
 
-    MCFilesExecReadFor(ctxt, t_stream, -1, p_count, p_unit_type, p_max_wait, p_time_units, t_encoding, &t_output, t_stat);
-    MCFilesReadComplete(ctxt, *t_output, t_stat, t_encoding != kMCFileEncodingBinary);
+    MCFilesExecReadFor(ctxt, t_stream, -1, p_count, p_unit_type, p_max_wait, p_time_units, (MCFileEncodingType)t_encoding, &t_output, t_stat);
+    MCFilesReadComplete(ctxt, *t_output, t_stat, (MCFileEncodingType)t_encoding != kMCFileEncodingBinary);
 
 #if !defined _WIN32 && !defined _MACOSX
 	MCS_sync(t_stream);
@@ -2000,10 +2001,11 @@ void MCFilesExecReadFromFileOrDriverFor(MCExecContext& ctxt, bool p_driver, bool
 void MCFilesExecReadFromFileOrDriverUntil(MCExecContext& ctxt, bool p_driver, bool p_is_end, MCNameRef p_file, MCStringRef p_sentinel, int64_t p_at, bool p_has_at, double p_max_wait, int p_time_units)
 {
 	IO_handle t_stream = NULL;
-    MCFileEncodingType t_encoding;
+//    MCFileEncodingType t_encoding;
+    intenum_t t_encoding;
 	IO_stat t_stat = IO_NORMAL;
 	
-    MCFilesExecReadGetStream(ctxt, p_file, p_is_end, p_at, p_has_at, t_stream, (intenum_t&)t_encoding, t_stat);
+    MCFilesExecReadGetStream(ctxt, p_file, p_is_end, p_at, p_has_at, t_stream, t_encoding, t_stat);
 	
 	if (t_stream == NULL)
 		return;
@@ -2027,7 +2029,7 @@ void MCFilesExecReadFromFileOrDriverUntil(MCExecContext& ctxt, bool p_driver, bo
             
             if (t_encoding != kMCFileEncodingBinary)
             {
-                if (!MCStringCreateWithBytes(MCDataGetBytePtr(*t_data), MCDataGetLength(*t_data), MCS_file_to_string_encoding(t_encoding), false, (MCStringRef&)t_output))
+                if (!MCStringCreateWithBytes(MCDataGetBytePtr(*t_data), MCDataGetLength(*t_data), MCS_file_to_string_encoding((MCFileEncodingType)t_encoding), false, (MCStringRef&)t_output))
                     t_stat = IO_ERROR;
             }
             else
@@ -2036,10 +2038,10 @@ void MCFilesExecReadFromFileOrDriverUntil(MCExecContext& ctxt, bool p_driver, bo
 	}
     else
     {
-        MCFilesExecReadUntil(ctxt, t_stream, -1, p_sentinel, p_max_wait, p_time_units, t_encoding, t_output, t_stat);
+        MCFilesExecReadUntil(ctxt, t_stream, -1, p_sentinel, p_max_wait, p_time_units, (MCFileEncodingType)t_encoding, t_output, t_stat);
     }
     
-    MCFilesReadComplete(ctxt, t_output, t_stat, t_encoding != kMCFileEncodingBinary);
+    MCFilesReadComplete(ctxt, t_output, t_stat, (MCFileEncodingType)t_encoding != kMCFileEncodingBinary);
     MCValueRelease(t_output);
 
 #if !defined _WIN32 && !defined _MACOSX
@@ -2322,11 +2324,12 @@ void MCFilesExecWriteToFileOrDriver(MCExecContext& ctxt, MCNameRef p_file, MCStr
 {
 	
 	IO_handle t_stream = NULL;
-    MCFileEncodingType t_encoding;
+//    MCFileEncodingType t_encoding;
+	intenum_t t_encoding;
 	IO_stat t_stat = IO_NORMAL;
-	
-    MCFilesExecWriteGetStream(ctxt, p_file, p_is_end, p_at, p_has_at, t_stream, (intenum_t&)t_encoding, t_stat);
-	
+
+	MCFilesExecWriteGetStream(ctxt, p_file, p_is_end, p_at, p_has_at, t_stream, t_encoding, t_stat);
+
 	if (t_stream == NULL)
 		return;
 
@@ -2336,21 +2339,21 @@ void MCFilesExecWriteToFileOrDriver(MCExecContext& ctxt, MCNameRef p_file, MCStr
 		return;
 	}
 
-    if (t_encoding != kMCFileEncodingBinary)
-    {
-        MCAutoStringRef t_text_data;
-        if (!MCStringNormalizeLineEndings(p_data, 
-                                          kMCStringLineEndingStyleLegacyNative, 
-                                          false, 
-                                          &t_text_data, 
-                                          nullptr))
-        {
-            return;
-        }
-        MCFilesExecWriteToStream(ctxt, t_stream, *t_text_data, p_unit_type, t_encoding, t_stat);
-    }
-    else
-        MCFilesExecWriteToStream(ctxt, t_stream, p_data, p_unit_type, t_encoding, t_stat);
+	if (t_encoding != kMCFileEncodingBinary)
+	{
+		MCAutoStringRef t_text_data;
+		if (!MCStringNormalizeLineEndings(p_data, 
+							kMCStringLineEndingStyleLegacyNative, 
+							false, 
+							&t_text_data, 
+							nullptr))
+		{
+			return;
+		}
+		MCFilesExecWriteToStream(ctxt, t_stream, *t_text_data, p_unit_type, (MCFileEncodingType)t_encoding, t_stat);
+	}
+	else
+		MCFilesExecWriteToStream(ctxt, t_stream, p_data, p_unit_type, (MCFileEncodingType)t_encoding, t_stat);
 
 	if (t_stat != IO_NORMAL)
 	{

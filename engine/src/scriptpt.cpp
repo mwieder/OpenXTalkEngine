@@ -1158,22 +1158,22 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	else if (tagged)
 		was_in_tag = True;
 	
-	if ((stat = skip_space()) != PS_NORMAL)
+	if (PS_NORMAL != (stat = skip_space()))
 	{
-		if (stat == PS_ERROR)
+		if (PS_ERROR == stat)
 			MCperror->add(PE_PARSE_BADCHAR, *this);
 		token.setstring((const char *)curptr);
 		return stat;
 	}
 	
-    if (is_identifier(getcurrent(), true))
-        type = ST_ID;
-    else
-        type = gettype(getcurrent());
-    
-	if (type == ST_TAG)
+	if (is_identifier(getcurrent(), true))
+		type = ST_ID;
+	else
+		type = gettype(getcurrent());
+
+	if (ST_TAG == type)
 	{
-		if (tagged && getnext() == '>')
+		if (tagged && '>' == getnext())
 			return PS_EOL;
 		else
 			type = ST_ID;
@@ -1183,21 +1183,21 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		token.setstring((const char *)curptr);
 		return PS_EOF;
 	}
-	if (type == ST_EOL || type == ST_SEMI)
+	if (ST_EOL == type || ST_SEMI == type)
 		return PS_EOL;
 	if (curptr != tokenptr)
 	{
 		backupptr = tokenptr;
 		tokenptr = curptr;
 	}
-	if (type == ST_LIT)
+	if (ST_LIT == type)
 		advance();
 	token.setstring((const char *)curptr);
 
 	switch (type)
 	{
 	case ST_ID:
-		if (getcurrent() == '$' && getnext() == '#')
+		if ('$' == getcurrent() && '#' == getnext())
 		{
 			advance(2);
 		}
@@ -1208,7 +1208,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 				if (!is_identifier(getcurrent(), false))
 				{
 					// Anything other than TAG or TAG> causes the token to finish.
-					if (gettype(getcurrent()) != ST_TAG || (tagged && getnext() == '>'))
+					if (ST_TAG != gettype(getcurrent()) || (tagged && '>' == getnext()))
 						break;
 				}
 				advance();
@@ -1219,17 +1219,17 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		while (True)
 		{
 			Symbol_type newtype = gettype(getcurrent());
-			if (escapes && newtype == ST_ESC && getnext())
+			if (escapes && ST_ESC == newtype && getnext())
                 advance(2);
 			else
 			{
-				if (newtype == ST_EOL || newtype == ST_EOF)
+				if (ST_EOL == newtype || ST_EOF == newtype)
 				{
 					MCperror->add(PE_PARSE_BADLIT, *this);
 					return PS_ERROR;
 				}
 				else
-					if (newtype == ST_LIT)
+					if (ST_LIT == newtype)
 						break;
 				advance();
 			}
@@ -1254,13 +1254,13 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
                     break;
                 
 				char c = MCS_tolower(*curptr);
-				if (c == 'e')
+				if ('e' == c)
 				{
-					if (getnext() == '+' || getnext() == '-')
+					if ('+' == getnext() || '-' == getnext())
 						advance();
 				}
 				else
-					if (c != 'x' && (c < 'a' || c > 'f'))
+					if ('x' != c && (c < 'a' || c > 'f'))
 						break;
 			}
 			advance();
@@ -1270,7 +1270,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		advance();
 		break;
 	}
-	if (type == ST_LIT && gettype(getcurrent()) == ST_LIT)
+	if (ST_LIT == type && ST_LIT == gettype(getcurrent()))
 	{
 		token.setlength(curptr - tokenptr - 1);
 		advance();
@@ -1287,7 +1287,7 @@ Parse_stat MCScriptPoint::nexttoken()
 {
 	Symbol_type type;
 	Parse_stat ps = next(type);
-	while (ps == PS_EOL)
+	while (PS_EOL == ps)
 	{
 		skip_eol();
 		ps = next(type);
@@ -1297,7 +1297,7 @@ Parse_stat MCScriptPoint::nexttoken()
 
 Parse_stat MCScriptPoint::lookup(Script_point t, const LT *&dlt)
 {
-	if (m_type == ST_LIT)
+	if (ST_LIT == m_type)
 		return PS_NO_MATCH;
 	
 	if (token.getlength())

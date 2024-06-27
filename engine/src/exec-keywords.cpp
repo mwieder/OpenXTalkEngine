@@ -326,9 +326,9 @@ void MCKeywordsExecSwitch(MCExecContext& ctxt, MCExpression *condition, MCExpres
             return;
         }
 	}
-    else
-        t_cond = MCValueRetain(kMCTrueString);
-    
+	else
+		t_cond = MCValueRetain(kMCTrueString);
+
 	int2 match = default_case;
 	uint2 i;
 	for (i = 0 ; i < case_count ; i++)
@@ -370,10 +370,10 @@ void MCKeywordsExecSwitch(MCExecContext& ctxt, MCExpression *condition, MCExpres
 
 void MCKeywordsExecIf(MCExecContext& ctxt, MCExpression *condition, MCStatement *thenstatements, MCStatement *elsestatements, uint2 line, uint2 pos)
 {
-    bool then;
-    if (!ctxt . TryToEvaluateExpressionAsNonStrictBool(condition, line, pos, EE_IF_BADCOND, then))
-        return;
-    
+	bool then;
+	if (!ctxt . TryToEvaluateExpressionAsNonStrictBool(condition, line, pos, EE_IF_BADCOND, then))
+		return;
+
 	MCStatement *tspr;
 	if (then)
 		tspr = thenstatements;
@@ -845,32 +845,32 @@ void MCKeywordsExecTry(MCExecContext& ctxt, MCStatement *trystatements, MCStatem
                     tspr = tspr->getnext();
                 break;
             case ES_PASS:
-                if (state == TS_CATCH)
-                {
-                    MCAutoValueRef t_value;
-                    MCAutoStringRef t_string;
-                    if ((errorvar->eval(ctxt, &t_value), !ctxt.HasError()) &&
-                        ctxt . ConvertToString(*t_value, &t_string))
-                    {
-                        MCeerror->copystringref(*t_string, False);
-                    }
-                    
-                    MCeerror->add(EE_TRY_BADSTATEMENT, line, pos);
-                    stat = ES_ERROR;
-                }
-            default:
-                if (state == TS_FINALLY)
-                {
-                    MCeerror->clear();
-                    retcode = ES_NORMAL;
-                    tspr = NULL;
-                }
-                else
-                {
-                    retcode = stat;
-                    tspr = finallystatements;
-                    state = TS_FINALLY;
-                }
+				if (state == TS_CATCH)
+				{
+					MCAutoValueRef t_value;
+					MCAutoStringRef t_string;
+					if ((errorvar->eval(ctxt, &t_value), !ctxt.HasError()) &&
+						ctxt . ConvertToString(*t_value, &t_string))
+					{
+						MCeerror->copystringref(*t_string, False);
+					}
+
+					MCeerror->add(EE_TRY_BADSTATEMENT, line, pos);
+					stat = ES_ERROR;
+				}
+			default:
+				if (state == TS_FINALLY)
+				{
+					MCeerror->clear();
+					retcode = ES_NORMAL;
+					tspr = NULL;
+				}
+				else
+				{
+					retcode = stat;
+					tspr = finallystatements;
+					state = TS_FINALLY;
+				}
 		}
 	}
 	if (state == TS_CATCH)

@@ -326,10 +326,10 @@ static void MCPrintingPrinterPageRangeParse(MCExecContext& ctxt, MCStringRef p_i
 		r_output . ranges = t_ranges;
 		return;
 	}
-	
-    if (t_ranges != nil)
-        MCMemoryDeallocate(t_ranges);
-    
+
+	if (t_ranges != nil)
+		MCMemoryDeallocate(t_ranges);
+
 	ctxt . LegacyThrow(EE_PROPERTY_BADPRINTPROP);
 }
 

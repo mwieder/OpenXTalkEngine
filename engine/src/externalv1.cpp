@@ -703,7 +703,7 @@ MCExternalError MCExternalVariable::GetCData(MCExternalValueOptions p_options, v
 	if (t_error != kMCExternalErrorNone)
 		return t_error;
     
-	if (m_string_conversion != nil)
+	if (nil != m_string_conversion)
 		MCMemoryDeleteArray(m_string_conversion);
 
 	if (!MCStringNormalizeAndConvertToNative(*t_string_value, (char_t*&)m_string_conversion, t_length))
@@ -721,10 +721,10 @@ MCExternalError MCExternalVariable::GetCString(MCExternalValueOptions p_options,
     uindex_t t_length;
     
 	t_error = GetString(p_options, &t_string_value);
-	if (t_error != kMCExternalErrorNone)
+	if (kMCExternalErrorNone != t_error)
 		return t_error;
     
-	if (m_string_conversion != nil)
+	if (nil != m_string_conversion)
 		MCMemoryDeleteArray(m_string_conversion);
 	
 	if (!MCStringNormalizeAndConvertToNative(*t_string_value, (char_t*&)m_string_conversion, t_length))

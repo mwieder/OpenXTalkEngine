@@ -625,19 +625,19 @@ void MCButton::SetLabel(MCExecContext& ctxt, MCStringRef p_label)
 	// Make sure the label is up to date
 	if (entry != NULL)
 		getentrytext();
-	
+
 	// Don't make any changes if it isn't necessary
 	if (MCStringIsEqualTo(p_label, label, kMCStringOptionCompareExact))
 		return;
-	
+
 	MCValueAssign(label, p_label);
-    // SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
-    //  we need to rely on the F_LABEL flag
-    // AL-2014-09-10: [[ Bug 13401 ]] If label is empty, the flag should reflect the lack of label
-    if (MCStringIsEmpty(label))
-        flags &= ~F_LABEL;
-    else
-        flags |= F_LABEL;
+	// SN-2014-08-05: [[ Bug 13100 ]] An empty label is not an issue,
+	//  we need to rely on the F_LABEL flag
+	// AL-2014-09-10: [[ Bug 13401 ]] If label is empty, the flag should reflect the lack of label
+	if (MCStringIsEmpty(label))
+		flags &= ~F_LABEL;
+	else
+		flags |= F_LABEL;
 
 	if (entry != NULL)
 		entry->settext(0, label, False);
@@ -856,14 +856,14 @@ void MCButton::GetAcceleratorKey(MCExecContext& ctxt, MCStringRef& r_key)
 		if (t_keyname == NULL || MCStringCreateWithCString(t_keyname, r_key))
 			return;
 	}
-    else if (accelkey)
-    {
-        char t_accel_key = (char)accelkey;
-        if (MCStringFormat(r_key, "%c", t_accel_key))
-            return;
-    }
-    else
-        return;
+	else if (accelkey)
+	{
+		char t_accel_key = (char)accelkey;
+		if (MCStringFormat(r_key, "%c", t_accel_key))
+			return;
+	}
+	else
+		return;
 
 	ctxt . Throw();
 }

@@ -339,61 +339,60 @@ __MCEngineFreeExtension(MCLoadedExtension *p_extension)
 
 void MCEngineExecUnloadExtension(MCExecContext& ctxt, MCStringRef p_module_name)
 {
-    MCNewAutoNameRef t_name;
-    if (!MCNameCreate(p_module_name, &t_name))
-    {
-        ctxt.Throw();
-        return;
-    }
-    
-    for(MCLoadedExtension *t_previous = nil, *t_ext = MCextensions; t_ext != nil; t_previous = t_ext, t_ext = t_ext -> next)
-        if (MCNameIsEqualToCaseless(t_ext -> module_name, *t_name))
-        {
-            bool t_in_use = false;
-            
-            if (MCScriptIsModuleALibrary(t_ext -> module))
-            {
-                // If the module is a library module, then if it is not in
-                // use by another module it will have a reference count of
-                // 2 - one for the module ref in the loaded extensions list
-                // and one for the singleton instance.
-                if (2 != MCScriptGetRetainCountOfModule(t_ext -> module))
-                {
-                    t_in_use = true;
-                }
-            }
-            else
-            {
-                // If the module is a widget or non-public module then it
-                // can only be unloaded if it is not in use in a widget
-                // instance, or used by an instance.
-                if (1 != MCScriptGetRetainCountOfModule(t_ext -> module))
-                {
-                    t_in_use = true;
-                }
-            }
-                
-            if (t_in_use)
+	MCNewAutoNameRef t_name;
+	if (!MCNameCreate(p_module_name, &t_name))
+	{
+		ctxt.Throw();
+		return;
+	}
+
+	for(MCLoadedExtension *t_previous = nil, *t_ext = MCextensions; t_ext != nil; t_previous = t_ext, t_ext = t_ext -> next)
+		if (MCNameIsEqualToCaseless(t_ext -> module_name, *t_name))
+		{
+			bool t_in_use = false;
+
+			if (MCScriptIsModuleALibrary(t_ext -> module))
 			{
-                
+				// If the module is a library module, then if it is not in
+				// use by another module it will have a reference count of
+				// 2 - one for the module ref in the loaded extensions list
+				// and one for the singleton instance.
+				if (2 != MCScriptGetRetainCountOfModule(t_ext -> module))
+				{
+					t_in_use = true;
+				}
+			}
+			else
+			{
+				// If the module is a widget or non-public module then it
+				// can only be unloaded if it is not in use in a widget
+				// instance, or used by an instance.
+				if (1 != MCScriptGetRetainCountOfModule(t_ext -> module))
+				{
+					t_in_use = true;
+				}
+			}
+
+			if (t_in_use)
+			{
 				ctxt . SetTheResultToCString("module in use");
 				return;
 			}
             
-            /* Unlink the extension from the global linked-list */
-            if (t_previous != nil)
-                t_previous -> next = t_ext -> next;
-            else
-                MCextensions = t_ext -> next;
-            
-            /* Makes sure the global handler list is refreshed on next use */
-            MCextensionschanged = true;
-            
-            /* Free the extension struct and things it owns */
-            __MCEngineFreeExtension(t_ext);
-            
+			/* Unlink the extension from the global linked-list */
+			if (t_previous != nil)
+				t_previous -> next = t_ext -> next;
+			else
+				MCextensions = t_ext -> next;
+
+			/* Makes sure the global handler list is refreshed on next use */
+			MCextensionschanged = true;
+
+			/* Free the extension struct and things it owns */
+			__MCEngineFreeExtension(t_ext);
+
 			return;
-        }
+		}
 	
 	// If we get here the module was not found.
 	ctxt . SetTheResultToCString("module not loaded");
@@ -549,20 +548,20 @@ Exec_stat MCEngineHandleLibraryMessage(MCNameRef p_message, MCParameter *p_param
     }
     else
         t_success = false;
-    
-    for(uindex_t i = 0; i < t_arguments.Size(); i++)
-        if (t_arguments[i] != nil)
-            MCValueRelease(t_arguments[i]);
-    
-    // If we failed, then catch the error and create a suitable MCerror unwinding.
-    if (t_success)
-        return ES_NORMAL;
-	
+
+	for(uindex_t i = 0; i < t_arguments.Size(); i++)
+		if (t_arguments[i] != nil)
+			MCValueRelease(t_arguments[i]);
+
+	// If we failed, then catch the error and create a suitable MCerror unwinding.
+	if (t_success)
+		return ES_NORMAL;
+
 	// If the exec context is already in error, use that.
 	if (MCECptr -> HasError())
 		return ES_ERROR;
-	
-    return MCExtensionCatchError(*MCECptr);
+
+	return MCExtensionCatchError(*MCECptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1231,21 +1230,20 @@ static bool __script_try_to_convert_to_array(MCExecContext& ctxt, MCValueRef& x_
 
 static bool __script_try_to_convert_to_list(MCExecContext& ctxt, MCValueRef& x_value, bool& r_converted)
 {
-    // If we are already a proper list then we are done.
-    // (This case should never be hit at the moment as script world doesn't
-    // do properlists!).
-    if (MCValueGetTypeCode(x_value) == kMCValueTypeCodeProperList)
-    {
-        r_converted = true;
-        
-        return true;
-    }
-    
-    // Otherwise we try to convert to an array.
-    bool t_is_array;
-    if (!__script_try_to_convert_to_array(ctxt, x_value, t_is_array))
-        return false;
-	
+	// If we are already a proper list then we are done.
+	// (This case should never be hit at the moment as script world doesn't
+	// do properlists!).
+	if (MCValueGetTypeCode(x_value) == kMCValueTypeCodeProperList)
+	{
+		r_converted = true;
+		return true;
+	}
+
+	// Otherwise we try to convert to an array.
+	bool t_is_array;
+	if (!__script_try_to_convert_to_array(ctxt, x_value, t_is_array))
+		return false;
+
 	// If we managed to convert to an array, and the array is empty then we
 	// can convert.
 	if (t_is_array &&
@@ -1255,7 +1253,7 @@ static bool __script_try_to_convert_to_list(MCExecContext& ctxt, MCValueRef& x_v
 		r_converted = true;
 		return true;
 	}
-	
+
     // If we managed to convert to an array, and the array is a sequence
     // we can convert.
     if (t_is_array && MCArrayIsSequence((MCArrayRef)x_value))

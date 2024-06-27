@@ -745,15 +745,15 @@ void MCInterfaceEvalSelectedChunk(MCExecContext& ctxt, MCStringRef& r_string)
 		return;
 	}
 
-    // MW-2013-08-07: [[ Bug 10689 ]] If the parent of the field is a button
-    //   then return the chunk of the button, not the embedded field.
-    if (MCactivefield -> getparent() -> gettype() == CT_BUTTON)
-    {
-        if (static_cast<MCButton *>(MCactivefield -> getparent()) -> selectedchunk(r_string))
-            return;
-    }
-    else if (MCactivefield->selectedchunk(r_string))
-        return;
+	// MW-2013-08-07: [[ Bug 10689 ]] If the parent of the field is a button
+	//   then return the chunk of the button, not the embedded field.
+	if (MCactivefield -> getparent() -> gettype() == CT_BUTTON)
+	{
+		if (static_cast<MCButton *>(MCactivefield -> getparent()) -> selectedchunk(r_string))
+		return;
+	}
+	else if (MCactivefield->selectedchunk(r_string))
+		return;
 
 	ctxt . Throw();
 }
@@ -1418,21 +1418,21 @@ void MCInterfaceEvalControlAtLoc(MCExecContext& ctxt, MCPoint p_location, MCStri
 void MCInterfaceEvalControlAtScreenLoc(MCExecContext& ctxt, MCPoint p_location, MCStringRef& r_control)
 {
 	MCStack *t_stack;
-    MCPoint t_location;
+	MCPoint t_location;
 	t_stack = MCscreen -> getstackatpoint(p_location . x, p_location . y);
-    
-    // IM-2013-10-11: [[ FullscreenMode ]] Update to use stack coord conversion methods
-    if (t_stack != nil)
-        t_location = t_stack->globaltostackloc(p_location);
+
+	// IM-2013-10-11: [[ FullscreenMode ]] Update to use stack coord conversion methods
+	if (nil != t_stack)
+		t_location = t_stack->globaltostackloc(p_location);
 
 	// If the location is not over a stack, then return empty.    
-	if (t_stack == nil)
+	if (nil == t_stack)
 	{
 		r_control = MCValueRetain(kMCEmptyString);
 		return;
 	}
 
-    // We now have a stack and a location in card co-ords so let's do the hittest.
+	// We now have a stack and a location in card co-ords so let's do the hittest.
 	MCObject *t_object;
     // SN-2014-08-27: [[ Bug 13288 ]] t_location should be used instead of p_location
 	t_object = MCInterfaceEvalControlAtLocInStack(t_stack, t_location);
@@ -1909,14 +1909,14 @@ void MCInterfaceExecGroupControls(MCExecContext& ctxt, MCObjectPtr *p_controls, 
         cptr -> getstack() -> removecontrol(cptr);
         cptr -> appendto(controls);
     }
-    
-    MCGroup *gptr;
-    if (MCsavegroupptr == NULL)
-        gptr = (MCGroup *)MCtemplategroup->clone(False, OP_NONE, false);
-    else
-        gptr = (MCGroup *)MCsavegroupptr->remove(MCsavegroupptr);
+
+	MCGroup *gptr;
+	if (MCsavegroupptr == NULL)
+		gptr = (MCGroup *)MCtemplategroup->clone(False, OP_NONE, false);
+	else
+		gptr = (MCGroup *)MCsavegroupptr->remove(MCsavegroupptr);
 	gptr->makegroup(controls, t_card);
-	
+
 	MCAutoValueRef t_id;
 	gptr -> names(P_LONG_ID, &t_id);
 	ctxt . SetItToValue(*t_id);
@@ -3047,13 +3047,13 @@ void MCInterfaceExecCreateStack(MCExecContext& ctxt, MCObject *p_object, MCStrin
 
 	MCtemplatestack->setflag(wasvisible, F_VISIBLE);
 	MCObject *t_object = MCdefaultstackptr;
-    
-    if (t_old_defaultstack.IsValid())
-        MCdefaultstackptr = t_old_defaultstack;
-	
+
+	if (t_old_defaultstack.IsValid())
+	MCdefaultstackptr = t_old_defaultstack;
+
 	if (p_new_name != nil)
 		t_object->setstringprop(ctxt, 0, P_NAME, False, p_new_name);
-	
+
 	MCAutoValueRef t_id;
 	t_object->names(P_LONG_ID, &t_id);
 	ctxt . SetItToValue(*t_id);
@@ -3817,11 +3817,11 @@ void MCInterfaceExecImportObjectFromArray(MCExecContext& ctxt, MCArrayRef p_arra
 
 void MCInterfaceExportBitmap(MCExecContext &ctxt, MCImageBitmap *p_bitmap, int p_format, MCInterfaceImagePaletteSettings *p_palette, bool p_dither, MCImageMetadata* p_metadata, MCDataRef &r_data)
 {
-    if (p_bitmap == nil)
-        return;
-    
+	if (p_bitmap == nil)
+		return;
+
 	bool t_success = true;
-	
+
 	MCImagePaletteSettings t_palette_settings;
 	MCImagePaletteSettings *t_ps_ptr = nil;
 	if (p_palette != nil)
@@ -3838,27 +3838,27 @@ void MCInterfaceExportBitmap(MCExecContext &ctxt, MCImageBitmap *p_bitmap, int p
 			t_palette_settings . ncolors = 0;
 		t_ps_ptr = &t_palette_settings;
 	}
-	
+
 	IO_handle t_stream = nil;
 	t_stream = MCS_fakeopenwrite();
-    if (nil == t_stream)
-        t_success = false;
-    if (t_success)
-        t_success = MCImageExport(p_bitmap, (Export_format)p_format, t_ps_ptr, p_dither, p_metadata, t_stream, nil);
-	
+	if (nil == t_stream)
+		t_success = false;
+	if (t_success)
+		t_success = MCImageExport(p_bitmap, (Export_format)p_format, t_ps_ptr, p_dither, p_metadata, t_stream, nil);
+
 	MCAutoByteArray t_autobuffer;
 	void *t_buffer = nil;
 	size_t t_size = 0;
-    if (t_success &&
-        MCS_closetakingbuffer(t_stream, t_buffer, t_size) != IO_NORMAL)
-        t_success = false;
-    
-    if (t_success)
-        t_autobuffer.Give((char_t*)t_buffer, t_size);
+	if (t_success &&
+		MCS_closetakingbuffer(t_stream, t_buffer, t_size) != IO_NORMAL)
+		t_success = false;
 
-    if (t_success)
-        t_success = t_autobuffer.CreateDataAndRelease(r_data);
-    
+	if (t_success)
+		t_autobuffer.Give((char_t*)t_buffer, t_size);
+
+	if (t_success)
+		t_success = t_autobuffer.CreateDataAndRelease(r_data);
+
 	if (!t_success)
 	{
 		ctxt.LegacyThrow(EE_EXPORT_CANTWRITE);

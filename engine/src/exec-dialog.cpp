@@ -214,8 +214,9 @@ void MCDialogExecAnswerFileWithTypes(MCExecContext &ctxt, bool p_plural, MCStrin
 			if (p_sheet)
 				t_options |= MCA_OPTION_SHEET;
 
-			int error;
-			error = MCA_file_with_types(p_title, p_prompt, *t_types, t_types.Count(), p_initial, t_options, &t_value, &t_result);
+//			int error;
+//			error = MCA_file_with_types(p_title, p_prompt, *t_types, t_types.Count(), p_initial, t_options, &t_value, &t_result);
+			/* UNCHECKED*/ MCA_file_with_types(p_title, p_prompt, *t_types, t_types.Count(), p_initial, t_options, &t_value, &t_result);
 		}
 		else
 		{
@@ -291,8 +292,9 @@ void MCDialogExecAnswerFolder(MCExecContext &ctxt, bool p_plural, MCStringRef p_
         if (p_sheet)
             t_options |= MCA_OPTION_SHEET;
 
-        int t_error;
-        t_error = MCA_folder(p_title, p_prompt, p_initial, t_options, &t_value, &t_result);
+//        int t_error;
+//        t_error = MCA_folder(p_title, p_prompt, p_initial, t_options, &t_value, &t_result);
+        /* UNCHECKED*/ MCA_folder(p_title, p_prompt, p_initial, t_options, &t_value, &t_result);
 	}
 	else
 	{
@@ -357,20 +359,20 @@ void MCDialogExecAnswerNotify(MCExecContext &ctxt, integer_t p_type, MCStringRef
 		ctxt.Throw();
 		return;
 	}
-	
+
 	MCStringRef t_args[4];
 	t_args[0] = p_title;
 	t_args[1] = p_prompt;
 	t_args[2] = *t_buttons_string;
 
-    // AL-2014-05-21: [[ Bug 12074 ]] Pass through directionality of prompt to
-    //  dialogData for appropriate dialog layout.
-    if (!MCStringResolvesLeftToRight(p_prompt))
-        t_args[3] = kMCTrueString;
-    else
-        t_args[3] = kMCFalseString;
-    
-    
+	// AL-2014-05-21: [[ Bug 12074 ]] Pass through directionality of prompt to
+	//  dialogData for appropriate dialog layout.
+	if (!MCStringResolvesLeftToRight(p_prompt))
+		t_args[3] = kMCTrueString;
+	else
+		t_args[3] = kMCFalseString;
+
+
 	MCDialogExecCustomAnswerDialog(ctxt, MCN_answer_dialog, *s_dialog_types[p_type], p_sheet, t_args, 4, &t_value);
 
 	if (ctxt.HasError())
@@ -474,14 +476,14 @@ void MCDialogExecAskQuestion(MCExecContext& ctxt, int p_type, MCStringRef p_prom
 	t_args[0] = p_title;
 	t_args[1] = p_prompt;
 	t_args[2] = p_answer;
-	
-    // AL-2014-05-21: [[ Bug 12074 ]] Pass through directionality of prompt to
-    //  dialogData for appropriate dialog layout.
-    if (!MCStringResolvesLeftToRight(p_prompt))
-        t_args[3] = kMCTrueString;
-    else
-        t_args[3] = kMCFalseString;
-    
+
+	// AL-2014-05-21: [[ Bug 12074 ]] Pass through directionality of prompt to
+	//  dialogData for appropriate dialog layout.
+	if (!MCStringResolvesLeftToRight(p_prompt))
+		t_args[3] = kMCTrueString;
+	else
+		t_args[3] = kMCFalseString;
+
 	bool t_cancelled;
 	MCAutoStringRef t_result;
 	MCDialogExecCustomAskDialog(ctxt, MCN_ask_dialog, *s_dialog_types[p_type], p_as_sheet, t_args, 4, t_cancelled, &t_result);
@@ -570,16 +572,17 @@ void MCDialogExecAskFileWithFilter(MCExecContext& ctxt, MCStringRef p_prompt, MC
 	
 	bool t_cancelled;
 	if (MCsystemFS && MCscreen -> hasfeature(PLATFORM_FEATURE_OS_FILE_DIALOGS))
-    {
-        uint32_t t_options = 0;
-        if (p_as_sheet)
-            t_options |= MCA_OPTION_SHEET;
+	{
+		uint32_t t_options = 0;
+		if (p_as_sheet)
+		t_options |= MCA_OPTION_SHEET;
 
-        int t_error;
-        t_error = MCA_ask_file(p_title, p_prompt, p_filter, p_initial, t_options, &t_value, &t_result);
-
-        t_cancelled = *t_value == nil;
-    }
+//        int t_error;
+//        t_error = MCA_ask_file(p_title, p_prompt, p_filter, p_initial, t_options, &t_value, &t_result);
+		/* UNCHECKED*/ MCA_ask_file(p_title, p_prompt, p_filter, p_initial, t_options, &t_value, &t_result);
+ 
+		t_cancelled = *t_value == nil;
+	}
 	else
 	{
 		MCStringRef t_args[5];
@@ -639,14 +642,14 @@ void MCDialogExecAskFileWithTypes(MCExecContext& ctxt, MCStringRef p_prompt, MCS
 	MCAutoStringRef t_value, t_result;
 	if (MCsystemFS && MCscreen -> hasfeature(PLATFORM_FEATURE_OS_FILE_DIALOGS))
 	{
-        uint32_t t_options = 0;
-        if (p_as_sheet)
-            t_options |= MCA_OPTION_SHEET;
+		uint32_t t_options = 0;
+		if (p_as_sheet)
+			t_options |= MCA_OPTION_SHEET;
 
-        int t_error;
+//        int t_error;
 		// t_value contains the filename, t_result the chosen type
-        t_error = MCA_ask_file_with_types(p_title, p_prompt, *t_types, t_types.Count(), p_initial, t_options, &t_value, &t_result);
-
+//        t_error = MCA_ask_file_with_types(p_title, p_prompt, *t_types, t_types.Count(), p_initial, t_options, &t_value, &t_result);
+		/* UNCHECKED*/ MCA_ask_file_with_types(p_title, p_prompt, *t_types, t_types.Count(), p_initial, t_options, &t_value, &t_result);
 		t_cancelled = *t_value == nil;
 	}
 	else
