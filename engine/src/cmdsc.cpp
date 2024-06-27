@@ -104,15 +104,15 @@ void MCClone::exec_ctxt(MCExecContext& ctxt)
     MCObject *optr = NULL;
     uint4 parid;
 
-    if (!source->getobj(ctxt, optr, parid, True))
-    {
-        ctxt . LegacyThrow(EE_CLONE_NOTARGET);
-        return;
-    }
-    
-    MCAutoStringRef t_new_name;    
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(newname, EE_CLONE_BADNAME, &t_new_name))
-        return;
+	if (!source->getobj(ctxt, optr, parid, True))
+	{
+		ctxt . LegacyThrow(EE_CLONE_NOTARGET);
+		return;
+	}
+
+	MCAutoStringRef t_new_name;    
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(newname, EE_CLONE_BADNAME, &t_new_name))
+		return;
 
 	MCInterfaceExecClone(ctxt, optr, *t_new_name, visible == False);
 }
@@ -1144,16 +1144,16 @@ Parse_stat MCLaunch::parse(MCScriptPoint &sp)
 
 void MCLaunch::exec_ctxt(MCExecContext& ctxt)
 {
-    MCNewAutoNameRef t_app;
-		
-    if (!ctxt. EvalOptionalExprAsNullableNameRef(app, EE_LAUNCH_BADAPPEXP, &t_app))
-        return;
-	
-    MCAutoStringRef t_document;
-	
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(doc, EE_LAUNCH_BADAPPEXP, &t_document))
-        return;
-    
+	MCNewAutoNameRef t_app;
+
+	if (!ctxt. EvalOptionalExprAsNullableNameRef(app, EE_LAUNCH_BADAPPEXP, &t_app))
+		return;
+
+	MCAutoStringRef t_document;
+
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(doc, EE_LAUNCH_BADAPPEXP, &t_document))
+		return;
+ 
 	if (app != NULL)
 		MCFilesExecLaunchApp(ctxt, *t_app, *t_document);
 	else if (doc != NULL)
@@ -1333,11 +1333,10 @@ Parse_stat MCUnload::parse(MCScriptPoint &sp)
 
 void MCUnload::exec_ctxt(MCExecContext &ctxt)
 {
-    
-    MCAutoStringRef t_url;
-    if (!ctxt . EvalExprAsStringRef(url, EE_LOAD_BADURLEXP, &t_url))
-        return;
-    
+	MCAutoStringRef t_url;
+	if (!ctxt . EvalExprAsStringRef(url, EE_LOAD_BADURLEXP, &t_url))
+		return;
+
 	if (is_extension)
 		MCEngineExecUnloadExtension(ctxt, *t_url);
 	else
@@ -1772,20 +1771,20 @@ Parse_stat MCReplace::parse(MCScriptPoint &sp)
 
 void MCReplace::exec_ctxt(MCExecContext& ctxt)
 {
-    MCAutoStringRef t_pattern;
-    if (!ctxt . EvalExprAsStringRef(pattern, EE_REPLACE_BADPATTERN, &t_pattern))
-        return;
-    
-    if (MCStringGetLength(*t_pattern) < 1)
-    {
-        ctxt . LegacyThrow(EE_REPLACE_BADPATTERN);
-        return;
-    }
-    
-    MCAutoStringRef t_replacement;
-    if (!ctxt . EvalExprAsStringRef(replacement, EE_REPLACE_BADREPLACEMENT, &t_replacement))
-        return;
-	
+	MCAutoStringRef t_pattern;
+	if (!ctxt . EvalExprAsStringRef(pattern, EE_REPLACE_BADPATTERN, &t_pattern))
+		return;
+
+	if (MCStringGetLength(*t_pattern) < 1)
+	{
+		ctxt . LegacyThrow(EE_REPLACE_BADPATTERN);
+		return;
+	}
+
+	MCAutoStringRef t_replacement;
+	if (!ctxt . EvalExprAsStringRef(replacement, EE_REPLACE_BADREPLACEMENT, &t_replacement))
+		return;
+
 	// The ignore styles mode treats all targets as strings, so we use
 	// the string-based method.
 	//
@@ -1797,7 +1796,7 @@ void MCReplace::exec_ctxt(MCExecContext& ctxt)
 	// with the found string. As the replacement string can only be
 	// plain text at the moment, it is equivalent to using the same style
 	// as the first char in the found string.
-	
+
 	if (mode == kIgnoreStyles)
 	{
 		MCAutoStringRef t_target;
@@ -1928,16 +1927,15 @@ void MCRotate::exec_ctxt(MCExecContext& ctxt)
 		}
 		iptr = (MCImage *)optr;
 	}
-    
-    integer_t t_angle;
-    if (!ctxt . EvalExprAsInt(angle, EE_ROTATE_BADANGLE, t_angle))
-        return;
-    
+
+	integer_t t_angle;
+	if (!ctxt . EvalExprAsInt(angle, EE_ROTATE_BADANGLE, t_angle))
+		return;
+
 	if (iptr != NULL)
 		MCGraphicsExecRotateImage(ctxt, iptr, t_angle);
 	else
 		MCGraphicsExecRotateSelection(ctxt, t_angle);
-    
 #endif
 }
 

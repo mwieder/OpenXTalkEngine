@@ -1920,8 +1920,8 @@ void MCStack::setwindowname()
 	if (!opened || isunnamed() || window == NULL)
 		return;
 
-	char *t_utf8_name;
-	t_utf8_name = NULL;
+//	char *t_utf8_name;
+//	t_utf8_name = NULL;
 
 	MCStringRef tptr;
 	if (MCStringIsEmpty(title))
@@ -3250,12 +3250,12 @@ MCRectangle MCStack::getvisiblerect(void)
 
 bool MCStack::foreachstack(MCStackForEachCallback p_callback, void *p_context)
 {
-    if (!p_callback(this, p_context))
-        return false;
-    
+	if (!p_callback(this, p_context))
+		return false;
+
 	bool t_continue;
 	t_continue = true;
-    
+
 	if (substacks != NULL)
 	{
 		MCStack *t_stack = substacks;

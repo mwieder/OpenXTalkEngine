@@ -1786,11 +1786,11 @@ Exec_stat MCDeployToWindows(const MCDeployParameters& p_params)
 	bool t_success;
 	t_success = true;
 
-    // Are we running deploy just for the purpose of changing the EXE icons?
-    bool t_icons_only = false;
-    if (MCStringIsEmpty(p_params.stackfile) && !MCStringIsEmpty(p_params.app_icon))
-        t_icons_only = true;
-    
+	// Are we running deploy just for the purpose of changing the EXE icons?
+	bool t_icons_only = false;
+	if (MCStringIsEmpty(p_params.stackfile) && !MCStringIsEmpty(p_params.app_icon))
+		t_icons_only = true;
+
 	// First thing to do is to open the files.
 	MCDeployFileRef t_engine, t_output;
 	t_engine = t_output = NULL;
@@ -1964,7 +1964,7 @@ Exec_stat MCDeployToWindows(const MCDeployParameters& p_params)
 
 	// Next use the project size to compute the updated header values we need.
 	uint32_t t_optional_header_size, t_optional_header_offset, t_section_headers_offset;
-	uint32_t t_resource_section_old_address, t_resource_section_address;
+	uint32_t /* t_resource_section_old_address, */ t_resource_section_address;
 	uint32_t t_resource_section_offset, t_resource_section_old_offset;
 	if (t_success)
 	{
@@ -1972,18 +1972,18 @@ Exec_stat MCDeployToWindows(const MCDeployParameters& p_params)
 		t_optional_header_offset = t_dos_header . e_lfanew + FIELD_OFFSET(typename DeployPlatformTrait::IMAGE_NT_HEADERS, OptionalHeader);
 		t_section_headers_offset = t_optional_header_offset + t_nt_header . FileHeader . SizeOfOptionalHeader;
 
-		uint32_t t_payload_section_size, t_payload_section_delta;
+		uint32_t t_payload_section_size; //, t_payload_section_delta;
 		t_payload_section_size = (t_payload_size + 4095) & ~4095;
-		t_payload_section_delta = t_payload_section == nil ? 0 : t_payload_section_size - t_payload_section -> SizeOfRawData;
+//		t_payload_section_delta = t_payload_section == nil ? 0 : t_payload_section_size - t_payload_section -> SizeOfRawData;
 
-		uint32_t t_project_section_size, t_project_section_delta;
+		uint32_t t_project_section_size; //, t_project_section_delta;
 		t_project_section_size = (t_project_size + 4095) & ~4095;
-        t_project_section_delta = t_project_section == nil ? 0 : t_project_section_size - t_project_section -> SizeOfRawData;
+//        t_project_section_delta = t_project_section == nil ? 0 : t_project_section_size - t_project_section -> SizeOfRawData;
 
 		uint32_t t_resource_section_size;
 		t_resource_section_size = MCWindowsResourcesMeasure(t_resources);
 		t_resource_section_old_offset = t_resource_section -> PointerToRawData;
-		t_resource_section_old_address = t_resource_section -> VirtualAddress;
+//		t_resource_section_old_address = t_resource_section -> VirtualAddress;
 
 		// Resize the payload section (if present)
 		if (t_payload_section != nil)

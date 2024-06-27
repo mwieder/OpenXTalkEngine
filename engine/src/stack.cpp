@@ -896,12 +896,12 @@ void MCStack::kunfocus()
 	if (!opened)
 		return;
 	curcard->message(MCM_suspend_stack);
-    
-    // We have just invoked script, so we might be the focused stack again. So
-    // if focused stack is us, then do nothing.
-    if (MCfocusedstackptr == this)
-        return;
-    
+
+	// We have just invoked script, so we might be the focused stack again. So
+	// if focused stack is us, then do nothing.
+	if (MCfocusedstackptr == this)
+		return;
+
 	state |= CS_SUSPENDED;
 	curcard->kunfocus();
 }

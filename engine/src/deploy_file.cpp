@@ -125,18 +125,18 @@ bool MCDeployFileOpen(MCStringRef p_path, intenum_t p_mode, MCDeployFileRef& r_f
 	
 	if (MCStringIsEmpty(p_path))
 		return false;
-    
-    IO_handle t_handle ;
-    if (p_mode == kMCOpenFileModeCreate)
-        t_handle = MCS_deploy_open(p_path, p_mode);
-    else
-        t_handle = MCS_open(p_path, p_mode, false, false, 0);
-	
+
+	IO_handle t_handle ;
+	if (p_mode == kMCOpenFileModeCreate)
+		t_handle = MCS_deploy_open(p_path, p_mode);
+	else
+		t_handle = MCS_open(p_path, p_mode, false, false, 0);
+
 	t_success = (t_handle != nil);
-	
+
 	if (t_success)
 		r_file = t_handle;
-	
+
 	return t_success;
 }
 

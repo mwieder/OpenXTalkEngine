@@ -120,13 +120,13 @@ uint4 MCServerScript::FindFileIndex(MCStringRef p_filename, bool p_add)
 	if (t_file == NULL)
 		return 0;
 
-    /* If the file was newly-created, link it into the MCServerScript
-     * instance's list of files so that it doesn't get leaked. */
-    /* TODO[2017-02-06] This is fragile; FindFile() should be
-     * refactored so that it's not necessary to guess whether the
-     * caller owns the returned pointer or not. */
-    if (t_file->next == m_files)
-        m_files = t_file;
+	/* If the file was newly-created, link it into the MCServerScript
+	 * instance's list of files so that it doesn't get leaked. */
+	/* TODO[2017-02-06] This is fragile; FindFile() should be
+	 * refactored so that it's not necessary to guess whether the
+	 * caller owns the returned pointer or not. */
+	if (t_file->next == m_files)
+		m_files = t_file;
 
 	return t_file -> index;
 }
@@ -475,9 +475,9 @@ bool MCServerScript::Include(MCExecContext& ctxt, MCStringRef p_filename, bool p
     /* UNCHECKED */ MCStringCreateWithBytes((const byte_t *)t_file -> script, strlen(t_file -> script), t_encoding, false, &t_file_script);
 	MCScriptPoint sp(this, hlist, *t_file_script);
 
-    if (!t_is_script_file)
-        sp . allowtags(True);
-	
+	if (!t_is_script_file)
+		sp . allowtags(True);
+
 	// The statement chain that will executed.
 	MCStatement *t_statements, *t_last_statement;
 	t_statements = t_last_statement = nil;

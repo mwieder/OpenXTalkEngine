@@ -567,50 +567,50 @@ Boolean MCSellist::cut()
 
 Boolean MCSellist::del()
 {
-    if (!IsDeletable())
-        return False;
+	if (!IsDeletable())
+		return False;
  
 	if (nullptr == objects)
-        return False;
+		return False;
 
-    MCundos->freestate();
+	MCundos->freestate();
     
-    MCStack *sptr = objects->m_ref->getstack();
-    while (objects != NULL)
-    {
-        MCSelnode *tptr = objects->remove(objects);
-        if (tptr->m_ref->gettype() >= CT_GROUP)
-        {
-            MCControl *cptr = tptr->m_ref.GetAs<MCControl>();
-            uint2 num = 0;
-            cptr->getcard()->count(CT_LAYER, CT_UNDEFINED, cptr, num, True);
-            
-            bool t_del;
-            if (cptr->gettype() == CT_WIDGET)
-            {
-                t_del = static_cast<MCWidget*>(cptr)->delforundo(true);
-            }
-            else
-            {
-                t_del = cptr->del(true);
-            }
+	MCStack *sptr = objects->m_ref->getstack();
+	while (objects != NULL)
+	{
+		MCSelnode *tptr = objects->remove(objects);
+		if (tptr->m_ref->gettype() >= CT_GROUP)
+		{
+			MCControl *cptr = tptr->m_ref.GetAs<MCControl>();
+			uint2 num = 0;
+			cptr->getcard()->count(CT_LAYER, CT_UNDEFINED, cptr, num, True);
 
-            if (t_del)
-            {
-                Ustruct *us = new (nothrow) Ustruct;
-                us->type = UT_DELETE;
-                us->ud.layer = num;
-                MCundos->savestate(cptr, us);
-                
-                tptr->m_ref = nil;
-            }
-            
-            /* No scheduledelete() as the undo record now owns it */
-        }
-        delete tptr;
-    }
-    sptr->message(MCM_selected_object_changed);
-    return True;
+			bool t_del;
+			if (cptr->gettype() == CT_WIDGET)
+			{
+				t_del = static_cast<MCWidget*>(cptr)->delforundo(true);
+			}
+			else
+			{
+				t_del = cptr->del(true);
+			}
+
+			if (t_del)
+			{
+				Ustruct *us = new (nothrow) Ustruct;
+				us->type = UT_DELETE;
+				us->ud.layer = num;
+				MCundos->savestate(cptr, us);
+
+				tptr->m_ref = nil;
+			}
+
+			/* No scheduledelete() as the undo record now owns it */
+		}
+		delete tptr;
+	}
+	sptr->message(MCM_selected_object_changed);
+	return True;
 }
 
 bool MCSellist::IsDeletable()

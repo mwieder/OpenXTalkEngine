@@ -689,8 +689,8 @@ static bool MCDeploySignCheckWindowsExecutable(MCDeployFileRef p_input, uint32_t
 // This method copies data from the input file to the output BIO.
 static bool MCDeploySignCopyFileAt(BIO *p_output, MCDeployFileRef p_input, uint32_t p_offset, uint32_t p_amount)
 {
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 
 	if (!MCDeployFileSeekSet(p_input, p_offset))
 		return MCDeployThrow(kMCDeployErrorBadRead);
@@ -966,19 +966,19 @@ static bool MCDeploySignWindowsAddTimeStamp(const MCDeploySignParameters& p_para
 	}
 
 	// Now convert the reply to binary.
-    MCAutoValueRef t_result_value;
-    MCAutoStringRef t_result_base64;
-    MCAutoDataRef t_result_data;
-    extern MCExecContext *MCECptr;
-	
-    if (t_success)
-    {
+	MCAutoValueRef t_result_value;
+	MCAutoStringRef t_result_base64;
+	MCAutoDataRef t_result_data;
+	extern MCExecContext *MCECptr;
+
+	if (t_success)
+	{
 		MCurlresult -> copyasvalueref(&t_result_value);
-        t_success = MCECptr->ConvertToString(*t_result_value, &t_result_base64);
-    }
-    
-    if (t_success)
-        MCU_base64decode(*t_result_base64, &t_result_data);
+		t_success = MCECptr->ConvertToString(*t_result_value, &t_result_base64);
+	}
+
+	if (t_success)
+		MCU_base64decode(*t_result_base64, &t_result_data);
 
 	// Decode the PKCS7 structure
 	PKCS7 *t_counter_sig;

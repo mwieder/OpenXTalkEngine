@@ -142,20 +142,20 @@ Parse_stat MCArrayEncode::parse(MCScriptPoint &sp, Boolean the)
 
 void MCArrayEncode::eval_ctxt(MCExecContext& ctxt, MCExecValue& r_value)
 {    
-    MCAutoArrayRef t_array;
-    if (!ctxt . EvalExprAsArrayRef(source, EE_ARRAYENCODE_BADSOURCE, &t_array))
-        return;
-    
-    // AL-2014-05-15: [[ Bug 12203 ]] Add version parameter to arrayEncode, to allow
-    //  version 7.0 variant to preserve unicode.
-    MCAutoStringRef t_version;
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(version, EE_ARRAYENCODE_BADSOURCE, &t_version))
-        return;
-    
+	MCAutoArrayRef t_array;
+	if (!ctxt . EvalExprAsArrayRef(source, EE_ARRAYENCODE_BADSOURCE, &t_array))
+		return;
+
+	// AL-2014-05-15: [[ Bug 12203 ]] Add version parameter to arrayEncode, to allow
+	//  version 7.0 variant to preserve unicode.
+	MCAutoStringRef t_version;
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(version, EE_ARRAYENCODE_BADSOURCE, &t_version))
+		return;
+
 	MCArraysEvalArrayEncode(ctxt, *t_array, *t_version, r_value . dataref_value);
-    
-    if (!ctxt . HasError())
-        r_value . type = kMCExecValueTypeDataRef;
+
+	if (!ctxt . HasError())
+ 		r_value . type = kMCExecValueTypeDataRef;
 }
 
 MCBaseConvert::~MCBaseConvert()
@@ -179,20 +179,20 @@ Parse_stat MCBaseConvert::parse(MCScriptPoint &sp, Boolean the)
 
 void MCBaseConvert::eval_ctxt(MCExecContext& ctxt, MCExecValue& r_value)
 {
-    uinteger_t dbase;
-    if (!ctxt . EvalExprAsUInt(destbase, EE_BASECONVERT_BADDESTBASE, dbase))
-        return;
-    
-    uinteger_t sbase;
-    if (!ctxt . EvalExprAsUInt(sourcebase, EE_BASECONVERT_BADSOURCEBASE, sbase))
-        return;
-    
-    MCAutoStringRef t_source;
-    if (!ctxt . EvalExprAsStringRef(source, EE_BASECONVERT_BADSOURCE, &t_source))
-        return;
-    
+	uinteger_t dbase;
+	if (!ctxt . EvalExprAsUInt(destbase, EE_BASECONVERT_BADDESTBASE, dbase))
+		return;
+
+	uinteger_t sbase;
+	if (!ctxt . EvalExprAsUInt(sourcebase, EE_BASECONVERT_BADSOURCEBASE, sbase))
+		return;
+
+	MCAutoStringRef t_source;
+	if (!ctxt . EvalExprAsStringRef(source, EE_BASECONVERT_BADSOURCE, &t_source))
+		return;
+
 	MCMathEvalBaseConvert(ctxt, *t_source, sbase, dbase, r_value . stringref_value);
-    r_value . type = kMCExecValueTypeStringRef;
+	r_value . type = kMCExecValueTypeStringRef;
 }
 
 MCBinaryDecode::~MCBinaryDecode()
@@ -370,16 +370,16 @@ void MCChunkOffset::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
         MCStringsEvalByteOffset(ctxt, *t_chunk, *t_string, t_start, r_value . uint_value);
         r_value . type = kMCExecValueTypeUInt;
         return;
-    }
-    
-    MCAutoStringRef t_chunk;
-    if (!ctxt . EvalExprAsStringRef(part, EE_OFFSET_BADPART, &t_chunk))
-        return;
-    
-    MCAutoStringRef t_string;
-    if (!ctxt . EvalExprAsStringRef(whole, EE_OFFSET_BADWHOLE, &t_string))
-        return;
-    
+	}
+
+	MCAutoStringRef t_chunk;
+	if (!ctxt . EvalExprAsStringRef(part, EE_OFFSET_BADPART, &t_chunk))
+		return;
+
+	MCAutoStringRef t_string;
+	if (!ctxt . EvalExprAsStringRef(whole, EE_OFFSET_BADWHOLE, &t_string))
+		return;
+
 	switch (delimiter)
 	{
 	case CT_ITEM:

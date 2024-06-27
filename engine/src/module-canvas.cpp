@@ -1507,8 +1507,8 @@ void MCCanvasTransformGetMatrixAsList(MCCanvasTransformRef p_transform, MCProper
 MC_DLLEXPORT_DEF
 void MCCanvasTransformSetMatrixAsList(MCProperListRef p_matrix, MCCanvasTransformRef &x_transform)
 {
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 	
 	MCGAffineTransform t_transform;
 	if (!MCProperListToTransform(p_matrix, t_transform))
@@ -6885,8 +6885,8 @@ bool MCSVGParseReal(const char *p_string, MCRange &x_range, real64_t &r_real)
 	if (!MCSVGTryToParseRangeAsReal(p_string, x_range, &t_used, r_real))
 		return false;
 	
-	uindex_t t_next;
-	t_next = t_used.offset + t_used.length;
+//	uindex_t t_next;
+//	t_next = t_used.offset + t_used.length;
 	
 	x_range = MCRangeSetMinimum(x_range, t_used.offset + t_used.length);
 	

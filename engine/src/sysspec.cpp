@@ -576,15 +576,15 @@ Boolean MCS_mkdir(MCStringRef p_path)
 {
     MCAutoStringRef t_native_path;
 	MCAutoStringRef t_resolved_path;
-    
-    if (!MCS_resolvepath(p_path, &t_resolved_path))
-        return False;
-    
-    if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
-        return False;
-    
+
+	if (!MCS_resolvepath(p_path, &t_resolved_path))
+		return False;
+
+	if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
+		return False;
+
 	if (MCsystem -> CreateFolder(*t_native_path) == False)
-        return False;
+		return False;
 
 	return True;
 }
@@ -592,14 +592,14 @@ Boolean MCS_mkdir(MCStringRef p_path)
 Boolean MCS_rmdir(MCStringRef p_path)
 {
 	MCAutoStringRef t_resolved_path;
-    MCAutoStringRef t_native_path;
-    
+	MCAutoStringRef t_native_path;
+
 	if (!MCS_resolvepath(p_path, &t_resolved_path))
-        return False;
-    
-    if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
-        return False;
-	
+		return False;
+
+	if (!MCS_pathtonative(*t_resolved_path, &t_native_path))
+		return False;
+
 	return MCsystem -> DeleteFolder(*t_native_path);
 }
 
@@ -607,13 +607,13 @@ Boolean MCS_rename(MCStringRef p_old_name, MCStringRef p_new_name)
 {
 	MCAutoStringRef t_old_resolved_path, t_new_resolved_path;
     MCAutoStringRef t_old_native_path, t_new_native_path;
-    
+
 	if (!MCS_resolvepath(p_old_name, &t_old_resolved_path) || !MCS_resolvepath(p_new_name, &t_new_resolved_path))
         return False;
-    
-    if (!MCS_pathtonative(*t_old_resolved_path, &t_old_native_path) || !MCS_pathtonative(*t_new_resolved_path, &t_new_native_path))
-        return False;
-	
+
+	if (!MCS_pathtonative(*t_old_resolved_path, &t_old_native_path) || !MCS_pathtonative(*t_new_resolved_path, &t_new_native_path))
+		return False;
+
 	return MCsystem -> RenameFileOrFolder(*t_old_native_path, *t_new_native_path);
 }
 
@@ -1664,7 +1664,7 @@ IO_stat MCS_sync(IO_handle p_stream)
 
 Boolean MCS_eof(IO_handle p_stream)
 {
-	return (p_stream -> Tell() == p_stream ->  GetFileSize());
+	return ((uint64_t)(p_stream -> Tell()) == p_stream ->  GetFileSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

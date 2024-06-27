@@ -106,13 +106,14 @@ public:
 
     /* ---------- Assignment ops */
     /* TODO[C++11] MCSpanIterator& operator=(const MCSpanIterator& other) = default; */
-    MCSpanIterator& operator=(const MCSpanIterator& other)
+	MCSpanIterator& operator=(const MCSpanIterator& other) = default;
+/*    MCSpanIterator& operator=(const MCSpanIterator& other)
     {
         m_span = other.m_span;
         m_index = other.m_index;
         return *this;
     }
-
+*/
 	virtual ~MCSpanIterator() = default;
 
     /* ---------- Element access */
@@ -291,7 +292,7 @@ public:
 
 	constexpr MCSpan(MCSpan&& other) = default;
 
-	~MCSpan() = default;
+//	~MCSpan() = default;
 
 	/* ---------- Assignment ops */
 	MCSpan& operator=(const MCSpan& other) = default;

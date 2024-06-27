@@ -1444,10 +1444,10 @@ static void log_btree(log_callback p_log, void *p_context, const char *p_name, b
 
 bool MCDeployDmgDump(const char *p_dmg_file, log_callback p_log, void *p_context)
 {
+#if DEPLOY_DMG
 	bool t_success;
 	t_success = true;
 
-#if DEPLOY_DMG
 	MCDeployFileRef t_dmg;
 	t_dmg = nil;
 	if (t_success &&

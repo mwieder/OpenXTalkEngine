@@ -1930,8 +1930,8 @@ bool MCServerStopSession()
 	MCVariable *t_session_var;
 	t_session_var = MCVariable::lookupglobal_cstring("$_SESSION");
 
-    if (t_session_var != NULL)
-        t_success = t_session_var->encode((void*&)t_data, t_data_length);
+	if (t_session_var != NULL)
+		t_success = t_session_var->encode((void*&)t_data, t_data_length);
 
 	if (t_success)
 	{
@@ -1993,9 +1993,9 @@ bool MCS_set_session_save_path(MCStringRef p_path)
 
 bool MCS_get_session_save_path(MCStringRef& r_path)
 {
-    if (!MCStringIsEmpty(MCsessionsavepath))
-        return MCStringCopy(MCsessionsavepath, r_path);
-	
+	if (!MCStringIsEmpty(MCsessionsavepath))
+		return MCStringCopy(MCsessionsavepath, r_path);
+
 	if (s_session_temp_dir != NULL)
 	{
 		r_path = MCValueRetain(s_session_temp_dir);
@@ -2028,9 +2028,9 @@ bool MCS_set_session_name(MCStringRef p_name)
 
 bool MCS_get_session_name(MCStringRef &r_name)
 {
-    if (!MCStringIsEmpty(MCsessionname))
-        return MCStringCopy(MCsessionname, r_name);
-	
+	if (!MCStringIsEmpty(MCsessionname))
+		return MCStringCopy(MCsessionname, r_name);
+
 	return MCStringCreateWithCString("LCSESSION", r_name);
 }
 

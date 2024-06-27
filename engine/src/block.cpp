@@ -477,10 +477,10 @@ IO_stat MCBlock::save(IO_handle stream, uint4 p_part, uint32_t p_version)
         if ((stat = IO_write_stringref_new(atts->linktext, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
 			return stat;
 	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
-    if (flags & F_HAS_IMAGE)
-        if ((stat = IO_write_stringref_new(atts->imagesource, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
+	if (flags & F_HAS_IMAGE)
+		if ((stat = IO_write_stringref_new(atts->imagesource, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
 			return stat;
-	
+
 	// MW-2012-03-04: [[ StackFile5500 ]] If this is an extended block then emit the
 	//   new attributes.
 	if (t_is_ext)
@@ -686,10 +686,10 @@ Boolean MCBlock::sameatts(MCBlock *bptr, bool p_persistent_only)
 			(bptr -> atts -> shift != atts -> shift))
 		return False;
 
-    // Ensure that the direction level matches
-    if (direction_level != bptr -> direction_level)
-        return False;
-    
+	// Ensure that the direction level matches
+	if (direction_level != bptr -> direction_level)
+		return False;
+
 	// Everything matches, so these two blocks must be the same.
 	return True;
 }
@@ -1030,10 +1030,10 @@ void MCBlock::split(findex_t p_index)
 void MCBlock::drawstring(MCDC *dc, coord_t x, coord_t p_cell_left, coord_t p_cell_right, int2 y, findex_t start, findex_t length, Boolean image, uint32_t style)
 {
 	// MW-2012-02-16: [[ FontRefs ]] Fetch the font metrics we need to draw.
-	coord_t t_ascent, t_descent, t_leading, t_xheight;
+	coord_t t_ascent, t_descent, /*t_leading, */ t_xheight;
 	t_ascent = MCFontGetAscent(m_font);
 	t_descent = MCFontGetDescent(m_font);
-    t_leading = MCFontGetLeading(m_font);
+//    t_leading = MCFontGetLeading(m_font);	// side effects?
     t_xheight = MCFontGetXHeight(m_font);
     
     // Width for strike-through/underline lines. Factor is arbitrary...
@@ -2085,24 +2085,24 @@ void MCBlock::importattrs(const MCFieldCharacterStyle& p_style)
 		setbackcolor(&t_color);
 	}
 	if (p_style . has_link_text)
-        SetLinktext(ctxt, p_style . link_text);
+		SetLinktext(ctxt, p_style . link_text);
 	if (p_style . has_image_source)
-        SetImageSource(ctxt, p_style . image_source);
-    if (p_style . has_metadata)
-        SetMetadata(ctxt, p_style . metadata);
-    if (p_style . has_text_font)
-        SetTextFont(ctxt, MCNameGetString(p_style . text_font));
+		SetImageSource(ctxt, p_style . image_source);
+	if (p_style . has_metadata)
+		SetMetadata(ctxt, p_style . metadata);
+	if (p_style . has_text_font)
+		SetTextFont(ctxt, MCNameGetString(p_style . text_font));
 	if (p_style . has_text_style)
-    {
-        MCInterfaceTextStyle t_style;
-        t_style . style = p_style . text_style;
-        SetTextStyle(ctxt, t_style);
-    }
-    if (p_style . has_text_size)
-    {
-        uinteger_t t_size = p_style . text_size;
-        SetTextSize(ctxt, &t_size);
-    }
+	{
+		MCInterfaceTextStyle t_style;
+		t_style . style = p_style . text_style;
+		SetTextStyle(ctxt, t_style);
+	}
+	if (p_style . has_text_size)
+	{
+		uinteger_t t_size = p_style . text_size;
+		SetTextSize(ctxt, &t_size);
+	}
 	// MW-2012-05-09: [[ Bug ]] Setting the textShift of a block is done with 'setshift'
 	//   not 'setatts'.
 	if (p_style . has_text_shift)

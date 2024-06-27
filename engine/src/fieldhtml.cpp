@@ -2058,14 +2058,14 @@ MCParagraph *MCField::importhtmltext(MCValueRef p_text)
 	ctxt . field = this;
 	ctxt . need_paragraph = true;
 	MCMemoryResizeArray(16, ctxt . styles, ctxt . style_capacity);
-	
+
 	MCFieldCharacterStyle t_char_style;
 	memset((void *)&t_char_style, 0, sizeof(MCFieldCharacterStyle));
 	import_html_push_tag(ctxt, kImportHtmlTagNone, t_char_style);
-	
-    if (t_is_unicode_string)
-        ctxt . is_utf8 = true;
-    
+
+	if (t_is_unicode_string)
+		ctxt . is_utf8 = true;
+
 	// We implicitly start with a start tag (notionally).
 	bool t_saw_start_tag;
 	t_saw_start_tag = true;

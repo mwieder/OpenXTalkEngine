@@ -284,11 +284,11 @@ bool MCVectorImageRep::LoadImageFrames(MCBitmapFrame *&r_frames, uindex_t &r_fra
 bool MCVectorImageRep::LoadHeader(uindex_t &r_width, uindex_t &r_height, uint32_t &r_frame_count)
 {
 	bool t_success = true;
-    MCAutoDataRef t_data;
+	MCAutoDataRef t_data;
 
 	IO_handle t_stream = nil;
-    if (t_success)
-        t_success = nil != (t_stream = MCS_fakeopen((const char *)m_data, m_size));
+	if (t_success)
+		t_success = nil != (t_stream = MCS_fakeopen((const char *)m_data, m_size));
 
 	if (t_success)
 		t_success = MCImageGetMetafileGeometry(t_stream, r_width, r_height);

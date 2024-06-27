@@ -84,12 +84,12 @@ void IO_cleanprocesses()
 	MCS_checkprocesses();
 	uint2 i = 0;
 	while (i < MCnprocesses)
-		if (MCprocesses[i].pid == 0
-		        && (MCprocesses[i].ihandle == NULL
+		if (0 == MCprocesses[i].pid
+		        && (NULL == MCprocesses[i].ihandle
 		            || MCS_eof(MCprocesses[i].ihandle)))
 		{
 #ifdef X11
-			if (MCprocesses[i].mode == OM_VCLIP)
+			if (OM_VCLIP == MCprocesses[i].mode)
 			{
 				MCPlayerHandle t_player = MCplayers;
 				while (t_player.IsValid())
@@ -105,9 +105,9 @@ void IO_cleanprocesses()
 				}
 			}
 #endif
-			if (MCprocesses[i].ihandle != NULL)
+			if (NULL != MCprocesses[i].ihandle)
 				MCS_close(MCprocesses[i].ihandle);
-			if (MCprocesses[i].ohandle != NULL)
+			if (NULL != MCprocesses[i].ohandle)
 				MCS_close(MCprocesses[i].ohandle);
 			MCValueRelease(MCprocesses[i].name);
 			uint2 j = i;
@@ -132,22 +132,22 @@ real8 IO_cleansockets(real8 ctime)
 			MCSocket *s = MCsockets[i++];
 			if (!s->waiting && !s->accepting
 			    && ((!s->connected && ctime > s->timeout)
-			        || (s->wevents != NULL && ctime > s->wevents->timeout)
-			        || (s->revents != NULL && ctime > s->revents->timeout)))
+			        || (NULL != s->wevents && ctime > s->wevents->timeout)
+			        || (NULL != s->revents && ctime > s->revents->timeout)))
 			{
 				if (!s->connected)
 					s->timeout = ctime  + MCsockettimeout;
-				if (s->revents != NULL)
+				if (NULL != s->revents)
 					s->revents->timeout = ctime + MCsockettimeout;
-				if (s->wevents != NULL)
+				if (NULL != s->wevents)
 					s->wevents->timeout = ctime + MCsockettimeout;
                 
                 if (s->object.IsValid())
                     MCscreen->delaymessage(s->object, MCM_socket_timeout, MCNameGetString(s->name));
 			}
-			if (s->wevents != NULL && s->wevents->timeout < etime)
+			if (NULL != s->wevents && s->wevents->timeout < etime)
 				etime = s->wevents->timeout;
-			if (s->revents != NULL && s->revents->timeout < etime)
+			if (NULL != s->revents && s->revents->timeout < etime)
 				etime = s->revents->timeout;
 		}
 	return etime;
@@ -616,14 +616,14 @@ IO_stat IO_read_stringref_new(MCStringRef& r_string, IO_handle p_stream, bool p_
 {
 	if (!p_supports_unicode)
 		return IO_read_stringref_legacy(r_string, p_stream, false, p_size);
-	
+
 	uint32_t t_length;
 	if (IO_read_uint2or4(&t_length, p_stream) != IO_NORMAL)
 		return IO_ERROR;
-	
-    if (MCStackSecurityReadUTF8StringRef(r_string, t_length, p_stream) != IO_NORMAL)
-        return IO_ERROR;
-	
+
+	if (MCStackSecurityReadUTF8StringRef(r_string, t_length, p_stream) != IO_NORMAL)
+		return IO_ERROR;
+
 	return IO_NORMAL;
 }
 
@@ -668,7 +668,7 @@ IO_stat IO_read_nameref_legacy(MCNameRef& r_name, IO_handle p_stream, bool p_as_
 	IO_stat t_stat;
 	MCAutoStringRef t_string;
 	t_stat = IO_read_stringref_legacy(&t_string, p_stream, p_as_unicode, p_size);
-	if (t_stat == IO_NORMAL &&
+	if (IO_NORMAL == t_stat &&
 		!MCNameCreate(*t_string, r_name))
 		t_stat = IO_ERROR;
 	return t_stat;
@@ -684,7 +684,7 @@ IO_stat IO_read_nameref_new(MCNameRef& r_name, IO_handle p_stream, bool p_suppor
 	IO_stat t_stat;
 	MCAutoStringRef t_string;
 	t_stat = IO_read_stringref_new(&t_string, p_stream, p_supports_unicode, p_size);
-	if (t_stat == IO_NORMAL &&
+	if (IO_NORMAL == t_stat &&
 		!MCNameCreate(*t_string, r_name))
 		t_stat = IO_ERROR;
 	return t_stat;
@@ -770,7 +770,7 @@ IO_stat IO_write_valueref_new(MCValueRef p_value, IO_handle p_stream)
 			else
 			{
 				t_stat = IO_write_uint1(IO_VALUEREF_NUMBER_DOUBLE, p_stream);
-				if (t_stat == IO_NORMAL)
+				if (IO_NORMAL == t_stat)
 					t_stat = IO_write_real8(MCNumberFetchAsReal((MCNumberRef)p_value), p_stream);
 			}
 			break;

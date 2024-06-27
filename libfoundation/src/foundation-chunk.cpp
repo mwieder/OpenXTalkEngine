@@ -156,7 +156,7 @@ bool MCChunkGetExtentsByRangeInRange(bool p_strict, bool p_boundary_start, bool 
 //  This is so that executing things like 'the offset of x after 0 in x' doesn't throw an error.
 bool MCChunkGetExtentsByExpressionInRange(bool p_strict, bool p_boundary_start, bool p_boundary_end, integer_t p_first, MCChunkCountCallback p_callback, void *p_context, MCRange *p_range, uindex_t& r_first, uindex_t& r_chunk_count)
 {
-    int32_t t_chunk_count;
+    uint32_t t_chunk_count;
     t_chunk_count = 1;
     
     uinteger_t t_count;

@@ -1172,7 +1172,7 @@ bool MCU_matchname(MCNameRef test, Chunk_term type, MCNameRef name)
 	if (MCNameIsEqualToCaseless(name, test))
 		return true;
 
-	MCAssert(type - CT_STACK < (sizeof(nametable) / sizeof(nametable[0])));
+	MCAssert((long unsigned int)(type - CT_STACK) < (sizeof(nametable) / sizeof(nametable[0])));
 	
     bool match = false;
 
@@ -1186,7 +1186,7 @@ bool MCU_matchname(MCNameRef test, Chunk_term type, MCNameRef name)
         MCStringGetLength(t_test) - t_offset > t_name_length + 1 &&
         MCStringGetNativeCharAtIndex(t_test, t_offset + t_name_length + 1) == '"' &&
         MCStringSubstringIsEqualTo(t_test, MCRangeMake(t_offset + 1, t_name_length), t_name, kMCCompareCaseless) &&
-        t_offset >= (int)strlen(*nametable[type - CT_STACK]) &&
+        t_offset >= (unsigned int)strlen(*nametable[type - CT_STACK]) &&
         MCStringSubstringIsEqualTo(t_test, MCRangeMake(0, strlen(*nametable[type - CT_STACK])), MCSTR(*nametable[type - CT_STACK]), kMCCompareCaseless))
             match = True;
 

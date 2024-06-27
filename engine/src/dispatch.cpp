@@ -1682,13 +1682,13 @@ MCDragAction MCDispatch::wmdragmove(Window w, int2 x, int2 y)
 	static uint4 s_old_modifiers = 0;
 
 	MCStack *target = findstackd(w);
-    if (target == nil)
-        return DRAG_ACTION_NONE;
-	
+	if (target == nil)
+ 		return DRAG_ACTION_NONE;
+
 	// IM-2013-10-08: [[ FullscreenMode ]] Translate mouse location to stack coords
 	MCPoint t_mouseloc;
 	t_mouseloc = target->windowtostackloc(MCPointMake(x, y));
-	
+
 	if (MCmousex != t_mouseloc.x || MCmousey != t_mouseloc.y || MCmodifierstate != s_old_modifiers)
 	{
 		MCmousex = t_mouseloc.x;

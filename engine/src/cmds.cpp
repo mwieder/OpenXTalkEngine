@@ -327,10 +327,10 @@ Parse_stat MCDo::parse(MCScriptPoint &sp)
 
 void MCDo::exec_ctxt(MCExecContext& ctxt)
 {
-    MCAutoStringRef t_script;
-    if (!ctxt . EvalExprAsStringRef(source, EE_DO_BADEXP, &t_script))
-        return;
-    
+	MCAutoStringRef t_script;
+	if (!ctxt . EvalExprAsStringRef(source, EE_DO_BADEXP, &t_script))
+		return;
+
 	if (widget)
 	{
 		MCObject *t_object;
@@ -344,35 +344,35 @@ void MCDo::exec_ctxt(MCExecContext& ctxt)
 		MCInterfaceExecDoInWidget(ctxt, *t_script, (MCWidget*)t_object);
 		return;
 	}
-	
-    if (browser)
-    {
-        MCLegacyExecDoInBrowser(ctxt, *t_script);
-        return;        
-    }
-    
-    if (alternatelang != NULL)
+
+	if (browser)
 	{
-        MCAutoStringRef t_language;
-        if (!ctxt . EvalExprAsStringRef(alternatelang, EE_DO_BADLANG, &t_language))
-            return;
-        
-        MCScriptingExecDoAsAlternateLanguage(ctxt, *t_script, *t_language);
-        return;
+		MCLegacyExecDoInBrowser(ctxt, *t_script);
+		return;        
 	}
-    
-    if (debug)
+
+	if (alternatelang != NULL)
+	{
+		MCAutoStringRef t_language;
+		if (!ctxt . EvalExprAsStringRef(alternatelang, EE_DO_BADLANG, &t_language))
+			return;
+
+		MCScriptingExecDoAsAlternateLanguage(ctxt, *t_script, *t_language);
+		return;
+	}
+
+	if (debug)
 	{
 		MCDebuggingExecDebugDo(ctxt, *t_script, line, pos);
-        return;
+		return;
 	}
-    
-    // AL-2014-11-17: [[ Bug 14044 ]] Do in caller not implemented
-    if (caller)
-    {
-        MCEngineExecDoInCaller(ctxt, *t_script, line, pos);
-        return;
-    }
+
+	// AL-2014-11-17: [[ Bug 14044 ]] Do in caller not implemented
+	if (caller)
+	{
+		MCEngineExecDoInCaller(ctxt, *t_script, line, pos);
+		return;
+	}
 
 	MCEngineExecDo(ctxt, *t_script, line, pos);
 }

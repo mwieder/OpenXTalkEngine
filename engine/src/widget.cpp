@@ -185,10 +185,10 @@ void MCWidget::kunfocus(void)
 
 Boolean MCWidget::kdown(MCStringRef p_key_string, KeySym p_key)
 {
-    // Only send the key down event to the widget if in browse mode
-    if (m_widget != nil && getstack() -> gettool(this) == T_BROWSE)
-        if (MCwidgeteventmanager->event_kdown(this, p_key_string, p_key))
-            return True;
+	// Only send the key down event to the widget if in browse mode
+	if (m_widget != nil && getstack() -> gettool(this) == T_BROWSE)
+		if (MCwidgeteventmanager->event_kdown(this, p_key_string, p_key))
+			return True;
 
 	return MCControl::kdown(p_key_string, p_key);
 }
@@ -358,15 +358,15 @@ void MCWidget::recompute(void)
 
 static void lookup_name_for_prop(Properties p_which, MCNameRef& r_name)
 {
-    extern const LT factor_table[];
-    extern const uint4 factor_table_size;
-    for(uindex_t i = 0; i < factor_table_size; i++)
-        if (factor_table[i] . type == TT_PROPERTY && factor_table[i] . which == p_which)
-        {
-            r_name = MCNAME(factor_table[i] . token);
-            return;
-        }
-	
+	extern const LT factor_table[];
+	extern const uint4 factor_table_size;
+	for(uindex_t i = 0; i < factor_table_size; i++)
+		if (factor_table[i] . type == TT_PROPERTY && factor_table[i] . which == p_which)
+		{
+			r_name = MCNAME(factor_table[i] . token);
+			return;
+		}
+
 	extern bool lookup_property_override_name(uint16_t p_property, MCNameRef &r_name);
 	if (lookup_property_override_name(p_which, r_name))
 		return;

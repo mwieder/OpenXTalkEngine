@@ -674,9 +674,9 @@ Exec_stat MCField::settextindex(uint4 parid, findex_t si, findex_t ei, MCStringR
 
     MCParagraph *toppgptr = fptr->getparagraphs();
 
-    // 'put after' puts at PARAGRAPH_MAX_LEN...
-    if (si == PARAGRAPH_MAX_LEN)
-    {
+	// 'put after' puts at PARAGRAPH_MAX_LEN...
+	if (si == PARAGRAPH_MAX_LEN)
+	{
         MCParagraph* t_paragraph;
         t_paragraph = fptr -> getparagraphs();
         oldsi = 0;
@@ -688,9 +688,9 @@ Exec_stat MCField::settextindex(uint4 parid, findex_t si, findex_t ei, MCStringR
         }
         // Add the length of the last paragraph
         oldsi += t_paragraph -> gettextlength();
-    }
-    else
-        oldsi = si;
+	}
+	else
+		oldsi = si;
 
 	MCParagraph *pgptr;
 	pgptr = verifyindices(toppgptr, si, ei);
@@ -784,10 +784,10 @@ Exec_stat MCField::settextindex(uint4 parid, findex_t si, findex_t ei, MCStringR
 
 	// MM-2014-04-09: [[ Bug 12088 ]] Get the width of the paragraph before insertion and layout.
 	//  If as a result of the update the width of the field has changed, we need to recompute.
-    // MW-2014-06-06: [[ Bug 12385 ]] Don't do anything layout related if not open.
+	// MW-2014-06-06: [[ Bug 12385 ]] Don't do anything layout related if not open.
 	int2 t_initial_width = 0;
-    if (opened != 0)
-        t_initial_width = pgptr -> getwidth();
+	if (opened != 0)
+		t_initial_width = pgptr -> getwidth();
 	
 	// MW-2012-02-13: [[ Block Unicode ]] Use the new finsert method in native mode.
 	// MW-2012-02-23: [[ PutUnicode ]] Pass through the encoding to finsertnew.
@@ -1499,10 +1499,10 @@ bool MCField::returnchunk(findex_t p_si, findex_t p_ei, MCStringRef& r_chunk, bo
 
 	// MW-2012-02-23: [[ CharChunk ]] Map the internal field indices (si, ei) to
 	//   char indices.
-    // SN-2014-02-11: [[ Unicodify ]] The functions calling returnchunk already have field indices.
-    // SN-2014-05-16 [[ Bug 12432 ]] Re-establish unresolving of the chars indices
-    if (!p_char_indices)
-        unresolvechars(0, p_si, p_ei);
+	// SN-2014-02-11: [[ Unicodify ]] The functions calling returnchunk already have field indices.
+	// SN-2014-05-16 [[ Bug 12432 ]] Re-establish unresolving of the chars indices
+	if (!p_char_indices)
+		unresolvechars(0, p_si, p_ei);
 	
 	const char *sptr = parent->gettype() == CT_CARD && getstack()->hcaddress()
 										 ? "char %d to %d of card field %d" : "char %d to %d of field %d";

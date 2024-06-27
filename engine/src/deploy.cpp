@@ -565,28 +565,28 @@ bool MCDeployWriteCapsule(const MCDeployParameters& p_params, MCDeployFileRef p_
     MCAutoArray<MCDeployFileRef> t_module_files;
 	if (t_success)
 		t_success = t_module_files . New(MCArrayGetCount(p_params . modules));
-    if (t_success)
-        for(uindex_t i = 0; i < MCArrayGetCount(p_params.modules) && t_success; i++)
-        {
-            MCValueRef t_module_filename;
-            /* UNCHECKED */ MCArrayFetchValueAtIndex(p_params .modules, i + 1, t_module_filename);
+	if (t_success)
+		for(uindex_t i = 0; i < MCArrayGetCount(p_params.modules) && t_success; i++)
+		{
+			MCValueRef t_module_filename;
+			/* UNCHECKED */ MCArrayFetchValueAtIndex(p_params .modules, i + 1, t_module_filename);
 			if (t_success && !MCDeployFileOpen((MCStringRef)t_module_filename, kMCOpenFileModeRead, t_module_files[i]))
 				t_success = MCDeployThrow(kMCDeployErrorNoModule);
-            if (t_success)
-                t_success = MCDeployCapsuleDefineFromFile(t_capsule, kMCCapsuleSectionTypeModule, t_module_files[i]);
-        }
-    
-    ////////
-    
-			
-    // Add any font mappings
-    if (t_success)
-        for(uint32_t i = 0; i < MCArrayGetCount(p_params.fontmappings) && t_success; i++)
-        {
-            MCValueRef t_val;
-            /* UNCHECKED */ MCArrayFetchValueAtIndex(p_params.fontmappings, i + 1, t_val);
-            t_success = MCDeployCapsuleDefineString(t_capsule, kMCCapsuleSectionTypeFontmap, (MCStringRef)t_val);
-        }
+			if (t_success)
+				t_success = MCDeployCapsuleDefineFromFile(t_capsule, kMCCapsuleSectionTypeModule, t_module_files[i]);
+		}
+
+	////////
+
+
+	// Add any font mappings
+	if (t_success)
+		for(uint32_t i = 0; i < MCArrayGetCount(p_params.fontmappings) && t_success; i++)
+		{
+			MCValueRef t_val;
+			/* UNCHECKED */ MCArrayFetchValueAtIndex(p_params.fontmappings, i + 1, t_val);
+			t_success = MCDeployCapsuleDefineString(t_capsule, kMCCapsuleSectionTypeFontmap, (MCStringRef)t_val);
+		}
 
 	// Now we add the main stack
 	if (t_success)
@@ -635,8 +635,8 @@ bool MCDeployWriteCapsule(const MCDeployParameters& p_params, MCDeployFileRef p_
 	MCDeployCapsuleDestroy(t_capsule);
 	for(uindex_t i = 0; i < t_aux_stackfiles . Size(); i++)
 		MCDeployFileClose(t_aux_stackfiles[i]);
-    for(uindex_t i = 0; i < t_module_files . Size(); i++)
-        MCDeployFileClose(t_module_files[i]);
+	for(uindex_t i = 0; i < t_module_files . Size(); i++)
+		MCDeployFileClose(t_module_files[i]);
 	MCDeployFileClose(t_spill);
 	MCDeployFileClose(t_stackfile);
 
@@ -1110,10 +1110,10 @@ void MCIdeDiet::exec_ctxt(MCExecContext& ctxt)
 {
 	// Clear the result as we return an error there
 	ctxt . SetTheResultToEmpty();
-    
-    MCAutoArrayRef t_array;
-    if (!ctxt . EvalExprAsArrayRef(m_params, EE_UNDEFINED, &t_array))
-        return;
+
+	MCAutoArrayRef t_array;
+	if (!ctxt . EvalExprAsArrayRef(m_params, EE_UNDEFINED, &t_array))
+		return;
 
 	MCDeployDietParameters t_params;
 
@@ -1187,10 +1187,10 @@ void MCIdeDmgDump::exec_ctxt(MCExecContext &ctxt)
 	// Clear the result as we return an error there
 	ctxt . SetTheResultToEmpty();
 
-    MCAutoStringRef t_string;
-    if (!ctxt . EvalExprAsStringRef(m_filename, EE_UNDEFINED, &t_string))
-        return;
-	
+	MCAutoStringRef t_string;
+	if (!ctxt . EvalExprAsStringRef(m_filename, EE_UNDEFINED, &t_string))
+		return;
+
 	if (!ctxt . HasError())
 	{
         MCAutoPointer<char> temp;
@@ -1367,18 +1367,18 @@ Parse_stat MCIdeExtract::parse(MCScriptPoint& sp)
 
 void MCIdeExtract::exec_ctxt(MCExecContext& ctxt)
 {
-	
+
 	MCAutoStringRef t_segment;
-    if (!ctxt . EvalExprAsStringRef(m_segment_name, EE_IDE_EXTRACT_BADSEGMENT, &t_segment))
-        return;
-	
+	if (!ctxt . EvalExprAsStringRef(m_segment_name, EE_IDE_EXTRACT_BADSEGMENT, &t_segment))
+		return;
+
 	MCAutoStringRef t_section;
-    if (!ctxt . EvalExprAsStringRef(m_section_name, EE_IDE_EXTRACT_BADSECTION, &t_section))
-        return;
-	
+	if (!ctxt . EvalExprAsStringRef(m_section_name, EE_IDE_EXTRACT_BADSECTION, &t_section))
+		return;
+
 	MCAutoStringRef t_filename;
-    if (!ctxt . EvalExprAsStringRef(m_filename, EE_IDE_EXTRACT_BADFILENAME, &t_filename))
-        return;
+	if (!ctxt . EvalExprAsStringRef(m_filename, EE_IDE_EXTRACT_BADFILENAME, &t_filename))
+		return;
 
 	void *t_data;
 	uint32_t t_data_size;

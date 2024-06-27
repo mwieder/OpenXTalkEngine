@@ -560,12 +560,12 @@ void MCPlayer::setfilename(MCStringRef vcname,
                            MCStringRef fname, Boolean istmp)
 {
 	// AL-2014-05-27: [[ Bug 12517 ]] Incoming strings can be nil
-    MCNewAutoNameRef t_vcname;
-    if (vcname != nil)
-        MCNameCreate(vcname, &t_vcname);
-    else
-        t_vcname = kMCEmptyName;
-    
+	MCNewAutoNameRef t_vcname;
+	if (vcname != nil)
+		MCNameCreate(vcname, &t_vcname);
+	else
+		t_vcname = kMCEmptyName;
+
 	setname(*t_vcname);
 	filename = MCValueRetain(fname != nil ? fname : kMCEmptyString);
 	istmpfile = istmp;

@@ -688,47 +688,47 @@ void MCExport::exec_ctxt(MCExecContext &ctxt)
             ctxt . LegacyThrow(EE_EXPORT_NOTANIMAGE);
             return;
         }
-        
-        MCObject *optr = NULL;
-        //get image from chunk
-        uint4 parid;
-        if (!image->getobj(ctxt, optr, parid, True))
-        {
-            ctxt . LegacyThrow(EE_EXPORT_NOSELECTED);
-            return;
-        }
-        
-        MCAutoArrayRef t_array;
-        MCInterfaceExecExportObjectToArray(ctxt, optr, &t_array);
-        if (ctxt . HasError())
-            return;
-        
-        dest->set(ctxt, PT_INTO, *t_array);
-        if (ctxt . HasError())
-        {
-            ctxt . LegacyThrow(EE_EXPORT_CANTWRITE);
-            return;
-        }
-        
-        return;
-    }
-    
-    MCAutoDataRef t_return_data;
-    MCAutoStringRef t_filename;
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(fname, EE_EXPORT_BADNAME, &t_filename))
-        return;
+
+		MCObject *optr = NULL;
+		//get image from chunk
+		uint4 parid;
+		if (!image->getobj(ctxt, optr, parid, True))
+		{
+			ctxt . LegacyThrow(EE_EXPORT_NOSELECTED);
+			return;
+		}
+
+		MCAutoArrayRef t_array;
+		MCInterfaceExecExportObjectToArray(ctxt, optr, &t_array);
+		if (ctxt . HasError())
+			return;
+
+		dest->set(ctxt, PT_INTO, *t_array);
+		if (ctxt . HasError())
+		{
+			ctxt . LegacyThrow(EE_EXPORT_CANTWRITE);
+			return;
+		}
+
+		return;
+	}
+
+	MCAutoDataRef t_return_data;
+	MCAutoStringRef t_filename;
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(fname, EE_EXPORT_BADNAME, &t_filename))
+		return;
 
 	MCAutoStringRef t_mask_filename;
-    if (!ctxt . EvalOptionalExprAsNullableStringRef(mname, EE_EXPORT_BADNAME, &t_mask_filename))
-        return;
+	if (!ctxt . EvalOptionalExprAsNullableStringRef(mname, EE_EXPORT_BADNAME, &t_mask_filename))
+		return;
     
-    // MERG-2014-07-11: metadata array
-    MCAutoArrayRef t_metadata_array;
-    MCImageMetadata t_metadata;
-    if (!ctxt . EvalOptionalExprAsArrayRef(metadata, kMCEmptyArray , EE_EXPORT_NOSELECTED, &t_metadata_array))
-        return;
+	// MERG-2014-07-11: metadata array
+	MCAutoArrayRef t_metadata_array;
+	MCImageMetadata t_metadata;
+	if (!ctxt . EvalOptionalExprAsArrayRef(metadata, kMCEmptyArray , EE_EXPORT_NOSELECTED, &t_metadata_array))
+		return;
 
-    MCImageParseMetadata(ctxt, *t_metadata_array, t_metadata);
+	MCImageParseMetadata(ctxt, *t_metadata_array, t_metadata);
 
 	MCObject *optr = NULL;
 	if (image != NULL)

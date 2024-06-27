@@ -1326,16 +1326,16 @@ bool MCD_convert(MCExecContext &ctxt, MCValueRef p_input, Convert_form p_primary
 	t_success = MCD_convert_to_datetime(ctxt, p_input, p_primary_from, p_secondary_from, t_datetime);
 
 	MCAutoValueRef t_output;
-    if (t_success)
-        t_success = MCD_convert_from_datetime(ctxt, t_datetime, p_primary_to, p_secondary_to, &t_output);
-	
+	if (t_success)
+		t_success = MCD_convert_from_datetime(ctxt, t_datetime, p_primary_to, p_secondary_to, &t_output);
+
 	MCAutoStringRef t_string;
 	if (t_success)
 		t_success = ctxt.ConvertToString(*t_output, &t_string);
-	
+
 	if (t_success)
 		r_converted = MCValueRetain(*t_string);
-    
+ 
 	return t_success;
 }
 

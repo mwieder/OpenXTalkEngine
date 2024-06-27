@@ -1591,12 +1591,12 @@ Boolean MCButton::mup(uint2 which, bool p_release)
 		// MW-2011-08-18: [[ Layers ]] Invalidate the whole object.
 		layer_redrawall();
 	}
-    
-    // FG-2014-09-16: [[ Bugfix 13278 ]] Clear the mouse focus if this is not
-    // an auto-arming button (e.g. a button within a menu).
-    if (!(flags & F_AUTO_ARM))
-        state &= ~CS_MFOCUSED;
-    
+
+	// FG-2014-09-16: [[ Bugfix 13278 ]] Clear the mouse focus if this is not
+	// an auto-arming button (e.g. a button within a menu).
+	if (!(flags & F_AUTO_ARM))
+		state &= ~CS_MFOCUSED;
+
 	return True;
 }
 
@@ -3489,12 +3489,12 @@ IO_stat MCButton::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uin
         t_flags |= BUTTON_EXTRA_ICONGRAVITY;
         t_length += sizeof(uint32_t);
     }
-    
-    if (t_stat == IO_NORMAL)
-        t_stat = p_stream . WriteTag(t_flags, t_length);
-    
-    if (t_stat == IO_NORMAL && (t_flags & BUTTON_EXTRA_ICONGRAVITY))
-        t_stat = p_stream . WriteU32(m_icon_gravity);
+
+	if (t_stat == IO_NORMAL)
+		t_stat = p_stream . WriteTag(t_flags, t_length);
+
+	if (t_stat == IO_NORMAL && (t_flags & BUTTON_EXTRA_ICONGRAVITY))
+		t_stat = p_stream . WriteU32(m_icon_gravity);
     
 	if (t_stat == IO_NORMAL)
 		t_stat = MCObject::extendedsave(p_stream, p_part, p_version);
@@ -3572,11 +3572,11 @@ IO_stat MCButton::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_
 
 	bool t_has_extension;
 	t_has_extension = icons != NULL && icons -> iconids[CI_HOVER] != 0;
-    
-    // MW-2014-06-20: [[ IconGravity ]] Force an extension if non-legacy gravity.
-    if (m_icon_gravity != kMCGravityNone)
-        t_has_extension = true;
-    
+
+	// MW-2014-06-20: [[ IconGravity ]] Force an extension if non-legacy gravity.
+	if (m_icon_gravity != kMCGravityNone)
+		t_has_extension = true;
+
 	if ((stat = MCObject::save(stream, p_part, t_has_extension || p_force_ext,
 	                           p_version)) != IO_NORMAL)
 		return stat;

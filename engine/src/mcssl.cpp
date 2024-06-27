@@ -160,16 +160,16 @@ unsigned long SSLError(MCStringRef& errbuf)
 #ifdef MCSSL
 	unsigned long ecode = ERR_get_error();
 
-    // SN-2015-07-02: [[ Bug 15568 ]] Mis-translation to StringRef from 6.7:
-    //  errbuf won't be nil, but will always be empty though.
-    if (ecode)
-    {
-        /* UNCHECKED */ MCAutoPointer<char[]> t_errbuf = new (nothrow) char[256];
-        ERR_error_string_n(ecode,&t_errbuf,255);
-        /* UNCHECKED */ MCStringCreateWithCString(*t_errbuf, errbuf);
-    }
-    else
-        errbuf = MCValueRetain(kMCEmptyString);
+	// SN-2015-07-02: [[ Bug 15568 ]] Mis-translation to StringRef from 6.7:
+	//  errbuf won't be nil, but will always be empty though.
+	if (ecode)
+	{
+		/* UNCHECKED */ MCAutoPointer<char[]> t_errbuf = new (nothrow) char[256];
+		ERR_error_string_n(ecode,&t_errbuf,255);
+		/* UNCHECKED */ MCStringCreateWithCString(*t_errbuf, errbuf);
+	}
+	else
+		errbuf = MCValueRetain(kMCEmptyString);
 
 	return ecode;
 #else
@@ -244,9 +244,9 @@ bool load_pem_key(const char *p_data, uint32_t p_length, RSA_KEYTYPE p_type, con
         
         EVP_PKEY_free(t_key);
     }
-    
-    if (t_success)
-        r_rsa = t_rsa;
+
+	if (t_success)
+		r_rsa = t_rsa;
 
 	return t_success;
 }
@@ -280,7 +280,7 @@ bool MCCrypt_rsa_op(bool p_encrypt, RSA_KEYTYPE p_key_type, const char *p_messag
     
     bool t_success = true;
 	RSA *t_rsa = NULL;
-	int32_t t_rsa_size;
+	uint32_t t_rsa_size;
 	uint8_t *t_output_buffer = NULL;
 	int32_t t_output_length;
 

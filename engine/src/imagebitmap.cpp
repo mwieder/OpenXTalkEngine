@@ -30,7 +30,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 static bool check_point(MCImageBitmap *p_bitmap, int32_t x, int32_t y)
 {
-	return (x >= 0) && (x < p_bitmap->width) && (y >= 0) && (y < p_bitmap->height);
+	return ((uint32_t)x >= 0) && (x < p_bitmap->width) && ((uint32_t)y >= 0) && (y < p_bitmap->height);
 }
 
 static bool check_bounds(MCImageBitmap *p_bitmap, int32_t x, int32_t y, uint32_t width, uint32_t height)
@@ -286,8 +286,8 @@ void MCImageBitmapCopyRegionFromBuffer(MCImageBitmap *p_bitmap, MCRectangle &p_r
 
 void MCImageBitmapCheckTransparency(MCImageBitmap *p_bitmap)
 {
-    if (p_bitmap == nil)
-        return;
+	if (p_bitmap == nil)
+		return;
 	uint8_t *t_row_ptr = (uint8_t*)p_bitmap->data;
 	p_bitmap->has_transparency = false;
 	p_bitmap->has_alpha = false;
@@ -315,15 +315,15 @@ void MCImageBitmapCheckTransparency(MCImageBitmap *p_bitmap)
 
 bool MCImageBitmapHasTransparency(MCImageBitmap *p_bitmap)
 {
-    if (p_bitmap == nil)
-        return false;
+	if (p_bitmap == nil)
+		return false;
 	return p_bitmap->has_transparency;
 }
 
 bool MCImageBitmapHasTransparency(MCImageBitmap *p_bitmap, bool &r_has_alpha)
 {
-    if (p_bitmap == nil)
-        return false;
+	if (p_bitmap == nil)
+		return false;
 	r_has_alpha = p_bitmap->has_alpha;
 	return p_bitmap->has_transparency;
 }
@@ -353,8 +353,8 @@ void MCImageBitmapPremultiplyRegion(MCImageBitmap *p_bitmap, int32_t p_sx, int32
 	int32_t t_dst_x = t_src_x - p_sx;
 	int32_t t_dst_y = t_src_y - p_sy;
 
-	int32_t t_width = MCMin((int32_t)p_bitmap->width - t_src_x, (int32_t)p_sw);
-	int32_t t_height = MCMin((int32_t)p_bitmap->height - t_src_y, (int32_t)p_sh);
+	uint32_t t_width = MCMin((uint32_t)p_bitmap->width - t_src_x, (uint32_t)p_sw);
+	uint32_t t_height = MCMin((uint32_t)p_bitmap->height - t_src_y, (uint32_t)p_sh);
 
 	if (t_width <= 0 || t_height <= 0)
 		return;
@@ -812,12 +812,12 @@ bool MCImageDataIsJPEG(MCDataRef p_input)
     
 	if (t_length < 9)
 		return false;
-    
+
 	if (t_data[0] != 0xFF || t_data[1] != 0xD8 || t_data[2] != 0xFF)
-        return false;
-    if (t_data[3] != 0xDB && t_data[3] != 0xE0)
-        return false;
-    
+		return false;
+	if (t_data[3] != 0xDB && t_data[3] != 0xE0)
+		return false;
+
 	return true;
 }
 

@@ -166,7 +166,7 @@ class XMLDocumentList
 	}
 	VXMLDocList *getList() {return &doclist;}
 	//remove document from list by document id.
-	Bool erase(const int fid) 
+	Bool erase(const unsigned int fid) 
 	{
 		VXMLDocList::iterator theIterator;
 		for (theIterator = doclist.begin(); theIterator != doclist.end(); theIterator++){
@@ -180,7 +180,7 @@ class XMLDocumentList
 		return False;
 	}
 	//find CXMLDocument by document id
-	CXMLDocument *find(const int fid) 
+	CXMLDocument *find(const unsigned int fid) 
 	{
 		VXMLDocList::iterator theIterator;
 		for (theIterator = doclist.begin(); theIterator != doclist.end(); theIterator++){
@@ -310,7 +310,7 @@ static int computehash(char *keystr)
 		value += tolower(*sptr++);
 		value = value * 3;
 	}
-	return value & 96000 -1;
+	return (value & 96000) -1;
 }
 #else
 extern int computehash(char *keystr);
@@ -365,8 +365,8 @@ void XML_Init(char *args[], int nargs, char **retstring,
 			}
 			else
 				buffer[count] = lencode[buffer[count]-97];
-			passkey = computehash(buffer);
-			free(buffer);
+		passkey = computehash(buffer);
+		free(buffer);
 		if (atoi(args[1]) == passkey || True == REVXMLinited)
 		{
 			*retstring = istrdup("TRUE");
@@ -2566,7 +2566,7 @@ static char *XML_ObjectPtr_to_Xpaths(xmlXPathObjectPtr pObject, char *pLineDelim
  */
 static char *XML_ObjectPtr_to_Data(xmlXPathObjectPtr pObject, char *pElementDelimiter, char *pLineDelimiter)
 {
-	int iBufferSize = 8192;
+	unsigned int iBufferSize = 8192;
 	if (NULL != pObject)
 	{
 		xmlNodeSetPtr nodes = XML_Object_to_NodeSet(pObject);
@@ -2574,7 +2574,7 @@ static char *XML_ObjectPtr_to_Data(xmlXPathObjectPtr pObject, char *pElementDeli
 		{
     		long unsigned int i;
 			xmlNodePtr cur;
-		    	int size = (nodes) ? nodes->nodeNr : 0;
+		    	unsigned int size = (nodes) ? nodes->nodeNr : 0;
 			char *buffer = (char*)malloc(iBufferSize);
 			*buffer = (char)0; // null-terminate to start things off
 

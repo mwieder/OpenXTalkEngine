@@ -491,48 +491,48 @@ bool MCEngineConvertToScriptParameters(MCExecContext& ctxt, MCProperListRef p_ar
 
 MCValueRef MCEngineDoSendToObjectWithArguments(bool p_is_function, MCStringRef p_message, MCObject *p_object, MCProperListRef p_arguments)
 {
-    MCNewAutoNameRef t_message_as_name;
-    if (!MCNameCreate(p_message, &t_message_as_name))
-        return nil;
-    
-    MCExecContext ctxt(MCdefaultstackptr, nil, nil);
-    MCAutoCustomPointer<MCParameter, MCEngineFreeScriptParameters> t_params;
-    t_params = nil;
-    
-    if (!MCEngineConvertToScriptParameters(ctxt, p_arguments, &t_params))
-        return nullptr;
-    
+	MCNewAutoNameRef t_message_as_name;
+	if (!MCNameCreate(p_message, &t_message_as_name))
+		return nil;
+
+	MCExecContext ctxt(MCdefaultstackptr, nil, nil);
+	MCAutoCustomPointer<MCParameter, MCEngineFreeScriptParameters> t_params;
+	t_params = nil;
+
+	if (!MCEngineConvertToScriptParameters(ctxt, p_arguments, &t_params))
+		return nullptr;
+
 	/* Clear any existing value from the result to enable testing
 	 * whether dispatching generated a result. */
 	MCresult->clear();
 
-    Exec_stat t_stat;
-    t_stat = p_object -> dispatch(!p_is_function ? HT_MESSAGE : HT_FUNCTION, *t_message_as_name, *t_params);
-    if (t_stat == ES_ERROR)
-    {
-        MCEngineThrowScriptError();
-        return nullptr;
-    }
-    
-    if (t_stat == ES_NORMAL)
-        s_last_message_was_handled = true;
-    else
-        s_last_message_was_handled = false;
+	Exec_stat t_stat;
+	t_stat = p_object -> dispatch(!p_is_function ? HT_MESSAGE : HT_FUNCTION, *t_message_as_name, *t_params);
+	if (t_stat == ES_ERROR)
+	{
+		MCEngineThrowScriptError();
+		return nullptr;
+	}
 
-    return MCEngineEvalScriptResult(ctxt);
+	if (t_stat == ES_NORMAL)
+		s_last_message_was_handled = true;
+	else
+		s_last_message_was_handled = false;
+
+	return MCEngineEvalScriptResult(ctxt);
 }
 
 extern "C" MC_DLLEXPORT_DEF MCValueRef MCEngineExecSendToScriptObjectWithArguments(bool p_is_function, MCStringRef p_message, MCScriptObjectRef p_object, MCProperListRef p_arguments)
 {
-    if (!MCEngineEnsureScriptObjectAccessIsAllowed())
-        return nil;
-    
+	if (!MCEngineEnsureScriptObjectAccessIsAllowed())
+	return nil;
+
 	MCObject *t_object;
 	uint32_t t_part_id;
 	if (!MCEngineEvalObjectOfScriptObject(p_object, t_object, t_part_id))
 		return nil;
-	
-    return MCEngineDoSendToObjectWithArguments(p_is_function, p_message, t_object, p_arguments);
+
+	return MCEngineDoSendToObjectWithArguments(p_is_function, p_message, t_object, p_arguments);
 }
 
 extern "C" MC_DLLEXPORT_DEF MCValueRef MCEngineExecSendToScriptObject(bool p_is_function, MCStringRef p_message, MCScriptObjectRef p_object)
@@ -589,9 +589,9 @@ void MCEngineDoPostToObjectWithArguments(MCStringRef p_message, MCObject *p_obje
     
     MCExecContext ctxt(MCdefaultstackptr, nil, nil);
     MCParameter *t_params;
-    MCValueRef t_result;
+//    MCValueRef t_result;
     t_params = nil;
-    t_result = nil;
+//    t_result = nil;
     
     if (!MCEngineConvertToScriptParameters(ctxt, p_arguments, t_params))
         return;
@@ -603,15 +603,15 @@ void MCEngineDoPostToObjectWithArguments(MCStringRef p_message, MCObject *p_obje
 
 extern "C" MC_DLLEXPORT_DEF void MCEngineExecPostToScriptObjectWithArguments(MCStringRef p_message, MCScriptObjectRef p_object, MCProperListRef p_arguments)
 {
-    if (!MCEngineEnsureScriptObjectAccessIsAllowed())
-        return;
-    
+	if (!MCEngineEnsureScriptObjectAccessIsAllowed())
+		return;
+
 	MCObject *t_object;
 	uint32_t t_part_id;
 	if (!MCEngineEvalObjectOfScriptObject(p_object, t_object, t_part_id))
 		return;
-    
-    MCEngineDoPostToObjectWithArguments(p_message, t_object, p_arguments);
+
+	MCEngineDoPostToObjectWithArguments(p_message, t_object, p_arguments);
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCEngineExecPostToScriptObject(MCStringRef p_message, MCScriptObjectRef p_object)

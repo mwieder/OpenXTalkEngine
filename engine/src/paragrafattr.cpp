@@ -458,12 +458,12 @@ uint32_t MCParagraph::measureattrs(uint32_t p_version)
 	// The padding field.
 	if ((attrs -> flags & PA_HAS_PADDING) != 0)
 		t_size += 1;
-	
+
 	// MW-2012-03-19: [[ HiddenText ]] If the hidden prop is set, then we need a second flags
 	//   word.
 	if (hasextraflag())
 		t_size += 2;
-	
+
 	// MW-2012-11-13: [[ ParaMetadata ]] If the paragraph has metadata then add that on.
 	extern uint32_t measure_stringref(MCStringRef string, uint32_t p_version);
 	if ((attrs -> flags & PA_HAS_METADATA) != 0)
@@ -472,11 +472,11 @@ uint32_t MCParagraph::measureattrs(uint32_t p_version)
 	// MW-2012-11-13: [[ ParaListIndex ]] If the paragraph has a list index, then add that on.
 	if ((attrs -> flags & PA_HAS_LIST_INDEX) != 0)
 		t_size += 2;
-    
-    // SN-2015-05-01: [[ Bug 15175 ]] Need 2 bytes for the uint16_t size, and 1
-    //  byte per alignment.
-    if ((attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
-        t_size += 2 + attrs->alignments_count;
+
+	// SN-2015-05-01: [[ Bug 15175 ]] Need 2 bytes for the uint16_t size, and 1
+	//  byte per alignment.
+	if ((attrs -> flags & PA_HAS_TAB_ALIGNMENTS) != 0)
+		t_size += 2 + attrs->alignments_count;
 
 	return t_size;
 }

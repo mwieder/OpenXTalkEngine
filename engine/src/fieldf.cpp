@@ -1457,10 +1457,10 @@ void MCField::startselection(int2 x, int2 y, Boolean words)
 		firstparagraph = lastparagraph = focusedparagraph;
 		firsty = focusedy;
 	}
-    // SN-2014-12-08: [[ Bug 12784 ]] Only make this field the selectedfield
-    //  if it is Focusable
-    if (flags & F_TRAVERSAL_ON)
-        MCactivefield = this;
+	// SN-2014-12-08: [[ Bug 12784 ]] Only make this field the selectedfield
+	//  if it is Focusable
+	if (flags & F_TRAVERSAL_ON)
+		MCactivefield = this;
 	if (!(flags & F_LOCK_TEXT))
 	{
 		replacecursor(True, True);

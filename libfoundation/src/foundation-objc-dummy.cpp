@@ -119,7 +119,9 @@ objc_id_copy(const MCForeignTypeDescriptor*, void *from, void *to)
 static bool
 objc_id_equal(const MCForeignTypeDescriptor*, void *from, void *to, bool& r_equal)
 {
-    r_equal = *static_cast<void **>(to) == *static_cast<void **>(to);
+//    r_equal = *static_cast<void **>(to) == *static_cast<void **>(to);
+//	always true, so just set it.
+	r_equal = true;
     return true;
 }
 

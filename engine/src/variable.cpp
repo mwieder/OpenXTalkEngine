@@ -232,12 +232,12 @@ void MCVariable::clearuql(void)
 {    
 	if (!is_uql)
 		return;
-    
-    // SN-2014-04-09 [[ Bug 12160 ]] Put after/before on an uninitialised, by-reference parameter inserts the variable's name in it
-    // The content of a UQL value was not cleared when needed
-    if (value . type == kMCExecValueTypeNameRef && MCNameIsEqualToCaseless(value . nameref_value, *name))
-        clear();
-    
+
+	// SN-2014-04-09 [[ Bug 12160 ]] Put after/before on an uninitialised, by-reference parameter inserts the variable's name in it
+	// The content of a UQL value was not cleared when needed
+	if (value . type == kMCExecValueTypeNameRef && MCNameIsEqualToCaseless(value . nameref_value, *name))
+		clear();
+
 	is_uql = false;
 }
 
@@ -1330,9 +1330,9 @@ void MCVarref::clearuql()
 bool MCVarref::dofree(MCExecContext& ctxt)
 {
 	MCContainer t_container;
-    if (!resolve(ctxt, t_container))
-        return false;
-    
+	if (!resolve(ctxt, t_container))
+		return false;
+
 	return t_container.remove(ctxt);
 }
 

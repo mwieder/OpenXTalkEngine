@@ -493,15 +493,15 @@ Boolean MCControl::del(bool p_check_flag)
     // IM-2012-05-16 [[ BZ 10212 ]] deleting the dragtarget control in response
     // to a 'dragdrop' message would leave these globals pointing to the deleted
     // object, leading to an infinite loop if the target was a field
-    if (MCdragdest == this)
-    {
-        MCdragdest = nil;
-        MCdropfield = nil;
-    }
-    
-    if (MCdragsource == this)
-        MCdragsource = nil;
-    
+	if (MCdragdest == this)
+	{
+		MCdragdest = nil;
+		MCdropfield = nil;
+	}
+
+	if (MCdragsource == this)
+		MCdragsource = nil;
+ 
 	switch (parent->gettype())
 	{
         case CT_STACK:

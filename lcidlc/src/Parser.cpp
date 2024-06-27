@@ -177,17 +177,17 @@ static bool ParserWillMatchToken(ParserRef self, TokenType p_type, bool p_same_r
 
 static bool ParserWillMatchKeyword(ParserRef self, ParserKeyword p_keyword, bool p_same_row = false)
 {
-    const Token *t_token;
+	const Token *t_token;
 	if (!ScannerRetrieve(self -> scanner, t_token))
 		return false;
-    
-    if (p_same_row && PositionGetRow(self -> position) != PositionGetRow(t_token -> start))
-        return false;
+
+	if (p_same_row && PositionGetRow(self -> position) != PositionGetRow(t_token -> start))
+		return false;
 
 	if (t_token -> type != kTokenTypeIdentifier ||
 		!NameEqualToCString(t_token -> value, s_parser_keyword_strings[p_keyword]))
 		return false;
-	
+
 	return true;
 }
 
@@ -610,21 +610,21 @@ static bool ParserReduceUseDefinition(ParserRef self)
 	
 	if (!ParserMatchKeyword(self, kParserKeywordUse))
 		return false;
-	
+
 	Position t_position;
 	t_position = self -> position;
-	
+
 	NameRef t_type_name;
 	if (!ParserMatchIdentifier(self, t_type_name))
 		return false;
-    
-    bool t_skipped;
-    if (!ParserSkipKeyword(self, kParserKeywordOn, t_skipped, true))
-        return false;
-    
-    if (!t_skipped)
-        return InterfaceDefineUse(self -> interface, t_position, t_type_name);
-        
+
+	bool t_skipped;
+	if (!ParserSkipKeyword(self, kParserKeywordOn, t_skipped, true))
+		return false;
+
+	if (!t_skipped)
+		return InterfaceDefineUse(self -> interface, t_position, t_type_name);
+
 	for(;;)
 	{
 		NameRef t_platform_name;

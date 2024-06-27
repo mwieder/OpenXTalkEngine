@@ -1112,7 +1112,7 @@ public:
     {
         MCAutoStringRefAsSysString t_path_sys;
         /* UNCHECKED */ t_path_sys.Lock(p_path);
-        if (chmod(*t_path_sys, p_mask) != 0)
+        if (0 != chmod(*t_path_sys, p_mask))
             return IO_ERROR;
         return IO_NORMAL;
     }
@@ -1178,23 +1178,23 @@ public:
 
         FILE *t_fptr;
         const char *t_mode;
-        if (p_mode == kMCOpenFileModeRead)
+        if (kMCOpenFileModeRead == p_mode)
             t_mode = IO_READ_MODE;
-        else if (p_mode == kMCOpenFileModeWrite)
+        else if (kMCOpenFileModeWrite == p_mode)
             t_mode = IO_WRITE_MODE;
-        else if (p_mode == kMCOpenFileModeUpdate)
+        else if (kMCOpenFileModeUpdate == p_mode)
             t_mode = IO_UPDATE_MODE;
-        else if (p_mode == kMCOpenFileModeAppend)
+        else if (kMCOpenFileModeAppend == p_mode)
             t_mode = IO_APPEND_MODE;
 		else /* No access requested */
 			return NULL;
 
         t_fptr = fopen(*t_path_sys, t_mode);
 
-        if (t_fptr == NULL && p_mode != kMCOpenFileModeRead)
+        if (NULL == t_fptr && kMCOpenFileModeRead != p_mode)
             t_fptr = fopen(*t_path_sys, IO_CREATE_MODE);
 
-        if (t_fptr != NULL)
+        if (NULL != t_fptr)
         {
             t_handle = new (nothrow) MCStdioFileHandle(t_fptr);
         }
@@ -1243,19 +1243,19 @@ public:
         MCAutoStringRefAsSysString t_path_sys;
         /* UNCHECKED */ t_path_sys.Lock(p_path);
 
-        if (p_mode == kMCOpenFileModeRead)
+        if (kMCOpenFileModeRead == p_mode)
             t_fptr = fopen(*t_path_sys, IO_READ_MODE);
-        else if (p_mode == kMCOpenFileModeWrite)
+        else if (kMCOpenFileModeWrite == p_mode)
             t_fptr = fopen(*t_path_sys, IO_WRITE_MODE);
-        else if (p_mode == kMCOpenFileModeUpdate)
+        else if (kMCOpenFileModeUpdate == p_mode)
             t_fptr = fopen(*t_path_sys, IO_UPDATE_MODE);
-        else if (p_mode == kMCOpenFileModeAppend)
+        else if (kMCOpenFileModeAppend == p_mode)
             t_fptr = fopen(*t_path_sys, IO_APPEND_MODE);
 
-        if (t_fptr == NULL && p_mode != kMCOpenFileModeRead)
+        if (NULL == t_fptr && kMCOpenFileModeRead != p_mode)
             t_fptr = fopen(*t_path_sys, IO_CREATE_MODE);
 
-        if (t_fptr != NULL)
+        if (NULL != t_fptr)
         {
             setbuf(t_fptr, nullptr);
             configureSerialPort((short)fileno(t_fptr));
@@ -1279,7 +1279,7 @@ public:
     virtual bool ListFolderEntries(MCStringRef p_folder, MCSystemListFolderEntriesCallback p_callback, void *x_context)
     {
 		MCAutoStringRefAsSysString t_path;
-		if (p_folder == nil)
+		if (nil == p_folder)
 			/* UNCHECKED */ t_path . Lock(MCSTR("."));
 		else
 			/* UNCHECKED */ t_path . Lock(p_folder);
@@ -1366,7 +1366,7 @@ public:
         }
 
         MCAutoStringRef t_tilde_path;
-        if (MCStringGetCharAtIndex(p_path, 0) == '~')
+        if ('~' == MCStringGetCharAtIndex(p_path, 0))
         {
             uindex_t t_user_end;
             if (!MCStringFirstIndexOfChar(p_path, '/', 0, kMCStringOptionCompareExact, t_user_end))
@@ -1374,7 +1374,7 @@ public:
 
             // Prepend user name
             struct passwd *t_password;
-            if (t_user_end == 1)
+            if (1 == t_user_end)
                 t_password = getpwuid(getuid());
             else
             {
@@ -1388,7 +1388,7 @@ public:
                 t_password = getpwnam(*t_username_sys);
             }
 
-            if (t_password != NULL)
+            if (NULL != t_password)
             {
                 MCAutoStringRef t_pw_dir;
                 /* UNCHECKED */ MCStringCreateWithSysString(t_password->pw_dir, &t_pw_dir);

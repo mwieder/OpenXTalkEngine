@@ -1614,12 +1614,12 @@ static char *set_array_utf8(const char *arg1, const char *arg2,
 		*retval = xresFail;
 		return NULL;
     }
-    
-    MCContainer var;
-    *retval = trans_stat(getvarptr(*MCECptr, arg1, var));
-    if (*retval != xresSucc)
-        return NULL;
-    
+
+	MCContainer var;
+	*retval = trans_stat(getvarptr(*MCECptr, arg1, var));
+	if (*retval != xresSucc)
+		return NULL;
+
 	var.remove(*MCECptr);//clear variable
 	char tbuf[U4L];
 	for (unsigned int i = 0; i <value->nelements; i++)

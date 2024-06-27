@@ -2361,17 +2361,17 @@ MCControl *MCCard::getchildbyid(uinteger_t p_id, Chunk_term p_object_type, Chunk
 
 MCControl *MCCard::getchildbyname(MCNameRef p_name, Chunk_term p_object_type, Chunk_term p_parent_type)
 {
-    if (p_object_type <= CT_CARD)
-        return nil;
-    
+	if (p_object_type <= CT_CARD)
+		return nil;
+
 	// MM-2012-12-02: [[ Bug ]] Make sure we clean the object list before checking if null.
 	if (!opened)
 		clean();
-	
+
 	MCObjptr *optr = objptrs;
 	if (optr == nil)
 		return nil;
-	
+
 	if (p_object_type != CT_LAYER && p_object_type != CT_MENU && p_parent_type == CT_UNDEFINED
         && getstack()->hcaddress())
 		p_parent_type = p_object_type == CT_FIELD ? CT_BACKGROUND : CT_CARD;

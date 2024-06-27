@@ -568,7 +568,7 @@ void MCLine::SegmentLine()
             // segment for a trailing tab which means caret alignment / placement
             // doesn't work. This strategy seems to fix 17098 and not reintroduce
             // bug 13887.
-            if ((t_offset + 1) < bptr->GetOffset() + bptr->GetLength() ||
+            if ((t_offset + 1) < (unsigned int)bptr->GetOffset() + bptr->GetLength() ||
                 (bptr == lastblock && bptr->HasTrailingTab()))
             {
                 bptr->split(t_offset + 1);

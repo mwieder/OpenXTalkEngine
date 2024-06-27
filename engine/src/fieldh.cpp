@@ -208,10 +208,10 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 				compute_paragraph_number(t_numbering, t_paragraph -> getliststyle(), t_paragraph -> getlistdepth(), t_paragraph -> getlistindex());
 	}
 
-    // Abort if this is the empty range and there are no paragraph attributes
-    if (t_empty_range && !(t_first_paragraph->hasattrs()))
-        return true;
-    
+	// Abort if this is the empty range and there are no paragraph attributes
+	if (t_empty_range && !(t_first_paragraph->hasattrs()))
+		return true;
+
 	// Now loop through the paragraphs, starting at the one that has been
 	// identified as the first.
 	MCParagraph *t_paragraph;

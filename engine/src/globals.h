@@ -83,7 +83,7 @@ extern Window MClastvideowindow ;
 
 extern MCStringRef *MCstacknames;
 
-extern int2 MCnstacks;
+extern uint2 MCnstacks;
 extern Boolean MCnofiles;
 extern Boolean MCmmap;
 extern Boolean MCnopixmaps;

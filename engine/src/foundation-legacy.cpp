@@ -1129,15 +1129,15 @@ bool MCArrayIsNumericSequence(MCArrayRef self, int32_t &r_start_index)
     get_array_extent_context_t ctxt;
     ctxt . minimum = INDEX_MAX;
     ctxt . maximum = INDEX_MIN;
-    
-    if (MCArrayApply(self, get_array_extent, &ctxt) &&
-            (ctxt . maximum - ctxt . minimum + 1) == MCArrayGetCount(self))
-    {
-        r_start_index = ctxt . minimum;
-        return true;
-    }
-    
-    return false;
+
+	if (MCArrayApply(self, get_array_extent, &ctxt) &&
+		(ctxt . maximum - ctxt . minimum + 1) == MCArrayGetCount(self))
+	{
+		r_start_index = ctxt . minimum;
+		return true;
+	}
+
+	return false;
 }
 
 static bool list_keys(void *p_context, MCArrayRef p_array, MCNameRef p_key, MCValueRef p_value)
@@ -1457,12 +1457,12 @@ static bool get_array_info(void *p_context, MCArrayRef p_array, MCNameRef p_key,
 	if (MCValueGetTypeCode(p_value) == kMCValueTypeCodeString &&
 		MCStringGetLength((MCStringRef)p_value) > MAXUINT2)
 		ctxt -> is_large = true;
-    
-    // MW-2014-10-21: [[ Bug 13732 ]] Make sure we check the length of dataref's too to
-    //   ensure we mark the array as large if necessary.
-    if (MCValueGetTypeCode(p_value) == kMCValueTypeCodeData &&
-        MCDataGetLength((MCDataRef)p_value) > MAXUINT2)
-        ctxt -> is_large = true;
+
+	// MW-2014-10-21: [[ Bug 13732 ]] Make sure we check the length of dataref's too to
+	//   ensure we mark the array as large if necessary.
+	if (MCValueGetTypeCode(p_value) == kMCValueTypeCodeData &&
+		MCDataGetLength((MCDataRef)p_value) > MAXUINT2)
+		ctxt -> is_large = true;
 
 	if (MCValueGetTypeCode(p_value) != kMCValueTypeCodeArray)
 		ctxt -> non_array_count += 1;

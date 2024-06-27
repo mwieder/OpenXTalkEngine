@@ -254,23 +254,23 @@ void MCStringsMarkTextChunkInRange(MCExecContext& ctxt, MCStringRef p_string, MC
                     t_offset = t_found_range . offset + t_found_range . length;
             }
             
-            if (p_whole_chunk && !p_further_chunks)
-            {
-                // AL-2014-10-15: [[ Bug 13680 ]] Make sure the previously found delimiter's length is used to adjust the string offsets.
-                
-                // Wholechunk operations need additional processing of mark indices to preserve the presence or otherwise of trailing delimiters.
-                // If we found a trailing delimiter for this item or line, make sure it is included in the mark.
-                // e.g. mark item 3 of a,b,c, -> a,b,(c,) so that delete item 3 of a,b,c, -> a,b,
-                
-	            if (r_end >= 0 && (uindex_t) r_end < t_length)
-                    r_end += t_found_range . length;
-                // If we didn't, and this operation does not force additional delimiters, then include the previous delimiter in the mark.
-                // e.g. mark item 3 of a,b,c -> a,b(,c) so that delete item 3 of a,b,c -> a,b
-                else if (r_start > p_range . offset && !r_add)
-                    r_start -= t_found_range . length;
-            }
-        }
-            break;
+			if (p_whole_chunk && !p_further_chunks)
+			{
+				// AL-2014-10-15: [[ Bug 13680 ]] Make sure the previously found delimiter's length is used to adjust the string offsets.
+
+				// Wholechunk operations need additional processing of mark indices to preserve the presence or otherwise of trailing delimiters.
+				// If we found a trailing delimiter for this item or line, make sure it is included in the mark.
+				// e.g. mark item 3 of a,b,c, -> a,b,(c,) so that delete item 3 of a,b,c, -> a,b,
+
+				if (r_end >= 0 && (uindex_t) r_end < t_length)
+					r_end += t_found_range . length;
+				// If we didn't, and this operation does not force additional delimiters, then include the previous delimiter in the mark.
+				// e.g. mark item 3 of a,b,c -> a,b(,c) so that delete item 3 of a,b,c -> a,b
+				else if ((unsigned int)r_start > p_range . offset && !r_add)
+					r_start -= t_found_range . length;
+			}
+		}
+			break;
         
         case CT_PARAGRAPH:
         {
@@ -330,17 +330,17 @@ void MCStringsMarkTextChunkInRange(MCExecContext& ctxt, MCStringRef p_string, MC
                     r_end = t_offset;
                 else
                     t_offset++;
-            }
-            
-            if (p_whole_chunk && !p_further_chunks)
-            {
-	            if (r_end >= 0 && (uindex_t) r_end < t_length)
-                    r_end++;
-                else if (r_start > p_range . offset && !r_add)
-                    r_start--;
-            }
-        }
-            break;
+			}
+
+			if (p_whole_chunk && !p_further_chunks)
+			{
+				if (r_end >= 0 && (uindex_t) r_end < t_length)
+					r_end++;
+				else if ((unsigned int)r_start > p_range . offset && !r_add)
+					r_start--;
+			}
+		}
+			break;
 
         case CT_SENTENCE:
         case CT_TRUEWORD:
@@ -396,7 +396,7 @@ void MCStringsMarkTextChunkInRange(MCExecContext& ctxt, MCStringRef p_string, MC
                 //  and word chunk range goes to the end of the string. 
 	            if (r_end >= 0 && (uindex_t) r_end == t_length)
                 {
-                    while (r_start > p_range . offset && MCUnicodeIsWhitespace(MCStringGetCharAtIndex(p_string, r_start - 1)))
+                    while ((unsigned int)r_start > p_range . offset && MCUnicodeIsWhitespace(MCStringGetCharAtIndex(p_string, r_start - 1)))
                         r_start--;
                 }
                 return;

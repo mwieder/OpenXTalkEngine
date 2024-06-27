@@ -2113,8 +2113,8 @@ void MCStack::find(MCExecContext &ctxt, Find_mode fmode,
 	curcard = ocard;
 	// MW-2011-08-17: [[ Redraw ]] Tell the stack to dirty all of itself.
 	dirtyall();
-    for (int i = 0 ; i < nstrings ; i++)
-        MCValueRelease(strings[i]);
+	for (unsigned int i = 0 ; i < nstrings ; i++)
+		MCValueRelease(strings[i]);
 	delete strings;
 	MCresult->sets(MCnotfoundstring);
 }

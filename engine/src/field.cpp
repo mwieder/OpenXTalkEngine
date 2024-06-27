@@ -317,16 +317,16 @@ MCField::MCField(const MCField &fref) : MCControl(fref)
 	}
 	else
 		tabs = NULL;
-    nalignments = fref.nalignments;
-    if (nalignments)
-    {
-        /* UNCHECKED */ alignments = new (nothrow) intenum_t[nalignments];
-        uint2 i;
-        for (i = 0; i < nalignments; i++)
-            alignments[i] = fref.alignments[i];
-    }
-    else
-        alignments = NULL;
+	nalignments = fref.nalignments;
+	if (nalignments)
+	{
+		/* UNCHECKED */ alignments = new (nothrow) intenum_t[nalignments];
+		uint2 i;
+		for (i = 0; i < nalignments; i++)
+			alignments[i] = fref.alignments[i];
+	}
+	else
+		alignments = NULL;
 	
 	if (fref.fdata != NULL)
 	{

@@ -129,7 +129,7 @@ Boolean MCuselibgnome = False ;
 Boolean MCuseESD = False ;
 
 MCStringRef *MCstacknames = NULL;
-int2 MCnstacks = 0;
+uint2 MCnstacks = 0;
 
 Boolean MCnofiles = False;
 uint4 MCsecuremode = 0;

@@ -449,14 +449,14 @@ MCStack *MCGo::findstack(MCExecContext &ctxt, MCStringRef p_value, Chunk_term et
         }
         return sptr;
     }
-    
-    if (etype == CT_STACK)
-        return nullptr;
-    else
-        sptr = MCdefaultstackptr->findstackname_string(p_value);
 
-    if (sptr != nullptr)
-        return sptr;
+	if (etype == CT_STACK)
+		return nullptr;
+	else
+		sptr = MCdefaultstackptr->findstackname_string(p_value);
+
+	if (sptr != nullptr)
+		return sptr;
 
 	MCObject *objptr;
 	MCChunk *tchunk = new (nothrow) MCChunk(False);
@@ -599,12 +599,12 @@ void MCGo::exec_ctxt(MCExecContext &ctxt)
             return;
 		}
 	}
-    
-    // SN-2014-05-13 [[ Bug 12423 ]]
-    // Temporary fix: stopedit put back where it was before refactoring
-    if (sptr != nil)
-        sptr -> stopedit();
-	
+
+	// SN-2014-05-13 [[ Bug 12423 ]]
+	// Temporary fix: stopedit put back where it was before refactoring
+	if (sptr != nil)
+		sptr -> stopedit();
+
 	if (background != NULL && sptr != nil)
 	{
 		switch (ct_class(background->etype))
@@ -627,9 +627,9 @@ void MCGo::exec_ctxt(MCExecContext &ctxt)
 		}
 	}
 
-    if (bptr != nil)
-        sptr -> setbackground(bptr);
-    
+	if (bptr != nil)
+		sptr -> setbackground(bptr);
+
 	real8 n;
 	bool t_is_recent;
 	t_is_recent = false;

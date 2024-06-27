@@ -730,8 +730,8 @@ Boolean MCImage::maskrect(const MCRectangle &srect)
 	MCGImageFrame t_frame;
 	if (!getstate(CS_SELECTED) && m_rep != nil && m_rep->LockImageFrame(currentframe, getdevicescale(), t_frame))
 	{
-		int32_t t_x = srect.x - rect.x;
-		int32_t t_y = srect.y - rect.y;
+		uint32_t t_x = srect.x - rect.x;
+		uint32_t t_y = srect.y - rect.y;
 		if (m_has_transform)
 		{
 			MCGAffineTransform t_inverted = MCGAffineTransformInvert(m_transform);
@@ -1178,9 +1178,9 @@ IO_stat MCImage::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_t
 		t_has_extension = true;
 	if (s_have_control_colors)
 		t_has_extension = true;
-    if (m_center_rect . x != INT16_MIN)
-        t_has_extension = true;
-    
+	if (m_center_rect . x != INT16_MIN)
+		t_has_extension = true;
+
 	uint4 oldflags = flags;
 	if (flags & F_HAS_FILENAME)
 		flags &= ~(F_TRUE_COLOR | F_COMPRESSION | F_NEED_FIXING);

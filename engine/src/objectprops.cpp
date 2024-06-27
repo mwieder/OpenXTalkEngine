@@ -312,18 +312,18 @@ Exec_stat MCObject::sendgetprop(MCExecContext& ctxt, MCNameRef p_set_name, MCNam
                 t_stat = ES_NORMAL;
             }
         }
-        
-        if (t_old_defaultstack.IsValid())
-            MCdefaultstackptr = t_old_defaultstack;
 
-        swap(MCtargetptr, oldtargetptr);
+		if (t_old_defaultstack.IsValid())
+			MCdefaultstackptr = t_old_defaultstack;
+
+		swap(MCtargetptr, oldtargetptr);
 		if (added)
 			MCnexecutioncontexts--;
 	}
-    
-    if (t_stat == ES_NORMAL)
-        t_stat = MCresult -> eval(ctxt, r_value) ? ES_NORMAL : ES_ERROR;
-    
+
+	if (t_stat == ES_NORMAL)
+		t_stat = MCresult -> eval(ctxt, r_value) ? ES_NORMAL : ES_ERROR;
+
 	return t_stat;
 }
 

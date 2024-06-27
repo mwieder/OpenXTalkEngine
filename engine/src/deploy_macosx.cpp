@@ -1318,7 +1318,7 @@ template<typename T> bool MCDeployToMacOSXMainBody(const MCDeployParameters& p_p
 	}
     
 	// Now we update the relevant pieces of the header and command table.
-	typename T::field t_old_linkedit_offset, t_old_project_offset, t_old_payload_offset;
+	typename T::field t_old_linkedit_offset, t_old_project_offset; //, t_old_payload_offset;
 	if (t_success)
 	{
         // MW-2014-10-02: [[ Bug 13536 ]] Use macro to align to required alignment.
@@ -1332,7 +1332,7 @@ template<typename T> bool MCDeployToMacOSXMainBody(const MCDeployParameters& p_p
 		{
             // MW-2014-10-02: [[ Bug 13536 ]] Use macro to align to required alignment.
 			t_payload_size = MACHO_ALIGN(t_payload_size);
-			t_old_payload_offset = t_payload_segment -> fileoff;
+//			t_old_payload_offset = t_payload_segment -> fileoff;
 			t_payload_segment -> filesize = t_payload_size;
 			t_payload_segment -> vmsize = t_payload_size;
 			((typename T::section *)(t_payload_segment + 1))[0] . size = t_payload_size;
@@ -1493,8 +1493,8 @@ static bool MCDeployToMacOSXReadHeader(bool p_big_endian, MCDeployFileRef p_engi
 	if (!MCDeployFileReadAt(p_engine, &r_header, sizeof(mach_header), p_offset))
 		return MCDeployThrow(kMCDeployErrorMacOSXNoHeader);
 
-    if (p_big_endian)
-        swap_mach_header(p_big_endian, r_header);
+	if (p_big_endian)
+		swap_mach_header(p_big_endian, r_header);
 
 	// Validate the header
 	if ((r_header . magic != MH_MAGIC && r_header . magic != MH_MAGIC_64) ||
@@ -1508,18 +1508,18 @@ static bool MCDeployToMacOSXReadHeader(bool p_big_endian, MCDeployFileRef p_engi
 
 	// And read them in
 	uint32_t t_offset;
-    if (r_header . magic == MH_MAGIC)
-        t_offset = p_offset + sizeof(mach_header);
-    else
-        t_offset = p_offset + sizeof(mach_header_64);
+	if (r_header . magic == MH_MAGIC)
+		t_offset = p_offset + sizeof(mach_header);
+	else
+		t_offset = p_offset + sizeof(mach_header_64);
 	for(uint32_t i = 0; i < r_header . ncmds; i++)
 	{
 		// First read the command header
 		load_command t_command;
 		if (!MCDeployFileReadAt(p_engine, &t_command, sizeof(load_command), t_offset))
 			return MCDeployThrow(kMCDeployErrorMacOSXBadCommand);
-        if (p_big_endian)
-            swap_load_command_hdr(p_big_endian, t_command);
+		if (p_big_endian)
+			swap_load_command_hdr(p_big_endian, t_command);
 
 		// Now allocate memory for the full command record
 		if (!MCMemoryAllocate(t_command . cmdsize, t_commands[i]))
@@ -1531,8 +1531,8 @@ static bool MCDeployToMacOSXReadHeader(bool p_big_endian, MCDeployFileRef p_engi
 
 		// And swap if we are actually interested in the contents otherwise
 		// just swap the header.
-        if (p_big_endian)
-            swap_load_command(p_big_endian, t_command . cmd, t_commands[i]);
+		if (p_big_endian)
+			swap_load_command(p_big_endian, t_command . cmd, t_commands[i]);
 
 		// Move to the next command
 		t_offset += t_command . cmdsize;

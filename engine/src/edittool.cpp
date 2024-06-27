@@ -293,10 +293,10 @@ uint4 MCPolygonEditTool::handle_under_point(int2 x, int2 y)
 {
 	uint4 npts = graphic->getnumpoints();
 
-    MCAutoArray<MCRectangle> t_rects;
-    if (!t_rects . New(npts))
-        return -1;
-    
+	MCAutoArray<MCRectangle> t_rects;
+	if (!t_rects . New(npts))
+		return -1;
+
 	point_rects(t_rects . Ptr());
 
 	for (uint4 i=0; i<npts; i++)
@@ -311,9 +311,9 @@ bool MCPolygonEditTool::mdown(int2 x, int2 y, uint2 which)
 	uint4 npts = graphic->getnumpoints();
 	MCPoint *pts = graphic->getpoints();
 
-    MCAutoArray<MCRectangle> t_rects;
-    if (!t_rects . New(npts))
-        return false;
+	MCAutoArray<MCRectangle> t_rects;
+	if (!t_rects . New(npts))
+		return false;
 
 	point_rects(t_rects . Ptr());
 

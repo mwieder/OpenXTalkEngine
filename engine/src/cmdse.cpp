@@ -113,22 +113,21 @@ Parse_stat MCAccept::parse(MCScriptPoint &sp)
 
 void MCAccept::exec_ctxt(MCExecContext &ctxt)
 {
-    
-    uinteger_t t_port;
-    if (!ctxt . EvalExprAsUInt(port, EE_ACCEPT_BADEXP, t_port))
-        return;
-	
+	uinteger_t t_port;
+	if (!ctxt . EvalExprAsUInt(port, EE_ACCEPT_BADEXP, t_port))
+		return;
+
 	if (t_port > UINT16_MAX)
 	{
 		ctxt . LegacyThrow(EE_ACCEPT_BADEXP);
 		return;
 	}
-	
-    MCNewAutoNameRef t_message;
-    if (!ctxt . EvalExprAsNameRef(message, EE_ACCEPT_BADEXP, &t_message))
-        return;
+
+	MCNewAutoNameRef t_message;
+	if (!ctxt . EvalExprAsNameRef(message, EE_ACCEPT_BADEXP, &t_message))
+		return;
     
-    if (datagram)
+	if (datagram)
 		MCNetworkExecAcceptDatagramConnectionsOnPort(ctxt, uint16_t(t_port), *t_message);
 	else if (secure)
 		MCNetworkExecAcceptSecureConnectionsOnPort(ctxt, uint16_t(t_port), *t_message, secureverify == True);
@@ -477,19 +476,19 @@ Parse_stat MCDispatchCmd::parse(MCScriptPoint& sp)
 // This method follows along the same lines as MCComref::exec
 void MCDispatchCmd::exec_ctxt(MCExecContext &ctxt)
 {
-    MCNewAutoNameRef t_message;
-    if (!ctxt . EvalExprAsNameRef(message, EE_DISPATCH_BADMESSAGEEXP, &t_message))
-        return;
-	
+	MCNewAutoNameRef t_message;
+	if (!ctxt . EvalExprAsNameRef(message, EE_DISPATCH_BADMESSAGEEXP, &t_message))
+		return;
+
 	// Evaluate the target object (if we parsed a 'target' chunk).
 	MCObjectPtr t_target;
 	MCObjectPtr *t_target_ptr;
 	if (target != nil)
 	{
-        if (!target->getobj(ctxt, t_target, True))
+		if (!target->getobj(ctxt, t_target, True))
 		{
-            ctxt . LegacyThrow(EE_DISPATCH_BADTARGET);
-            return;
+			ctxt . LegacyThrow(EE_DISPATCH_BADTARGET);
+			return;
 		}
 		t_target_ptr = &t_target;
 	}
@@ -824,19 +823,19 @@ void MCMove::exec_ctxt(MCExecContext &ctxt)
         return;
 	}
 
-    real8 duration;
-    if (!ctxt . EvalOptionalExprAsDouble(durationexp, 0.0, EE_MOVE_BADDURATION, duration))
-        return;
+	real8 duration;
+	if (!ctxt . EvalOptionalExprAsDouble(durationexp, 0.0, EE_MOVE_BADDURATION, duration))
+		return;
 
 	if (startloc != NULL)
-    {
-        MCPoint t_to, t_from;
+	{
+		MCPoint t_to, t_from;
 
-        if (!ctxt . EvalExprAsPoint(endloc, EE_MOVE_BADENDLOC, t_to))
-            return;
+		if (!ctxt . EvalExprAsPoint(endloc, EE_MOVE_BADENDLOC, t_to))
+			return;
 
-        if (!ctxt . EvalExprAsPoint(startloc, EE_MOVE_BADSTARTLOC, t_from))
-            return;
+		if (!ctxt . EvalExprAsPoint(startloc, EE_MOVE_BADSTARTLOC, t_from))
+			return;
 
 		MCInterfaceExecMoveObjectBetween(ctxt, optr, t_from, t_to, duration, units, waiting == True, messages == True);
 	}
