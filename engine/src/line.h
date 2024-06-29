@@ -83,9 +83,9 @@ public:
     
     //////////
 	
-	void GetRange(findex_t &r_index, findex_t &r_length);
-	findex_t GetOffset();
-	findex_t GetLength();
+	void GetRange(uindex_t &r_index, uindex_t &r_length);
+	uindex_t GetOffset();
+	uindex_t GetLength();
 	findex_t GetCursorIndex(coord_t x, Boolean chunk, bool forward);
 	coord_t GetCursorXPrimary(findex_t i, bool forward);
     coord_t GetCursorXSecondary(findex_t i, bool forward);

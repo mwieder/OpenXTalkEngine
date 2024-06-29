@@ -535,7 +535,7 @@ void MCMutableImageRep::startdraw()
 void MCMutableImageRep::continuedraw()
 {
 	MCRectangle brect;
-	Boolean all = False;
+//	Boolean all = False;
 	brect.width = brect.height = 0;
 
 	switch(m_owner->getstack()->gettool(m_owner))
@@ -584,7 +584,7 @@ void MCMutableImageRep::continuedraw()
 		brect = drawbrush(T_ERASER);
 		startx = mx;
 		starty = my;
-		all = True;
+//		all = True;
 		break;
 	case T_LASSO:
 		break;
@@ -627,7 +627,7 @@ void MCMutableImageRep::continuedraw()
 			brect.y += rect.y;
 			startx = mx + (selrect.x - oldx);
 			starty = my + (selrect.y - oldy);
-			all = True;
+//			all = True;
 		}
 		else
 		{
@@ -1034,7 +1034,7 @@ bool MCMutableImageRep::bucket_line(MCImageBitmap *p_src, uint4 color,
                              int2 x, int2 y, int2 &l, int2 &r)
 {
 	l = r = x;
-	if ((uint32_t)y < 0 || y >= p_src->height || (uint32_t)x < 0 || x >= p_src->width)
+	if ((uint32_t)y < 0 || y >= (int2)p_src->height || (uint32_t)x < 0 || x >= (int2)p_src->width)
 		return false;
 
 	uint32_t *t_src_row = (uint32_t*)((uint8_t*)p_src->data + y * p_src->stride) + x ;
@@ -1712,8 +1712,8 @@ void MCMutableImageRep::cutoutsel()
 
 void MCImageBitmapMerge(MCImageBitmap *p_dst, MCImageBitmap *p_src, uindex_t p_dst_x, uindex_t p_dst_y, uindex_t p_src_x, uindex_t p_src_y, uindex_t p_width, uindex_t p_height)
 {
-	MCAssert(p_src_x >= 0 && p_src_y >= 0);
-	MCAssert(p_dst_x >= 0 && p_dst_y >= 0);
+//	MCAssert(p_src_x >= 0 && p_src_y >= 0); // always true
+//	MCAssert(p_dst_x >= 0 && p_dst_y >= 0); // always true
 	MCAssert(p_src_x + p_width <= p_src->width && p_src_y + p_height <= p_src->height);
 	MCAssert(p_dst_x + p_width <= p_dst->width && p_dst_y + p_height <= p_dst->height);
 	MCImageBitmapPremultiply(p_dst);

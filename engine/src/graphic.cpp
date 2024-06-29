@@ -626,11 +626,11 @@ Boolean MCGraphic::maskrect(const MCRectangle &srect)
 	if (!(flags & F_VISIBLE || showinvisible()))
 		return False;
 	MCRectangle drect = MCU_intersect_rect(srect, rect);
-	if (drect.width == 0 || drect.height == 0)
+	if (0 == drect.width || 0 == drect.height)
 		return False;
 	if (state & CS_SELECTED || drect.width > 2 || drect.height > 2)
 		return True;
-	if (m_edit_tool != NULL && m_edit_tool->handle_under_point(drect.x, drect.y) != -1)
+	if (NULL != m_edit_tool && (int)m_edit_tool->handle_under_point(drect.x, drect.y) != -1)
 		return True;
 	switch (getstyleint(flags))
 	{
@@ -1350,21 +1350,21 @@ void MCGraphic::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool
 		int2 centerx = trect.x + leftmargin + ((trect.width - leftmargin - rightmargin) >> 1);
 		int2 centery = trect.y + topmargin + ((trect.height - topmargin - bottommargin) >> 1);
 
-        coord_t sx, sy, theight;
+        coord_t sx, sy /*, theight */;
         if (nlines == 1)
         {
             // Centre things on the middle of the ascent
             sx = trect.x + leftmargin + borderwidth - DEFAULT_BORDER;
             sy = roundf(centery + (fascent-fdescent)/2);
-            theight = fascent;
-        }
-        else
-        {
+//            theight = fascent;
+		}
+		else
+		{
             // Centre things by centring the bounding box of the text
             sx = trect.x + leftmargin + borderwidth - DEFAULT_BORDER;
             sy = centery - (nlines * fheight / 2) + fleading/2 + fascent;
-            theight = nlines * fheight;
-        }
+//            theight = nlines * fheight;
+		}
         
 		uint2 i;
 		uint2 twidth = 0;

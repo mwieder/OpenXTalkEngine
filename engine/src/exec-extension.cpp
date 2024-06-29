@@ -533,21 +533,21 @@ Exec_stat MCEngineHandleLibraryMessage(MCNameRef p_message, MCParameter *p_param
             
             t_param = t_param -> getnext();
         }
-        
-        if (t_success &&
-            !MCExtensionConvertToScriptType(*MCECptr, t_result))
-        {
-            t_success = false;
-        }
-        
-        if (t_success)
-            MCresult -> setvalueref(t_result);
-        
-        if (t_result != nil)
-            MCValueRelease(t_result);
-    }
-    else
-        t_success = false;
+
+		if (t_success &&
+			!MCExtensionConvertToScriptType(*MCECptr, t_result))
+		{
+			t_success = false;
+		}
+
+		if (t_success)
+			MCresult -> setvalueref(t_result);
+
+		if (t_result != nil)
+			MCValueRelease(t_result);
+	}
+	else
+		t_success = false;
 
 	for(uindex_t i = 0; i < t_arguments.Size(); i++)
 		if (t_arguments[i] != nil)

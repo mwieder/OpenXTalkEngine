@@ -864,7 +864,7 @@ void MCField::getlinkdata(MCRectangle &lrect, MCBlock *&sb, MCBlock *&eb)
 	MCParagraph *sptr = indextoparagraph(paragraphs, si, ei);
 	linksi -= si;
 	linkei -= si;
-	ei = MCU_min(ei, sptr->gettextlengthcr());
+	ei = MCU_min((uint4)ei, sptr->gettextlengthcr());
 	sb = sptr->indextoblock(si, False);
 	if (!sb->islink())
 	{

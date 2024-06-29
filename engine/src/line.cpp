@@ -351,10 +351,10 @@ void MCLine::makedirty()
 	dirtywidth = MCU_max(width, 1.0f);
 }
 
-void MCLine::GetRange(findex_t &i, findex_t &l)
+void MCLine::GetRange(uindex_t &i, uindex_t &l)
 {
 	firstblock->GetRange(i, l);
-	findex_t j;
+	uindex_t j;
 	lastblock->GetRange(j, l);
 	l = j + l - i;
 }
@@ -363,7 +363,7 @@ coord_t MCLine::GetCursorXHelper(findex_t fi, bool prefer_forward)
 {
     MCBlock *bptr = firstblock;
     MCSegment *sgptr = firstsegment;
-	findex_t i, l;
+	uindex_t i, l;
 	bptr->GetRange(i, l);
     
     while (bptr != lastblock

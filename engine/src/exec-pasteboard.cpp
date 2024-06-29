@@ -347,10 +347,10 @@ MCTransferType MCPasteboardTransferTypeFromName(MCNameRef p_key, bool p_legacy =
 
 	if (MCNameIsEqualToCaseless(p_key, MCN_objects))
 		return TRANSFER_TYPE_OBJECTS;
-    
-    if (MCNameIsEqualToCaseless(p_key, MCN_rtftext))
-        return TRANSFER_TYPE_RTF_TEXT;
-    
+
+	if (MCNameIsEqualToCaseless(p_key, MCN_rtftext))
+		return TRANSFER_TYPE_RTF_TEXT;
+
 	if (MCNameIsEqualToCaseless(p_key, MCN_htmltext))
 		return TRANSFER_TYPE_HTML_TEXT;
 

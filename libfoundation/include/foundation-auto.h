@@ -193,8 +193,6 @@ public:
     {
     }
     
-//	MCAutoMutableValueRefBase& operator=(const MCAutoMutableValueRefBase&) = default;
-
     inline T operator = (T value)
 	{
         return MCAutoValueRefBase<T>::operator =(value);
@@ -210,9 +208,9 @@ public:
         return ImmutableCopyAndRelease(MCAutoValueRefBase<T>::m_value, MCAutoValueRefBase<T>::m_value);
     }
 
-//	~MCAutoMutableValueRefBase()
-//	{
-//	}
+	~MCAutoMutableValueRefBase()
+	{
+	}
     
 private:
     MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& operator = (MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& x);

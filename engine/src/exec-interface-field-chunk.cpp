@@ -191,10 +191,10 @@ struct PodFieldPropType<MCInterfaceNamedColor>
 
     static bool equal(MCInterfaceNamedColor a, MCInterfaceNamedColor b)
     {
-        if (a . name != nil && b . name != nil)
+        if (nil != a . name && nil != b . name)
             return MCStringIsEqualTo(a . name, b . name, kMCCompareExact);
         // SN-2014-11-03: [[ Bug 13925 ]] It's false if one has a name, and not the other.
-        else if (a . name != nil || b . name != nil)
+        else if (nil != a . name || nil != b . name)
             return false;
         else
             return (a . color . blue == b . color . blue
@@ -204,7 +204,7 @@ struct PodFieldPropType<MCInterfaceNamedColor>
 
     static void assign(MCInterfaceNamedColor& x, MCInterfaceNamedColor y)
     {
-        if (y . name != nil)
+        if (nil != y . name)
             x . name = MCValueRetain(y . name);
         else
         {
@@ -215,7 +215,7 @@ struct PodFieldPropType<MCInterfaceNamedColor>
 
     static void output(MCInterfaceNamedColor p_value, MCInterfaceNamedColor& r_value)
     {
-        if (p_value . name != nil)
+        if (nil != p_value . name)
             r_value . name = p_value . name;
         else
         {
@@ -232,7 +232,7 @@ struct PodFieldPropType<MCInterfaceNamedColor>
     
     static bool is_set(MCInterfaceNamedColor p_value)
     {
-        return p_value . name == nil || !MCStringIsEmpty(p_value . name);
+        return nil == p_value . name || !MCStringIsEmpty(p_value . name);
     }
 };
 
@@ -363,7 +363,7 @@ template<typename T> struct VectorFieldPropType
         vector_t<T> list;
         ~stack_type()
         {
-            if (list.elements != nil)
+            if (nil != list.elements)
                 delete list.elements;
         }
     };
@@ -461,16 +461,16 @@ template<typename T> struct OptionalFieldPropType
 
     static bool equal(stack_type& a, stack_type& b)
     {
-        if (a . value_ptr == nil && b . value_ptr == nil)
+        if (nil == a . value_ptr && nil == b . value_ptr)
             return true;
-        if (a . value_ptr == nil || b . value_ptr == nil)
+        if (nil == a . value_ptr || nil == b . value_ptr)
             return false;
         return T::equal(a . value, b . value);
     }
 
     static void output(stack_type& p_value, typename T::value_type*& r_value)
     {
-        if (p_value . value_ptr == nil)
+        if (nil == p_value . value_ptr)
             r_value = nil;
         else
             T::assign(*r_value, p_value . value);
@@ -483,7 +483,7 @@ template<typename T> struct OptionalFieldPropType
     
     static bool is_set(stack_type p_value)
     {
-        return p_value . value_ptr != nil;
+        return nil != p_value . value_ptr;
     }
 };
 
@@ -522,16 +522,16 @@ template<typename T> struct OptionalFieldArrayPropType
     
     static bool equal(stack_type& a, stack_type& b)
     {
-        if (a . value_ptr == nil && b . value_ptr == nil)
+        if (nil == a . value_ptr && nil == b . value_ptr)
             return true;
-        if (a . value_ptr == nil || b . value_ptr == nil)
+        if (nil == a . value_ptr || nil == b . value_ptr)
             return false;
         return T::equal(a . value, b . value);
     }
     
     static void output(stack_type& p_value, typename T::value_type*& r_value)
     {
-        if (p_value . value_ptr == nil)
+        if (nil == p_value . value_ptr)
             r_value = nil;
         else
             T::assign(*r_value, p_value . value);
@@ -678,7 +678,7 @@ template<typename T> void GetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p
                 break;
             
             // Stop if the next block index will exceed the end index
-            if (t_block -> next() -> GetOffset() >= ei)
+            if (t_block -> next() -> GetOffset() >= (uindex_t)ei)
                 break;
             
             t_block = t_block -> next();
@@ -807,8 +807,10 @@ struct MCFieldLayoutSettings
 {
     uint32_t savex;
     uint32_t savey;
-    findex_t ssi;
-    findex_t sei;
+ //   findex_t ssi;
+//    findex_t sei;
+    uindex_t ssi;
+    uindex_t sei;
     MCRectangle drect;
     bool redraw_field;
 
@@ -865,7 +867,7 @@ MCParagraph* PrepareLayoutSettings(bool all, MCField *p_field, uint32_t p_part_i
             // Same as this?
             if (MCactivefield == p_field)
             {
-                p_field -> selectedmark(False, t_layout_settings . ssi, t_layout_settings . sei, False);
+                p_field -> selectedmark(False, (findex_t&)t_layout_settings . ssi, (findex_t&)t_layout_settings . sei, False);
                 p_field -> unselect(False, True);
             }
             p_field -> curparagraph = p_field -> focusedparagraph = p_field -> paragraphs;
@@ -994,7 +996,7 @@ template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt,
 
     p_paragraph -> defrag();
     MCBlock *bptr = p_paragraph -> indextoblock(si, False);
-    findex_t t_block_index, t_block_length;
+    uindex_t t_block_index, t_block_length;
     do
     {
         bptr->GetRange(t_block_index, t_block_length);
@@ -1057,26 +1059,26 @@ template<typename T> void SetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p
     
     do
     {
-        findex_t t_pg_length = pgptr->gettextlengthcr();
+        uindex_t t_pg_length = pgptr->gettextlengthcr();
         if (si < t_pg_length)
         {
             pgptr->setparent(p_field);
 
             // MCParagraph scope
             {
-                findex_t t_ei;
-                t_ei = MCU_min(ei, pgptr -> gettextlength());
+                uindex_t t_ei;
+                t_ei = MCU_min((uint4)ei, pgptr -> gettextlength());
                 bool t_blocks_changed;
                 bool t_need_layout;
                 t_blocks_changed = false;
 
                 pgptr -> defrag();
                 MCBlock *bptr = pgptr -> indextoblock(si, False);
-                findex_t t_block_index, t_block_length;
+                uindex_t t_block_index, t_block_length;
                 do
                 {
                     bptr->GetRange(t_block_index, t_block_length);
-                    if (t_block_index < si)
+                    if (t_block_index < (uindex_t)si)
                     {
                         MCBlock *tbptr = new (nothrow) MCBlock(*bptr);
                         bptr->append(tbptr);
@@ -1133,7 +1135,7 @@ template<typename T> void SetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p
             LayoutParagraph(pgptr, t_layout_settings, false);
         }
 
-        si = MCU_max(0, si - t_pg_length);
+        si = MCU_max((uindex_t)0, (uindex_t)si - t_pg_length);
         ei -= t_pg_length;
         pgptr = pgptr->next();
 
@@ -1168,22 +1170,22 @@ template<typename T> void SetArrayCharPropOfCharChunk(MCExecContext& ctxt, MCFie
     
     do
     {
-        findex_t t_pg_length = pgptr->gettextlengthcr();
+        uindex_t t_pg_length = pgptr->gettextlengthcr();
         if (si < t_pg_length)
         {
             pgptr->setparent(p_field);
             
             // MCParagraph scope
             {
-                findex_t t_ei;
-                t_ei = MCU_min(ei, pgptr -> gettextlength());
+                uindex_t t_ei;
+                t_ei = MCU_min((uindex_t)ei, pgptr -> gettextlength());
                 bool t_blocks_changed;
                 bool t_need_layout;
                 t_blocks_changed = false;
                 
                 pgptr -> defrag();
                 MCBlock *bptr = pgptr -> indextoblock(si, False);
-                findex_t t_block_index, t_block_length;
+                uindex_t t_block_index, t_block_length;
                 do
                 {
                     bptr->GetRange(t_block_index, t_block_length);
@@ -1244,7 +1246,7 @@ template<typename T> void SetArrayCharPropOfCharChunk(MCExecContext& ctxt, MCFie
             LayoutParagraph(pgptr, t_layout_settings, false);
         }
         
-        si = MCU_max(0, si - t_pg_length);
+        si = MCU_max((uindex_t)0, si - t_pg_length);
         ei -= t_pg_length;
         pgptr = pgptr->next();
         
@@ -1267,9 +1269,9 @@ template<typename T> void SetArrayCharPropOfCharChunk(MCExecContext& ctxt, MCFie
 
 template<typename T, int Min, int Max> static void setparagraphattr_int(MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset, T *p_value)
 {
-    if (p_value == nil)
+    if (nil == p_value)
     {
-        if (attrs != nil)
+        if (nil != attrs)
         {
             ((T *)((char *)attrs + p_field_offset))[0] = 0;
             attrs -> flags &= ~p_flag;
@@ -1280,7 +1282,7 @@ template<typename T, int Min, int Max> static void setparagraphattr_int(MCParagr
         T t_clamped_field;
         t_clamped_field = MCMin(MCMax((int)*p_value, Min), Max);
 
-        if (attrs == nil)
+        if (nil == attrs)
             attrs = new (nothrow) MCParagraphAttrs;
 
         attrs -> flags |= p_flag;
@@ -1308,11 +1310,11 @@ static void setparagraphattr_uint16(MCParagraphAttrs*& attrs, uint32_t p_flag, s
 static void setparagraphattr_color(MCParagraphAttrs*& attrs, uint32_t p_flag, size_t p_field_offset, const MCInterfaceNamedColor& p_color)
 {
     MCColor t_color;
-    if (p_color . name != nil) // name no null: must interpret the string
+    if (nil != p_color . name) // name no null: must interpret the string
     {
         if (MCStringIsEmpty(p_color . name)) // Empty color name: no color set
         {
-            if (attrs != nil)
+            if (nil != attrs)
             {
                 ((uint32_t *)((char *)attrs + p_field_offset))[0] = 0;
                 attrs -> flags &= ~p_flag;
@@ -1325,7 +1327,7 @@ static void setparagraphattr_color(MCParagraphAttrs*& attrs, uint32_t p_flag, si
     else // name null: must interpret the MCColor
         t_color = p_color . color;
 
-    if (attrs == nil)
+    if (nil == attrs)
         attrs = new (nothrow) MCParagraphAttrs;
 
     attrs -> flags |= p_flag;
@@ -1334,9 +1336,9 @@ static void setparagraphattr_color(MCParagraphAttrs*& attrs, uint32_t p_flag, si
 
 static void setparagraphattr_bool(MCParagraphAttrs*& attrs, uint32_t p_flag, bool *p_value, bool &r_new_value)
 {
-    if (p_value == nil)
+    if (nil == p_value)
     {
-        if (attrs != nil)
+        if (nil != attrs)
         {
             r_new_value = false;
             attrs -> flags &= ~p_flag;
@@ -1344,7 +1346,7 @@ static void setparagraphattr_bool(MCParagraphAttrs*& attrs, uint32_t p_flag, boo
     }
     else
     {
-        if (attrs == nil)
+        if (nil == attrs)
             attrs = new (nothrow) MCParagraphAttrs;
 
         attrs -> flags |= p_flag;
@@ -1383,7 +1385,7 @@ void MCField::GetEffectiveTextSizeOfCharChunk(MCExecContext& ctxt, uint32_t p_pa
     if (r_mixed)
         return;
 
-    if (t_size_ptr == nil)
+    if (nil == t_size_ptr)
         GetEffectiveTextSize(ctxt, r_value);
     else
         r_value = t_size;
@@ -1828,26 +1830,26 @@ void MCField::GetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
     integer_t t_index_offset;
     t_index_offset = -countchars(p_part_id, 0, si);
 
-    MCParagraph *pgptr = resolveparagraphs(p_part_id);
-    MCParagraph *sptr = indextoparagraph(pgptr, si, ei, nil);
+	MCParagraph *pgptr = resolveparagraphs(p_part_id);
+	MCParagraph *sptr = indextoparagraph(pgptr, si, ei, nil);
 
-    MCAutoArray<MCInterfaceFieldRange> t_ranges;
+	MCAutoArray<MCInterfaceFieldRange> t_ranges;
 
-    do
-    {
-        MCInterfaceFieldRanges t_paragraphRanges;
-        sptr -> getflaggedranges(p_part_id, si, ei, t_index_offset, t_paragraphRanges);
+	do
+	{
+		MCInterfaceFieldRanges t_paragraphRanges;
+		sptr -> getflaggedranges(p_part_id, si, ei, t_index_offset, t_paragraphRanges);
 		// PM-2016-01-08: [[ Bug 16666 ]] Update the offset to be relative to the beginning of the text
 		t_index_offset += sptr -> gettextlengthcr();
 
-        for (uindex_t i = 0; i < t_paragraphRanges . count; ++i)
-            t_ranges . Push(t_paragraphRanges . ranges[i]);
+		for (uindex_t i = 0; i < t_paragraphRanges . count; ++i)
+			t_ranges . Push(t_paragraphRanges . ranges[i]);
 
-        sptr = sptr -> next();
-    }
-    while (sptr -> gettextlengthcr() < ei && sptr != pgptr);
+		sptr = sptr -> next();
+	}
+	while (sptr -> gettextlengthcr() < (uint4)ei && sptr != pgptr);
 
-    t_ranges . Take(r_value . ranges, r_value . count);
+	t_ranges . Take(r_value . ranges, r_value . count);
 }
 
 void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, const MCInterfaceFieldRanges& value)
@@ -1864,7 +1866,7 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
     MCBlock *t_block = sptr -> getblocks();
 
     // skip the blocks outside [si;ei]
-    while (t_si + t_block -> GetLength() < si)
+    while (t_si + t_block -> GetLength() < (uindex_t)si)
     {
         t_si += t_block -> GetLength();
         t_block = t_block -> next();
@@ -1881,7 +1883,7 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
     }
 
     // Unflag all the blocks within [si;ei[
-    while (t_si  + t_block -> GetLength() < ei)
+    while (t_si  + t_block -> GetLength() < (uindex_t)ei)
     {
         t_block  -> SetFlagged(ctxt, false);
         t_si += t_block -> GetLength();
@@ -1923,11 +1925,11 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 
     // Loop while there is a range to flag and and we haven't gone further than ei
     while (t_range_index < value . count
-           && (findex_t) t_next_range . start < ei
+           && (uindex_t) t_next_range . start < ei
            && t_paragraph_offset < ei)
     {
         // if the next range doesn't cover this paragraph, we skip the paragraph
-        if ((findex_t) t_next_range . start > t_paragraph_offset + sptr -> gettextlengthcr())
+        if ((uindex_t) t_next_range . start > t_paragraph_offset + sptr -> gettextlengthcr())
         {
             t_paragraph_offset += sptr -> gettextlengthcr();
             sptr = sptr -> next();
@@ -1942,11 +1944,11 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
         // while there is a range to flaf and we haven't gone further than ei
         // and there are blocks to be checked
         while (t_range_index < value . count
-               && t_block_offset < sptr -> gettextlengthcr()
+               && (uint4)t_block_offset < sptr -> gettextlengthcr()
                && t_block_offset < ei)
         {
             // skip block if it's not covered by the next range
-            if ((findex_t) t_next_range . start > t_block_offset + bptr -> GetLength())
+            if ((uindex_t) t_next_range . start > t_block_offset + bptr -> GetLength())
             {
                 t_block_offset += bptr -> GetLength();
                 bptr = bptr -> next();
@@ -1955,7 +1957,7 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 
             // if the range doesn't start at the beginning of the block
             // we must split the block and skip the first part
-            if ((findex_t) t_next_range . start > t_block_offset)
+            if ((uindex_t) t_next_range . start > t_block_offset)
             {
                 bptr -> split(t_next_range . start);
                 t_block_offset += bptr -> GetLength();
@@ -1964,7 +1966,7 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 
             // if the range doesn't cover the block up to its end
             // we must split it
-            if ((findex_t) t_next_range . end < t_block_offset + bptr -> GetLength())
+            if ((uindex_t) t_next_range . end < t_block_offset + bptr -> GetLength())
                 bptr -> split(t_next_range . end);
 
             // Flag the block
@@ -1972,7 +1974,7 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 
             // if the range went further than the block
             // we must keep track of this and update the next range to be flagged
-            if ((findex_t) t_next_range . end > t_block_offset + bptr -> GetLength())
+            if ( t_next_range . end > t_block_offset + bptr -> GetLength())
                 t_next_range . start = t_block_offset + bptr -> GetLength();
             // otherwise we set the next range to the appropriate value
             else if (t_range_index < value . count)
@@ -3320,11 +3322,11 @@ void MCBlock::GetTextStyle(MCExecContext& ctxt, MCInterfaceTextStyle& r_style)
 
 void MCBlock::SetTextStyle(MCExecContext& ctxt, const MCInterfaceTextStyle& p_style)
 {
-    if (p_style . style == 0)
+    if (0 == p_style . style)
         flags &= ~F_HAS_FSTYLE;
     else
     {
-        if (atts == NULL)
+        if (NULL == atts)
             atts = new (nothrow) Blockatts;
         flags |= F_HAS_FSTYLE;
         atts -> fontstyle = p_style . style;
@@ -3334,7 +3336,7 @@ void MCBlock::SetTextStyle(MCExecContext& ctxt, const MCInterfaceTextStyle& p_st
 void MCBlock::GetTextShift(MCExecContext& ctxt, integer_t*& r_shift)
 {
     int2 t_shift;
-    if (getshift(t_shift) != True)
+    if (True != getshift(t_shift))
         r_shift = nil;
     else
         *r_shift = t_shift;
@@ -3342,11 +3344,11 @@ void MCBlock::GetTextShift(MCExecContext& ctxt, integer_t*& r_shift)
 
 void MCBlock::SetTextShift(MCExecContext& ctxt, integer_t* p_shift)
 {
-    if (p_shift == nil)
+    if (nil == p_shift)
         flags &= ~F_HAS_SHIFT;
     else
     {
-        if (atts == NULL)
+        if (NULL == atts)
             atts = new (nothrow) Blockatts;
         atts->shift = *p_shift;
         flags |= F_HAS_SHIFT;
@@ -3365,7 +3367,7 @@ void MCBlock::GetForeColor(MCExecContext& ctxt, MCInterfaceNamedColor &r_color)
 void MCBlock::SetForeColor(MCExecContext& ctxt, const MCInterfaceNamedColor& p_color)
 {
     MCColor t_color;
-    if (p_color . name != nil)
+    if (nil != p_color . name)
     {
         if (MCStringIsEmpty(p_color . name)) // no color set
         {
@@ -3396,7 +3398,7 @@ void MCBlock::GetBackColor(MCExecContext& ctxt, MCInterfaceNamedColor &r_color)
 void MCBlock::SetBackColor(MCExecContext& ctxt, const MCInterfaceNamedColor &p_color)
 {
     MCColor t_color;
-    if (p_color . name != nil)
+    if (nil != p_color . name)
     {
         if (MCStringIsEmpty(p_color . name)) // no color set
         {
@@ -3432,7 +3434,7 @@ void MCBlock::SetTextStyleElement(MCExecContext& ctxt, MCNameRef p_index, bool p
     Font_textstyle t_text_style;
     if (MCF_parsetextstyle(MCNameGetString(p_index), t_text_style) == ES_NORMAL)
     {
-        if (atts == NULL)
+        if (NULL == atts)
             atts = new (nothrow) Blockatts;
         
         // AL-2014-09-23 [[ Bug 13509 ]] Check F_HAS_FSTYLE when adding block attribute

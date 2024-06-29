@@ -881,10 +881,10 @@ Boolean MCGroup::mup(uint2 which, bool p_release)
 			end(true, p_release);
 		}
 		else
-            if (p_release)
-                message_with_args(MCM_mouse_release, which);
-            else
-                message_with_args(MCM_mouse_up, which);
+			if (p_release)
+				message_with_args(MCM_mouse_release, which);
+			else
+				message_with_args(MCM_mouse_up, which);
 		return True;
 	}
 	state &= ~CS_MFOCUSED;
@@ -1679,12 +1679,12 @@ MCControl *MCGroup::getchild(Chunk_term etype, MCStringRef p_expression, Chunk_t
 
 MCControl *MCGroup::getchildbyordinal(Chunk_term p_ordinal_type, Chunk_term p_object_type)
 {
-    MCControl *cptr = controls;
-    if (cptr == nil)
-        return nil;
-    
+	MCControl *cptr = controls;
+	if (cptr == nil)
+		return nil;
+
 	uint2 num = 0;
-    
+
 	switch (p_ordinal_type)
 	{
         case CT_FIRST:
@@ -2524,11 +2524,11 @@ IO_stat MCGroup::extendedsave(MCObjectOutputStream& p_stream, uint4 p_part, uint
 	uint32_t t_size, t_flags;
 	t_size = 0;
 	t_flags = 0;
-    
-    // MW-2014-06-20: [[ ClipsToRect ]] ClipsToRect doesn't require any storage
-    //   as if the flag is present its true, otherwise false.
-    if (m_clips_to_rect)
-        t_flags |= GROUP_EXTRA_CLIPSTORECT;
+
+	// MW-2014-06-20: [[ ClipsToRect ]] ClipsToRect doesn't require any storage
+	//   as if the flag is present its true, otherwise false.
+	if (m_clips_to_rect)
+		t_flags |= GROUP_EXTRA_CLIPSTORECT;
     
 	IO_stat t_stat;
 	t_stat = p_stream . WriteTag(t_flags, t_size);

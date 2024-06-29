@@ -158,8 +158,10 @@ class MCParagraph : public MCDLlist
 	MCBlock *blocks;
     MCSegment *segments;
 	MCLine *lines;
-	findex_t focusedindex;
-	findex_t startindex, endindex, originalindex;
+	uindex_t focusedindex;
+//	findex_t startindex, endindex;
+	uindex_t startindex, endindex;
+	uindex_t originalindex;
     bool moving_left, moving_forward;        // Need to know direction for BiDi support
 	uint2 opened;
 	uint1 state;
@@ -202,7 +204,7 @@ public:
 	
 	// Increments the index pointer to the next character, accounting for
 	// surrogate pairs when it does so.
-	findex_t IncrementIndex(findex_t p_in)
+	uindex_t IncrementIndex(findex_t p_in)
 	{
 		if (p_in < 0)
 			return 0;
@@ -211,32 +213,32 @@ public:
         //  surrogate pair - in which case the index only increments by 1.
 		if (0xD800 <= t_char && t_char < 0xDC00)
             return (findex_t)MCU_min((uindex_t)(p_in + 2), MCStringGetLength(*m_text));
-		return p_in + 1;
+		return (uindex_t)p_in + 1;
 	}
 	
 	// Decrements the index pointer to the previous character, accounting for
 	// surrogate pairs when it does so.
-	findex_t DecrementIndex(findex_t p_in)
+	uindex_t DecrementIndex(findex_t p_in)
 	{
 		if (p_in <= 0)
             return 0;
         unichar_t t_char = MCStringGetCharAtIndex(*m_text, p_in - 1);
 		if (0xDC00 <= t_char && t_char < 0xE000)
 			return p_in - 2;
-		return p_in - 1;
+		return (uindex_t)p_in - 1;
 	}
     
     // Scans from the given index to the next word break
-    findex_t NextWord(findex_t);
+    uindex_t NextWord(uindex_t);
     
     // Scans from the given index to the previous word break
-    findex_t PrevWord(findex_t);
+    uindex_t PrevWord(uindex_t);
     
     // Scans from the given index to the next character break
-    findex_t NextChar(findex_t);
+    uindex_t NextChar(uindex_t);
     
     // Scans from the given index to the previous charcter break
-    findex_t PrevChar(findex_t);
+    uindex_t PrevChar(uindex_t);
 	
 	// Returns true if the given character is a word break (e.g. space)
 	static bool TextIsWordBreak(codepoint_t);
@@ -263,7 +265,7 @@ public:
 	// Returns true if the paragraph is empty
 	bool IsEmpty()
 	{
-		return gettextlength() == 0;
+		return 0 == gettextlength();
 	}
 	
 	// Returns the mutable stringref that is used internally by hte paragraph.
@@ -278,7 +280,7 @@ public:
     
     MCTextDirection getbasetextdirection() const
     {
-        if (base_direction == kMCTextDirectionAuto)
+        if (kMCTextDirectionAuto == base_direction)
             return parent->getbasetextdirection();
         return base_direction;
     }
@@ -443,9 +445,10 @@ public:
 	// paragraph in bytes.
     // SN-2014-04-04 [[ CombiningChars ]] We want to be able to get the numbers of actual characters of a paragraph
     // not the numbers of codeunits.
-	findex_t gettextlength(bool p_char_indices = false)
+//	findex_t gettextlength(bool p_char_indices = false)
+	unsigned int gettextlength(bool p_char_indices = false)
 	{
-		if (blocks == NULL)
+		if (NULL == blocks)
 			inittext();
 			
         if (p_char_indices)
@@ -460,7 +463,8 @@ public:
 	}
 
 	// Same as gettextsize, except adjust by one for the CR character.
-	findex_t gettextlengthcr(bool p_char_indices = false)
+//	findex_t gettextlengthcr(bool p_char_indices = false)
+	unsigned int gettextlengthcr(bool p_char_indices = false)
 	{
 		return gettextlength(p_char_indices) + 1;
 	}

@@ -851,7 +851,7 @@ RTFStatus RTFReader::ParseDocument(RTFToken p_token, int4 p_value)
 			{
 				uint4 t_charset_index;
 				for(t_charset_index = 0; s_charset_mapping[t_charset_index] . charset != -1; ++t_charset_index)
-					if (s_charset_mapping[t_charset_index] . charset == t_new_charset)
+					if (s_charset_mapping[t_charset_index] . charset == (int)t_new_charset)
 						break;
 				t_new_encoding = s_charset_mapping[t_charset_index] . encoding;
 			}
@@ -1268,8 +1268,8 @@ RTFStatus RTFReader::ParseLegacyList(RTFToken p_token, int4 p_value)
 	RTFToken t_token;
 	t_token = p_token & kRTFTokenMask;
 
-	bool t_has_parameter;
-	t_has_parameter = (p_token & kRTFTokenHasParameter) != 0;
+//	bool t_has_parameter;
+//	t_has_parameter = (p_token & kRTFTokenHasParameter) != 0;
 
 	switch(t_token)
 	{
@@ -1366,8 +1366,8 @@ RTFStatus RTFReader::ParseListTable(RTFToken p_token, int4 p_value)
 	RTFStatus t_status;
 	t_status = kRTFStatusSuccess;
 	
-	bool t_has_parameter;
-	t_has_parameter = (p_token & kRTFTokenHasParameter) != 0;
+//	bool t_has_parameter;
+//	t_has_parameter = (p_token & kRTFTokenHasParameter) != 0;
 	
 	switch(p_token & kRTFTokenMask)
 	{

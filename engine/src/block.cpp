@@ -473,8 +473,8 @@ IO_stat MCBlock::save(IO_handle stream, uint4 p_part, uint32_t p_version)
 	// MW-2012-05-04: [[ Values ]] linkText / imageSource / metaData are now uniqued
 	//   strings.
 	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
-    if (flags & F_HAS_LINK)
-        if ((stat = IO_write_stringref_new(atts->linktext, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
+	if (flags & F_HAS_LINK)
+		if ((stat = IO_write_stringref_new(atts->linktext, stream, p_version >= kMCStackFileFormatVersion_7_0)) != IO_NORMAL)
 			return stat;
 	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 	if (flags & F_HAS_IMAGE)
@@ -2218,23 +2218,23 @@ bool MCBlock::imagechanged(MCImage *p_image, bool p_deleting)
 	return false;
 }
 
-void MCBlock::GetRange(findex_t &r_index, findex_t &r_length)
+void MCBlock::GetRange(uindex_t &r_index, uindex_t &r_length)
 {
 	r_index = m_index;
 	r_length = m_size;
 }
 
-findex_t MCBlock::GetOffset()
-{
-	return m_index;
-}
+//uindex_t MCBlock::GetOffset()
+//{
+//	return m_index;
+//}
 
-findex_t MCBlock::GetLength()
-{
-	return m_size;
-}
+//uindex_t MCBlock::GetLength()
+//{
+//	return m_size;
+//}
 
-void MCBlock::SetRange(findex_t p_index, findex_t p_length)
+void MCBlock::SetRange(uindex_t p_index, uindex_t p_length)
 {
 	m_index = p_index;
 	m_size = p_length;
@@ -2254,7 +2254,7 @@ void MCBlock::SetRange(findex_t p_index, findex_t p_length)
 		flags &= ~F_HAS_TAB;*/
 }
 
-void MCBlock::MoveRange(findex_t p_index, findex_t p_length)
+void MCBlock::MoveRange(uindex_t p_index, uindex_t p_length)
 {
 	m_index += p_index;
 	m_size += p_length;
@@ -2262,7 +2262,7 @@ void MCBlock::MoveRange(findex_t p_index, findex_t p_length)
     {
         width = 0;
         // AL-2014-08-04: [[ Bug 13082 ]] Make sure imagesource is deleted in zero-width blocks
-        if (flags & F_HAS_IMAGE && m_size == 0)
+        if (flags & F_HAS_IMAGE && 0 == m_size)
 			freeatts();
     }
     

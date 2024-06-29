@@ -1731,41 +1731,18 @@ class MCObjectPartHandle: public MCObjectHandle
 {
     uint32_t m_part_id = 0;
 public:
-    /* TODO[2017-04-27] These constructors should be constexpr */
-    /* TODO[C++11] constexpr MCObjectPartHandle() = default; */
-    MCObjectPartHandle() : MCObjectHandle(), m_part_id(0) {}
+	constexpr MCObjectPartHandle() = default;
+    // MCObjectPartHandle() : MCObjectHandle(), m_part_id(0) {}
     MCObjectPartHandle(decltype(nullptr))
       : MCObjectHandle(nullptr), m_part_id(0) {}
 
-    /* TODO[C++11] MCObjectPartHandle(const MCObjectPartHandle&) = default; */
-    MCObjectPartHandle(const MCObjectPartHandle& other)
-      : MCObjectHandle(other), m_part_id(other.m_part_id) {};
-    /* TODO[C++11] MCObjectPartHandle(MCObjectPartHandle&& other) = deafult; */
-    MCObjectPartHandle(MCObjectPartHandle&& other)
-      : MCObjectHandle(nullptr), m_part_id(0)
-    {
-        using std::swap;
-        swap(*this, other);
-    }
-
+	MCObjectPartHandle(const MCObjectPartHandle&) = default;
+	MCObjectPartHandle(MCObjectPartHandle&& other) = default;
     MCObjectPartHandle(MCObject* p_object, uint32_t p_part_id = 0);
     MCObjectPartHandle(const MCObjectPtr&);
 
-    /* TODO[C++11] MCObjectPartHandle& operator=(const MCObjectPartHandle&) = default; */
-    MCObjectPartHandle& operator=(const MCObjectPartHandle& other)
-    {
-        MCObjectHandle::operator=(other);
-        m_part_id = other.m_part_id;
-        return *this;
-    }
-    /* TODO[C++11] MCObjectPartHandle& operator=(MCObjectPartHandle&&) = default; */
-    MCObjectPartHandle& operator=(MCObjectPartHandle&& other)
-    {
-        MCObjectHandle::operator=(std::move(other));
-        m_part_id = other.m_part_id;
-        return *this;
-    }
-
+	MCObjectPartHandle& operator=(const MCObjectPartHandle&) = default;
+	MCObjectPartHandle& operator=(MCObjectPartHandle&&) = default;
     MCObjectPartHandle& operator=(decltype(nullptr));
     MCObjectPartHandle& operator=(const MCObjectPtr&);
 

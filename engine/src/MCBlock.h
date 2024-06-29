@@ -61,7 +61,8 @@ protected:
 	MCParagraph *parent;
 	uint4 flags;
 	Blockatts *atts;
-	findex_t m_index, m_size;
+	uindex_t m_index;
+	uindex_t m_size;
 	coord_t width;
     coord_t origin;
 	uint2 opened;
@@ -343,19 +344,28 @@ public:
 	////////////////////
 	
 	// Returns only the "index" component of the range
-	findex_t GetOffset();
-	
+	uindex_t GetOffset()
+	{
+		return m_index;
+	}
+
 	// Returns only the "length" component of the range
-	findex_t GetLength();
-	
+	uindex_t GetLength()
+	{
+		return m_size;
+	}
+
 	// Returns the range of text covered by the block
-	void GetRange(findex_t &r_index, findex_t &r_length);
+//	void GetRange(findex_t &r_index, findex_t &r_length);
+	void GetRange(uindex_t &r_index, uindex_t &r_length);
 	
 	// Sets the indices correctly using the parent paragraph's stringref
-	void SetRange(findex_t t_index, findex_t t_length);
+//	void SetRange(findex_t t_index, findex_t t_length);
+	void SetRange(uindex_t t_index, uindex_t t_length);
 	
 	// Moves the index by the specified number of character positions
-	void MoveRange(findex_t t_index_offset, findex_t t_length_offset); 
+//	void MoveRange(findex_t t_index_offset, findex_t t_length_offset); 
+	void MoveRange(uindex_t t_index_offset, uindex_t t_length_offset); 
 	
 	// Translates from a pixel position to a cursor index
 	findex_t GetCursorIndex(coord_t x, Boolean chunk, Boolean last, bool moving_forward);
@@ -385,7 +395,7 @@ public:
     // Returns true if the block has a trailing tab character.
     bool HasTrailingTab(void) const
     {
-        return m_size != 0 && GetCodepointAtIndex(m_size - 1) == '\t';
+        return 0 != m_size && '\t' == GetCodepointAtIndex(m_size - 1);
     }
     
     //////////
