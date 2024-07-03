@@ -974,7 +974,7 @@ template<typename T> void SetParagraphPropOfCharChunk(MCExecContext& ctxt, MCFie
 
 // SN-28-11-13: Added specific function for the IDE which needs
 // to set the property to a char chunk in a given paragraph.
-template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt, MCParagraph *p_paragraph, findex_t si, findex_t ei, void (MCBlock::*p_setter)(MCExecContext&, typename T::arg_type), typename T::arg_type p_value)
+template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt, MCParagraph *p_paragraph, uindex_t si, uindex_t ei, void (MCBlock::*p_setter)(MCExecContext&, typename T::arg_type), typename T::arg_type p_value)
 {
     MCField *t_field;
     t_field = p_paragraph -> getparent();
@@ -1043,7 +1043,7 @@ template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt,
         p_paragraph -> layoutchanged();
 }
 
-template<typename T> void SetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p_field, bool all, uint32_t p_part_id, findex_t si, findex_t ei, void (MCBlock::*p_setter)(MCExecContext&, typename T::arg_type), typename T::arg_type p_value)
+template<typename T> void SetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p_field, bool all, uint32_t p_part_id, uindex_t si, uindex_t ei, void (MCBlock::*p_setter)(MCExecContext&, typename T::arg_type), typename T::arg_type p_value)
 {
     if (p_field -> getflag(F_SHARED_TEXT))
         p_part_id = 0;
@@ -1052,7 +1052,7 @@ template<typename T> void SetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p
     MCFieldLayoutSettings t_layout_settings;
     MCParagraph *pgptr;
 
-    pgptr = PrepareLayoutSettings(all, p_field, p_part_id, si, ei, t_layout_settings);
+    pgptr = PrepareLayoutSettings(all, p_field, p_part_id, (findex_t&)si, (findex_t&)ei, t_layout_settings);
 
     MCParagraph *t_first_pgptr;
     t_first_pgptr = pgptr;
@@ -1393,7 +1393,7 @@ void MCField::GetEffectiveTextSizeOfCharChunk(MCExecContext& ctxt, uint32_t p_pa
 
 void MCField::SetTextSizeOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, uinteger_t* p_value)
 {
-    SetCharPropOfCharChunk< OptionalFieldPropType< PodFieldPropType<uinteger_t> > >(ctxt, this, true, p_part_id, si, ei, &MCBlock::SetTextSize, p_value);
+    SetCharPropOfCharChunk< OptionalFieldPropType< PodFieldPropType<uinteger_t> > >(ctxt, this, true, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextSize, p_value);
 }
 
 void MCField::GetTextOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t p_start, int32_t p_finish, MCStringRef& r_value)
@@ -1769,7 +1769,7 @@ void MCField::GetMetadataOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, in
 
 void MCField::SetMetadataOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCStringRef value)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetMetadata, value);
+    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, false, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetMetadata, value);
 }
 
 void MCField::GetImageSourceOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCStringRef& r_value)
@@ -1783,7 +1783,7 @@ void MCField::SetImageSourceOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id,
     if (si == ei)
         return;
 
-    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, true, p_part_id, si, ei, &MCBlock::SetImageSource, value);
+    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, true, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetImageSource, value);
 }
 
 void MCField::GetVisitedOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, bool& r_value)
@@ -1795,7 +1795,7 @@ void MCField::GetVisitedOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int
 // PM-2015-07-06: [[ Bug 15577 ]] Allow setting of the "visited" property of a block
 void MCField::SetVisitedOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, bool p_value)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<bool> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetVisited,p_value);
+    SetCharPropOfCharChunk< PodFieldPropType<bool> >(ctxt, this, false, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetVisited,p_value);
 }
 
 void MCField::GetEncodingOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t p_start, int32_t p_finish, intenum_t& r_encoding)
@@ -1824,7 +1824,7 @@ void MCField::GetFlaggedOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int
 
 void MCField::SetFlaggedOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, bool value)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<bool> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetFlagged, value);
+    SetCharPropOfCharChunk< PodFieldPropType<bool> >(ctxt, this, false, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetFlagged, value);
 }
 
 void MCField::GetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCInterfaceFieldRanges& r_value)
@@ -2395,7 +2395,7 @@ void MCField::GetEffectiveForeColorOfCharChunk(MCExecContext& ctxt, uint32_t p_p
 
 void MCField::SetForeColorOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, const MCInterfaceNamedColor& color)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<MCInterfaceNamedColor> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetForeColor, color);
+    SetCharPropOfCharChunk< PodFieldPropType<MCInterfaceNamedColor> >(ctxt, this, false, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetForeColor, color);
     
     // AL-2014-08-04: [[ Bug 13076 ]] Redraw without relayout after changing block color
     MCObject::Redraw();
@@ -2422,7 +2422,7 @@ void MCField::GetEffectiveBackColorOfCharChunk(MCExecContext& ctxt, uint32_t p_p
 
 void MCField::SetBackColorOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, const MCInterfaceNamedColor& color)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<MCInterfaceNamedColor> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetBackColor, color);
+    SetCharPropOfCharChunk< PodFieldPropType<MCInterfaceNamedColor> >(ctxt, this, false, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetBackColor, color);
     
     // AL-2014-08-04: [[ Bug 13076 ]] Redraw without relayout after changing block color
     MCObject::Redraw();
@@ -2451,7 +2451,7 @@ void MCField::GetEffectiveTextFontOfCharChunk(MCExecContext& ctxt, uint32_t p_pa
 
 void MCField::SetTextFontOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCStringRef p_value)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, true, p_part_id, si, ei, &MCBlock::SetTextFont, p_value);
+    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, true, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextFont, p_value);
 }
 
 void MCField::GetTextStyleOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, bool& r_mixed, MCInterfaceTextStyle& r_value)
@@ -2472,7 +2472,7 @@ void MCField::GetEffectiveTextStyleOfCharChunk(MCExecContext& ctxt, uint32_t p_p
 void MCField::SetTextStyleOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, const MCInterfaceTextStyle& p_value)
 {
     // AL-2014-09-22: [[ Bug 11817 ]] Don't necessarily recompute the whole field when changing text styles
-    SetCharPropOfCharChunk< PodFieldPropType<MCInterfaceTextStyle> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetTextStyle, p_value);
+    SetCharPropOfCharChunk< PodFieldPropType<MCInterfaceTextStyle> >(ctxt, this, false, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextStyle, p_value);
 }
 
 void MCField::GetTextShiftOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, bool& r_mixed, integer_t*& r_value)
@@ -2494,7 +2494,7 @@ void MCField::GetEffectiveTextShiftOfCharChunk(MCExecContext& ctxt, uint32_t p_p
 
 void MCField::SetTextShiftOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, integer_t* p_value)
 {
-    SetCharPropOfCharChunk< OptionalFieldPropType< PodFieldPropType<integer_t> > >(ctxt, this, true, p_part_id, si, ei, &MCBlock::SetTextShift, p_value);
+    SetCharPropOfCharChunk< OptionalFieldPropType< PodFieldPropType<integer_t> > >(ctxt, this, true, p_part_id, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextShift, p_value);
 }
 
 void MCField::GetTextStyleElementOfCharChunk(MCExecContext& ctxt, MCNameRef p_index, uint32_t p_part_id, int32_t si, int32_t ei, bool& r_mixed, bool*& r_value)
@@ -3123,22 +3123,22 @@ void MCParagraph::SetMetadata(MCExecContext& ctxt, MCStringRef p_metadata)
 // SN-28-11-13: The IDE needs to set char chunk properties for a specific paragraph
 void MCParagraph::SetForeColorOfCharChunk(MCExecContext &ctxt, findex_t si, findex_t ei, const MCInterfaceNamedColor &p_color)
 {
-    SetCharPropOfCharChunkOfParagraph<PodFieldPropType<MCInterfaceNamedColor> >(ctxt, this, si, ei, &MCBlock::SetForeColor, p_color);
+    SetCharPropOfCharChunkOfParagraph<PodFieldPropType<MCInterfaceNamedColor> >(ctxt, this, (uindex_t)si, (uindex_t)ei, &MCBlock::SetForeColor, p_color);
 }
 
 void MCParagraph::SetTextStyleOfCharChunk(MCExecContext &ctxt, findex_t si, findex_t ei, const MCInterfaceTextStyle &p_text)
 {
-    SetCharPropOfCharChunkOfParagraph<PodFieldPropType<MCInterfaceTextStyle> >(ctxt, this, si, ei, &MCBlock::SetTextStyle, p_text);
+    SetCharPropOfCharChunkOfParagraph<PodFieldPropType<MCInterfaceTextStyle> >(ctxt, this, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextStyle, p_text);
 }
 
 void MCParagraph::SetTextFontOfCharChunk(MCExecContext &ctxt, findex_t si, findex_t ei, MCStringRef p_fontname)
 {
-    SetCharPropOfCharChunkOfParagraph<PodFieldPropType<MCStringRef> >(ctxt, this, si, ei, &MCBlock::SetTextFont, p_fontname);
+    SetCharPropOfCharChunkOfParagraph<PodFieldPropType<MCStringRef> >(ctxt, this, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextFont, p_fontname);
 }
 
 void MCParagraph::SetTextSizeOfCharChunk(MCExecContext &ctxt, findex_t si, findex_t ei, uinteger_t *p_size)
 {
-    SetCharPropOfCharChunkOfParagraph<OptionalFieldPropType<PodFieldPropType<uinteger_t> > >(ctxt, this, si, ei, &MCBlock::SetTextSize, p_size);
+    SetCharPropOfCharChunkOfParagraph<OptionalFieldPropType<PodFieldPropType<uinteger_t> > >(ctxt, this, (uindex_t)si, (uindex_t)ei, &MCBlock::SetTextSize, p_size);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
