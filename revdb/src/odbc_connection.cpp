@@ -490,7 +490,8 @@ bool DBConnection_ODBC::handleDataAtExecutionParameters(SQLHSTMT p_statement)
 		
 		if (SQL_SUCCESS != t_put_result)
 		{
-			char *t_error = getDiagnosticRecord(p_statement);	// UNCHECKED
+//			char *t_error = getDiagnosticRecord(p_statement);	// UNCHECKED
+			/* UNCHECKED */ getDiagnosticRecord(p_statement);	// UNCHECKED
 
 			return false;
 		}

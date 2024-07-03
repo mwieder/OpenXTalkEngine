@@ -235,13 +235,13 @@ bool MCCefInitialise(void)
 	t_settings.no_sandbox = true;
 	t_settings.log_severity = LOGSEVERITY_VERBOSE;
 
-    bool t_success = true;
-    if (t_success)
-        t_success = __MCCefBuildPath(t_library_path, kCefProcessName, &t_settings.browser_subprocess_path);
-    if (t_success)
-        t_success = __MCCefBuildPath(t_library_path, "locales", &t_settings.locales_dir_path);
-    if (t_success)
-        t_success = __MCCefBuildPath(t_library_path, "", &t_settings.resources_dir_path);
+	bool t_success = true;
+	if (t_success)
+		t_success = __MCCefBuildPath(t_library_path, kCefProcessName, &t_settings.browser_subprocess_path);
+	if (t_success)
+		t_success = __MCCefBuildPath(t_library_path, "locales", &t_settings.locales_dir_path);
+	if (t_success)
+		t_success = __MCCefBuildPath(t_library_path, "", &t_settings.resources_dir_path);
 
 
 	CefRefPtr<CefApp> t_app = nil;
@@ -1397,13 +1397,14 @@ int MCCefBrowserBase::GetVScroll(void)
 {
 	// property available through JavaScript
 
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 
 	int t_int_value;
 	t_int_value = 0;
 
-	t_success = EvalJavaScript("document.body.scrollTop", t_int_value);
+//	t_success = EvalJavaScript("document.body.scrollTop", t_int_value);
+	/* UNCHECKED */ EvalJavaScript("document.body.scrollTop", t_int_value);
 
 	return t_int_value;
 }
@@ -1432,13 +1433,14 @@ int MCCefBrowserBase::GetHScroll(void)
 {
 	// property available through JavaScript
 
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 
 	int t_int_value;
 	t_int_value = 0;
 
-	t_success = EvalJavaScript("document.body.scrollLeft", t_int_value);
+//	t_success = EvalJavaScript("document.body.scrollLeft", t_int_value);
+	/* UNCHECKED */ EvalJavaScript("document.body.scrollLeft", t_int_value);
 
 	return t_int_value;
 }
@@ -1542,13 +1544,14 @@ int MCCefBrowserBase::GetFormattedHeight(void)
 {
 	// property available through JavaScript
 
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 
 	int t_int_value;
 	t_int_value = 0;
 
-	t_success = EvalJavaScript("document.body.scrollHeight", t_int_value);
+//	t_success = EvalJavaScript("document.body.scrollHeight", t_int_value);
+	/* UNCHECKED */ EvalJavaScript("document.body.scrollHeight", t_int_value);
 
 	return t_int_value;
 }
@@ -1557,13 +1560,14 @@ int MCCefBrowserBase::GetFormattedWidth(void)
 {
 	// property available through JavaScript
 
-	bool t_success;
-	t_success = true;
+//	bool t_success;
+//	t_success = true;
 
 	int t_int_value;
 	t_int_value = 0;
 
-	t_success = EvalJavaScript("document.body.scrollWidth", t_int_value);
+//	t_success = EvalJavaScript("document.body.scrollWidth", t_int_value);
+	/* UNCHECKED */ EvalJavaScript("document.body.scrollWidth", t_int_value);
 
 	return t_int_value;
 }

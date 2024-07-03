@@ -782,7 +782,7 @@ template<typename T> void GetArrayCharPropOfCharChunk(MCExecContext& ctxt, MCFie
                 break;
             
             // Stop if the next block index will exceed the end index
-            if (t_block -> next() -> GetOffset() >= ei)
+            if (t_block -> next() -> GetOffset() >= (uindex_t)ei)
                 break;
             
             t_block = t_block -> next();
@@ -1000,7 +1000,7 @@ template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt,
     do
     {
         bptr->GetRange(t_block_index, t_block_length);
-        if (t_block_index < si)
+        if (t_block_index < (uindex_t)si)
         {
             MCBlock *tbptr = new (nothrow) MCBlock(*bptr);
             bptr->append(tbptr);
@@ -1012,7 +1012,7 @@ template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt,
         }
         else
             bptr->close();
-        if (t_block_index + t_block_length > ei)
+        if (t_block_index + t_block_length > (uindex_t)ei)
         {
             MCBlock *tbptr = new (nothrow) MCBlock(*bptr);
             // MW-2012-02-14: [[ FontRefs ]] If the block is open, pass in the parent's
@@ -1034,7 +1034,7 @@ template<typename T> void SetCharPropOfCharChunkOfParagraph(MCExecContext& ctxt,
 
         bptr = bptr->next();
     }
-    while (t_block_index + t_block_length < ei);
+    while (t_block_index + t_block_length < (uindex_t)ei);
 
     if (t_blocks_changed)
         p_paragraph -> setDirty();
@@ -1060,7 +1060,7 @@ template<typename T> void SetCharPropOfCharChunk(MCExecContext& ctxt, MCField *p
     do
     {
         uindex_t t_pg_length = pgptr->gettextlengthcr();
-        if (si < t_pg_length)
+        if ((uindex_t)si < t_pg_length)
         {
             pgptr->setparent(p_field);
 
@@ -1171,7 +1171,7 @@ template<typename T> void SetArrayCharPropOfCharChunk(MCExecContext& ctxt, MCFie
     do
     {
         uindex_t t_pg_length = pgptr->gettextlengthcr();
-        if (si < t_pg_length)
+        if ((uindex_t)si < t_pg_length)
         {
             pgptr->setparent(p_field);
             
@@ -1189,7 +1189,7 @@ template<typename T> void SetArrayCharPropOfCharChunk(MCExecContext& ctxt, MCFie
                 do
                 {
                     bptr->GetRange(t_block_index, t_block_length);
-                    if (t_block_index < si)
+                    if (t_block_index < (uindex_t)si)
                     {
                         MCBlock *tbptr = new (nothrow) MCBlock(*bptr);
                         bptr->append(tbptr);
@@ -1734,19 +1734,21 @@ void MCField::GetFormattedRectOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 void MCField::GetLinkTextOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCStringRef& r_value)
 {
     bool t_mixed;
-    GetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, p_part_id, si, si, &MCBlock::GetLinkText, false, (MCStringRef)nil, t_mixed, r_value);
+	// is this right? mdw changed to ei 2024.07.02
+//    GetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, p_part_id, si, si, &MCBlock::GetLinkText, false, (MCStringRef)nil, t_mixed, r_value);
+    GetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, p_part_id, si, ei, &MCBlock::GetLinkText, false, (MCStringRef)nil, t_mixed, r_value);
 }
 
 void MCField::SetLinkTextOfCharChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCStringRef value)
 {
-    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, false, p_part_id, si, ei, &MCBlock::SetLinktext, value);
+    SetCharPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, false, p_part_id, (uint32_t)si, (uint32_t)ei, &MCBlock::SetLinktext, value);
 }
 
 void MCField::GetMetadataOfLineChunk(MCExecContext& ctxt, uint32_t p_part_id, int32_t si, int32_t ei, MCStringRef& r_value)
 {
     bool t_mixed;
     MCAutoStringRef t_metadata;
-    GetParagraphPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, p_part_id, si, ei, &MCParagraph::GetMetadata, t_mixed, &t_metadata);
+    GetParagraphPropOfCharChunk< PodFieldPropType<MCStringRef> >(ctxt, this, p_part_id, (uint32_t)si, (uint32_t)ei, &MCParagraph::GetMetadata, t_mixed, &t_metadata);
 
     if (*t_metadata == nil)
         r_value = MCValueRetain(kMCEmptyString);
