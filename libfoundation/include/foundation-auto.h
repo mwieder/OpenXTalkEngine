@@ -52,6 +52,8 @@ public:
 
     constexpr MCAutoValueRefBase(void) = default;
     
+//	MCAutoValueRefBase& operator=(const MCAutoValueRefBase&);
+
     inline MCAutoValueRefBase(const MCAutoValueRefBase& other) :
       m_value(nil)
     {
@@ -208,12 +210,13 @@ public:
         return ImmutableCopyAndRelease(MCAutoValueRefBase<T>::m_value, MCAutoValueRefBase<T>::m_value);
     }
 
-	~MCAutoMutableValueRefBase()
-	{
-	}
+//	rule of zero
+//	~MCAutoMutableValueRefBase()
+//	{
+//	}
     
 private:
-    MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& operator = (MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& x);
+//    MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& operator = (MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& x);
 };
 
 typedef MCAutoValueRefBase<MCValueRef> MCAutoValueRef;
