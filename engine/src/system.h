@@ -182,7 +182,7 @@ public:
 	{
 		// If we aren't writable then its an error (writable buffers start off with
 		// nil buffer pointer, and 0 capacity).
-		if (m_buffer != NULL && m_capacity == 0)
+		if (NULL != m_buffer && 0 == m_capacity)
 			return false;
 		
 		// If there isn't enough room, extend
@@ -213,7 +213,7 @@ public:
 	bool Seek(int64_t p_offset, int p_dir)
 	{
 		int64_t t_base;
-		if (p_dir == 0)
+		if (0 == p_dir)
 			t_base = m_pointer;
 		else if (p_dir < 0)
 			t_base = m_length;
@@ -235,7 +235,7 @@ public:
 	
 	bool PutBack(char c)
 	{
-		if (m_pointer == 0)
+		if (0 == m_pointer)
 			return false;
 		
 		m_pointer -= 1;
@@ -261,7 +261,7 @@ public:
 	
 	bool Truncate(void)
 	{
-		if (m_capacity != 0)
+		if (0 != m_capacity)
 		{
 			m_length = m_pointer;
 			return true;
@@ -351,20 +351,21 @@ public:
         
         t_stat = m_callbacks -> read(m_state, p_buffer, p_blocksize, r_read);
         
-        if (t_stat == IO_EOF)
+        if (IO_EOF == t_stat)
         {
             m_is_eof = true;
             return false;
         }
-        
+
         m_is_eof = false;
-        
-		if (t_stat != IO_NORMAL)
-            return false;
-        
-        return true;
+
+//		if (IO_NORMAL != t_stat)
+//            return false;
+
+//        return true;
+		return (IO_NORMAL == t_stat);
 	}
-	
+
 	bool Write(const void *p_buffer, uint32_t p_length)
 	{
 		return false;
@@ -372,7 +373,7 @@ public:
 	
 	bool Seek(int64_t p_offset, int p_dir)
 	{
-		if (p_dir == 0)
+		if (0 == p_dir)
 			return m_callbacks -> seek_cur(m_state, p_offset) == IO_NORMAL;
 		else if (p_dir > 0)
 			return m_callbacks -> seek_set(m_state, p_offset) == IO_NORMAL;
@@ -520,7 +521,7 @@ struct MCSystemInterface
 	virtual Boolean FolderExists(MCStringRef p_path) = 0;
 	virtual Boolean FileNotAccessible(MCStringRef p_path) = 0;
 	
-	virtual Boolean ChangePermissions(MCStringRef p_path, uint2 p_mask) = 0;
+	virtual IO_stat ChangePermissions(MCStringRef p_path, uint2 p_mask) = 0;
 	virtual uint2 UMask(uint2 p_mask) = 0;
 	
     virtual IO_handle DeployOpen(MCStringRef p_path, intenum_t p_mode)

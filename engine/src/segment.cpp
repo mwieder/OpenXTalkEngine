@@ -120,7 +120,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
     MCBlock *t_break_block;
     t_break_block = NULL;
     
-    findex_t t_break_index;
+    uindex_t t_break_index;
     t_break_index = 0;
     
     do
@@ -137,7 +137,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
         bool t_continue;
 		if (t_block_fits)
 		{
-			if (t_new_break_index > t_block -> GetOffset() || (t_block -> GetLength() == 0 && t_break_fits))
+			if ((uindex_t)t_new_break_index > t_block -> GetOffset() || (t_block -> GetLength() == 0 && t_break_fits))
 			{
 				// The whole block fits, so record the break position
 				t_break_block = t_block;
@@ -153,7 +153,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
 		}
 		else
 		{
-			if (t_new_break_index > t_block -> GetOffset())
+			if ((uindex_t)t_new_break_index > t_block -> GetOffset())
 			{
 				// We have a break position but the whole block doesn't fit
 				
@@ -164,7 +164,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
 					t_break_index = t_new_break_index;
 					t_continue = false;
 				}
-				else if (t_break_block != NULL)
+				else if (NULL != t_break_block)
 				{
 					// The break doesn't fit and we've seen a break before
 					t_continue = false;
@@ -181,7 +181,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
 			{
 				// We have no break position and the block doesn't fit
 				
-				if (t_break_block != NULL)
+				if (NULL != t_break_block)
 				{
 					// The block doesn't fit and we've seen a break before
 					t_continue = false;
@@ -204,7 +204,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
     }
     while (t_block->prev() != m_LastBlock);
     
-    if (t_break_block == NULL)
+    if (NULL == t_break_block)
 	{
 		t_break_block = t_block -> prev();
 		t_break_index = t_break_block -> GetOffset() + t_break_block -> GetLength();
@@ -256,7 +256,7 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
 		{
 			// If the explicit line break is the same as the break, then make sure we
 			// mark it as explicit so that line breaks at ends of lines work.
-			if (t_line_break_index <= t_break_index)
+			if ((uindex_t)t_line_break_index <= t_break_index)
 			{
 				t_is_explicit_line_break = true;
 				t_break_index = t_line_break_index;
@@ -271,9 +271,9 @@ MCLine *MCSegment::Fit(coord_t p_max_width)
     // If the break index is before the end of the block *or* if we are explicit and it
 	// is at the end of the block, split the block. [ The latter rule means there is an
 	// empty block to have as a line ].
-    bool t_need_break_segment = t_break_block != m_LastBlock || t_break_index != m_LastBlock->GetOffset() + m_LastBlock->GetLength();
-    bool t_need_break_block = t_break_index < t_break_block -> GetOffset() + t_break_block -> GetLength() ||
-    (t_is_explicit_line_break && t_break_index == t_break_block -> GetOffset() + t_break_block -> GetLength());
+    bool t_need_break_segment = t_break_block != m_LastBlock || (uindex_t)t_break_index != m_LastBlock->GetOffset() + m_LastBlock->GetLength();
+    bool t_need_break_block = (uindex_t)t_break_index < t_break_block -> GetOffset() + t_break_block -> GetLength() ||
+    (t_is_explicit_line_break && (uindex_t)t_break_index == t_break_block -> GetOffset() + t_break_block -> GetLength());
     
 	if (t_need_break_block)
     {

@@ -443,6 +443,7 @@ static void handle_signal(int sig)
         default:
             break;
         }
+		break;	// just here to quash the compiler warning
     case SIGILL:
     case SIGBUS:
     case SIGSEGV:
@@ -1108,7 +1109,7 @@ public:
         return False;
     }
 
-    virtual Boolean ChangePermissions(MCStringRef p_path, uint2 p_mask)
+    virtual IO_stat ChangePermissions(MCStringRef p_path, uint2 p_mask)
     {
         MCAutoStringRefAsSysString t_path_sys;
         /* UNCHECKED */ t_path_sys.Lock(p_path);

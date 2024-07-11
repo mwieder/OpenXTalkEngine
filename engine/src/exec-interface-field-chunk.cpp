@@ -1927,8 +1927,8 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 
     // Loop while there is a range to flag and and we haven't gone further than ei
     while (t_range_index < value . count
-           && (uindex_t) t_next_range . start < ei
-           && t_paragraph_offset < ei)
+           && (uindex_t) t_next_range . start < (uindex_t)ei
+           && (uindex_t)t_paragraph_offset < (uindex_t)ei)
     {
         // if the next range doesn't cover this paragraph, we skip the paragraph
         if ((uindex_t) t_next_range . start > t_paragraph_offset + sptr -> gettextlengthcr())
@@ -1959,7 +1959,7 @@ void MCField::SetFlaggedRangesOfCharChunk(MCExecContext& ctxt, uint32_t p_part_i
 
             // if the range doesn't start at the beginning of the block
             // we must split the block and skip the first part
-            if ((uindex_t) t_next_range . start > t_block_offset)
+            if ((uindex_t) t_next_range . start > (uindex_t)t_block_offset)
             {
                 bptr -> split(t_next_range . start);
                 t_block_offset += bptr -> GetLength();

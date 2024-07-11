@@ -246,7 +246,7 @@ void MCNetworkEvalOpenSockets(MCExecContext& ctxt, MCStringRef& r_string)
 
 static char *PACdnsResolve(const char* const* p_arguments, unsigned int p_argument_count)
 {
-	if (p_argument_count != 1)
+	if (1 != p_argument_count)
 		return NULL;
 
 	MCAutoStringRef t_address_string;
@@ -255,7 +255,7 @@ static char *PACdnsResolve(const char* const* p_arguments, unsigned int p_argume
 	MCS_dnsresolve(*t_arguments_string, &t_address_string);
 
 	char *t_address = nil;
-	if (*t_address_string != nil)
+	if (nil != *t_address_string)
 		/* UNCHECKED */ MCStringConvertToCString(*t_address_string, t_address);
 
 	return t_address;
@@ -263,20 +263,20 @@ static char *PACdnsResolve(const char* const* p_arguments, unsigned int p_argume
 
 static char *PACmyIpAddress(const char* const* p_arguments, unsigned int p_argument_count)
 {
-	if (p_argument_count != 0)
+	if (0 != p_argument_count)
 		return NULL;
 
 	MCAutoStringRef t_address_string;
 	MCS_hostaddress(&t_address_string);
 	char *t_address = nil;
-	if (*t_address_string != nil)
+	if (nil != *t_address_string)
 		/* UNCHECKED */ MCStringConvertToCString(*t_address_string, t_address);
 
 	return t_address;
 }
 void MCNetworkEvalHTTPProxyForURL(MCExecContext& ctxt, MCStringRef p_url, MCStringRef p_host, MCStringRef& r_proxy)
 {
-	if (s_pac_engine == nil)
+	if (nil == s_pac_engine)
     {
         r_proxy = MCValueRetain(kMCEmptyString);
         return;
@@ -293,7 +293,7 @@ void MCNetworkEvalHTTPProxyForURL(MCExecContext& ctxt, MCStringRef p_url, MCStri
     /* UNCHECKED */ MCAutoPointer<char[]> t_proxies =
         s_pac_engine -> Call("__FindProxyForURL", t_arguments, 2);
 
-	if (*t_proxies != nil)
+	if (nil != *t_proxies)
 		/* UNCHECKED */ MCStringCreateWithCString(*t_proxies, r_proxy);
 	else
 		r_proxy = (MCStringRef)MCValueRetain(kMCEmptyString);
@@ -301,7 +301,7 @@ void MCNetworkEvalHTTPProxyForURL(MCExecContext& ctxt, MCStringRef p_url, MCStri
 
 void MCNetworkEvalHTTPProxyForURLWithPAC(MCExecContext& ctxt, MCStringRef p_url, MCStringRef p_host, MCStringRef p_pac, MCStringRef& r_proxy)
 {
-	if (s_pac_engine != NULL)
+	if (NULL != s_pac_engine)
 	{
 		s_pac_engine -> Release();
 		s_pac_engine = NULL;
@@ -310,7 +310,7 @@ void MCNetworkEvalHTTPProxyForURLWithPAC(MCExecContext& ctxt, MCStringRef p_url,
 	if (MCStringGetLength(p_pac) > 0)
 	{
 		s_pac_engine = MCscreen -> createscriptenvironment(MCSTR("javascript"));
-		if (s_pac_engine != NULL)
+		if (NULL != s_pac_engine)
 		{
 			bool t_success;
 			t_success = s_pac_engine -> Define("__dnsResolve", PACdnsResolve);
@@ -371,27 +371,27 @@ void MCNetworkExecLoadUrl(MCExecContext& ctxt, MCStringRef p_url, MCNameRef p_me
 void MCNetworkExecUnloadUrl(MCExecContext& ctxt, MCStringRef p_url)
 // SJT-2014-09-11: [[ URLMessages ]] Send "unloadURL" messages on all platforms.
 {
-  // Send "unloadURL" message.
+	// Send "unloadURL" message.
 	MCParameter p1;
 	p1 . setvalueref_argument(p_url);
-  Exec_stat t_stat = ctxt . GetObject() -> message(MCM_unload_url, &p1, False, True);
-	
+	Exec_stat t_stat = ctxt . GetObject() -> message(MCM_unload_url, &p1, False, True);
+
 	switch (t_stat)
 	{
-  case ES_NOT_HANDLED:
-  case ES_PASS:
-    // Either there was no message handler, or the handler passed the message,
-    // so process the URL in the engine.
-    MCS_unloadurl(ctxt . GetObject(), p_url);
-    break;
+		case ES_NOT_HANDLED:
+		case ES_PASS:
+			// Either there was no message handler, or the handler passed the message,
+			// so process the URL in the engine.
+			MCS_unloadurl(ctxt . GetObject(), p_url);
+			break;
 
-  case ES_ERROR:
-    ctxt . Throw();
-    break;
-    
-  default:
-    break;
-  }
+		case ES_ERROR:
+			ctxt . Throw();
+			break;
+
+		default:
+			break;
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -522,7 +522,7 @@ void MCNetworkExecPerformOpenSocket(MCExecContext& ctxt, MCNameRef p_name, MCNam
     
     // MM-2014-06-13: [[ Bug 12567 ]] Added support for specifying an end host name to verify against.
 	MCSocket *s = MCS_open_socket(p_name, p_from_address, p_datagram, ctxt . GetObject(), p_message, p_secure, p_ssl, kMCEmptyString, p_end_hostname);
-	if (s != NULL)
+	if (NULL != s)
         MCSocketsAppendToSocketList(s);
 }
 
@@ -567,7 +567,7 @@ void MCNetworkExecPerformAcceptConnections(MCExecContext& ctxt, uint2 p_port, MC
 		return;
 
 	MCSocket *s = MCS_accept(p_port, ctxt . GetObject(), p_message, p_datagram ? True : False, p_secure ? True : False, p_with_verification ? True : False, kMCEmptyString);
-	if (s != NULL)
+	if (NULL != s)
     {
         MCSocketsAppendToSocketList(s);
         ctxt . SetItToValue(s -> name);
@@ -596,7 +596,7 @@ void MCNetworkExecReadFromSocket(MCExecContext& ctxt, MCNameRef p_socket, uint4 
 	uindex_t t_index;
 	if (IO_findsocket(p_socket, t_index))
 	{
-		if (MCsockets[t_index] -> datagram && (p_message == nil || p_message == kMCEmptyName))
+		if (MCsockets[t_index] -> datagram && (nil == p_message || p_message == kMCEmptyName))
 		{
 			ctxt . LegacyThrow(EE_READ_NOTVALIDFORDATAGRAM);
 			return;
@@ -615,10 +615,10 @@ void MCNetworkExecReadFromSocket(MCExecContext& ctxt, MCNameRef p_socket, uint4 
 		else
 			t_data = MCS_read_socket(MCsockets[t_index], ctxt, p_count, nil, p_message);
 
-		if (p_message == NULL)
+		if (NULL == p_message)
 		{
             // PM-2015-01-20: [[ Bug 14409 ]] Prevent a crash if MCS_read_socket fails
-            if (t_data == nil)
+            if (nil == t_data)
                 ctxt . SetItToValue(kMCEmptyData);
             else
                 ctxt . SetItToValue(t_data);
@@ -710,28 +710,40 @@ void MCNetworkExecPutIntoUrl(MCExecContext& ctxt, MCValueRef p_value, int p_wher
 	}
 	else
 	{
-        MCAutoStringRef t_value;
-        /* UNCHECKED */ ctxt . ConvertToString(p_value, &t_value);
-        
-        MCStringRef t_string;
-        MCRange t_range;
-        /* UNCHECKED */ MCStringMutableCopy((MCStringRef)p_chunk . mark . text, t_string);
+		MCAutoStringRef t_value;
+		/* UNCHECKED */ ctxt . ConvertToString(p_value, &t_value);
+
+		MCStringRef t_string;
+		MCRange t_range;
+		/* UNCHECKED */ MCStringMutableCopy((MCStringRef)p_chunk . mark . text, t_string);
 
         // SN-2015-05-19: [[ Bug 15368 ]] Insert the new string at the right
         //  position: might be after or before the chunk, not only into it.
-        if (p_where == PT_INTO)
-            t_range = MCRangeMakeMinMax(p_chunk . mark . start, p_chunk . mark . finish);
-        else if (p_where == PT_BEFORE)
-            t_range = MCRangeMake(p_chunk . mark . start, 0);
-        else // p_where == PT_AFTER
-            t_range = MCRangeMake(p_chunk . mark . finish, 0);
+//        if (PT_INTO == p_where)
+//            t_range = MCRangeMakeMinMax(p_chunk . mark . start, p_chunk . mark . finish);
+//        else if (PT_BEFORE == p_where)
+//            t_range = MCRangeMake(p_chunk . mark . start, 0);
+//        else // p_where == PT_AFTER
+//            t_range = MCRangeMake(p_chunk . mark . finish, 0);
 
-        /* UNCHECKED */ MCStringReplace(t_string, t_range, *t_value);
+		switch (p_where)
+		{
+			case PT_INTO:
+            	t_range = MCRangeMakeMinMax(p_chunk . mark . start, p_chunk . mark . finish);
+				break;
+			case PT_BEFORE:
+            	t_range = MCRangeMake(p_chunk . mark . start, 0);
+				break;
+			default:
+            	t_range = MCRangeMake(p_chunk . mark . finish, 0);
+		}
+
+		/* UNCHECKED */ MCStringReplace(t_string, t_range, *t_value);
 		/* UNCHECKED */ MCStringCopyAndRelease(t_string, (MCStringRef&)&t_new_value);
 	}
-	
+
 	//ctxt.SetTheResultToValue(*t_new_value);
-    ctxt.SetTheResultToEmpty();
+	ctxt.SetTheResultToEmpty();
 
 	/* UNCHECKED */ MCU_puturl(ctxt, p_chunk.url, *t_new_value);
 }
@@ -778,7 +790,7 @@ void MCNetworkSetFtpProxy(MCExecContext& ctxt, MCStringRef p_value)
 	
 	MCAutoStringRef t_host, t_port;
 	/* UNCHECKED */ MCStringDivideAtChar(p_value, ':', kMCCompareExact, &t_host, &t_port);
-	if (*t_port != nil)
+	if (nil != *t_port)
 		/* UNCHECKED */ MCStringToUInt16(*t_port, MCftpproxyport);
 	else
 		MCftpproxyport = 80;
@@ -832,7 +844,7 @@ void MCNetworkGetDefaultNetworkInterface(MCExecContext& ctxt, MCStringRef& r_val
 
 void MCNetworkSetDefaultNetworkInterface(MCExecContext& ctxt, MCStringRef p_value)
 {
-	if (MCStringGetLength(p_value) == 0)
+	if (0 == MCStringGetLength(p_value))
 	{
 		delete MCdefaultnetworkinterface;
 		MCdefaultnetworkinterface = nil;
@@ -844,7 +856,7 @@ void MCNetworkSetDefaultNetworkInterface(MCExecContext& ctxt, MCStringRef p_valu
 		int t_net_int_valid;
 		t_net_int_valid = MCR_exec(t_net_int_regex, p_value, MCRangeMake(0, MCStringGetLength(p_value)));
 		delete t_net_int_regex;
-		if (t_net_int_valid != 0)
+		if (0 != t_net_int_valid)
 		{
 			delete MCdefaultnetworkinterface;
             char* t_value;
@@ -885,7 +897,7 @@ void MCNetworkExecSetUrl(MCExecContext& ctxt, MCValueRef p_value, MCStringRef p_
 
 void MCNetworkExecPutIntoUrl(MCExecContext& ctxt, MCValueRef p_value, int p_where, MCStringRef p_url)
 {
-    if (p_where == PT_INTO)
+    if (PT_INTO == p_where)
         MCNetworkExecSetUrl(ctxt, p_value, p_url);
     else
     {
