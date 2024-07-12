@@ -3830,7 +3830,7 @@ void MCParagraph::getflaggedranges(uint32_t p_part_id, findex_t si, findex_t ei,
     MCAutoArray<MCInterfaceFieldRange> t_ranges;
     
 	// Now loop through all the blocks until we reach the end.
-	int32_t t_flagged_start, t_flagged_end;
+	uint32_t t_flagged_start, t_flagged_end;
 	t_flagged_start = -1;
 	t_flagged_end = -1;
 	for(;;)

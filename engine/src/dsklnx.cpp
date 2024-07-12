@@ -2106,9 +2106,9 @@ public:
 #ifdef _LINUX_SERVER
         MCresult -> sets("not supported");
 #else
-        const char * p_mime_type;
-        GList * p_args = NULL;
-        GnomeVFSMimeApplication * p_gvfs ;
+//        const char * p_mime_type;
+//        GList * p_args = NULL;
+//        GnomeVFSMimeApplication * p_gvfs ;
 
 //        if (MCuselibgnome)
 //        {
@@ -2142,7 +2142,7 @@ public:
         MCresult->setvalueref(MCSTR("no association"));
         return;
 #else
-        GError *err = NULL;
+//        GError *err = NULL;
 
 //        if (MCuselibgnome)
 //        {

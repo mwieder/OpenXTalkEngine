@@ -206,25 +206,25 @@ Boolean MCScreenDC::open()
     initialise_required_weak_link_gdk();
     initialise_required_weak_link_gdk_pixbuf();
     initialise_required_weak_link_cairo();
-    
-    gdk_init(0, NULL);
-    //gdk_threads_init();
-    
-    // Check to see if we are in a UTF8 locale
+
+	gdk_init(0, NULL);
+	//gdk_threads_init();
+
+	// Check to see if we are in a UTF8 locale
 	// TS : Changed 2008-01-08 as a more relaible way of testing for UTF-8
 	MCutf8 = (strcmp(nl_langinfo(CODESET), "UTF-8") == 0)	;
-	
+
 	MCimagecache = new (nothrow) MCXImageCache ;
-	
-    if (MCdisplayname == NULL)
-        MCdisplayname = gdk_get_display();
-    
-	if ((dpy = gdk_display_open(MCdisplayname)) == NULL)
+
+	if (NULL == MCdisplayname)
+		MCdisplayname = gdk_get_display();
+
+	if (NULL == (dpy = gdk_display_open(MCdisplayname)))
 	{
-        MCAutoStringRefAsSysString t_cmd;
-        t_cmd.Lock(MCcmd);
-        fprintf(stderr, "%s: Can't open display %s\n",
-                *t_cmd, MCdisplayname);
+		MCAutoStringRefAsSysString t_cmd;
+		t_cmd.Lock(MCcmd);
+		fprintf(stderr, "%s: Can't open display %s\n",
+			*t_cmd, MCdisplayname);
 		return False;
 	}
 
@@ -796,7 +796,7 @@ bool MCScreenDC::platform_getwindowgeometry(Window w, MCRectangle &r_rect)
 
 bool MCScreenDC::device_getwindowgeometry(Window w, MCRectangle &drect)
 {
-	Window root, child;
+//	Window root, child;
 	gint x, y;
 	gint width, height;
     
@@ -1098,25 +1098,25 @@ MCImageBitmap *MCScreenDC::snapshot(MCRectangle &r, uint4 window, MCStringRef di
         {
             gdk_display_sync(t_display);
             
-            // Place all events onto the pending event queue
-            EnqueueGdkEvents();
-            
-            bool t_queue = false;
+			// Place all events onto the pending event queue
+			EnqueueGdkEvents();
+
+//			bool t_queue = false;
             GdkEvent *t_event = NULL;
-            if (pendingevents != NULL)
-            {
-                // Get the next event from the queue
-                t_event = gdk_event_copy(pendingevents->event);
-                MCEventnode *tptr = (MCEventnode *)pendingevents->remove(pendingevents);
-                delete tptr;
-            }
-            
-            // If there are no events, actively wait for one
-            if (t_event == NULL)
-            {
-                g_main_context_iteration(NULL, TRUE);
-                continue;
-            }
+			if (pendingevents != NULL)
+			{
+				// Get the next event from the queue
+				t_event = gdk_event_copy(pendingevents->event);
+				MCEventnode *tptr = (MCEventnode *)pendingevents->remove(pendingevents);
+				delete tptr;
+			}
+
+			// If there are no events, actively wait for one
+			if (NULL == t_event)
+			{
+				g_main_context_iteration(NULL, TRUE);
+				continue;
+			}
             
             // Various type casts of the event structure
             GdkEventKey *t_event_key = (GdkEventKey*)t_event;
@@ -1448,10 +1448,10 @@ void MCScreenDC::configurebackdrop(const MCColor& p_colour, MCPatternRef p_patte
     }
 	else
 		MCColorSetPixel(backdropcolor, 0);
-	
-    if (backdrop == DNULL)
-        return;
-    
+
+	if (backdrop == DNULL)
+		return;
+
 	if (m_backdrop_pixmap != DNULL)
 	{
 		gdk_window_set_back_pixmap(backdrop, m_backdrop_pixmap, FALSE);

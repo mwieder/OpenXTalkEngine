@@ -779,7 +779,7 @@ bool MCBlock::fit(coord_t x, coord_t maxwidth, findex_t& r_break_index, bool& r_
 	coord_t t_width_float;
 	t_width_float = 0;
 
-	findex_t i;
+	uindex_t i;
 	i = m_index;
 	
 	codepoint_t t_next_char;
@@ -1292,7 +1292,7 @@ void MCBlock::draw(MCDC *dc, coord_t x, coord_t lx, coord_t cx, int2 y, findex_t
 	// just draw normally. Otherwise use clipping to make change the hilite color of
 	// the selected portion of text, thus stopping drawing the selection changing the
 	// metrics of the text (due to sub-pixel positioning).
-	if (ei == si || si >= m_index + m_size || ei <= m_index)
+	if ((uint32_t)ei == (uint32_t)si || (uint32_t)si >= m_index + m_size || (uint32_t)ei <= m_index)
         // SN-2014-08-13: [[ Bug 13016 ]] Added a parameter for the left of the cell
 		drawstring(dc, x, lx, cx, y, m_index, m_size, (flags & F_HAS_BACK_COLOR) != 0, t_style);
 	else
@@ -1993,20 +1993,20 @@ MCBlock *MCBlock::AdvanceIndex(findex_t& x_index)
 	
 	// MW-2012-08-29: [[ Bug 10322 ]] If we are at the end of the block, then we must
 	//   move forward a block before doing anything.
-	if (x_index == m_index + m_size)
+	if ((uindex_t)x_index == m_index + m_size)
 	{
 		do
 		{
 			t_block = t_block -> next();
 		}
-		while(t_block -> m_size == 0 && t_block -> next() != parent -> getblocks());
+		while(0 == t_block -> m_size && t_block -> next() != parent -> getblocks());
 	}
 	
 	x_index = parent->NextChar(x_index);
 
 	// MW-2012-03-10: [[ Bug ]] Loop while the block is empty, or the block doesn't
 	//   contain the index.
-	while(x_index >= t_block -> m_index + t_block -> m_size || t_block -> m_size == 0)
+	while(x_index >= t_block -> m_index + t_block -> m_size || 0 == t_block -> m_size)
 	{
 		t_block = t_block -> next();
 		if (t_block == parent -> getblocks())
@@ -2200,7 +2200,7 @@ bool MCBlock::GetFirstLineBreak(findex_t& r_index)
     // SN-2014-03-20: [[ bug 11947 ]] ensure the index is incremented to avoid an infinite loop...
 	r_index = parent -> IncrementIndex(t_offset);
     
-    if (r_index > m_index + m_size)
+    if ((uindex_t)r_index > m_index + m_size)
         return false;
 
     return true;
