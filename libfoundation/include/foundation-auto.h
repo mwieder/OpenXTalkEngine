@@ -208,12 +208,13 @@ public:
         return ImmutableCopyAndRelease(MCAutoValueRefBase<T>::m_value, MCAutoValueRefBase<T>::m_value);
     }
 
-	~MCAutoMutableValueRefBase()
-	{
-	}
+// invoke rule of zero
+//	~MCAutoMutableValueRefBase()
+//	{
+//	}
     
 private:
-    MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& operator = (MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& x);
+//    MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& operator = (MCAutoMutableValueRefBase<T, MutableCopyAndRelease, ImmutableCopyAndRelease>& x);
 };
 
 typedef MCAutoValueRefBase<MCValueRef> MCAutoValueRef;

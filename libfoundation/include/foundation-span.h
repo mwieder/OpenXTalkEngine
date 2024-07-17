@@ -106,14 +106,15 @@ public:
 
     /* ---------- Assignment ops */
     /* TODO[C++11] MCSpanIterator& operator=(const MCSpanIterator& other) = default; */
-    MCSpanIterator& operator=(const MCSpanIterator& other)
+/*    MCSpanIterator& operator=(const MCSpanIterator& other)
     {
         m_span = other.m_span;
         m_index = other.m_index;
         return *this;
     }
-
+*/
 	virtual ~MCSpanIterator() = default;
+
 
     /* ---------- Element access */
     constexpr reference operator*() const
@@ -128,21 +129,27 @@ public:
 
     /* ---------- Traversal ops */
     /* TODO[C++14] Make these operators constexpr */
-    MCSpanIterator& operator++()
-    {
-        return
-            MCAssert(m_span != nullptr &&
-                     m_index >= 0 && m_index < m_span->length()),
-            ++m_index,
-            *this;
-    }
+#if NEEDS_CPP_14
+    constexpr 
+#endif
+	MCSpanIterator& operator++()
+	{
+		return
+ 			MCAssert(m_span != nullptr &&
+				m_index >= 0 && m_index < m_span->length()),
+			++m_index,
+			*this;
+	}
 
-    MCSpanIterator operator++(int)
-    {
-        auto t_iter = *this;
-        ++(*this);
-        return t_iter;
-    }
+#if NEEDS_CPP_14
+    constexpr 
+#endif
+	MCSpanIterator operator++(int)
+	{
+		auto t_iter = *this;
+		++(*this);
+		return t_iter;
+	}
 
     constexpr MCSpanIterator& operator--()
     {
