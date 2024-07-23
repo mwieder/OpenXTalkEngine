@@ -15,3 +15,52 @@ function fetchUrl {
 		perl -MLWP::Simple -e "getstore('${URL}', '${SAVEPATH}') == 200 or exit 1"
 	fi
 }
+
+function fetchBinary
+{
+	cd "${BUILDDIR}"
+
+	if [ ! -d "$THIS" ] ; then
+		if [ ! -e "$ARCHIVE_DESTINATION" ] ; then
+			echo "Fetching ${THIS} source"
+			fetchUrl "${URL_ROOT}" "${ARCHIVE_DESTINATION}.tar"
+			if [ $? != 0 ] ; then
+				echo "downloading ${URL_ROOT} failed"
+				if [ -e "${ARCHIVE_DESTINATION}" ] ; then 
+					rm ${ARCHIVE_DESTINATION} 
+				fi
+				exit
+			fi
+		fi # check for already downloaded source
+	fi # check for destination directory
+}
+
+function untarBinary
+{
+#	if [ ! -d "${CEF_UNPACKED_DIR}/Debug" ] ; then
+		echo "Unpacking ${THIS} source"
+		tar -xf "${ARCHIVE_DESTINATION}.tar"
+#	fi
+}
+
+function unzipBinary
+{
+#	if [ ! -d "${CEF_UNPACKED_DIR}/Debug" ] ; then
+		echo "Unpacking ${THIS} source"
+		unzip "${ARCHIVE_DESTINATION}.zip"
+#	fi
+}
+
+# run cmake
+# run make
+# copy files if we have a newer version
+function buildLibrary {
+	pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+	cmake .
+	popd
+#	cp -u "${BUILDDIR}/${ARCHIVE_DESTINATION}"/*.h ../../thirdparty/${THIS}/src
+#	cp -u "${BUILDDIR}/${ARCHIVE_DESTINATION}"/*.c ../../thirdparty/${THIS}/src
+	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/*.h ${FILE_DIRECTORY}
+	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/*.c ${FILE_DIRECTORY}
+}
+

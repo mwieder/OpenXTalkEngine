@@ -3,6 +3,11 @@
 
 script_dir=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
+# create a version using
+# LIBNAME{LIBNAME_buildrevision}{LIBNAME_buildversion}{LIBNAME_checksum}
+# only LIBNAME is required, the others optional as needed
+# to create the appropriate url
+
 function readVersion {
 	local LIBNAME=$1
 	local LIBNAME_LC=$(tr "[:upper:]" "[:lower:]" <<< $LIBNAME)
@@ -35,6 +40,8 @@ readVersion Curl
 readVersion CEF
 readVersion CEFChromium
 #readVersion CEFBuildversion
+readVersion libz
+readVersion libzip
 
 readVersion Thirdparty
 
