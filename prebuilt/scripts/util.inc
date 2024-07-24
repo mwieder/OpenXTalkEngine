@@ -37,30 +37,48 @@ function fetchBinary
 
 function untarBinary
 {
-#	if [ ! -d "${CEF_UNPACKED_DIR}/Debug" ] ; then
-		echo "Unpacking ${THIS} source"
-		tar -xf "${ARCHIVE_DESTINATION}.tar"
-#	fi
+	echo "Untarring ${ARCHIVE_DESTINATION}.tar"
+	tar -xf "${ARCHIVE_DESTINATION}.tar"
 }
 
 function unzipBinary
 {
-#	if [ ! -d "${CEF_UNPACKED_DIR}/Debug" ] ; then
-		echo "Unpacking ${THIS} source"
-		unzip "${ARCHIVE_DESTINATION}.zip"
-#	fi
+	echo "Unzipping ${ARCHIVE_DESTINATION}.zip"
+	unzip "${ARCHIVE_DESTINATION}.zip"
+}
+
+function unxzBinary
+{
+	echo "Unzipping ${ARCHIVE_DESTINATION}.tar"
+	unzip "${ARCHIVE_DESTINATION}.tar"
 }
 
 # run cmake
 # run make
 # copy files if we have a newer version
 function buildLibrary {
-	pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-	cmake .
-	popd
-#	cp -u "${BUILDDIR}/${ARCHIVE_DESTINATION}"/*.h ../../thirdparty/${THIS}/src
-#	cp -u "${BUILDDIR}/${ARCHIVE_DESTINATION}"/*.c ../../thirdparty/${THIS}/src
+	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/CMakeLists.txt" ] ; then
+		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+		cmake .
+		popd
+	fi
 	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/*.h ${FILE_DIRECTORY}
 	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/*.c ${FILE_DIRECTORY}
+}
+
+function buildSrcLibrary {
+	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/CMakeLists.txt" ] ; then
+		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+		cmake .
+		popd
+	fi
+	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/meson.build" ] ; then
+		mkdir ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
+		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+		meson setup build
+		popd
+	fi
+	cp -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.h ${INCLUDE_DIRECTORY}
+	cp -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.c ${FILE_DIRECTORY}
 }
 

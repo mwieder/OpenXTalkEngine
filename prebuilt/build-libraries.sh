@@ -47,7 +47,7 @@ case "${PLATFORM}" in
 		;;
 	linux)
 #		PREBUILT_LIBS="openssl curl icu cef thirdparty"
-		PREBUILT_LIBS="openssl curl icu cef libz libzip"
+		PREBUILT_LIBS="openssl curl icu cef libz libzip libgif libpng libfreetype"
 		;;
 	emscripten)
 		PREBUILT_LIBS="icu thirdparty"

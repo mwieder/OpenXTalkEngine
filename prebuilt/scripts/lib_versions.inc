@@ -42,6 +42,10 @@ readVersion CEFChromium
 #readVersion CEFBuildversion
 readVersion libz
 readVersion libzip
+readVersion libgif
+readVersion libpng
+readVersion libfreetype
+readVersion libcairo
 
 readVersion Thirdparty
 

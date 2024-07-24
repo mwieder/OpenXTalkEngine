@@ -4,15 +4,25 @@ source "${BASEDIR}/scripts/platform.inc"
 source "${BASEDIR}/scripts/lib_versions.inc"
 source "${BASEDIR}/scripts/util.inc"
 
-# 2024.07.22 currently ${libpng_VERSION} is 1.6.42
-#libpng-1.6.42.tar.xz
+# 2024.07.22 currently ${LIBZ_VERSION} is 1.6.43
+#libpng-1.6.43.tar.xz
 
 THIS="libpng"
+# should do this with sed
+UNTARRED="lpng1643"
 URL_ROOT="https://sourceforge.net/projects/${THIS}/files/latest/download"
 ARCHIVE_DESTINATION="${THIS}-${libpng_VERSION}"
 FILE_DIRECTORY="../../thirdparty/${THIS}/src"
 
+function unxzBinary
+{
+	echo "Untarring ${THIS}-${libpng_VERSION}"
+	unzip -o "${THIS}-${libpng_VERSION}.tar"
+}
+
+
 fetchBinary
-untarBinary
+unxzBinary
+mv "${UNTARRED}" "${ARCHIVE_DESTINATION}"
 buildLibrary
 

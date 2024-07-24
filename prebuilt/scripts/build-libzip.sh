@@ -15,11 +15,11 @@ FILE_DIRECTORY="../../thirdparty/${THIS}/src"
 # run cmake
 # run make
 # copy files if we have a newer version
-function buildSrcLibrary {
-	cmake "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.h ${FILE_DIRECTORY}
-	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.c ${FILE_DIRECTORY}
-}
+#function buildSrcLibrary {
+#	cmake "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+#	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.h ${FILE_DIRECTORY}
+#	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.c ${FILE_DIRECTORY}
+#}
 
 fetchBinary
 untarBinary

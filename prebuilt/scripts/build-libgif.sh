@@ -4,13 +4,13 @@ source "${BASEDIR}/scripts/platform.inc"
 source "${BASEDIR}/scripts/lib_versions.inc"
 source "${BASEDIR}/scripts/util.inc"
 
-# 2023.10.27 currently ${LIBZ_VERSION} is 1.6.42
+# 2024.07.22 currently ${libgif_VERSION} is 1.6.42
 #libpng-1.6.42.tar.xz
 
-THIS="libpng"
+THIS="giflib"
 URL_ROOT="https://sourceforge.net/projects/${THIS}/files/latest/download"
-ARCHIVE_DESTINATION="${THIS}-${libpng_VERSION}"
-FILE_DIRECTORY="../../thirdparty/${THIS}/src"
+ARCHIVE_DESTINATION="${THIS}-${libgif_VERSION}"
+FILE_DIRECTORY="../../thirdparty/libgif/src"
 
 fetchBinary
 untarBinary
