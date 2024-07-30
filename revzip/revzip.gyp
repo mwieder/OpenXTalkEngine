@@ -25,13 +25,15 @@
 			[
 				'../libexternal/libexternal.gyp:libExternal',
                 '../libexternal/libexternal.gyp:libExternal-symbol-exports',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_zip',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_z',
-
 				'../thirdparty/libzip/libzip.gyp:libzip',
 				'../thirdparty/libz/libz.gyp:libz',
 			],
 			
+			'include_dirs':
+			[
+				'../thirdparty/libzip/src',
+			],
+
 			'sources':
 			[
 				'<@(revzip_sources)',
@@ -80,8 +82,6 @@
 			[
                 '../libexternal/libexternal.gyp:libExternal',
                 '../libexternal/libexternal.gyp:libExternal-symbol-exports',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_zip',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_z',
 				'../thirdparty/libzip/libzip.gyp:libzip',
 				'../thirdparty/libz/libz.gyp:libz',
 

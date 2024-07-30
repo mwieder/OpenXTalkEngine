@@ -858,7 +858,7 @@ private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemo
    
    if tError is empty then
       if the result begins with "ziperr" then
-         put "Error: couldn't close zip archive" into tError
+         put "Error: couldn't close zip archive" && tArchive into tError
       end if
    end if
    
@@ -891,7 +891,7 @@ private function __extensionAddFilesToPackage \
       revZipAddItemWithFile pArchive, item -1 of pSource, pSource
       
       if the result begins with "ziperr" then
-         return "couldn't add source"
+         return "couldn't add source" && pSource & cr & the result & cr
       end if
    end if
    
@@ -918,7 +918,7 @@ private function __extensionAddFilesToPackage \
    revZipAddItemWithFile pArchive, "manifest.xml", pFolder & slash & "manifest.xml"
    
    if the result begins with "ziperr" then
-      return "couldn't add manifest"
+      return "couldn't add manifest" && pArchive
    end if
    
    # Add user guide
@@ -928,7 +928,7 @@ private function __extensionAddFilesToPackage \
       revZipAddItemWithFile pArchive, "docs/guide/guide.md", pDetailsA[kGuideFileKey]
    end if
    if the result begins with "ziperr" then
-      return "couldn't add guide"
+      return "couldn't add guide" && pArchive
    end if
    
    # Add icons
@@ -936,7 +936,7 @@ private function __extensionAddFilesToPackage \
       revZipAddItemWithFile pArchive, "support/icon.png", pDetailsA[kIconKey]
       
       if the result begins with "ziperr" then
-         return "couldn't add icon.png"
+         return "couldn't add icon.png" && pArchive
       end if
    end if
    
@@ -944,7 +944,7 @@ private function __extensionAddFilesToPackage \
       revZipAddItemWithFile pArchive, "support/icon@extra-high.png", pDetailsA[kRetinaIconKey]
       
       if the result begins with "ziperr" then
-         return "couldn't add icon@extra-high.png"
+         return "couldn't add icon@extra-high.png" && pArchive
       end if
    end if
    
@@ -988,7 +988,7 @@ private function __extensionAddFilesToPackage \
       revZipAddItemWithFile pArchive, "support/defaultscript.livecodescript", pDetailsA[kDefaultScriptFileKey]
       
       if the result begins with "ziperr" then
-         return "couldn't add default script" && pDetailsA[kDefaultScriptFileKey]
+         return "couldn't add default script" && pDetailsA[kDefaultScriptFileKey] & cr & the result & cr
       end if
    end if
    

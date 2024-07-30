@@ -37,17 +37,17 @@ case "${PLATFORM}" in
 		PREBUILT_LIBS="openssl icu thirdparty"
 		;;
 	mac)
-		PREBUILT_LIBS="openssl icu thirdparty"
+		PREBUILT_LIBS="openssl icu thirdparty libz libzip"
 		;;
 	ios)
 		PREBUILT_LIBS="openssl icu thirdparty"
 		;;
 	win32)
-		PREBUILT_LIBS="openssl curl icu cef thirdparty"
+		PREBUILT_LIBS="openssl curl icu cef thirdparty libz libzip"
 		;;
 	linux)
 #		PREBUILT_LIBS="openssl curl icu cef thirdparty"
-		PREBUILT_LIBS="openssl curl icu cef"
+		PREBUILT_LIBS="openssl curl icu cef libz libzip libgif libpng libfreetype"
 		;;
 	emscripten)
 		PREBUILT_LIBS="icu thirdparty"
