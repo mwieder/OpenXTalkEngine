@@ -29,6 +29,11 @@
 				'../thirdparty/libz/libz.gyp:libz',
 			],
 			
+			'include_dirs':
+			[
+				'../thirdparty/libzip/src',
+			],
+
 			'sources':
 			[
 				'<@(revzip_sources)',

@@ -11,17 +11,18 @@ URL_ROOT="https://libzip.org/download/${THIS}-${libzip_VERSION}.tar.gz"
 ARCHIVE_DESTINATION="${THIS}-${libzip_VERSION}"
 FILE_DIRECTORY="../../thirdparty/${THIS}/src"
 
-			
-# run cmake
-# run make
-# copy files if we have a newer version
-#function buildSrcLibrary {
-#	cmake "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-#	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.h ${FILE_DIRECTORY}
-#	cp -u ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.c ${FILE_DIRECTORY}
-#}
+function buildSrcLibrary {
+	cmakeBinary
+	mesonBinary
+	cp -r ${BUILDDIR}/${ARCHIVE_DESTINATION}/lib/*.h ${FILE_DIRECTORY}
+	cp -r ${BUILDDIR}/${ARCHIVE_DESTINATION}/lib/*.c ${FILE_DIRECTORY}
+	cp ${BUILDDIR}/${ARCHIVE_DESTINATION}/build/*.h ${FILE_DIRECTORY}
+}
 
 fetchBinary
 untarBinary
 buildSrcLibrary
+#cp ${BUILDDIR}/${ARCHIVE_DESTINATION}/build/zipconf.h ../../revzip/src
+#cp ${BUILDDIR}/${ARCHIVE_DESTINATION}/build/config.h ../../revzip/src
+cp ${BUILDDIR}/${ARCHIVE_DESTINATION}/build/*.h ../../revzip/src
 

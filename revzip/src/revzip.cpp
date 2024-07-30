@@ -27,7 +27,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include <fcntl.h>
 #include <errno.h>
 
-#include <zip.h>
+#include "zip.h"
 
 #include <revolution/external.h>
 #include <revolution/support.h>
@@ -62,6 +62,12 @@ static zipmap_t s_zip_container;
 static char *s_progress_callback = NULL;
 static bool s_operation_in_progress = false;
 static bool s_operation_cancelled = false;
+
+const char* kErrWrongNumberOfArguments = "ziperr,wrong number of arguments";
+const char* kErrIllegalPath = "ziperr,illegal path";
+const char* kErrUnknownAccessMode = "ziperr,unknown access mode";
+const char* kErrFileAccessNotPermitted = "ziperr,file access not permitted";
+const char* kErrNoCurrentOperation = "ziperr,no current operation";
 
 static bool wrongNumberOfArguments(unsigned int pNumArguments, unsigned int pNumber)
 {
@@ -105,15 +111,17 @@ void* imemdup(const void *p_sptr, size_t p_size)
 }
 
 
-int revzip_progress_callback(void *p_context, struct zip *p_archive, const char *p_item, 
+zip_progress_callback_t revzip_progress_callback(void *p_context, struct zip *p_archive, const char *p_item, 
 						   int p_type, unsigned long p_item_progress, unsigned long p_item_total, 
 						   unsigned long p_global_progress, unsigned long p_global_total)
 {
 	if (NULL == s_progress_callback)
-		return 0;
+		return NULL;
+//		return 0;
 
 	if (s_operation_cancelled)
-		return 1;
+		return NULL;
+//		return 1;
 
 	char t_message[1024];
 	int t_return_value;
@@ -137,9 +145,11 @@ int revzip_progress_callback(void *p_context, struct zip *p_archive, const char 
 	SendCardMessageUTF8(t_message, &t_return_value);
 	
 	if (s_operation_cancelled)
-		return 1;
+		return NULL;
+//		return 1;
 	
-	return 0;
+		return NULL;
+//		return 0;
 }
 
 
@@ -148,10 +158,9 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (2 != p_argument_count)
 	if (wrongNumberOfArguments(p_argument_count, 2))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -160,7 +169,7 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
         // SN-2014-11-17: [[ Bug 14032 ]] Update the parameters to UTF-8
 		if (!SecurityCanAccessFileUTF8(p_arguments[0]))
 		{
-			t_result = strdup("ziperr,file access not permitted");
+			t_result = strdup(kErrFileAccessNotPermitted);
 			t_error = True;
 		}
 	}
@@ -172,7 +181,7 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 
 		if (NULL == t_path)
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 		}
 	}
 
@@ -191,7 +200,7 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 			t_openflag = ZIP_CREATE;
 		if ( -1 == t_openflag )
 		{
-			t_result = strdup("ziperr,unknown access mode");
+			t_result = strdup(kErrUnknownAccessMode);
 			t_error = False;
 		}
 		else
@@ -206,6 +215,7 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 			{
 				s_zip_container[t_path] = t_archive;
 				zip_register_progress_callback(t_archive, (zip_progress_callback_t)revzip_progress_callback);
+//				zip_register_progress_callback_with_state(t_archive, 0.01, revzip_progress_callback, NULL, NULL);
 			}
 		}
 	}
@@ -227,10 +237,9 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (1 != p_argument_count )
 	if (wrongNumberOfArguments(p_argument_count, 1))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -240,7 +249,7 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 		t_path = utilityProcessPath(p_arguments[0]);
 		if (NULL == t_path)
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -300,10 +309,9 @@ void revZipOpenArchives(char *p_arguments[], int p_argument_count, char **r_resu
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 0)
 	if (wrongNumberOfArguments(p_argument_count, 0))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -339,10 +347,9 @@ static void revZipAddItemWithDataAndCompression(char *p_arguments[], int p_argum
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (3 != p_argument_count)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -352,7 +359,7 @@ static void revZipAddItemWithDataAndCompression(char *p_arguments[], int p_argum
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( NULL ==  t_path )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -428,10 +435,9 @@ static void revZipAddItemWithFileAndCompression(char *p_arguments[], int p_argum
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 3)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -444,7 +450,7 @@ static void revZipAddItemWithFileAndCompression(char *p_arguments[], int p_argum
 
 		if (NULL == t_path || NULL == t_filepath)
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -509,10 +515,9 @@ void revZipExtractItemToVariable(char *p_arguments[], int p_argument_count, char
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (3 != p_argument_count)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -522,7 +527,7 @@ void revZipExtractItemToVariable(char *p_arguments[], int p_argument_count, char
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -659,10 +664,9 @@ void revZipExtractItemToFile(char *p_arguments[], int p_argument_count, char **r
 	char *t_result = NULL;
 	Bool t_error = True;
 
-//	if (3 != p_argument_count)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -674,7 +678,7 @@ void revZipExtractItemToFile(char *p_arguments[], int p_argument_count, char **r
 		t_out_filename = utilityProcessPath(p_arguments[2]);
 		if( NULL == t_path || NULL == t_out_filename )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -798,10 +802,9 @@ void revZipReplaceItemWithFile(char *p_arguments[], int p_argument_count, char *
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (3 != p_argument_count)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -813,7 +816,7 @@ void revZipReplaceItemWithFile(char *p_arguments[], int p_argument_count, char *
 		t_filepath = utilityProcessPath(p_arguments[2]);
 		if (t_path == NULL || t_filepath == NULL)
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -874,10 +877,9 @@ void revZipReplaceItemWithData(char *p_arguments[], int p_argument_count, char *
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 3)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -887,7 +889,7 @@ void revZipReplaceItemWithData(char *p_arguments[], int p_argument_count, char *
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -959,10 +961,9 @@ void revZipRenameItem(char *p_arguments[], int p_argument_count, char **r_result
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 3)
 	if (wrongNumberOfArguments(p_argument_count, 3))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -972,7 +973,7 @@ void revZipRenameItem(char *p_arguments[], int p_argument_count, char **r_result
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -1026,10 +1027,9 @@ void revZipGetItemAttributes(char *p_arguments[], int p_argument_count, char **r
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 2)
 	if (wrongNumberOfArguments(p_argument_count, 2))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -1039,7 +1039,7 @@ void revZipGetItemAttributes(char *p_arguments[], int p_argument_count, char **r
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -1108,10 +1108,9 @@ void revZipSetItemAttributes(char *p_arguments[], int p_argument_count, char **r
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 4)
 	if (wrongNumberOfArguments(p_argument_count, 4))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -1121,7 +1120,7 @@ void revZipSetItemAttributes(char *p_arguments[], int p_argument_count, char **r
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -1181,10 +1180,9 @@ void revZipDeleteItem(char *p_arguments[], int p_argument_count, char **r_result
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 2)
 	if (wrongNumberOfArguments(p_argument_count, 2))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -1194,7 +1192,7 @@ void revZipDeleteItem(char *p_arguments[], int p_argument_count, char **r_result
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			t_result = strdup("ziperr,illegal path");
+			t_result = strdup(kErrIllegalPath);
 			t_error = False;
 		}
 	}
@@ -1248,10 +1246,9 @@ void revZipEnumerateItems(char *p_arguments[], int p_argument_count, char **r_re
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 1)
 	if (wrongNumberOfArguments(p_argument_count, 1))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -1261,7 +1258,7 @@ void revZipEnumerateItems(char *p_arguments[], int p_argument_count, char **r_re
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			//t_result = strdup("ziperr,illegal path");
+			//t_result = strdup(kErrIllegalPath);
 			t_result = strdup("");
 			t_error = False;
 		}
@@ -1355,10 +1352,9 @@ void revZipDescribeItem(char *p_arguments[], int p_argument_count, char **r_resu
 	char *t_result = NULL;
 	Bool t_error = False;
 
-//	if (p_argument_count != 2)
 	if (wrongNumberOfArguments(p_argument_count, 2))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -1368,7 +1364,7 @@ void revZipDescribeItem(char *p_arguments[], int p_argument_count, char **r_resu
 		t_path = utilityProcessPath(p_arguments[0]);
 		if( t_path == NULL )
 		{
-			//t_result = strdup("ziperr,illegal path");
+			//t_result = strdup(kErrIllegalPath);
 			t_result = strdup("");
 			t_error = False;
 		}
@@ -1465,7 +1461,7 @@ void revZipSetProgressCallback(char *p_arguments[], int p_argument_count, char *
 
 	if (p_argument_count > 1)
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 
@@ -1492,15 +1488,14 @@ void revZipCancel(char *p_arguments[], int p_argument_count, char **r_result, Bo
 	char *t_result = NULL;
 	Bool t_error = False;
 	
-//	if (p_argument_count != 0)
 	if (wrongNumberOfArguments(p_argument_count, 0))
 	{
-		t_result = strdup("ziperr,illegal arguments");
+		t_result = strdup(kErrWrongNumberOfArguments);
 		t_error = True;
 	}
 	else if (!s_operation_in_progress)
 	{
-		t_result = strdup("ziperr,no current operation");
+		t_result = strdup(kErrNoCurrentOperation);
 	}
 
 	if (t_result == NULL)

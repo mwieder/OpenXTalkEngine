@@ -17,23 +17,25 @@ INCLUDE_DIRECTORY="../../thirdparty/${THIS}/include"
 
 function unxzBinary
 {
-	echo "Untarring ${ARCHIVE_DESTINATION}.tar"
+	echo "Unzipping ${ARCHIVE_DESTINATION}.tar"
 	unzip -o "${ARCHIVE_DESTINATION}.tar"
 	mv ${UNTARRED} ${ARCHIVE_DESTINATION}
 }
 
 function buildFTSrcLibrary {
-	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/CMakeLists.txt" ] ; then
-		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-		cmake .
-		popd
-	fi
-	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/meson.build" ] ; then
-		mkdir ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
-		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-		meson setup build
-		popd
-	fi
+#	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/CMakeLists.txt" ] ; then
+#		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+#		cmake .
+#		popd
+#	fi
+#	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/meson.build" ] ; then
+#		mkdir ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
+#		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+#		meson setup build
+#		popd
+#	fi
+	cmakeBinary
+	mesonBinary
 	cp -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/include ${INCLUDE_DIRECTORY}
 	cp -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/src ${FILE_DIRECTORY}
 }
