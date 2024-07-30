@@ -43,6 +43,7 @@ readVersion CEFChromium
 readVersion libz
 readVersion libzip
 readVersion libgif
+readVersion libjpeg
 readVersion libpng
 readVersion libfreetype
 readVersion libcairo
