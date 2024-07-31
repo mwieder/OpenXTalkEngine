@@ -537,10 +537,9 @@ const static LT export_table[] =
 const LT factor_table[] =
     {
     	// MDW-2016-03-16 [[ feature_not_equal_operator ]] implement ! and != operators
-        {"!", TT_UNOP, O_NOT},
-        {"!=", TT_BINOP, O_NE},
-        {0x2260, TT_BINOP, O_NE},
-        {"&", TT_BINOP, O_CONCAT},
+		{"!", TT_UNOP, O_NOT},
+		{"!=", TT_BINOP, O_NE},
+		{"&", TT_BINOP, O_CONCAT},
         {"&&", TT_BINOP, O_CONCAT_SPACE},
         {"(", TT_LPAREN, O_GROUPING},
         {")", TT_RPAREN, O_UNDEFINED},
@@ -1881,7 +1880,8 @@ const LT factor_table[] =
         {"zoombox", TT_PROPERTY, P_ZOOM_BOX},
         {"\255", TT_BINOP, O_NE},
         {"\262", TT_BINOP, O_LE},
-        {"\263", TT_BINOP, O_GE}
+        {"\263", TT_BINOP, O_GE},
+		{"\u2260", TT_BINOP, O_NE}
     };
 
 extern const uint4 factor_table_size = ELEMENTS(factor_table);

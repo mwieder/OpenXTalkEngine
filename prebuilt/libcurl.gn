@@ -1,0 +1,71 @@
+{
+	'includes':
+	[
+		'../common.gypi',
+	],
+	
+	'targets':
+	[
+		group ("libcurl")
+		{
+			'toolsets': ['host', 'target'],
+
+			deps =
+			[
+				'fetch.gyp:fetch',
+				'libopenssl.gyp:libopenssl',
+			],
+			
+			if (is_win)
+			{
+				include_dirs +=
+				[
+					'unpacked/curl/<(uniform_arch)-win32-$(PlatformToolset)_static_$(ConfigurationName)/include',
+				],
+			},
+			else
+			{
+				include_dirs +=
+				[
+					'../thirdparty/libcurl/include',
+				],
+			},
+			
+			'link_settings':
+			{
+				if (is_mac)
+				{
+					libraries =
+					[
+						'$(SDKROOT)/usr/lib/libcurl.dylib',
+					],
+				},
+				if (is_linux)
+				{
+					library_dirs =
+					[
+						'lib/linux/>(toolset_arch)',
+					],
+					
+					libraries +=
+					[
+						'-lcurl',
+						'-lrt',
+					],
+				},
+				if (is_win)
+				{
+					library_dirs =
+					[
+						'unpacked/curl/<(uniform_arch)-win32-$(PlatformToolset)_static_$(ConfigurationName)/lib',
+					],
+					
+					libraries =
+					[
+						'-llibcurl_a',
+					],
+				},
+			},
+		},
+	],
+}
