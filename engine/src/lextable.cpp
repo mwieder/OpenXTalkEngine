@@ -554,6 +554,8 @@ const LT factor_table[] =
         {">", TT_BINOP, O_GT},
         {">=", TT_BINOP, O_GE},
         {"^", TT_BINOP, O_POW},	
+// 		{"≠", TT_BINOP, O_NE},
+ 		{"\u2660", TT_BINOP, O_NE},
 #ifdef MODE_DEVELOPMENT
 		{"_hscrollbarid", TT_PROPERTY, P_HSCROLLBARID},
 		{"_ideoverride", TT_PROPERTY, P_IDE_OVERRIDE},
@@ -1878,10 +1880,9 @@ const LT factor_table[] =
         {"yscale", TT_PROPERTY, P_Y_SCALE},
         {"zoom", TT_PROPERTY, P_ZOOM},
         {"zoombox", TT_PROPERTY, P_ZOOM_BOX},
-        {"\255", TT_BINOP, O_NE},
+		{"\255", TT_BINOP, O_NE},
         {"\262", TT_BINOP, O_LE},
-        {"\263", TT_BINOP, O_GE},
-		{"\u2260", TT_BINOP, O_NE}
+        {"\263", TT_BINOP, O_GE}
     };
 
 extern const uint4 factor_table_size = ELEMENTS(factor_table);

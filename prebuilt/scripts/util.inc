@@ -83,7 +83,10 @@ function mesonBinary
 		mkdir -p ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
 		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
 		meson setup --wipe build
-		ninja -C build
+		if [ -e "build/build.ninja" ] ; then
+			echo "launching ninja"
+			ninja -C build
+		fi
 		popd
 	fi
 }

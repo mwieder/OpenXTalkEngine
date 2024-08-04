@@ -19,6 +19,9 @@ function unxzBinary
 {
 	echo "Unzipping ${ARCHIVE_DESTINATION}.tar"
 	unzip -o "${ARCHIVE_DESTINATION}.tar"
+	if [ -e "${ARCHIVE_DESTINATION}" ] ; then
+		rm -rf ${ARCHIVE_DESTINATION}
+	fi
 	mv ${UNTARRED} ${ARCHIVE_DESTINATION}
 }
 
