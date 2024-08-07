@@ -39,6 +39,18 @@ on revSBCopyFileToFolder pSourceFile, pTargetFolder, pCallback, pCallbackTarget
    return the result
 end revSBCopyFileToFolder
 
+# copied from LC10-rc1
+on revSBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallback, pCallbackTarget
+   if there is no folder pTargetFolder then
+      return "target folder not found"
+   end if
+   set the itemDelimiter to "/"
+   local tTargetFile
+   put pTargetFolder & "/" & item -1 of pTargetFile into tTargetFile
+   __revSBCopyFile pSourceFile, tTargetFile, pCallback, pCallbackTarget
+   return the result
+end revSBCopyFileToFileInFolder
+
 on revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    return the result
@@ -135,7 +147,7 @@ end revSBReadFile
 local sLog = "false"
 
 private command log pMessage
-   #put pMessage & return after msg
+   put pMessage & cr after msg
 end log
 
 
@@ -928,16 +940,17 @@ end revSBDefaultStandaloneSettings
 function revSBRemoveUnlicensedTargetsFromSettings @xSettingsA
    -- don't build for any platform we are not licensed for
    local tRemoved
-   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
-      if xSettingsA[tTarget] then
-         if not revSBLicensedToDeployToTarget(tTarget) then
-            put false into xSettingsA[tTarget]
-            put true into tRemoved[tTarget]
-         end if
-      end if
-   end repeat
+#   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
+#      if xSettingsA[tTarget] then
+#         if not revSBLicensedToDeployToTarget(tTarget) then
+#            put false into xSettingsA[tTarget]
+#            put true into tRemoved[tTarget]
+#         end if
+#      end if
+#   end repeat
    return the keys of tRemoved
 end revSBRemoveUnlicensedTargetsFromSettings
+
 
 command revSBRelativeStackFilesList pStack, @rStackFiles
    local tLine,tChars,tMainStackPath
@@ -3031,9 +3044,10 @@ function revSBEnginePath pPlatform
    --put the editionType into tEdition
    // SN-2015-07-09: [[ StandaloneDeployment ]] Gypified Standalone-<edition>.app building does not
    //  allow to create broken applications, so that the executable file in it bears the edition.
-   if tEdition is not "community" then
-      put "Commercial" into tEdition
+   --if tEdition is not "community" then
+   --put "Commercial" into tEdition
    --end if
+   put "Community" into tEdition
    
    -- MW-2013-06-13: [[ CloneAndRun ]] If not installed, then fetch the engine locally.
    if revEnvironmentIsInstalled() then
@@ -3056,7 +3070,8 @@ function revSBEnginePath pPlatform
             return tRuntimePath & "/Windows/x86-32/Standalone"
             break
          case "Windows x86-64"
-            return tRuntimePath & "/Windows/x86-64/Standalone"
+            --return tRuntimePath & "/Windows/x86-64/Standalone"
+            return tRuntimePath & "/Windows/x86-64/standalone-community"
             break
          case "Linux"
             return tRuntimePath & "/Linux/x86-32/Standalone"
@@ -3135,15 +3150,16 @@ function revSBLicensedToDeployToTarget pTarget
    
    return tLicensePlatform is among the items of tLicensedTargets
 end revSBLicensedToDeployToTarget
-
 function revSBNoPlatforms pSettings
-   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
-      if pSettings[tTarget] then
-         return false
-      end if
-   end repeat
+#   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
+#      if pSettings[tTarget] then
+#         return false
+#      end if
+#   end repeat
    
-   return true
+   return false
+end revSBNoPlatforms
+
 end revSBNoPlatforms
 
 local sDeployInclusions

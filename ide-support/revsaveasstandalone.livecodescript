@@ -128,6 +128,7 @@ end getBuildFolder
 on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
    global gREVStackStatus
    
+try
    if pStack = empty then
       put the short name of the topStack into pStack
    end if
@@ -242,8 +243,11 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          launch document sStubPath
       end if
    end if
-   
+catch e
+put e & cr after msg
+finally
    return tError
+end try
 end revSaveAsStandalone
 
 command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
@@ -486,6 +490,27 @@ private function revStandalonePlatformDetails pTarget
    end if
    return tDetailsA
 end revStandalonePlatformDetails
+
+# imported from LC-10.rc1
+function getIcuBundleNames
+   local icuArray
+   
+   put "icu-core.dat" into icuArray[1]
+   put "icu-iter.dat" into icuArray[2]
+   put "icu-coll.dat" into icuArray[3]
+   return icuArray
+   --   return [ "icu-core.dat", \
+   --         "icu-iter.dat", \
+   --         "icu-coll.dat" ]
+end getIcuBundleNames
+
+function mapCommonPath pPath
+   if revEnvironmentIsInstalled() then
+      return revEnvironmentRuntimePath() & slash & "Common" & slash & pPath
+   else
+      return revEnvironmentBinariesPath() & slash & pPath
+   end if
+end mapCommonPath
 
 #####################################################################
 # Main use-case controller for the Standalone Application Builder

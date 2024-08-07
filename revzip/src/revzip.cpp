@@ -548,7 +548,7 @@ void revZipExtractItemToVariable(char *p_arguments[], int p_argument_count, char
 	if (NULL == t_result)
 	{
 		t_index = zip_name_locate(t_archive, p_arguments[1], 0);
-		if( t_index == -1 )
+		if( -1 == t_index )
 		{
 			t_result = strdup("ziperr,file not found");
 			t_error = False;

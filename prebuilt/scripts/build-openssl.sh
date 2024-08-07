@@ -195,7 +195,8 @@ EOF
 	fi
 
 	mkdir -p "${OUTPUT_DIR}/include"
-	cp -R "${INSTALL_DIR}/${NAME}/include/openssl" "${OUTPUT_DIR}/include/openssl"
+#	cp -r "${INSTALL_DIR}/${NAME}/include/openssl" "${OUTPUT_DIR}/include/openssl"
+	cp -r "${INSTALL_DIR}/${NAME}/include/openssl" "${OUTPUT_DIR}/include"
 }
 
 
