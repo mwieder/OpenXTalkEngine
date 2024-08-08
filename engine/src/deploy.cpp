@@ -832,55 +832,55 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 	// Now check to see if we should build a trial - this if the license class is a
 	// trail, or the banner_class override is specified and the chosen option is
 	// compatible with the license class.
-	bool t_is_trial;
-    t_is_trial = false;
-	if (t_license_class == kMCLicenseClassEvaluation ||
-		t_license_class == kMCLicenseClassProfessionalEvaluation)
-		t_is_trial = true;
+//	bool t_is_trial;
+//    t_is_trial = false;
+//	if (t_license_class == kMCLicenseClassEvaluation ||
+//		t_license_class == kMCLicenseClassProfessionalEvaluation)
+//		t_is_trial = true;
 	
 	// Now, if we are not licensed for a target, then its an error. If we are in trial
 	// mode, however, all platforms are licensed (apart from embedded) they just will
 	// timeout.
 	bool t_is_licensed;
-	t_is_licensed = false;
+//	t_is_licensed = false;
 	
-    if (MCnoui && MClicenseparameters . license_class == kMCLicenseClassCommunity)
-        t_is_licensed = true;
-	else if (t_is_trial &&
-			 m_platform != PLATFORM_IOS_EMBEDDED &&
-			 m_platform != PLATFORM_ANDROID_EMBEDDED)
-		t_is_licensed = true;
-	else if (m_platform == PLATFORM_WINDOWS)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToWindows) != 0;
-	else if (m_platform == PLATFORM_MACOSX)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToMacOSX) != 0;
-	else if (m_platform == PLATFORM_LINUX)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToLinux) != 0;
-	else if (m_platform == PLATFORM_IOS)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToIOS) != 0;
-	else if (m_platform == PLATFORM_ANDROID)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToAndroid) != 0;
-	else if (m_platform == PLATFORM_IOS_EMBEDDED)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToIOSEmbedded) != 0;
-	else if (m_platform == PLATFORM_ANDROID_EMBEDDED)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToAndroidEmbedded) != 0;
-	else if (m_platform == PLATFORM_EMSCRIPTEN)
-		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToHTML5) != 0;
+//    if (MCnoui && MClicenseparameters . license_class == kMCLicenseClassCommunity)
+//        t_is_licensed = true;
+//	else if (t_is_trial &&
+//			 m_platform != PLATFORM_IOS_EMBEDDED &&
+//			 m_platform != PLATFORM_ANDROID_EMBEDDED)
+//		t_is_licensed = true;
+//	else if (m_platform == PLATFORM_WINDOWS)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToWindows) != 0;
+//	else if (m_platform == PLATFORM_MACOSX)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToMacOSX) != 0;
+//	else if (m_platform == PLATFORM_LINUX)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToLinux) != 0;
+//	else if (m_platform == PLATFORM_IOS)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToIOS) != 0;
+//	else if (m_platform == PLATFORM_ANDROID)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToAndroid) != 0;
+//	else if (m_platform == PLATFORM_IOS_EMBEDDED)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToIOSEmbedded) != 0;
+//	else if (m_platform == PLATFORM_ANDROID_EMBEDDED)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToAndroidEmbedded) != 0;
+//	else if (m_platform == PLATFORM_EMSCRIPTEN)
+//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToHTML5) != 0;
 
-	if (!t_is_licensed)
-	{
-		ctxt . SetTheResultToCString("not licensed to deploy to target platform");
-		t_soft_error = true;
-		t_has_error = true;
-	}
+//	if (!t_is_licensed)
+//	{
+//		ctxt . SetTheResultToCString("not licensed to deploy to target platform");
+//		t_soft_error = true;
+//		t_has_error = true;
+//	}
 	
-	if (t_is_trial &&
-		m_platform == PLATFORM_EMSCRIPTEN)
-	{
-		ctxt . SetTheResultToCString("trial of html5 is not possible");
-		t_soft_error = true;
-		t_has_error = true;
-	}
+//	if (t_is_trial &&
+//		m_platform == PLATFORM_EMSCRIPTEN)
+//	{
+//		ctxt . SetTheResultToCString("trial of html5 is not possible");
+//		t_soft_error = true;
+//		t_has_error = true;
+//	}
 	
 	uint32_t t_platform = PLATFORM_NONE;
 	switch(m_platform)
@@ -914,17 +914,17 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 	if (!t_has_error)
 	{
 		// If this is a trial then set the timeout.
-		if (t_is_trial)
-		{
-			if (m_platform != PLATFORM_IOS &&
-				m_platform != PLATFORM_ANDROID &&
-				m_platform != PLATFORM_EMSCRIPTEN)
-				t_params . timeout = 5 * 60;
-			else
-				t_params . timeout = 1 * 60;
-			
-			t_params . banner_timeout = 10;
-		}
+//		if (t_is_trial)
+//		{
+//			if (m_platform != PLATFORM_IOS &&
+//				m_platform != PLATFORM_ANDROID &&
+//				m_platform != PLATFORM_EMSCRIPTEN)
+//				t_params . timeout = 5 * 60;
+//			else
+//				t_params . timeout = 1 * 60;
+//			
+//			t_params . banner_timeout = 10;
+//		}
 		
 		// Pass the deploy parameters through any stack security related steps.
 		if (!MCStackSecurityPreDeploy(t_platform, t_params))

@@ -266,7 +266,7 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 		}
 	}
 	
-	if (t_result == NULL)
+	if (NULL == t_result)
 	{
 		int t_err;
 		char t_errstr[1024]; 
@@ -471,7 +471,8 @@ static void revZipAddItemWithFileAndCompression(char *p_arguments[], int p_argum
 	t_source = NULL;
 	if (NULL == t_result)
 	{
-		if (((t_source = zip_source_file(t_archive, t_filepath, 0, ZIP_LENGTH_TO_END)) == NULL) ||
+//		if (((t_source = zip_source_file(t_archive, t_filepath, 0, ZIP_LENGTH_TO_END)) == NULL) ||
+		if (((t_source = zip_source_file(t_archive, t_filepath, 0, 0)) == NULL) ||
 			 (zip_add(t_archive, p_arguments[1], t_source) < 0))
 		{
 			zip_source_free(t_source);

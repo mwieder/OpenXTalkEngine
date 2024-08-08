@@ -83,7 +83,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
    local tCustomFiles
    local tFilesArray
    put "standalone.html" into tFilesArray[1]
-   put "web-fonts.txt" into tFilesArray[2]
+   put "emscripten-web-fonts.txt" into tFilesArray[2]
    _processCustomFiles \
          tResolvedFileData, \
          tFilesArray, \
@@ -97,10 +97,6 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
    try
       ---------- Check deployment entitlement
       revStandaloneProgress "Checking deployment entitlement..."
-      
-      --if not isPermittedDeployment() then
-      --throw "license does not permit web deployment"
-      --end if
       
       repeat for each item tArch in tArchs
          ---------- Create a working directory
@@ -184,7 +180,6 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
          put tCustomFiles["standalone.html"] into tHtmlTemplate
          if tHtmlTemplate is empty then
             put getHtmlTemplateFile(tArch) into tHtmlTemplate
-            
             /* Load the contents of the default or custom webfonts file */
             local tWebFontsFile, tWebFontsText
             put tCustomFiles["web-fonts.txt"] into tWebFontsFile
@@ -197,7 +192,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
             * write it */
             local tHtmlTemplateText
             put url("binfile:" & tHtmlTemplate) into tHtmlTemplateText
-            replace "${LIVECODE_WEB_FONTS}" with tWebFontsText in tHtmlTemplateText
+            replace "${OXT_WEB_FONTS}" with tWebFontsText in tHtmlTemplateText
             put tHtmlTemplateText into url("binfile:" & tHtmlFile)
          else
             logDebug "html", "Copying" && tHtmlTemplate
@@ -260,10 +255,10 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    ---------- Perform standalone deployment
    logDebug "deploy", "Deploying standalone"
    
-   # _internal deploy emscripten pDeployParams
-   if the result is not empty then
-      throw "could not deploy startup stack:" && the result
-   end if
+    _internal deploy emscripten pDeployParams
+#   if the result is not empty then
+#      throw "could not deploy startup stack:" && the result
+#   end if
    
    ---------- Store deployment data
    logDebug "deploy", "Storing" && tTempDeployPath
@@ -273,6 +268,7 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    -- temporary file.  If used the file, we'd have to keep the
    -- file around until the zip file is finished.
    
+logDebug "tTempDeployPath=", tTempDeployPath
    open file tTempDeployPath for binary read
    read from file tTempDeployPath until end
    put it into tDeployData
@@ -285,7 +281,7 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    
    ---------- Cleanup
    delete file tTempStackPath
-   delete file tTempDeployPath
+#   delete file tTempDeployPath
    
 end storeDeployedStack
 
@@ -606,8 +602,9 @@ end fakeMapCommonPath
 -- Get the filename of the Emscripten standalone template HTML file.
 -- This has some standalone-dependent JavaScript substituted into it
 -- to instantiate the engine.
-private function getHtmlTemplateFile
-   return mapBinPath("standalone-" & getEngineType() & "-" & the version & ".html")
+private function getHtmlTemplateFile pArch
+   --return mapBinPath("standalone-" & getEngineType() & "-" & the version & ".html")
+   return mapBinPath(pArch, "standalone.html")
 end getHtmlTemplateFile
 
 -- Get the filename of the Emscripten standalone startup script-only

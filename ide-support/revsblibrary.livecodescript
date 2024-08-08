@@ -3150,6 +3150,7 @@ function revSBLicensedToDeployToTarget pTarget
    
    return tLicensePlatform is among the items of tLicensedTargets
 end revSBLicensedToDeployToTarget
+
 function revSBNoPlatforms pSettings
 #   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
 #      if pSettings[tTarget] then
