@@ -3111,6 +3111,9 @@ function revSBEnginePath pPlatform
             return tBinariesPath & slash & "standalone-" & tEdition & ".exe"
             break
          case "Linux"
+
+put param(0) && "tBinariesPath=" & tBinariesPath & cr after msg
+
             return tBinariesPath & slash & "standalone-" & toLower(tEdition)
             break
          default
@@ -3159,8 +3162,6 @@ function revSBNoPlatforms pSettings
 #   end repeat
    
    return false
-end revSBNoPlatforms
-
 end revSBNoPlatforms
 
 local sDeployInclusions

@@ -229,43 +229,35 @@ function deployIsValidSDK pPath
    if there is no folder (pPath & slash & "platforms") or \
          there is no folder (pPath & slash & "platform-tools") or \
          there is no folder (pPath & slash & "tools") then
-      --return "could not find platforms, platform-tools or tools folders at that path."
-      return false
+      return "could not find platforms, platform-tools or tools folders at that path."
    end if
    
    if there is no folder pathToRootPlatform(pPath) then
-      --return "could not find install of required target SDK, make sure it has been installed with the Android SDK Manager"
-      return false
+      return "could not find install of required target SDK, make sure it has been installed with the Android SDK Manager"
    end if
    
    if there is no file pathToRootClasses(pPath) then
-      --return "missing root classes, make sure your SDK install has not become corrupted"
-      return false
+      return "missing root classes, make sure your SDK install has not become corrupted"
    end if
    
    if there is no file pathToAapt(pPath) then
-      --return "missing aapt tool, make sure your SDK install has not become corrupted"
-      return false
+      return "missing aapt tool, make sure your SDK install has not become corrupted"
    end if
    
    if there is no file pathToAdb(pPath) then
-      --return "missing adb tool, make sure your SDK install has not become corrupted"
-      return false
+      return "missing adb tool, make sure your SDK install has not become corrupted"
    end if
    
    if there is no file pathToSDKClasses(pPath) then
-      --return "missing sdklib.jar, make sure your SDK install has not become corrupted"
-      return false
+      return "missing sdklib.jar, make sure your SDK install has not become corrupted"
    end if
    
    if there is no file pathToZipAlign(pPath) then
-      --return "missing zipalign tool, make sure your SDK install has not become corrupted"
-      return false
+      return "missing zipalign tool, make sure your SDK install has not become corrupted"
    end if
    
    if there is no file pathToDex(pPath) then
-      --return "missing dex tool, make sure your SDK install has not become corrupted"
-      return false
+      return "missing dex tool, make sure your SDK install has not become corrupted"
    end if
    
    return true
@@ -291,7 +283,12 @@ function deployGetVersionsMap
    put "8.0 - Oreo" into tMap[26]
    put "8.1" into tMap[27]
    put "9.0 - Pie" into tMap[28]
-   put "10 - Q" into tMap[29]
+   put "10" into tMap[29]
+   put "11" into tMap[30]
+   put "12" into tMap[31]
+   put "13" into tMap[32]
+   put "14" into tMap[33]
+   put "15" into tMap[34]
    return tMap
 end deployGetVersionsMap
 
@@ -336,14 +333,18 @@ private function doShellCommand pCommand, pArguments
    
    local tOldPath
    put $PATH into tOldPath
-   if the platform is "win32" then
-      replace slash with backslash in tCommandPath
-      put tCommandPath & ";" & sJavaRoot & "\bin" & ";" before $PATH
-   else if the platform is "macos" then
-      put tCommandPath & ":" before $PATH
-   else if the platform is "linux" then
-      put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
-   end if
+	switch the platform
+		case "win32"
+			replace slash with backslash in tCommandPath
+			put tCommandPath & ";" & sJavaRoot & "\bin" & ";" before $PATH
+			break
+		case "macos"
+			put tCommandPath & ":" before $PATH
+			break
+		case "linux"
+			put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
+			break
+	end switch
    
    set the hideConsoleWindows to true
    get shell(item -1 of pCommand && pArguments)

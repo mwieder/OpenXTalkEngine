@@ -281,7 +281,7 @@ logDebug "tTempDeployPath=", tTempDeployPath
    
    ---------- Cleanup
    delete file tTempStackPath
-#   delete file tTempDeployPath
+   delete file tTempDeployPath # delete emscripten-deploy.data
    
 end storeDeployedStack
 
