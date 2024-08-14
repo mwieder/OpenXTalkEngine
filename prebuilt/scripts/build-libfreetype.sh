@@ -8,8 +8,9 @@ source "${BASEDIR}/scripts/util.inc"
 #https://sourceforge.net/projects/freetype/files/latest/download
 
 THIS="libfreetype"
+ACTUAL_VERSION="2.13.3"
 # should do this with sed
-UNTARRED="freetype-${libfreetype_VERSION}"
+UNTARRED="freetype-${ACTUAL_VERSION}"
 URL_ROOT="https://sourceforge.net/projects/freetype/files/latest/download"
 ARCHIVE_DESTINATION="${THIS}-${libfreetype_VERSION}"
 FILE_DIRECTORY="../../thirdparty/${THIS}/src"

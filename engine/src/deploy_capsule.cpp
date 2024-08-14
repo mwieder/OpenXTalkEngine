@@ -104,7 +104,7 @@ static bool MCDeployCapsuleSectionCreate(MCCapsuleSectionType p_type, MCDeployCa
 
 static void MCDeployCapsuleSectionDestroy(MCDeployCapsuleSection *self)
 {
-	if (self == nil)
+	if (nil == self)
 		return;
 
 	// Delete the data
@@ -136,7 +136,7 @@ bool MCDeployCapsuleCreate(MCDeployCapsuleRef& r_self)
 
 void MCDeployCapsuleDestroy(MCDeployCapsuleRef self)
 {
-	if (self == nil)
+	if (nil == self)
 		return;
 
 	// Loop through all the sections and destroy them
@@ -151,8 +151,8 @@ void MCDeployCapsuleDestroy(MCDeployCapsuleRef self)
 
 bool MCDeployCapsuleDefine(MCDeployCapsuleRef self, MCCapsuleSectionType p_type, const void *p_data, uint32_t p_data_size)
 {
-	MCAssert(self != nil);
-	MCAssert(p_data != nil || p_data_size == 0);
+	MCAssert(nil != self);
+	MCAssert(nil != p_data || 0 == p_data_size);
 
 	bool t_success;
 	t_success = true;
@@ -164,7 +164,7 @@ bool MCDeployCapsuleDefine(MCDeployCapsuleRef self, MCCapsuleSectionType p_type,
 		t_success = MCDeployCapsuleSectionCreate(p_type, t_section);
 
 	// Allocate the data segment, if needed
-	if (t_success && p_data != nil)
+	if (t_success && nil != p_data)
 		t_success = MCMemoryAllocate(p_data_size, t_section -> buffer);
 
 	// Process success, or destroy if failure
@@ -192,8 +192,8 @@ bool MCDeployCapsuleDefineString(MCDeployCapsuleRef self, MCCapsuleSectionType p
 
 bool MCDeployCapsuleDefineFromFile(MCDeployCapsuleRef self, MCCapsuleSectionType p_type, MCDeployFileRef p_file)
 {
-	MCAssert(self != nil);
-	MCAssert(p_file != nil);
+	MCAssert(nil != self);
+	MCAssert(nil != p_file);
 
 	bool t_success;
 	t_success = true;
@@ -326,7 +326,7 @@ static bool MCDeployCapsuleFilterStart(MCDeployCapsuleFilterState& self, MCDeplo
 	self . stream . next_out = self . output;
 	self . stream . avail_out = self . output_capacity;
 	t_result = deflateInit2(&self . stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -15, 8,Z_DEFAULT_STRATEGY);
-	if (t_result != Z_OK)
+	if (Z_OK != t_result)
 		return MCDeployThrow(kMCDeployErrorBadCompress);
 
 	return true;
@@ -347,7 +347,7 @@ static bool MCDeployCapsuleFilterOutput(MCDeployCapsuleFilterState& self, bool p
 	t_amount = self . stream . next_out - self . output;
 
 	// If we aren't splitting, this is easy
-	if (self . spill_file == nil)
+	if (nil == self . spill_file)
 	{
 		if (!MCDeployFileWriteAt(self . file, self . output, t_amount, self . offset))
 			return false;
@@ -379,7 +379,7 @@ static bool MCDeployCapsuleFilterFlush(MCDeployCapsuleFilterState& self)
 	// Now attempt to do the deflate
 	int t_result;
 	t_result = deflate(&self . stream, Z_NO_FLUSH);
-	if (t_result == Z_STREAM_ERROR)
+	if (Z_STREAM_ERROR == t_result)
 		return MCDeployThrow(kMCDeployErrorBadCompress);
 
 	// First ensure we maximum space in the input buffer
@@ -390,7 +390,7 @@ static bool MCDeployCapsuleFilterFlush(MCDeployCapsuleFilterState& self)
 	}
 
 	// If a buf error occurred, we either need more space, or more input
-	if (t_result == Z_BUF_ERROR)
+	if (Z_BUF_ERROR == t_result)
 	{
 		// If the input buffer is not maxed out, return as we need more input
 		if (self . stream . avail_in != self . input_capacity)
@@ -399,7 +399,7 @@ static bool MCDeployCapsuleFilterFlush(MCDeployCapsuleFilterState& self)
 		// Otherwise, we must need a bigger input buffer, so extend it.
 		uint8_t *t_new_input;
 		t_new_input = (uint8_t *)realloc(self . input, self . input_capacity * 2);
-		if (t_new_input == NULL)
+		if (NULL == t_new_input)
 			return MCDeployThrow(kMCDeployErrorNoMemory);
 
 		// Update the stream input pointer
@@ -565,9 +565,9 @@ bool MCDeployCapsuleGenerate(MCDeployCapsuleRef self, MCDeployFileRef p_file, MC
 			// Now write out the data
 			if (t_success)
 			{
-				if (t_section -> buffer != nil)
+				if (nil != t_section -> buffer)
 					t_success = MCDeployCapsuleFilterWrite(t_filter, t_section -> buffer, t_section -> length);
-				else if (t_section -> file != nil)
+				else if (nil != t_section -> file)
 					t_success = MCDeployCapsuleFilterWriteFile(t_filter, t_section -> file, 0, t_section -> length);
 
 				if (t_success)
@@ -575,7 +575,7 @@ bool MCDeployCapsuleGenerate(MCDeployCapsuleRef self, MCDeployFileRef p_file, MC
 			}
 
 			// Finally write out any necessary padding
-			if (t_success && (t_generated & 3) != 0)
+			if (t_success && 0 != (t_generated & 3))
 			{
 				uint32_t t_zero;
 				t_zero = 0;

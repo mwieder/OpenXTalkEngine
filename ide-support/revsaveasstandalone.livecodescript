@@ -528,7 +528,7 @@ command revSearchForInclusions pStack, @xSettings
    end if
 end revSearchForInclusions
 
-private on revStandalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackName, @rStackFileList
+private command revStandalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackName, @rStackFileList
    revStandaloneProgress "Loading settings..."
    
    -- Make sure all dependencies are included
@@ -573,7 +573,7 @@ private on revStandalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackName
    put tStackFileList into rStackFileList
 end revStandalonePreBuild
 
-private on revStandalonePostBuild pStack, pFolder
+private command revStandalonePostBuild pStack, pFolder
 end revStandalonePostBuild
 
 private command revStandaloneCopyInclusions pStack, pStackFileList, pStackSourceFile, \ 

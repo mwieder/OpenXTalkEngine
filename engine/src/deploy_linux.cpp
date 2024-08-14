@@ -493,9 +493,19 @@ static bool MCDeployToLinuxReadHeader(MCDeployFileRef p_file, bool p_is_android,
 	{
 		// MW-2013-04-29: [[ Linux64 ]] Allow any type of machine architecture.
 		//   (in particular, ARM and x64 in addition to x386).
-		if (r_header . e_type != ET_EXEC ||
-			r_header . e_version != EV_CURRENT)
-			return MCDeployThrow(kMCDeployErrorLinuxBadImage);
+		switch (r_header . e_type)
+		{
+//			case ET_NONE:
+//			case ET_REL:
+			case ET_EXEC:
+			case ET_DYN:
+//			case ET_CORE:
+				break;
+			default:
+				return MCDeployThrow(kMCDeployErrorLinuxBadImage);
+		}
+			if (r_header . e_version != EV_CURRENT)
+				return MCDeployThrow(kMCDeployErrorLinuxBadImage);
 	}
 	else
 	{
@@ -925,7 +935,6 @@ Exec_stat MCDeployToELF(const MCDeployParameters& p_params, bool p_is_android)
         chmod(*t_utf8_path, 0755);
         }
 #endif
-	
 	return t_success ? ES_NORMAL : ES_ERROR;
 }
 

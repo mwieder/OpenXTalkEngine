@@ -138,6 +138,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
          put tBootPath & slash & "standalone" into tStandalonePath
          
          -- Deploy the standalone application data
+
          storeDeployedStack tArch, tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
          
          -- Store extra, copied files
@@ -241,7 +242,6 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    put tTempStackData into url ("binfile:" & tTempStackPath)
    
    put getStartupScript(pArch, pDeployParams["startup_script"]) into tStartupScript
-   
    put pBuildFolder & slash & "emscriptendeploy.data" into tTempDeployPath
    
    put tStartupScript into pDeployParams["startup_script"]
@@ -256,9 +256,9 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    logDebug "deploy", "Deploying standalone"
    
     _internal deploy emscripten pDeployParams
-#   if the result is not empty then
-#      throw "could not deploy startup stack:" && the result
-#   end if
+   if the result is not empty then
+      throw "could not deploy startup stack:" && the result
+   end if
    
    ---------- Store deployment data
    logDebug "deploy", "Storing" && tTempDeployPath
@@ -618,6 +618,10 @@ private function getRuntimeFolder pArch
    
    local tRelFolder, tOverridePath, tUserPath
    
+	if pArch is not "wasm" then
+		throw "pArch should be wasm but is" && pArch
+	end if
+
    put slash & "Emscripten" & slash & pArch into tRelFolder
    
    put revOverrideRuntimePath() into tOverridePath
@@ -643,6 +647,9 @@ end getRuntimeFolder
 -- the engine's JavaScript file).
 -- Get the directory where Emscripten development binaries and resources are installed to.
 private function getRepoBinariesFolder pArch
+	if pArch is not "wasm" then
+		throw "pArch should be wasm but is" && pArch
+	end if
    return "~/livecode/linux-x86_64-bin/Runtime/Emscripten/" & pArch
    --return revEnvironmentRepositoryPath() & slash & "emscripten-" & pArch & "-bin"
 end getRepoBinariesFolder

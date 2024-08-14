@@ -29,13 +29,13 @@ bool MCDeploySecuritySecureStandalone(void *p_file, uint32_t p_start_offset, uin
 	bool t_success;
 	t_success = true;
 	
-	if (t_success)
-	{
+//	if (t_success)
+//	{
 		uint32_t t_zero;
 		t_zero = 0;
 		x_offset = (x_offset + 3) & ~3;
 		t_success = MCDeployFileWriteAt((MCDeployFileRef)p_file, &t_zero, sizeof(uint32_t), x_offset);
-	}
+//	}
 	
 	if (t_success)
 		x_offset += sizeof(uint32_t);
