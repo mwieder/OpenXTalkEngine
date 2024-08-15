@@ -428,7 +428,7 @@ pSource : The source of the script (either a filename or an object id)
 Returns (array) : An array containing the details for the comment blocks associated with each api entry
 
 */
-on revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
+private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
    local tEntryType
    put empty into tEntryType
    
@@ -975,7 +975,7 @@ function revDocsFormatInlineComments pDataA, pIsLibrary
    return tDocData
 end revDocsFormatInlineComments
 
-function revDocsCollectGlossarySynonyms pRoot
+private function revDocsCollectGlossarySynonyms pRoot
    local tGlossaryA, tText, tName, tSynonyms
    local tFolders
    put folders(pRoot & slash & "glossary") into tFolders
@@ -1026,7 +1026,7 @@ end __arrayElementRegex
 
 constant kAlwaysRecognizeAsElement = "Description"
 
-function revDocsExtractElementsWithRegex pText, pRegex
+private function revDocsExtractElementsWithRegex pText, pRegex
    local tElementRegex
    put pRegex into tElementRegex
    
@@ -1157,7 +1157,7 @@ end revDocsExtractElementsWithRegex
 /*
 Utility function to extract any elements matching the docs element style
 */
-function revDocsExtractElements pText
+private function revDocsExtractElements pText
    # Use the element-matching regex
    return revDocsExtractElementsWithRegex(pText, __elementRegex())
 end revDocsExtractElements
@@ -1232,7 +1232,7 @@ private command __nameToKeyAndType pName, @rKey, @rType
    end switch
 end __nameToKeyAndType
 
-function revDocsParseElements pExtractedA, pBlocksA, pFilename
+private function revDocsParseElements pExtractedA, pBlocksA, pFilename
    local tParsedA
    
    local tParams
@@ -1360,13 +1360,13 @@ private command __updateParamsFromSyntaxLine pLine, @xParamsA
    end repeat
 end __updateParamsFromSyntaxLine
 
-function revDocsFormatDocFileAsJSON pFile, pLibraryName, pAuthor
-   local tFileContents
-   put revDocsUtf8FileContents(pFile) into tFileContents
-   return revDocsFormatDocTextAsJSON(pFile, tFileContents, pLibraryName, pAuthor)
-end revDocsFormatDocFileAsJSON
+--function revDocsFormatDocFileAsJSON pFile, pLibraryName, pAuthor
+--   local tFileContents
+--   put revDocsUtf8FileContents(pFile) into tFileContents
+--   return revDocsFormatDocTextAsJSON(pFile, tFileContents, pLibraryName, pAuthor)
+--end revDocsFormatDocFileAsJSON
 
-function revDocsFormatDocTextAsJSON pFile, pText, pLibraryName, pAuthor
+private function revDocsFormatDocTextAsJSON pFile, pText, pLibraryName, pAuthor
    if pText is empty then
       return empty
    end if
@@ -1400,7 +1400,7 @@ function revDocsParseDocFile pFile
    return revDocsParseDocText(tFileContents, pFile)
 end revDocsParseDocFile
 
-function revDocsGroupElements pElementsA
+private function revDocsGroupElements pElementsA
    local tLibraryName
    
    local tElementsA
@@ -1645,7 +1645,7 @@ private function formatSyntaxLine pLine, pPhrases
    return pLine
 end formatSyntaxLine
 
-command revDocsParseHandler pHandler, @xHandlers
+private command revDocsParseHandler pHandler, @xHandlers
    local tHandlerParams, tHandlerResult, tHandlerResult2
    get matchText(pHandler, "\((.*)\)(?: as (\w*)(?: (\w*))?)?", tHandlerParams, tHandlerResult, tHandlerResult2)
    
@@ -1670,7 +1670,7 @@ command revDocsParseHandler pHandler, @xHandlers
    end if
 end revDocsParseHandler
 
-on revDocsUpdateDocBlocksForProperty pData, pComment, @xDataA
+private command revDocsUpdateDocBlocksForProperty pData, pComment, @xDataA
    local tName
    put token 1 to -1 of word 2 of pData into tName
    put pComment into xDataA[tName]["comments"]
@@ -1678,7 +1678,7 @@ on revDocsUpdateDocBlocksForProperty pData, pComment, @xDataA
    put tName into xDataA[tName]["name"]
 end revDocsUpdateDocBlocksForProperty
 
-command revDocsUpdateModularSyntaxDocBlocks pData, pComment, pHandlersA, pPhrasesA, @xDataA
+private command revDocsUpdateModularSyntaxDocBlocks pData, pComment, pHandlersA, pPhrasesA, @xDataA
    local tNameLine, tSyntaxLine, tBindingLines, tDeprecated
    local tCurrentLine
    put 1 into tCurrentLine
@@ -1767,7 +1767,7 @@ command revDocsUpdateModularSyntaxDocBlocks pData, pComment, pHandlersA, pPhrase
    put tEntryName into xDataA[tEntryName]["name"]
 end revDocsUpdateModularSyntaxDocBlocks
 
-command revDocsUpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
+private command revDocsUpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
    if pComment is empty then
       exit revDocsUpdateDocBlocks
    end if
@@ -1830,7 +1830,7 @@ command revDocsUpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
    put "handler" into xDataA[tEntryName]["kind"]
 end revDocsUpdateDocBlocks
 
-command revDocsUpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment, @xDataA
+private command revDocsUpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment, @xDataA
    if pComment is empty then
       exit revDocsUpdateDocBlocksForLCIDL
    end if
@@ -1913,7 +1913,7 @@ command revDocsUpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment, @xDat
    put "handler" into xDataA[pEntryName]["kind"]
 end revDocsUpdateDocBlocksForLCIDL
 
-function revDocsParseReferences pDescription
+private function revDocsParseReferences pDescription
    local tReferences
    
    local tRef, tType
@@ -1927,7 +1927,7 @@ function revDocsParseReferences pDescription
    return tReferences
 end revDocsParseReferences
 
-function revDocsParseDescriptionForType pType, pDescription
+private function revDocsParseDescriptionForType pType, pDescription
    if word 1 of pType is "optional" then
       // more formatting for optional type?
       put word 2 to -1 of pType into pType
@@ -1948,7 +1948,7 @@ function revDocsParseDescriptionForType pType, pDescription
    return tArray
 end revDocsParseDescriptionForType
 
-function revDocsParseKeyValuePair pToParse
+private function revDocsParseKeyValuePair pToParse
    local tArray
    local tOptional 
    put false into tOptional
@@ -1975,7 +1975,7 @@ function revDocsParseKeyValuePair pToParse
    return tArray
 end revDocsParseKeyValuePair
 
-function revDocsParseSubArray pToParse
+private function revDocsParseSubArray pToParse
    local tArray
    local tStart, tFinish, tArrayDef
    
@@ -2026,7 +2026,7 @@ function revDocsParseSubArray pToParse
             put tCloseOffset into tCurrent
             if tNesting is 0 then
                put char tStart to tCloseOffset - 1 of pToParse into tSubArray
-               get revDocsParseSubArray(tSubArray)
+               get revDocsParseSubArray(tSubArray) -- recurse
                put it into tArray[tCount]["value"]["array"]
                add 1 to tCount
                put char tCloseOffset + 1 to -1 of pToParse into pToParse
@@ -2063,7 +2063,7 @@ Returns (array) : An array representing the data for the documented array
 
 */
 
-function revDocsParseDescriptionOfArray pDescription
+private function revDocsParseDescriptionOfArray pDescription
    local tCount
    put 1 into tCount
    
@@ -2096,7 +2096,7 @@ Returns (array) : An array representing the data for the documented array
 
 */
 
-function revDocsParseDescriptionOfEnum pDescription
+private function revDocsParseDescriptionOfEnum pDescription
    local tArray, tOutput, tInEnum
    local tCount
    put 1 into tCount
@@ -2179,7 +2179,7 @@ function revDocsCreateAPIJSON pLibraryTitle, pLibraryName, pAuthor, pDocContentJ
    return tJSON
 end revDocsCreateAPIJSON
 
-function revDocsFormatLibraryArrayAsJSON pLibraryA
+private function revDocsFormatLibraryArrayAsJSON pLibraryA
    local tDocContent
    put revDocsFormatLibraryDocArrayAsJSON(pLibraryA) \
          into tDocContent
@@ -2217,7 +2217,7 @@ private function __revDocsParamIsDefinedType pType
    end switch
 end __revDocsParamIsDefinedType
 
-function revDocsArrayParamToJSON pParamA, pDepth
+private function revDocsArrayParamToJSON pParamA, pDepth
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2239,7 +2239,7 @@ function revDocsArrayParamToJSON pParamA, pDepth
    return tOutput
 end revDocsArrayParamToJSON
 
-function revDocsEnumParamToJSON pParamA
+private function revDocsEnumParamToJSON pParamA
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2255,7 +2255,7 @@ function revDocsEnumParamToJSON pParamA
    return tOutput
 end revDocsEnumParamToJSON
 
-function revDocsTypedParamToJSON pParamA, pDepth, pRef
+private function revDocsTypedParamToJSON pParamA, pDepth, pRef
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2290,7 +2290,7 @@ function revDocsTypedParamToJSON pParamA, pDepth, pRef
    return tOutput
 end revDocsTypedParamToJSON
 
-function __revDocsFormatParamArrayAsJSON pParamA
+private function __revDocsFormatParamArrayAsJSON pParamA
    local tOutput
    put "[" into tOutput 
    repeat with x = 1 to the number of elements in pParamA
@@ -2303,7 +2303,7 @@ function __revDocsFormatParamArrayAsJSON pParamA
    return tOutput
 end __revDocsFormatParamArrayAsJSON
 
-function __revDocsFormatValuesArrayAsJSON pParamA
+private function __revDocsFormatValuesArrayAsJSON pParamA
    local tOutput
    put "[" into tOutput 
 
@@ -2323,7 +2323,7 @@ function __revDocsFormatValuesArrayAsJSON pParamA
    return tOutput
 end __revDocsFormatValuesArrayAsJSON
 
-function __revDocsFormatExamplesArrayAsJSON pExampleA
+private function __revDocsFormatExamplesArrayAsJSON pExampleA
    local tOutput
    put "[" into tOutput 
    repeat for each element tExample in pExampleA
@@ -2335,7 +2335,7 @@ function __revDocsFormatExamplesArrayAsJSON pExampleA
    return tOutput
 end __revDocsFormatExamplesArrayAsJSON
 
-function revDocsItemListToJSONArray pArray, pKey, pTabs
+private function revDocsItemListToJSONArray pArray, pKey, pTabs
    if pArray[pKey] is empty then
       return empty
    end if
@@ -2353,7 +2353,7 @@ function revDocsItemListToJSONArray pArray, pKey, pTabs
    return __tabs(pTabs) & escape(pKey) & ":[" & tTagList & "]" & comma & return
 end revDocsItemListToJSONArray
 
-function __formatParamsAsItalic pText
+private function __formatParamsAsItalic pText
    local tStart, tEnd
    repeat while matchChunk(pText, "<([^i]|[^><\/]{2,})>", tStart, tEnd)
       put "</i" after char tEnd of pText
@@ -2362,7 +2362,7 @@ function __formatParamsAsItalic pText
    return pText
 end __formatParamsAsItalic
 
-function __revDocsFormatDisplaySyntaxArrayAsJSON pSyntaxA
+private function __revDocsFormatDisplaySyntaxArrayAsJSON pSyntaxA
    local tOutput
    put "[" into tOutput 
    repeat for each element tExample in pSyntaxA
@@ -2373,7 +2373,7 @@ function __revDocsFormatDisplaySyntaxArrayAsJSON pSyntaxA
    return tOutput
 end __revDocsFormatDisplaySyntaxArrayAsJSON
 
-function __revDocsFormatSyntaxArrayAsJSON pSyntaxA
+private function __revDocsFormatSyntaxArrayAsJSON pSyntaxA
    local tOutput
    put "[" into tOutput 
    repeat for each element tExample in pSyntaxA
@@ -2409,7 +2409,7 @@ function revDocsModifyForURL pName
    return urlencode(toLower(pName))
 end revDocsModifyForURL
 
-function outputArrayElement pElement, pArray, pTabCount, pLower
+private function outputArrayElement pElement, pArray, pTabCount, pLower
    if pLower then
       return outputElement(pElement, tolower(pArray[pElement]), pTabCount)
    else
@@ -2417,7 +2417,7 @@ function outputArrayElement pElement, pArray, pTabCount, pLower
    end if
 end outputArrayElement
 
-function outputElement pElement, pValue, pTabCount
+private function outputElement pElement, pValue, pTabCount
    local tOutput
    repeat pTabCount
       put tab after tOutput
@@ -2426,14 +2426,14 @@ function outputElement pElement, pValue, pTabCount
    return tOutput
 end outputElement
 
-function outputElementIfExists pElement, pArray, pTabCount
+private function outputElementIfExists pElement, pArray, pTabCount
    if pArray[pElement] is not empty then
       return outputElement(pElement, pArray[pElement], pTabCount)
    end if
    return empty
 end outputElementIfExists
 
-function __revDocsFormatReferencesArrayAsJSON pReferencesA
+private function __revDocsFormatReferencesArrayAsJSON pReferencesA
    if pReferencesA is empty then
       return empty
    end if
@@ -2449,7 +2449,7 @@ function __revDocsFormatReferencesArrayAsJSON pReferencesA
    return tOutput
 end __revDocsFormatReferencesArrayAsJSON
 
-function __revDocsFormatCustomArrayAsJSON pKey, pArray
+private function __revDocsFormatCustomArrayAsJSON pKey, pArray
    if pArray[pKey] is empty then
       return empty
    end if
@@ -2474,7 +2474,7 @@ end __revDocsFormatCustomArrayAsJSON
 Format the library array data as a JSON array as needed by the docs viewer
 */
 
-function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
+private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    local tJSON
    put "{" & return into tJSON
    
@@ -2636,7 +2636,7 @@ on revDocsUpdateDatabase pConnection, pAPI, pLibraryA
    return empty
 end revDocsUpdateDatabase
 
-on revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
+private command revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
    # Find the API id
    local tSQL, tAPIID
    put "SELECT api_id FROM apis WHERE api_name = :1" into tSQL
@@ -2673,6 +2673,7 @@ on revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
    return empty
 end revDocsUpdateLibrary
 
+/*
 on revDocsRemoveLibrary pConnection, pAPI, pName
    # Find the library id
    local tSQL, tAPIID
@@ -2692,6 +2693,7 @@ on revDocsRemoveLibrary pConnection, pAPI, pName
    
    return empty
 end revDocsRemoveLibrary
+*/
 
 
 /*
@@ -2784,12 +2786,12 @@ private function revDocsParseYamlList pYaml
    return tListA
 end revDocsParseYamlList
 
-function revDocsGuideNameFromFile pFile
+private function revDocsGuideNameFromFile pFile
    set the itemdelimiter to "."
    return item 1 to -2 of pFile
 end revDocsGuideNameFromFile
 
-function revDocsGuideData pFolder, pLocation, pFile
+private function revDocsGuideData pFolder, pLocation, pFile
    local tGuideContent, tGuideFile
    put pFolder & slash & pFile into tGuideFile
    put revDocsUtf8FileContents(tGuideFile) into tGuideContent
@@ -2812,7 +2814,7 @@ function revDocsGuideData pFolder, pLocation, pFile
    return tGuideDataA
 end revDocsGuideData
 
-function revDocsListGuides pFolder
+private function revDocsListGuides pFolder
    local tGuides
    put files(pFolder) into tGuides
    filter tGuides with "*.md"
@@ -2821,7 +2823,7 @@ function revDocsListGuides pFolder
    return tGuides
 end revDocsListGuides
 
-function revDocsGuideDataFromFolder pFolder, pLocation
+private function revDocsGuideDataFromFolder pFolder, pLocation
    local tGuides
    put revDocsListGuides(pFolder) into tGuides
 
@@ -2845,7 +2847,7 @@ private function groupOrder pOrderA, pGuideDataA, pKey
    end if
 end groupOrder
 
-function revDocsUtf8FileContents pFile
+private function revDocsUtf8FileContents pFile
    local tContents
    put url ("binfile:" & pFile) into tContents
    put textDecode(tContents, "utf-8") into tContents
@@ -2861,7 +2863,7 @@ private function groupOrderYaml pOrderFileLocation
    return revDocsUtf8FileContents(pOrderFileLocation & slash & kGuideOrderFile)
 end groupOrderYaml
 
-function revDocsGroupOrder pOrderFileLocation
+private function revDocsGroupOrder pOrderFileLocation
    local tOrderYaml
    put groupOrderYaml(pOrderFileLocation) into tOrderYaml
    

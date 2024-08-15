@@ -53,7 +53,7 @@ const char *MCS_tmpnam()
 	// MW-2008-06-19: Make sure fname is stored in a static to keep the (rather
 	//   unpleasant) current semantics of the call.
 	static char *fname;
-	if (fname != NULL)
+	if (NULL != fname)
 	{
 		delete fname;
 		fname = NULL;
