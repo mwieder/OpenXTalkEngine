@@ -15,10 +15,11 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-constant kLinuxBrowserList = "Firefox=firefox/firefox,Firefox Beta=firefox_beta/firefox,Firefox Aurora=firefox_aurora/firefox,Firefox Nightly=firefox_nightly/firefox,Chrome Stable=google-chrome-stable/google-chrome-stable,Chrome=google-chrome/google-chrome"
+constant kLinuxBrowserList = "Firefox=firefox/firefox,Chrome=google-chrome/google-chrome"
 constant kPrivateModeSuffix = "[Private Mode]"
---constant kBuildSpace = "livecode-emscripten-builds"
-constant kBuildSpace = "oxt-emscripten-builds"
+# TODO: update this
+constant kBuildSpace = "livecode-emscripten-builds"
+--constant kBuildSpace = "oxt-emscripten-builds"
 
 local sBrowsers
 local sServerPort
@@ -31,7 +32,7 @@ command deployInitialize
    put tBrowserList into sBrowsers
    
    repeat for each key tBrowser in tBrowserList
-      if __deployBrowserSupportsPrivateMode(tBrowser) then
+      if __deployBrowserSupportsPrivateMode?(tBrowser) then
          put tBrowserList[tBrowser] into sBrowsers[tBrowser && kPrivateModeSuffix]
       end if
    end repeat
@@ -52,7 +53,7 @@ function deployListTargets
    put the keys of sBrowsers into tTargets
    sort tTargets
    if tTargets is not empty then
-      put return before tTargets
+      put cr before tTargets
    end if
    put "Default Browser" before tTargets
    return tTargets   
@@ -212,16 +213,19 @@ private function __deployGetBrowserArgs pBrowser
    return empty
 end __deployGetBrowserArgs pBrowser
 
-private function __deployBrowserSupportsPrivateMode pBrowser
+private function __deployBrowserSupportsPrivateMode? pBrowser
    return __deployGetBrowserPrivateModeArgs(pBrowser) is not empty
-end __deployBrowserSupportsPrivateMode
+end __deployBrowserSupportsPrivateMode?
 
 private function __deployGetBrowserPrivateModeArgs pBrowser
+   local tPrivateMode
    switch
       case pBrowser contains "chrome"
-         return "--incognito"
+         put "--incognito" into tPrivateMode
+         break
       case pBrowser contains "iexplore"
-         return "-private"
+         put "-private" into tPrivateMode
+         break
       case pBrowser contains "firefox"
          -- We use the open command on OS X to launch browsers.
          -- This takes care of managing multiple instances - if already running, the exisiting instance will be brought to the foreground with the given URL.
@@ -230,14 +234,18 @@ private function __deployGetBrowserPrivateModeArgs pBrowser
          -- However, firefox complains and exits (when running multiple instances on OS X), which means we can't fully support private mode using this method.
          -- It will only work if firefox is not already running (or we could try a nasty apple script hack but that susceptible to menu/shortcut changes).
          if the platform is "MacOS" then
-            return empty
+            --return empty
+         else
+            put "-private-window" into tPrivateMode
          end if
-         return "-private-window"
+         break
       case pBrowser contains "opera"
-         return "-newprivatetab"
-      default
-         return empty
+         put "-newprivatetab" into tPrivateMode
+         break
+         --default
+         --return empty
    end switch
+   return tPrivateMode
 end __deployGetBrowserPrivateModeArgs
 
 private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
@@ -287,7 +295,7 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
    end if
 end __deployLaunchURLInBrowser
 
--- Callback from the HTTP deamon.
+-- Callback from the HTTP daemon.
 -- In this case we just want to serve the requested file
 -- if it exists in the temp file space.
 -- POST requests to stdio.html are log messages from emscripten.
