@@ -190,7 +190,8 @@ Exec_stat MCDeployToLinux(const MCDeployParameters& p_params);
 Exec_stat MCDeployToMacOSX(const MCDeployParameters& p_params);
 Exec_stat MCDeployToIOS(const MCDeployParameters& p_params, bool embedded);
 Exec_stat MCDeployToAndroid(const MCDeployParameters& p_params);
-Exec_stat MCDeployToEmscripten(const MCDeployParameters& p_params);
+Exec_stat MCDeployToEmscriptenWasm(const MCDeployParameters& p_params);
+Exec_stat MCDeployToEmscriptenHTML5(const MCDeployParameters& p_params);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -532,7 +533,8 @@ void MCDeployByteSwapRecord(bool p_to_network, const char *p_format, void *p_dat
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MCDeployWriteCapsule(const MCDeployParameters& p_params, MCDeployFileRef p_output, uint32_t& x_offset);
-bool MCDeployWriteProject(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size);
+bool MCDeployWriteProjectHTML5(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size);
+bool MCDeployWriteProjectWASM(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size);
 bool MCDeployWritePayload(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_payload_size);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,6 +17,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 constant kLinuxBrowserList = "Firefox=firefox/firefox,Firefox Beta=firefox_beta/firefox,Firefox Aurora=firefox_aurora/firefox,Firefox Nightly=firefox_nightly/firefox,Chrome Stable=google-chrome-stable/google-chrome-stable,Chrome=google-chrome/google-chrome"
 constant kPrivateModeSuffix = "[Private Mode]"
+--constant kBuildSpace = "livecode-emscripten-builds"
+constant kBuildSpace = "oxt-emscripten-builds"
 
 local sBrowsers
 local sServerPort
@@ -34,16 +36,16 @@ command deployInitialize
       end if
    end repeat
    
-   put the temporary folder & slash & "livecode-emscripten-builds" into sHTTPFileSpace
+   put the temporary folder & slash & kBuildSpace into sHTTPFileSpace
    if not (there is a folder sHTTPFileSpace) then
       create folder sHTTPFileSpace
    end if
 end deployInitialize
 
-function deployIsAvailable
+function deployIsAvailable?
    get deployListTargets()
    return it is not empty
-end deployIsAvailable
+end deployIsAvailable?
 
 function deployListTargets
    local tTargets
@@ -84,7 +86,7 @@ command deployDo pTargetStack, pBrowser
    
    local tBuildFolder, tStandalonePath
    if tError is empty then
-      revStandaloneProgress "Building standalone..."      
+      revStandaloneProgress "Building standalone..."   
       
       local tSettings
       put revSBGetSettings(pTargetStack, true) into tSettings
@@ -95,10 +97,10 @@ command deployDo pTargetStack, pBrowser
       end if
       create folder tBuildFolder
       
-      put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath      
+      put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath 
       
       try
-         dispatch "revSaveAsEmscriptenStandalone" to stack "revsaveasemscriptenstandalone" with \
+         dispatch "revSaveAsEmscriptenWASMStandalone" to stack "revsaveasemscriptenstandalone" with \
                pTargetStack, tBuildFolder, tSettings
       catch tException
          put "Unable to build app for testing:" && tException into tError
@@ -110,7 +112,9 @@ command deployDo pTargetStack, pBrowser
       
       local tPrivateMode
       put pBrowser ends with kPrivateModeSuffix into tPrivateMode
-      __deployLaunchURLInBrowser "http://localhost:" & sServerPort & slash & tStandalonePath, sBrowsers[pBrowser], tPrivateMode
+      
+      --__deployLaunchURLInBrowser "http://localhost:" & sServerPort & slash & tStandalonePath, sBrowsers[pBrowser], tPrivateMode
+      __deployLaunchURLInBrowser "http://localhost:" & sServerPort & slash & tStandalonePath, word 1 of pBrowser, tPrivateMode
       if the result is not empty then
          put "Could not open URL" && the result into tError
       end if
@@ -237,7 +241,9 @@ private function __deployGetBrowserPrivateModeArgs pBrowser
 end __deployGetBrowserPrivateModeArgs
 
 private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
-   if pBrowser is empty then
+   --put "pBrowser=" && pBrowser & cr after msg
+   if pBrowser is empty or pBrowser is "default" then
+      # use the default browser
       launch URL pURL
       return the result
    else
@@ -268,8 +274,12 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
             return it
             
          case "Linux"
-            return shell(__wrapInQuotes(pBrowser) &&  tArgs && __wrapInQuotes(pURL))
-            
+            local tShell
+            -- this will take care of firefox and google-chrome
+            put lower(pBrowser) into tShell
+            local tCommand
+            put tShell &&  tArgs && __wrapInQuotes(pURL) into tCommand
+            return shell(tCommand)
          default
             launch URL pURL
             return the result

@@ -46,6 +46,7 @@ enum
 	kMCLicenseDeployToAndroidEmbedded = 1 << 9,
     kMCLicenseDeployToHTML5 = 1 << 10,
     kMCLicenseDeployToFileMaker = 1 << 11,
+    kMCLicenseDeployToWASM = 1 << 12,
 };
 
 enum MCLicenseClass

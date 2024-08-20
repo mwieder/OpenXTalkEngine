@@ -174,7 +174,7 @@ try
    end if
    
    -- Make sure there is actually something to build..
-   if revSBNoPlatforms(tSettings) then
+   if revSBNoPlatforms?(tSettings) then
       local tMessage
       put "You have not selected any platforms to build for. Please do so using Standalone Settings." into tMessage
       if revSBSuppressDialogs() then
@@ -277,24 +277,6 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    
    local tError, tStandaloneFolder
    
-   -- Don't build for any platform we are not licensed for
-   --local tRemoved
-   --put revSBRemoveUnlicensedTargetsFromSettings(sStandaloneSettingsA) into tRemoved
-   --replace return with comma in tRemoved
-   
-   --if revSBNoPlatforms(sStandaloneSettingsA) then
-   --local tMessage
-   --put "You are not licensed to build for any selected platforms." into tMessage
-   --if not revSBSuppressDialogs() then
-   --answer error tMessage
-   --end if
-   --return tMessage
-   --end if
-   
-   --if tRemoved is not empty then
-   --revStandaloneAddWarning "Not licensed to build for the following selected platforms:" && tRemoved
-   --end if
-   
    revStandaloneProgress "Preparing to build standalone..."
    
    -- pre build message
@@ -376,7 +358,7 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
                break
             case "Emscripten"
                put tTargetFolder into xStandalonePaths[tPlatform]
-               dispatch "revSaveAsEmscriptenStandalone" to stack "revSaveAsEmscriptenStandalone" with \
+               dispatch "revSaveAsEmscriptenWASMStandalone" to stack "revSaveAsEmscriptenStandalone" with \
                      pStack, xStandalonePaths[tPlatform], sStandaloneSettingsA, xStandalonePaths
                break
             case "MacOSX"

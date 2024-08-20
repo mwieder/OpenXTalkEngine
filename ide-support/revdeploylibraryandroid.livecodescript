@@ -28,17 +28,17 @@ function deployListTargets
    return tTargets
 end deployListTargets
 
-function deployIsAvailable
-   local tEnabled
+function deployIsAvailable?
+   local tEnabled?
    
    if sAvailableDevices is not an array then
-      put false into tEnabled
+      put false into tEnabled?
    else
-      put true into tEnabled
+      put true into tEnabled?
    end if
    
-   return tEnabled
-end deployIsAvailable
+   return tEnabled?
+end deployIsAvailable?
 
 command deployDo pTargetStack, pTargetDevice
    local tError
@@ -149,6 +149,8 @@ command deployAutoconfigure
       put empty into sJavaRoot
    end if
 end deployAutoconfigure
+end deployAutoconfigure
+
 
 command deployAutoconfigureJDK
    local tJDK

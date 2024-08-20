@@ -18,6 +18,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 -- Support for creating HTML5 standalones using Emscripten
 
+constant kLocalRoot = "~/livecode/linux-x86_64-bin/"
+
 private command logDebug pStep, pMessage
    write "[" & pStep & "]" && pMessage & cr to stderr
 end logDebug
@@ -26,7 +28,7 @@ end logDebug
 -- Standalone generation
 ----------------------------------------------------------------
 
-command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
+command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    
    logDebug "top", "----- Begin Emscripten standalone"
    
@@ -70,7 +72,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
    -- Make sure all dependencies are included
    revSBUpdateForDependencies "emscripten",,, pSettings
    
-   /* Emscripten module resources are placed in `/boot/standalone` so we must
+   /* Emscripten wasm module resources are placed in `/boot/standalone` so we must
    * set the resources path appropriately. */
    put "/boot/standalone" into pSettings["resources_path"]
    revSBUpdateSettingsForExtensions "emscripten", pSettings
@@ -78,16 +80,20 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
    local tResolvedFileData
    revSBResolveCopyFilesList tBaseFolder, "emscripten", pSettings, tResolvedFileData
    
-   /* Process the resolved files, separating the custom standalone and fonts
-   * files if available */
-   local tCustomFiles
-   local tFilesArray
-   put "standalone.html" into tFilesArray[1]
-   put "emscripten-web-fonts.txt" into tFilesArray[2]
-   _processCustomFiles \
-         tResolvedFileData, \
-         tFilesArray, \
-         tCustomFiles
+   if "wasm" is among the items of tArchs then
+      logDebug "tArch[wasm]", tArchs
+      	   
+      /* Process the resolved files, separating the custom standalone and fonts
+      * files if available */
+      local tCustomFiles
+      local tFilesArray
+      put "standalone.html" into tFilesArray[1]
+      put "emscripten-web-fonts.txt" into tFilesArray[2]
+      _processCustomFiles \
+            tResolvedFileData, \
+            tFilesArray, \
+            tCustomFiles
+   end if
    
    local tDeploy
    -- Update the deploy params with script library and extension inclusions
@@ -96,7 +102,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
    local tError
    try
       ---------- Check deployment entitlement
-      revStandaloneProgress "Checking deployment entitlement..."
+      --revStandaloneProgress "Checking deployment entitlement..."
       
       repeat for each item tArch in tArchs
          ---------- Create a working directory
@@ -130,6 +136,18 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
             throw "could not create standalone archive"
          end if
          
+         if tArch is not "wasm" then
+            local tZipTemplatePath, tZipTemplateFolder
+            repeat for each element tZipTemplateFile in getStandaloneTemplateFiles()
+               put tZipTemplateFolder & slash & tZipTemplateFile into tZipTemplatePath
+               logDebug "template", "Storing" && tZipTemplatePath
+               revZipAddUncompressedItemWithFile tBuildZip, tZipTemplateFile, tZipTemplatePath
+               if the result is not empty then
+                  throw "could not store template files in standalone archive"
+               end if
+            end repeat
+         end if
+         
          -- Define some paths within the zip archive
          local tBootPath, tStandalonePath
          local tDeployedStackPath
@@ -138,7 +156,9 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
          put tBootPath & slash & "standalone" into tStandalonePath
          
          -- Deploy the standalone application data
-
+         
+         logDebug "stack", tStackFile
+         
          storeDeployedStack tArch, tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
          
          -- Store extra, copied files
@@ -225,7 +245,7 @@ command revSaveAsEmscriptenStandalone pStack, pOutputFolder, pSettings
       throw tError
    end if
    
-end revSaveAsEmscriptenStandalone
+end revSaveAsEmscriptenWASMStandalone
 
 ----------------------------------------------------------------
 -- Standalone deployment
@@ -242,6 +262,7 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    put tTempStackData into url ("binfile:" & tTempStackPath)
    
    put getStartupScript(pArch, pDeployParams["startup_script"]) into tStartupScript
+
    put pBuildFolder & slash & "emscriptendeploy.data" into tTempDeployPath
    
    put tStartupScript into pDeployParams["startup_script"]
@@ -274,7 +295,8 @@ logDebug "tTempDeployPath=", tTempDeployPath
    put it into tDeployData
    close file tTempDeployPath
    
-   revZipAddUncompressedItemWithData pZip, pDeployPath, "tDeployData"
+//   revZipAddUncompressedItemWithData pZip, pDeployPath, "tDeployData"
+   revZipAddItemWithData pZip, pDeployPath, "tDeployData"
    if the result is not empty then
       throw "could not store startup stack in standalone archive:" && the result
    end if
@@ -348,6 +370,35 @@ private command storeAssets pZip, pFileData, pStandalonePath, pBaseFolder
       end if
    end repeat
 end storeAssets
+
+private command _storeAssetsR \
+      pFolder, \
+      pName, \
+      @xFilesA, \
+      @xCount
+
+   local tFolderFiles
+   put files(pFolder) into tFolderFiles
+   repeat for each line tLine in tFolderFiles
+      add 1 to xCount
+      put tLine into xFilesA[xCount]["name"]
+      put pName & slash & tLine into xFilesA[xCount]["dest"]
+      put pFolder & slash & tLine into xFilesA[xCount]["resolved"]
+   end repeat
+
+   local tSubFolders
+   put folders(pFolder) into tSubFolders
+   repeat for each line tLine in tSubFolders
+      if tLine begins with "." then
+         next repeat
+      end if
+      _storeAssetsR \
+         pFolder & slash & tLine, \
+         pName & slash & tLine, \
+         xFilesA, \
+         xCount
+   end repeat
+end _storeAssetsR
 
 private command _processCustomFiles @xResolvedFileData, pCustomFiles, @rCustomFiles
    repeat for each line tKey in the keys of xResolvedFileData
@@ -551,11 +602,16 @@ private function getEngineFiles pArch
    switch pArch
       case "js"
          -- Engine JavaScript
-         put mapBinPath("js", "standalone-" & the version & ".js") \
-            into tFiles["standalone-" & the version & ".js"]
+//         put mapBinPath("js", "standalone-" & the version & ".js") \
+//            into tFiles["standalone-" & the version & ".js"]
+         put mapBinPath("js", "standalone.js") \
+            into tFiles["standalone.js"]
+
          -- Memory initialisation file
-         put mapBinPath("js", "standalone-" & the version & ".html.mem") \
-            into tFiles["standalone-" & the version & ".html.mem"]
+//         put mapBinPath("js", "standalone-" & the version & ".html.mem") \
+//            into tFiles["standalone-" & the version & ".html.mem"]
+         put mapBinPath("js", "standalone.html.mem") \
+            into tFiles["standalone.html.mem"]
          break
       case "wasm"
       default
@@ -588,16 +644,18 @@ end fakeMapCommonPath
 -- This is a folder that contains the default filesystem
 -- initialisation data that's automatically included in all
 -- standalones (especially fonts).
---private function getStandaloneTemplateFolder
-   --return mapResPath("emscripten-standalone-template")
---end getStandaloneTemplateFolder
+# HTML5 only
+private function getStandaloneTemplateFolder
+   return mapResPath("emscripten-standalone-template")
+end getStandaloneTemplateFolder
 
 -- Return a number-indexed array of files in the Emscripten standalone
 -- template folder.  The paths returned are relative to the path returned
 -- by getStandaloneTemplateFolder()
---private function getStandaloneTemplateFiles
-   --return scanFolder(getStandaloneTemplateFolder())
---end getStandaloneTemplateFiles
+# HTML5 only
+private function getStandaloneTemplateFiles
+   return scanFolder(getStandaloneTemplateFolder())
+end getStandaloneTemplateFiles
 
 -- Get the filename of the Emscripten standalone template HTML file.
 -- This has some standalone-dependent JavaScript substituted into it
@@ -618,9 +676,16 @@ private function getRuntimeFolder pArch
    
    local tRelFolder, tOverridePath, tUserPath
    
-	if pArch is not "wasm" then
-		throw "pArch should be wasm but is" && pArch
-	end if
+	switch pArch
+		case "wasm"
+		case "js"
+			break
+		default
+			throw "pArch should be wasm but is" && pArch
+	end switch
+	--if pArch is not "wasm" then
+		--throw "pArch should be wasm but is" && pArch
+	--end if
 
    put slash & "Emscripten" & slash & pArch into tRelFolder
    
@@ -646,12 +711,12 @@ end getRuntimeFolder
 -- Get the directory where Emscripten binaries end up (specifically,
 -- the engine's JavaScript file).
 -- Get the directory where Emscripten development binaries and resources are installed to.
+# TODO: Fix this
 private function getRepoBinariesFolder pArch
 	if pArch is not "wasm" then
 		throw "pArch should be wasm but is" && pArch
 	end if
    return "~/livecode/linux-x86_64-bin/Runtime/Emscripten/" & pArch
-   --return revEnvironmentRepositoryPath() & slash & "emscripten-" & pArch & "-bin"
 end getRepoBinariesFolder
 
 -- Get the directory where Emscripten resources are kept
@@ -677,36 +742,24 @@ end getTemporaryBuildFile
 ----------------------------------------------------------------
 
 -- Check if the license permits HTML5 deployment
-private function isPermittedDeployment
-   --if isCommercialDeployment() then
-      --return ("HTML5" is among the items of line 5 of the revLicenseInfo)
-   --else
+private function isPermittedDeployment?
+	return true
+end isPermittedDeployment?
+
+
+
+private function isCommercialDeployment?
+   if revLicenseType() is "community" then
+      return false
+   else
       return true
-   --end if
-end isPermittedDeployment
+   end if
 
-
-private function isCommercialDeployment
-   --if revLicenseType() is "community" then
-      --return false
-   --else
-      return true
-   --end if
-end isCommercialDeployment
-
-end isCommercialDeployment
-
-end isCommercialDeployment
-
-end isCommercialDeployment
-
-end isCommercialDeployment
-
-end isCommercialDeployment
+end isCommercialDeployment?
 
 -- Get the engine type string ("commercial" or "community")
 private function getEngineType
-   if isCommercialDeployment() then
+   if isCommercialDeployment?() then
       return "commercial"
    else
       return "community"

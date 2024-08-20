@@ -51,7 +51,7 @@ myFavourite.command,ANOther.function
 Tags: documentation, meta 
 */
 
-function revDocsInlineDocsParsingTest pArrayParam, pEnumParam, pOptionalParam, pParam
+private function revDocsInlineDocsParsingTest pArrayParam, pEnumParam, pOptionalParam, pParam
    return empty
 end revDocsInlineDocsParsingTest
 

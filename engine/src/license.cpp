@@ -77,50 +77,12 @@ void MCLicenseSetRevLicenseLimits(MCExecContext& ctxt, MCArrayRef p_settings)
 		    MClicenseparameters . license_multiplicity = MCNumberFetchAsUnsignedInteger(*t_number);
 	    }
     }
-    
-    if (MCArrayFetchValue(p_settings, t_case_sensitive, MCNAME("scriptlimit"), t_value))
-    {
-	    MCAutoNumberRef t_number;
-	    if (ctxt.ConvertToNumber(t_value, &t_number))
-	    {
-		    integer_t t_limit;
-		    t_limit = MCNumberFetchAsInteger(*t_number);
-		    MClicenseparameters . script_limit = t_limit <= 0 ? 0 : t_limit;
-	    }
-    }
-    
-    if (MCArrayFetchValue(p_settings, t_case_sensitive, MCNAME("dolimit"), t_value))
-    {
-	    MCAutoNumberRef t_number;
-	    if (ctxt.ConvertToNumber(t_value, &t_number))
-	    {
-		    integer_t t_limit;
-		    t_limit = MCNumberFetchAsInteger(*t_number);
-		    MClicenseparameters . do_limit = t_limit <= 0 ? 0 : t_limit;
-	    }
-    }
-    
-    if (MCArrayFetchValue(p_settings, t_case_sensitive, MCNAME("usinglimit"), t_value))
-    {
-	    MCAutoNumberRef t_number;
-	    if (ctxt.ConvertToNumber(t_value, &t_number))
-	    {
-		    integer_t t_limit;
-		    t_limit = MCNumberFetchAsInteger(*t_number);
-		    MClicenseparameters . using_limit = t_limit <= 0 ? 0 : t_limit;
-	    }
-    }
-    
-    if (MCArrayFetchValue(p_settings, t_case_sensitive, MCNAME("insertlimit"), t_value))
-    {
-	    MCAutoNumberRef t_number;
-	    if (ctxt.ConvertToNumber(t_value, &t_number))
-	    {
-		    integer_t t_limit;
-		    t_limit = MCNumberFetchAsInteger(*t_number);
-		    MClicenseparameters . insert_limit = t_limit <= 0 ? 0 : t_limit;
-	    }
-    }
+
+	// no limits
+	MClicenseparameters . script_limit = 0;
+	MClicenseparameters . do_limit = 0;
+	MClicenseparameters . using_limit = 0;
+	MClicenseparameters . insert_limit = 0;
     
     if (MCArrayFetchValue(p_settings, t_case_sensitive, MCNAME("deploy"), t_value))
     {
@@ -131,38 +93,22 @@ void MCLicenseSetRevLicenseLimits(MCExecContext& ctxt, MCArrayRef p_settings)
             { "linux", kMCLicenseDeployToLinux },
             { "ios", kMCLicenseDeployToIOS },
             { "android", kMCLicenseDeployToAndroid },
-            { "winmobile", kMCLicenseDeployToWinMobile },
-            { "meego", kMCLicenseDeployToLinuxMobile },
+//            { "winmobile", kMCLicenseDeployToWinMobile },
+//            { "meego", kMCLicenseDeployToLinuxMobile },
             { "server", kMCLicenseDeployToServer },
             { "ios-embedded", kMCLicenseDeployToIOSEmbedded },
             { "android-embedded", kMCLicenseDeployToIOSEmbedded },
             { "html5", kMCLicenseDeployToHTML5 },
+            { "wasm", kMCLicenseDeployToWASM },
             { "filemaker", kMCLicenseDeployToFileMaker },
         };
         
         MClicenseparameters . deploy_targets = 0;
         
-        MCAutoStringRef t_params;
-        if (ctxt . ConvertToString(t_value, &t_params))
-        {
-            MCAutoArrayRef t_split_strings;
-            MCValueRef t_fetched_string;
-            if (MCStringSplit(*t_params, MCSTR(","), nil, kMCCompareExact, &t_split_strings))
-            {
-                for(uint32_t i = 0; i < MCArrayGetCount(*t_split_strings); i++)
-                {
-                    // Fetch the string value created with MCStringSplit
-                    MCArrayFetchValueAtIndex(*t_split_strings, i+1, t_fetched_string);
-                    
-                    for(uint32_t j = 0; j < sizeof(s_deploy_map) / sizeof(s_deploy_map[0]); j++)
-                        if (MCStringIsEqualToCString((MCStringRef)t_fetched_string, s_deploy_map[j] . tag, kMCStringOptionCompareCaseless))
-                        {
-                            MClicenseparameters . deploy_targets |= s_deploy_map[j] . value;
-                            break;
-                        }
-                }
-            }
-        }
+		for(uint32_t j = 0; j < sizeof(s_deploy_map) / sizeof(s_deploy_map[0]); j++)
+		{
+			MClicenseparameters . deploy_targets |= s_deploy_map[j] . value;
+		}
     }
     
     if (MCArrayFetchValue(p_settings, t_case_sensitive, MCNAME("addons"), t_value) && MCValueIsArray(t_value))
@@ -186,12 +132,13 @@ void MCLicenseGetRevLicenseInfo(MCExecContext& ctxt, MCStringRef& r_info)
         "Linux",
         "iOS",
         "Android",
-        "Windows Mobile",
-        "Linux Mobile",
+//        "Windows Mobile",
+//        "Linux Mobile",
         "Server",
         "iOS Embedded",
         "Android Embedded",
         "HTML5",
+        "Wasm",
         "FileMaker",
     };
     
@@ -202,12 +149,12 @@ void MCLicenseGetRevLicenseInfo(MCExecContext& ctxt, MCStringRef& r_info)
     
     MCStringRef t_license_name;
     t_license_name = MClicenseparameters . license_name;
-    if (t_license_name == nil)
+    if (nil == t_license_name)
         t_license_name = kMCEmptyString;
 
     MCStringRef t_license_org;
     t_license_org = MClicenseparameters . license_organization;
-    if (t_license_org == nil)
+    if (nil == t_license_org)
         t_license_org = kMCEmptyString;
 
     MCAutoStringRef t_class;
@@ -220,19 +167,16 @@ void MCLicenseGetRevLicenseInfo(MCExecContext& ctxt, MCStringRef& r_info)
                                          *t_class,
                                          MClicenseparameters . license_multiplicity);
     
-    if (MClicenseparameters . deploy_targets != 0)
-    {
+//    if (MClicenseparameters . deploy_targets != 0)
+//    {
         bool t_first;
         t_first = true;
         for(uint32_t i = 0; t_success && i < sizeof(s_deploy_targets) / sizeof(s_deploy_targets[0]); i++)
         {
-//            if ((MClicenseparameters . deploy_targets & (1 << i)) != 0)
-//            {
-                t_success = MCStringAppendFormat(*t_info, t_first ? "%s" : ",%s", s_deploy_targets[i]);
-                t_first = false;
-//            }
+			t_success = MCStringAppendFormat(*t_info, t_first ? "%s" : ",%s", s_deploy_targets[i]);
+			t_first = false;
         }
-    }
+//    }
     
     // AL-2014-11-04: [[ Bug 13865 ]] Don't add an extra line between deploy targets and addons
 

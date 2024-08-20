@@ -2241,13 +2241,18 @@ command revSBUpdateSettingsForExtensions pTarget, @xSettingsA
                tTargetResourceFolder, xSettingsA
       end if
       put tExtensionData into xSettingsA["extensions_computed"][tLoadIndex]
-   end repeat
+   end repeat # for each line tExtension in tDependencyOrder
 end revSBUpdateSettingsForExtensions
 
 constant kMappingSeparator = ":"
 command revSBAddLibraryMapping pPlatform, pName, pLocation, @xSettingsA
+   /* If the location is not absolute, prepend `./`. */
+   if not (pLocation begins with "/") then
+      put "./" before pLocation
+   end if
+
    local tMapping
-   put pName & kMappingSeparator & "./" & pLocation into tMapping
+   put pName & kMappingSeparator & pLocation into tMapping
    appendToStringList tMapping, xSettingsA[pPlatform & ",library"]
 end revSBAddLibraryMapping
 
@@ -2355,7 +2360,11 @@ command revSBUpdateDeployParams pStack, pTarget, pStandaloneSettings, @xDeployPa
    put tLibraryMapping into xDeployParams["library"]
 end revSBUpdateDeployParams
 
-command revSBAddDataGridToAuxiliaryStackFiles @xAuxiliaryStackFiles
+private command logDebug pStep, pMessage
+   write "[" & pStep & "]" && pMessage & cr to stderr
+end logDebug
+
+private command revSBAddDataGridToAuxiliaryStackFiles @xAuxiliaryStackFiles
    local tStackFiles
    put the stackFiles of stack "revDataGridLibrary" into tStackFiles
    split tStackFiles by return and comma
@@ -2437,7 +2446,7 @@ function revSBListWidgetsInUse pStack
 end revSBListWidgetsInUse
 
 function revSBSuppressDialogs
-   if the environment is "development" then
+   if the environment begins with "development" then
       return revTestEnvironment()
    end if
    return true
@@ -2531,12 +2540,25 @@ command revSBUpdateForDependencies pPlatform, pArchs, pSDK, @xSettings
                xSettings["android,device capabilities"][tFeature]
       end repeat
       
+      /* The android.play.* metadata properties have been deprecated and should
+       * be replaced with the android.maven.deps metadata property.*/
       local tPlayVersion
-      put tAndroidMetadataA["play"]["version"]into tPlayVersion
+      put tAndroidMetadataA["play"]["version"] into tPlayVersion
       repeat for each item tPlayDep in tAndroidMetadataA["play"]["deps"]
-         appendToStringList tPlayDep & "-" & tPlayVersion, xSettings["android,play dependencies"]
+         appendToStringList \
+            format( \
+               "com.google.android.gms:play-services-%s:%s", \
+               tPlayDep, \
+               tPlayVersion), \
+            xSettings["android,android dependencies"]
       end repeat
-      
+
+      if tAndroidMetadataA["maven"]["deps"] is not empty then
+         appendToStringList \
+            tAndroidMetadataA["maven"]["deps"], \
+            xSettings["android,android dependencies"]
+      end if
+
       revSBUpdateExtensionCodeInclusions tExtension, pPlatform, pArchs, pSDK, xSettings
       revSBUpdatePerExtensionSettings tExtension, pPlatform, xSettings
    end repeat
@@ -2637,6 +2659,13 @@ private command __UpdateSettingsFromCodeFolder pPath, pCodeFolderName, pPlatform
    put pPath & slash & pCodeFolderName into tFolderPath
    put files(tFolderPath) into tFiles
    filter tFiles without ".*"
+
+   /* When running from source, the code folders could have debugging files in
+    * them, so we remove those from the files list here. */
+   filter tFiles without "*.dbg"
+   filter tFiles without "*.dSYM"
+   filter tFiles without "*.pdb"
+
    switch pCodeFolderName
       case "jvm-android"
          local tAndroidJarFiles, tAndroidAarFiles
@@ -2709,6 +2738,11 @@ private command __UpdateSettingsFromCodeFolder pPath, pCodeFolderName, pPlatform
                local tFolders
                put folders(tFolderPath) into tFolders
                filter tFolders without ".*"
+
+               /* On macOS and iOS, when running from source, the folders list
+                * might include dSYM folders, so remove those here. */
+               filter tFolders without "*.dSYM"
+
                repeat for each line tLine in tFolders
                   if tLine is empty then
                      next repeat
@@ -3061,17 +3095,14 @@ function revSBEnginePath pPlatform
          case "MacOSX PowerPC-32"
          case "MacOSX x86-32"
          case "MacOSX x86-64"
-            // SN-2015-07-09: [[ StandaloneDeployment ]] Gypified Standalone-<edition>.app building does not
-            //  allow to create broken applications, so that the executable file in it bears the edition.
-            put the upper of char 1 of tEdition into char 1 of tEdition
-            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone-" & tEdition
+         case "MacOSX arm64"
+            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone"
             break
          case "Windows"
             return tRuntimePath & "/Windows/x86-32/Standalone"
             break
          case "Windows x86-64"
-            --return tRuntimePath & "/Windows/x86-64/Standalone"
-            return tRuntimePath & "/Windows/x86-64/standalone-community"
+            return tRuntimePath & "/Windows/x86-64/Standalone"
             break
          case "Linux"
             return tRuntimePath & "/Linux/x86-32/Standalone"
@@ -3104,8 +3135,7 @@ function revSBEnginePath pPlatform
       
       switch word 1 of pPlatform
          case "MacOSX"
-            put the upper of char 1 of tEdition into char 1 of tEdition
-            return tBinariesPath & "/Standalone-" & tEdition & ".app/Contents/MacOS/Standalone-" & tEdition
+            return tBinariesPath & "/Standalone.app/Contents/MacOS/Standalone"
             break;
          case "Windows"
             return tBinariesPath & slash & "standalone-" & tEdition & ".exe"
@@ -3121,45 +3151,18 @@ function revSBEnginePath pPlatform
 end revSBEnginePath
 
 function revSBLicensedToDeployToTarget pTarget
-   -- We can only check the license parameters in development mode,
-   -- and they are only set in UI mode. So just return true unless
-   -- the mode is development.
-   --if the environment is not "development" then
       return true
-   --end if
-   
-   -- In development mode, check the revLicenseInfo
-   local tLicensedTargets
-   put line 5 of revLicenseInfo into tLicensedTargets
-   
-   local tPlatform
-   put revSBTargetToPlatform(pTarget) into tPlatform
-   
-   local tLicensePlatform
-   switch tPlatform
-      case "MacOSX"
-         put "Mac OS X" into tLicensePlatform
-         break
-      case "Emscripten"
-         put "HTML5" into tLicensePlatform
-         break
-      default
-         put tPlatform into tLicensePlatform
-         break
-   end switch
-   
-   return tLicensePlatform is among the items of tLicensedTargets
-end revSBLicensedToDeployToTarget
+ end revSBLicensedToDeployToTarget
 
-function revSBNoPlatforms pSettings
-#   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
-#      if pSettings[tTarget] then
-#         return false
-#      end if
-#   end repeat
-   
-   return false
-end revSBNoPlatforms
+function revSBNoPlatforms? pSettings
+   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
+      if pSettings[tTarget] then
+         return false
+      end if
+   end repeat
+   # make sure at least one standalone platform was selected
+   return true
+end revSBNoPlatforms?
 
 local sDeployInclusions
 

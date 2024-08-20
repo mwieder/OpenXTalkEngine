@@ -646,7 +646,45 @@ bool MCDeployWriteCapsule(const MCDeployParameters& p_params, MCDeployFileRef p_
 // This method writes out a project capsule. This consists of a length uint32_t
 // followed by the capsule data. The size returned always falls on a 4-byte
 // boundary.
-bool MCDeployWriteProject(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size)
+bool MCDeployWriteProjectHTML5(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size)
+{
+	bool t_success;
+	t_success = true;
+
+	// A capsule struct is simply a uint32_t followed by the data
+	uint32_t t_offset;
+	t_offset = p_output_offset + sizeof(uint32_t);
+
+	// First write the capsule to the output file, leaving room for the size field.
+	// Note that a capsule is always a multiple of four bytes in length, so offset
+	// will be rounded to a nice value.
+	if (t_success)
+		t_success = MCDeployWriteCapsule(p_params, p_output, t_offset);
+
+	// Work out the size of the capsule struct (including size field)
+	uint32_t t_project_size;
+	if (t_success)
+		t_project_size = t_offset - p_output_offset;
+
+	// Now write out the size field
+	if (t_success)
+	{
+		uint32_t t_swapped_size;
+		t_swapped_size = t_project_size;
+		if (!MCStringIsEmpty(p_params . spill))
+			t_swapped_size |= 1U << 31;
+		MCDeployByteSwap32(p_to_network, t_swapped_size); 
+		t_success = MCDeployFileWriteAt(p_output, &t_swapped_size, sizeof(uint32_t), p_output_offset);
+	}
+
+	// Return the project size 
+	if (t_success)
+		r_project_size = t_project_size;
+
+	return t_success;
+}
+
+bool MCDeployWriteProjectWASM(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size)
 {
 	bool t_success;
 	t_success = true;
@@ -761,16 +799,16 @@ Parse_stat MCIdeDeploy::parse(MCScriptPoint& sp)
 			m_platform = PLATFORM_IOS;
 		else if (sp . token_is_cstring("android"))
 			m_platform = PLATFORM_ANDROID;
-		else if (sp . token_is_cstring("winmobile"))
-			m_platform = PLATFORM_WINMOBILE;
-		else if (sp . token_is_cstring("linuxmobile"))
-			m_platform = PLATFORM_LINUXMOBILE;
+//		else if (sp . token_is_cstring("winmobile"))
+//			m_platform = PLATFORM_WINMOBILE;
+//		else if (sp . token_is_cstring("linuxmobile"))
+//			m_platform = PLATFORM_LINUXMOBILE;
 		else if (sp . token_is_cstring("iosembedded"))
 			m_platform = PLATFORM_IOS_EMBEDDED;
 		else if (sp . token_is_cstring("androidembedded"))
 			m_platform = PLATFORM_ANDROID_EMBEDDED;
 		else if (sp . token_is_cstring("emscripten"))
-			m_platform = PLATFORM_EMSCRIPTEN;
+			m_platform = PLATFORM_EMSCRIPTEN_WASM;
 		else
 			return PS_ERROR;
 	}
@@ -829,59 +867,8 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 	
 	t_params . banner_class = t_license_class;
 	
-	// Now check to see if we should build a trial - this if the license class is a
-	// trail, or the banner_class override is specified and the chosen option is
-	// compatible with the license class.
-//	bool t_is_trial;
-//    t_is_trial = false;
-//	if (t_license_class == kMCLicenseClassEvaluation ||
-//		t_license_class == kMCLicenseClassProfessionalEvaluation)
-//		t_is_trial = true;
-	
-	// Now, if we are not licensed for a target, then its an error. If we are in trial
-	// mode, however, all platforms are licensed (apart from embedded) they just will
-	// timeout.
 	bool t_is_licensed;
-//	t_is_licensed = false;
-	
-//    if (MCnoui && MClicenseparameters . license_class == kMCLicenseClassCommunity)
-//        t_is_licensed = true;
-//	else if (t_is_trial &&
-//			 m_platform != PLATFORM_IOS_EMBEDDED &&
-//			 m_platform != PLATFORM_ANDROID_EMBEDDED)
-//		t_is_licensed = true;
-//	else if (m_platform == PLATFORM_WINDOWS)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToWindows) != 0;
-//	else if (m_platform == PLATFORM_MACOSX)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToMacOSX) != 0;
-//	else if (m_platform == PLATFORM_LINUX)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToLinux) != 0;
-//	else if (m_platform == PLATFORM_IOS)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToIOS) != 0;
-//	else if (m_platform == PLATFORM_ANDROID)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToAndroid) != 0;
-//	else if (m_platform == PLATFORM_IOS_EMBEDDED)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToIOSEmbedded) != 0;
-//	else if (m_platform == PLATFORM_ANDROID_EMBEDDED)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToAndroidEmbedded) != 0;
-//	else if (m_platform == PLATFORM_EMSCRIPTEN)
-//		t_is_licensed = (MClicenseparameters . deploy_targets & kMCLicenseDeployToHTML5) != 0;
 
-//	if (!t_is_licensed)
-//	{
-//		ctxt . SetTheResultToCString("not licensed to deploy to target platform");
-//		t_soft_error = true;
-//		t_has_error = true;
-//	}
-	
-//	if (t_is_trial &&
-//		m_platform == PLATFORM_EMSCRIPTEN)
-//	{
-//		ctxt . SetTheResultToCString("trial of html5 is not possible");
-//		t_soft_error = true;
-//		t_has_error = true;
-//	}
-	
 	uint32_t t_platform = PLATFORM_NONE;
 	switch(m_platform)
 	{
@@ -906,26 +893,17 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 		case PLATFORM_ANDROID_EMBEDDED:
 			t_platform = kMCLicenseDeployToAndroidEmbedded;
 			break;
-		case PLATFORM_EMSCRIPTEN:
-			t_platform = kMCLicenseDeployToHTML5;
+		case PLATFORM_EMSCRIPTEN_HTML5:
+//			t_platform = kMCLicenseDeployToHTML5;
+			t_platform = kMCLicenseDeployToWASM;
+			break;
+		case PLATFORM_EMSCRIPTEN_WASM:
+			t_platform = kMCLicenseDeployToWASM;
 			break;
 	}
 	
 	if (!t_has_error)
 	{
-		// If this is a trial then set the timeout.
-//		if (t_is_trial)
-//		{
-//			if (m_platform != PLATFORM_IOS &&
-//				m_platform != PLATFORM_ANDROID &&
-//				m_platform != PLATFORM_EMSCRIPTEN)
-//				t_params . timeout = 5 * 60;
-//			else
-//				t_params . timeout = 1 * 60;
-//			
-//			t_params . banner_timeout = 10;
-//		}
-		
 		// Pass the deploy parameters through any stack security related steps.
 		if (!MCStackSecurityPreDeploy(t_platform, t_params))
 		{
@@ -936,24 +914,35 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 	
 	if (!t_has_error)
 	{
-		if (m_platform == PLATFORM_WINDOWS)
-			MCDeployToWindows(t_params);
-		else if (m_platform == PLATFORM_LINUX)
-			MCDeployToLinux(t_params);
-		else if (m_platform == PLATFORM_MACOSX)
-			MCDeployToMacOSX(t_params);
-		else if (m_platform == PLATFORM_IOS)
-			MCDeployToIOS(t_params, false);
-		else if (m_platform == PLATFORM_ANDROID)
-			MCDeployToAndroid(t_params);
-		else if (m_platform == PLATFORM_IOS_EMBEDDED)
-			MCDeployToIOS(t_params, true);
-		else if (m_platform == PLATFORM_EMSCRIPTEN)
-			MCDeployToEmscripten(t_params);
+		switch(m_platform)
+		{
+			case PLATFORM_WINDOWS:
+				MCDeployToWindows(t_params);
+				break;
+			case PLATFORM_LINUX:
+				MCDeployToLinux(t_params);
+				break;
+			case PLATFORM_MACOSX:
+				MCDeployToMacOSX(t_params);
+				break;
+			case PLATFORM_IOS:
+				MCDeployToIOS(t_params, false);
+				break;
+			case PLATFORM_ANDROID:
+				MCDeployToAndroid(t_params);
+				break;
+			case PLATFORM_IOS_EMBEDDED:
+				MCDeployToIOS(t_params, true);
+				break;
+			case PLATFORM_EMSCRIPTEN_HTML5:
+			case PLATFORM_EMSCRIPTEN_WASM:
+				MCDeployToEmscriptenWasm(t_params);
+				break;
+		}
 
 		MCDeployError t_error;
 		t_error = MCDeployCatch();
-		if (t_error != kMCDeployErrorNone)
+		if (kMCDeployErrorNone != t_error)
             ctxt . SetTheResultToCString(MCDeployErrorToString(t_error));
         else
             ctxt . SetTheResultToEmpty();
@@ -1384,7 +1373,7 @@ void MCIdeExtract::exec_ctxt(MCExecContext& ctxt)
 	uint32_t t_data_size;
     Exec_stat t_stat;
     t_stat = MCDeployExtractMacOSX(*t_filename, *t_segment, *t_section, t_data, t_data_size);
-    if (t_stat == ES_NORMAL)
+    if (ES_NORMAL == t_stat)
     {
         MCAutoStringRef t_string;
         /* UNCHECKED */ MCStringCreateWithNativeChars((const char_t*)t_data, t_data_size, &t_string);

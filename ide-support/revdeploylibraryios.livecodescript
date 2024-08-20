@@ -75,19 +75,19 @@ command deployInitialize
 end deployInitialize
 
 -- Invoked to check whether the platform is available for deployment
-function deployIsAvailable
-   local tEnabled
+function deployIsAvailable?
+   local tEnabled?
    
    if the platform is not "macos" then
-      put false into tEnabled
+      put false into tEnabled?
    else if sDeploySimulators is not an array then
-      put false into tEnabled
+      put false into tEnabled?
    else
-      put true into tEnabled
+      put true into tEnabled?
    end if
    
-   return tEnabled
-end deployIsAvailable
+   return tEnabled?
+end deployIsAvailable?
 
 -- Invoked to fetch the list of targets for this simulation platform
 function deployListTargets
