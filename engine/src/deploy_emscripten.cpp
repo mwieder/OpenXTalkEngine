@@ -39,7 +39,8 @@ MCDeployToEmscriptenWasm(const MCDeployParameters & p_params)
 	uint32_t t_project_size = 0;
 	/* Write the stack capsule data */
 	if (t_success)
-		t_success = MCDeployWriteProjectWASM(p_params, false, t_output, 0, t_project_size);
+		t_success = MCDeployWriteProject(p_params, false, t_output, 0, t_project_size);
+//		t_success = MCDeployWriteProjectWASM(p_params, false, t_output, 0, t_project_size);
 	
 	MCDeployFileClose(t_output);
 	
@@ -59,7 +60,8 @@ MCDeployToEmscriptenHTML5(const MCDeployParameters & p_params)
 	uint32_t t_project_size = 0;
 	/* Write the stack capsule data */
 	if (t_success)
-		t_success = MCDeployWriteProjectHTML5(p_params, false, t_output, 0, t_project_size);
+		t_success = MCDeployWriteProject(p_params, false, t_output, 0, t_project_size);
+//		t_success = MCDeployWriteProjectHTML5(p_params, false, t_output, 0, t_project_size);
 	
 	MCDeployFileClose(t_output);
 	

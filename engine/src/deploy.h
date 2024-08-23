@@ -533,8 +533,7 @@ void MCDeployByteSwapRecord(bool p_to_network, const char *p_format, void *p_dat
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MCDeployWriteCapsule(const MCDeployParameters& p_params, MCDeployFileRef p_output, uint32_t& x_offset);
-bool MCDeployWriteProjectHTML5(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size);
-bool MCDeployWriteProjectWASM(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size);
+bool MCDeployWriteProject(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size);
 bool MCDeployWritePayload(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_payload_size);
 
 ////////////////////////////////////////////////////////////////////////////////

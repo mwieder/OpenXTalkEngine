@@ -646,45 +646,7 @@ bool MCDeployWriteCapsule(const MCDeployParameters& p_params, MCDeployFileRef p_
 // This method writes out a project capsule. This consists of a length uint32_t
 // followed by the capsule data. The size returned always falls on a 4-byte
 // boundary.
-bool MCDeployWriteProjectHTML5(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size)
-{
-	bool t_success;
-	t_success = true;
-
-	// A capsule struct is simply a uint32_t followed by the data
-	uint32_t t_offset;
-	t_offset = p_output_offset + sizeof(uint32_t);
-
-	// First write the capsule to the output file, leaving room for the size field.
-	// Note that a capsule is always a multiple of four bytes in length, so offset
-	// will be rounded to a nice value.
-	if (t_success)
-		t_success = MCDeployWriteCapsule(p_params, p_output, t_offset);
-
-	// Work out the size of the capsule struct (including size field)
-	uint32_t t_project_size;
-	if (t_success)
-		t_project_size = t_offset - p_output_offset;
-
-	// Now write out the size field
-	if (t_success)
-	{
-		uint32_t t_swapped_size;
-		t_swapped_size = t_project_size;
-		if (!MCStringIsEmpty(p_params . spill))
-			t_swapped_size |= 1U << 31;
-		MCDeployByteSwap32(p_to_network, t_swapped_size); 
-		t_success = MCDeployFileWriteAt(p_output, &t_swapped_size, sizeof(uint32_t), p_output_offset);
-	}
-
-	// Return the project size 
-	if (t_success)
-		r_project_size = t_project_size;
-
-	return t_success;
-}
-
-bool MCDeployWriteProjectWASM(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size)
+bool MCDeployWriteProject(const MCDeployParameters& p_params, bool p_to_network, MCDeployFileRef p_output, uint32_t p_output_offset, uint32_t& r_project_size)
 {
 	bool t_success;
 	t_success = true;
@@ -852,8 +814,8 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 	{
 		// If we have a commercial license, then we only allow a commercial
 		// evaluation.
-		if (t_params . banner_class == kMCLicenseClassEvaluation)
-			t_license_class = kMCLicenseClassEvaluation;
+//		if (t_params . banner_class == kMCLicenseClassEvaluation)
+//			t_license_class = kMCLicenseClassEvaluation;
 	}
 	else if (MClicenseparameters . license_class == kMCLicenseClassProfessional)
 	{
@@ -894,8 +856,8 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 			t_platform = kMCLicenseDeployToAndroidEmbedded;
 			break;
 		case PLATFORM_EMSCRIPTEN_HTML5:
-//			t_platform = kMCLicenseDeployToHTML5;
-			t_platform = kMCLicenseDeployToWASM;
+			t_platform = kMCLicenseDeployToHTML5;
+//			t_platform = kMCLicenseDeployToWASM;
 			break;
 		case PLATFORM_EMSCRIPTEN_WASM:
 			t_platform = kMCLicenseDeployToWASM;
@@ -935,6 +897,8 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 				MCDeployToIOS(t_params, true);
 				break;
 			case PLATFORM_EMSCRIPTEN_HTML5:
+				MCDeployToEmscriptenHTML5(t_params);
+				break;
 			case PLATFORM_EMSCRIPTEN_WASM:
 				MCDeployToEmscriptenWasm(t_params);
 				break;

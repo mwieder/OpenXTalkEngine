@@ -18,7 +18,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 -- Support for creating HTML5 standalones using Emscripten
 
-constant kLocalRoot = "~/livecode/linux-x86_64-bin/"
+--constant kLocalRoot = "~/livecode/linux-x86_64-bin/"
 
 private command logDebug pStep, pMessage
    write "[" & pStep & "]" && pMessage & cr to stderr

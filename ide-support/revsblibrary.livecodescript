@@ -279,8 +279,17 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
                set the itemDelimiter to ","
                put item 8 of it into tUser
                put item 9 of it into tGroup
-               if tUser is not empty or tGroup is not empty then
-                  get shell("chown" && tUser & ":" & tGroup && quote & pTarget & "/" & char 1 to -2 of tResource & quote)
+
+               local tTargetUser, tTargetGroup
+               set the itemDelimiter to slash
+               get folders(item 1 to -2 of tSubFolder, "detailed")
+               filter it with (the urlEncode of item -1 of tSubFolder) & "*"
+               set the itemDelimiter to ","
+               put item 8 of it into tTargetUser
+               put item 9 of it into tTargetGroup
+               if (tUser is not empty or tGroup is not empty) and \
+                     (tUser is not tTargetUser or tGroup is not tTargetGroup) then
+                  get shell("chown" && tUser & ":" & tGroup && quote & tSubFolder & quote)
                end if
             end if
             # Creating a folder takes no time, so do not send a callback.
@@ -325,16 +334,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
    -- Stat the source file
    local tOldFolder, tSize, tPermissions, tUser, tGroup, tFileType
    local tResult
-   
-   local tSourceFileIsLink
-   if tResult is empty then
-      if __readlink(pSourceFile) is not empty then
-         put true into tSourceFileIsLink
-      else if there is no file pSourceFile then
-         put "cannot find source file" into tResult
-      end if
-   end if
-   
+
    if tResult is empty then
       put the defaultFolder into tOldFolder
       set the itemDelimiter to "/"
@@ -357,13 +357,24 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
       end if
       
       local tOldFileType
-      if tResult is empty then
+      if tResult is empty and tFileType is not "rhapslnk" then
          put the fileType into tOldFileType
          if tFileType is not empty then
             set the fileType to tFileType
          else
             set the fileType to "????????"
          end if
+      end if
+   end if
+
+   local tSourceFileIsLink
+   if tResult is empty then
+      if the platform is "macos" then
+         put tFileType is "rhapslnk" into tSourceFileIsLink
+      else if the platform is "linux" then
+         put __readlink(pSourceFile) is not empty into tSourceFileIsLink
+      else if there is no file pSourceFile then
+         put "cannot find source file" into tResult
       end if
    end if
    
@@ -378,68 +389,91 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          # Copying a symbolic link takes no time, so do not send a callback.
       end if
    else # regular file
-      if tResult is empty then
-         open file pTargetFile for binary write
-         if the result is not empty then
-            put "cannot create target file" into tResult
-         end if
-      end if
-      
-      if tResult is empty then
-         open file pSourceFile for binary read
-         if the result is not empty then
-            put "cannot read from source file", the result into tResult
-         end if
-      end if
-      
-      local tAmountCopied
-      if tResult is empty then
-         if pCallbackTarget is not empty and there is a pCallbackTarget then
-            send pCallback && 0, tSize to pCallbackTarget
-         end if
-         repeat forever
-            read from file pSourceFile for 1048576
-            if the result is not empty and the result is not "eof" then
-               put "cannot read from source file", the result into tResult
-               exit repeat
-            end if
-            if it is empty then
-               exit repeat
-            end if
-            write it to file pTargetFile
+      /* If there is no callback, just grab the contents of the source and put
+       * it into the target */
+      if revSBSuppressDialogs() or pCallback is empty then
+         if tResult is empty then
+            local tSource
+            put url("binfile:" & pSourceFile) into tSource
             if the result is not empty then
-               put "cannot write to target file" into tResult
-               exit repeat
+               put "cannot read from source file", the result into tResult
             end if
-            add the number of chars of it to tAmountCopied
+         end if
+         
+         if tResult is empty then
+            put tSource into url("binfile:" & pTargetFile)
+            if the result is not empty then
+               put "cannot create target file", the result into tResult
+            end if
+         end if
+      else
+         /* If there is a callback, open files and report progress */
+         if tResult is empty then
+            open file pTargetFile for binary write
+            if the result is not empty then
+               put "cannot create target file" into tResult
+            end if
+         end if
+         
+         if tResult is empty then
+            open file pSourceFile for binary read
+            if the result is not empty then
+               put "cannot read from source file", the result into tResult
+            end if
+         end if
+         
+         local tAmountCopied
+         if tResult is empty then
             if pCallbackTarget is not empty and there is a pCallbackTarget then
-               send pCallback && tAmountCopied, tSize to pCallbackTarget
+               send pCallback && 0, tSize to pCallbackTarget
             end if
-         end repeat
-      end if
-      
-      if pTargetFile is among the lines of the openFiles then
-         close file pTargetFile
-      end if
-      if pSourceFile is among the lines of the openFiles then
-         close file pSourceFile
+            repeat forever
+               read from file pSourceFile for 1048576
+               if the result is not empty and the result is not "eof" then
+                  put "cannot read from source file", the result into tResult
+                  exit repeat
+               end if
+               if it is empty then
+                  exit repeat
+               end if
+               write it to file pTargetFile
+               if the result is not empty then
+                  put "cannot write to target file" into tResult
+                  exit repeat
+               end if
+               add the number of bytes of it to tAmountCopied
+               if pCallbackTarget is not empty and there is a pCallbackTarget then
+                  send pCallback && tAmountCopied, tSize to pCallbackTarget
+               end if
+            end repeat
+         end if
+         
+         if pTargetFile is among the lines of the openFiles then
+            close file pTargetFile
+         end if
+         if pSourceFile is among the lines of the openFiles then
+            close file pSourceFile
+         end if
       end if
    end if
    
    # OK-2007-11-30 : Modified to work for Linux too
    if tResult is empty and the platform is "macos" or the platform is "Linux" then
-      if tPermissions is not empty then
-         get shell("chmod" && tPermissions && quote & pTargetfile & quote)
+      local tTargetUser, tTargetGroup, tTargetPermissions
+      set the itemDelimiter to slash
+      get files(item 1 to -2 of pTargetFile, "detailed")
+      filter it with (the urlEncode of item -1 of pTargetFile) & "*"
+      set the itemDelimiter to ","
+      put item 8 of it into tTargetUser
+      put item 9 of it into tTargetGroup
+      put item 10 of it into tTargetPermissions
+      if tPermissions is not empty and tTargetPermissions is not tPermissions then
+         get shell("chmod" && tPermissions && quote & pTargetFile & quote)
       end if
-      if tUser is not empty or tGroup is not empty then
+      if (tUser is not empty or tGroup is not empty) and \
+            (tUser is not tTargetUser or tGroup is not tTargetGroup) then
          get shell("chown" && tUser & ":" & tGroup && quote & pTargetFile & quote)
       end if
-   end if
-   
-   -- Remove unneeded slices from the MacOS externals
-   set the itemDel to slash
-   if pSettings["externals"] contains item -1 of pTargetFile then
-      revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    end if
    
    if tOldFolder is not empty then
@@ -468,22 +502,72 @@ on revSBEnsureFolder pFolder
 end revSBEnsureFolder
 
 command revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
-   if the platform is "macos" and pSettings is not empty then
-      local tRemove
-      if pSettings["MacOSX x86-64"] is true and pSettings["MacOSX x86-32"] is not true then
-         put "i386" into tRemove
-      else if pSettings["MacOSX x86-32"] is true and pSettings["MacOSX x86-64"] is not true then
-         put "x86_64" into tRemove
-      end if
-      
-      if tRemove is not empty then
-         replace " " with "\ " in pTargetFile
-         local tShell
-         put "lipo " & pTargetFile & " -remove " & tRemove & " -output " & pTargetFile into tShell
-         get shell(tShell)
-      end if
+   /* If there are no explicit settings, then do nothing. */
+   if pSettings is empty then
+      exit revSBRemoveUnneededSlicesFromMacCode
    end if
-   
+
+   /* If running on macOS Sierra and below, then codesign will fail on arm64
+    * slices, so we always remove them. */
+   local tAppleArchSupported
+   if the platform is "macos" then
+      set the itemDelimiter to "."
+      put item 1 to 2 of the systemVersion >= 10.13 into tAppleArchSupported
+      set the itemDelimiter to comma
+   else
+      put true into tAppleArchSupported
+   end if
+
+   /* Work out which slices to keep. If the result cannot be codesigned then
+    * we just keep intel. */
+   local tKeepIntel, tKeepApple
+   if tAppleArchSupported then
+      if pSettings["MacOSX x86-64"] then
+         put true into tKeepIntel
+      end if
+      if pSettings["MacOSX arm64"] then
+         put true into tKeepApple
+      end if
+   else
+      put true into tKeepIntel
+      put false into tKeepApple
+   end if
+
+   /* If both slices are wanted, then there is nothing to do. */
+   if tKeepIntel and tKeepApple then
+      exit revSBRemoveUnneededSlicesFromMacCode
+   end if
+
+   /* We need to put the file on a diet, so first rename the existing file. As
+    * we can't control what files might be alongside the original, we loop until
+    * we find one which does not exist. */
+   local tInput, tIndex
+   repeat forever
+      add 1 to tIndex
+      put pTargetFile & "." & tIndex into tInput
+      if there is no file tInput then
+         exit repeat
+      end if
+   end repeat
+   rename file pTargetFile to tInput
+
+   /* Setup the params array for the internal diet command. */
+   local tParams
+   put tInput into tParams["input"]
+   put pTargetFile into tParams["output"]
+   if tKeepIntel then
+      put true into tParams["keep_x86_64"]
+   else if tKeepApple then
+      put true into tParams["keep_arm64"]
+   end if
+
+   /* Execute the internal diet command.
+    * Note: The only reason we use 'do' here is so that the linter doesn't
+    * complain, as this is development engine-only syntax. */
+   do "_internal diet macosx tParams"
+
+   /* Remove the original input file. */
+   delete file tInput
 end revSBRemoveUnneededSlicesFromMacCode
 
 private command __revSBEnsureFolder pFolder
@@ -624,7 +708,19 @@ private function __readlink pPath
    if the platform is "Win32" then
       return empty
    end if
-   
+
+   if the platform is "macOS" then
+      local tFileType
+      set the itemDelimiter to slash
+      get files(item 1 to -2 of pPath, "detailed")
+      filter it with (the urlEncode of item -1 of pPath) & "*"
+      set the itemDelimiter to ","
+      put item 11 of it into tFileType
+      if tFileType is not "rhapslnk" then
+         return empty
+      end if
+   end if
+
    local tLink
    put shell("readlink " & quote & pPath & quote) into tLink
    if the last char of tLink is cr then
@@ -726,7 +822,7 @@ function revFolderNameMakeLegal pName
 end revFolderNameMakeLegal
 
 // List of all desktop target platforms + architecture
-constant kDesktopTargets = "Windows,Windows x86-64,MacOSX x86-64,Linux,Linux x64,Linux armv6-hf"
+constant kDesktopTargets = "Windows,Windows x86-64,MacOSX x86-64,MacOSX arm64,Linux,Linux x64,Linux armv6-hf"
 function revSBDesktopTargets
    return kDesktopTargets
 end revSBDesktopTargets
@@ -861,11 +957,8 @@ constant kAskDialog                  = "true"
 constant kAnswerDialog               = "true"
 constant kCursors                    = "false"
 
-// SN-2015-01-21: [[ Bug 14371 ]] 'MacOSX' has been replaced by 'MacOSX x86-32'
-constant kInitialTargets = "Windows,MacOSX x86-64,Linux"
-
 on revSBDefaultStandaloneSettings pStack, @xSettingsA
-   local tPlatform,tName
+   local tName
    -- name
    if xSettingsA["name"] = "" then put pStack into xSettingsA["name"]
    put char 1 to 246 of xSettingsA["name"] into xSettingsA["name"]
@@ -905,13 +998,47 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    if xSettingsA["UNIX,pageSetup"] = "" then put true into xSettingsA["UNIX,pageSetup"]
    if xSettingsA["UNIX,fileSelector"] = "" then put true into xSettingsA["UNIX,fileSelector"]
    
-   -- build for every platform we have engines for
-   repeat for each item tTarget in kInitialTargets
+   /* - if IDE platform is in deployment targets, then default 
+    *   to IDE platform + IDE arch 
+    * - if there is a single deployment target, then default to 
+    *   all archs for that platform
+    * - otherwise no defaults, so the user must choose */
+   local tPlatform, tProcessor, tLicensedPlatform, tLicensedTargets, tInitialTargets
+   put the platform into tPlatform
+   put the processor into tProcessor
+   put revSBPlatformToLicensedPlatform(tPlatform) into tLicensedPlatform
+   put line 5 of revLicenseInfo into tLicensedTargets
+   --if tLicensedPlatform is among the items of tLicensedTargets then
+      put tLicensedPlatform into tInitialTargets
+      switch tInitialTargets
+         case "Windows"
+            if tProcessor contains "64" then
+               put "Windows x86-64" into tInitialTargets
+            end if
+            break
+         case "Linux"
+            if tProcessor contains "64" then
+               put "Linux x64" into tInitialTargets
+            end if
+            break
+         default
+            put revSBLicensedPlatformToTargetPlatform(tInitialTargets) \
+                  into tInitialTargets
+            break
+      end switch
+   --else if the number of items of tLicensedTargets is 1 then
+      --put revSBLicensedPlatformToTargetPlatform(tLicensedTargets) \
+            --into tInitialTargets
+   --else
+      --put empty into tInitialTargets
+   --end if
+   
+   repeat for each item tTarget in tInitialTargets
       if tTarget is "MacOSX x86-64" then 
          if xSettingsA["MacOSX x86-32"] then next repeat
       end if
       if xSettingsA[tTarget] = "" then
-         put revEngineCheck(tTarget) into xSettingsA[tTarget]
+         put true into xSettingsA[tTarget]
       end if
    end repeat
    
@@ -923,9 +1050,10 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    if xSettingsA["Windows,LegalCopyright"] = "" then put item 1 of it&&the cUserOrganisation of stack "Home"&&"All rights reserved worldwide" into xSettingsA["Windows,LegalCopyright"]
    if xSettingsA["Windows,companyname"] = "" then put the cUserOrganisation of stack "Home" into xSettingsA["Windows,companyname"]
    
-   -- Since the intel choice, set the default here:
-   -- MM-2014-03-21: [[ PPC Support Dropped ]] Only create standalone setting for Intel (for OS X) by default.
-   if xSettingsA["MacOSX x86-64"] is empty and xSettingsA["MacOSX x86-32"] is empty then
+   /* If an existing stack was configured to build for PowerPC, then default to MacOS 64bit */
+   if xSettingsA["MacOSX PowerPC-32"] and \
+         xSettingsA["MacOSX x86-64"] is empty and \
+         xSettingsA["MacOSX x86-32"] is empty then
       put true into xSettingsA["MacOSX x86-64"]
    end if
    
@@ -936,6 +1064,49 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
       end if
    end if
 end revSBDefaultStandaloneSettings
+
+function revSBPlatformToLicensedPlatform pPlatform
+   local tLicensedPlatform
+   switch pPlatform
+      case "Win32"
+         put "Windows" into tLicensedPlatform
+         break
+      case "MacOS"
+         put "Mac OS X" into tLicensedPlatform
+         break
+      case "iphone"
+         put "iOS" into tLicensedPlatform
+         break
+      default
+         put pPlatform into tLicensedPlatform
+         break
+   end switch
+   
+   return tLicensedPlatform
+end revSBPlatformToLicensedPlatform
+
+function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
+   local tTargetPlatform
+   switch pLicensedPlatform
+      case "Mac OS X"
+         put "MacOSX x86-64" into tTargetPlatform
+         break
+      case "HTML5"
+         put "Emscripten" into tTargetPlatform
+         break
+      case "Windows"
+         put "Windows,Windows x86-64" into tTargetPlatform
+         break
+      case "Linux"
+         put "Linux,Linux x64" into tTargetPlatform
+         break
+      default
+         put pLicensedPlatform into tTargetPlatform
+         break
+   end switch
+   
+   return tTargetPlatform
+end revSBLicensedPlatformToTargetPlatform
 
 function revSBRemoveUnlicensedTargetsFromSettings @xSettingsA
    -- don't build for any platform we are not licensed for
@@ -1034,6 +1205,7 @@ function revEngineCheck pEngine
          case "MacOSX PowerPC-32"
          case "MacOSX x86-32"
          case "MacOSX x86-64"
+         case "MacOSX arm64"
             return there is a directory (tPath & "/Mac OS X/x86-64/Standalone.app")
          case "Windows"
             if there is a file (tPath & "/Windows/x86-32/Standalone") then
@@ -1509,19 +1681,35 @@ function revSBBuiltinInclusions pPlatform
    return the keys of tLibrariesA
 end revSBBuiltinInclusions
 
-function revSBLcextFileIsZipArchive pFile, @rError
-   open file pFile for binary read
-   if the result is empty then
-      read from file pFile for 4 bytes
-      close file pFile
-   end if
-   if it is empty then
-      put "could not open external -" && pFile into rError
-      return false
-   end if
-   
-   return byte 1 of it is "P" and byte 2 of it is "K" and \ 
-         byte 3 of it is numToByte(3) and byte 4 of it is numToByte(4)
+function revSBLcextFileIsZipArchive \
+		pFile, \
+		@rError
+
+	local tResult
+	open file pFile for binary read
+	put the result into tResult
+
+	if tResult is empty then
+		read from file pFile for 4 bytes
+		put the result into tResult
+		close file pFile
+	end if
+
+	switch tResult
+	case empty
+		break
+	case "eof"
+		return false
+	default
+		put "could not open external -" && pFile into rError
+		return false
+	end switch
+
+	return \
+			byte 1 of it is "P" and \
+			byte 2 of it is "K" and \
+			byte 3 of it is numToByte(3) and \
+			byte 4 of it is numToByte(4)
 end revSBLcextFileIsZipArchive
 
 function revSBLcextExternalHasFolder pExternal, pPlatform
@@ -2241,18 +2429,59 @@ command revSBUpdateSettingsForExtensions pTarget, @xSettingsA
                tTargetResourceFolder, xSettingsA
       end if
       put tExtensionData into xSettingsA["extensions_computed"][tLoadIndex]
-   end repeat # for each line tExtension in tDependencyOrder
+
+      /* Check for any custom manifest fragments */
+      local tManifests
+      put revIDEExtensionProperty(tExtension, "manifests") into tManifests
+      if tManifests[pTarget] is not empty then
+         local tManifestFolder
+         put the tempName into tManifestFolder
+
+         local tManifestFile, tSettingsKey
+         switch pTarget
+         case "android"
+            put tManifestFolder & slash & "AndroidManifest.xml" \
+               into tManifestFile
+            put "androidManifests" into tSettingsKey
+            break
+         default
+            /* Manifest merging not yet implemented for other platforms */
+            revStandaloneAddWarning \
+               format( \
+                  "Extension %s manifest for %s will not be used", \
+                  tExtension, \
+                  pTarget)
+            break
+         end switch
+
+         /* If we support manifest merging for the target platform, then
+          * ensure all params are injected (by setting the `tInclusionSettings`
+          * variable and using the merge function) and then add to the settings
+          * array as appropriate */
+         if tManifestFile is not empty then
+            __revSBEnsureFolder tManifestFolder
+
+            local tExtensionManifest
+            put textDecode(url("binfile:" & tManifests[pTarget]), "utf-8") \
+               into tExtensionManifest
+
+            local tInclusionSettings
+            put xSettingsA[tExtension] into tInclusionSettings
+            put textEncode(merge(tExtensionManifest), "utf-8") into \
+               url("binfile:" & tManifestFile)
+
+            appendToStringList \
+               tManifestFile, \
+               xSettingsA[tSettingsKey]
+         end if
+      end if
+   end repeat
 end revSBUpdateSettingsForExtensions
 
 constant kMappingSeparator = ":"
 command revSBAddLibraryMapping pPlatform, pName, pLocation, @xSettingsA
-   /* If the location is not absolute, prepend `./`. */
-   if not (pLocation begins with "/") then
-      put "./" before pLocation
-   end if
-
    local tMapping
-   put pName & kMappingSeparator & pLocation into tMapping
+   put pName & kMappingSeparator & "./" & pLocation into tMapping
    appendToStringList tMapping, xSettingsA[pPlatform & ",library"]
 end revSBAddLibraryMapping
 
@@ -2540,25 +2769,12 @@ command revSBUpdateForDependencies pPlatform, pArchs, pSDK, @xSettings
                xSettings["android,device capabilities"][tFeature]
       end repeat
       
-      /* The android.play.* metadata properties have been deprecated and should
-       * be replaced with the android.maven.deps metadata property.*/
       local tPlayVersion
-      put tAndroidMetadataA["play"]["version"] into tPlayVersion
+      put tAndroidMetadataA["play"]["version"]into tPlayVersion
       repeat for each item tPlayDep in tAndroidMetadataA["play"]["deps"]
-         appendToStringList \
-            format( \
-               "com.google.android.gms:play-services-%s:%s", \
-               tPlayDep, \
-               tPlayVersion), \
-            xSettings["android,android dependencies"]
+         appendToStringList ("com.google.android.gms", "play-services-" & tPlayDep, tPlayVersion), xSettings["android,android dependencies"]
       end repeat
-
-      if tAndroidMetadataA["maven"]["deps"] is not empty then
-         appendToStringList \
-            tAndroidMetadataA["maven"]["deps"], \
-            xSettings["android,android dependencies"]
-      end if
-
+      
       revSBUpdateExtensionCodeInclusions tExtension, pPlatform, pArchs, pSDK, xSettings
       revSBUpdatePerExtensionSettings tExtension, pPlatform, xSettings
    end repeat
