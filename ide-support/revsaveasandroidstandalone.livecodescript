@@ -1057,8 +1057,7 @@ private command revSaveAsMobileStandaloneMain \
    
    repeat for each key tArch in tArchLibsBuildFolders
       -- Engine to use
-      --put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & tArch & slash & "Standalone") into tDeploy["engine"]
-      put fakeMapCommonPath(tArch) & slash & "Standalone" into tDeploy["engine"]
+      put mapAndroidPath(tArch) & slash & "Standalone" into tDeploy["engine"]
       // SN-2015-01-22: [[ Bug 13213 ]] Throw an error in case an error occurred
       if there is no file tDeploy["engine"] then
          throw "Could not find standalone engine"
@@ -1769,8 +1768,13 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
    
    constant kICUDataFiles="icu-coll.dat,icu-core.dat,icu-iter.dat"
    local tIcuDataPath
+   local tAndroidPath
+   put mapAndroidPath() into tAndroidPath
+   set the itemdelimiter to slash
+   put "Common/" into item -1 of tAndroidPath
+   set the itemdelimiter to comma
    repeat for each item tICUDataFile in kICUDataFiles
-      put "~/livecode/linux-x86_64-bin/Runtime" & "/Common/"&tICUDataFile into tIcuDataPath
+      put tAndroidPath & tICUDataFile into tIcuDataPath
       if there is not a file tIcuDataPath then
          throw "could not find icu data '" & tIcuDataPath & "'"
       end if
@@ -2222,10 +2226,8 @@ command fetchAndroidLibraryDependencies pRoot, pDependencies, @xJarFiles, @xAarF
    dispatch "fetchAndroidLibraryDependencies" to stack kDeployLibrary with pRoot, pDependencies, xJarFiles, xAarFiles
 end fetchAndroidLibraryDependencies
 
-# TODO: Fix this
 private function getRepoBinariesFolder pArch
-   --return "~/livecode/linux-x86_64-bin/Runtime/Android/" & pArch
-   return "~/livecode/linux-x86_64-bin/Runtime/Android"
+   return mapAndroidPath(pArch)
 end getRepoBinariesFolder
 
 // SN-2015-07-02: [[ GypifiedAndroid ]] Get the right folder for android binaries
@@ -2272,9 +2274,10 @@ end pathToKeytool
 
 ################################################################################
 
-function fakeMapCommonPath pDatFile
-   return "~/livecode/linux-x86_64-bin/Runtime/Android/" & pDatFile
-end fakeMapCommonPath
+private function mapAndroidPath pArch
+   set the itemdelimiter to slash
+   return slash & (item 2 to -2 of the address) & "/Runtime/Android/" & pArch
+end mapAndroidPath
 
 -- MW-2013-06-13: [[ CloneAndRun ]] Map a file path from where the sb expects them to be to local
 --   files in the build folder.

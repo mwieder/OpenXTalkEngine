@@ -15,7 +15,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-constant kLinuxBrowserList = "Firefox=firefox/firefox,Chrome=google-chrome/google-chrome"
+constant kLinuxBrowserList = "Firefox=firefox/firefox,Chrome=google-chrome/google-chrome,Opera=opera/opera"
 constant kPrivateModeSuffix = "[Private Mode]"
 # TODO: update this
 constant kBuildSpace = "livecode-emscripten-builds"

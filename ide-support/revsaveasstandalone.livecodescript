@@ -191,7 +191,7 @@ try
    # been eliminated at a lower level by redirecting all calls to revDeleteFolder through a wrapper, which checks that
    # the folder is safe to delete using some rather strict tests. This may result in ocassional problems with cleanup not
    # working.
-   if folderNameIsIllegal(tSettings["name"]) then
+   if folderNameIsIllegal?(tSettings["name"]) then
       put folderNameMakeLegal(tSettings["name"]) into tSettings["name"]
       put true into tEdited
       revStandaloneAddWarning "Standalone name was changed because it contained illegal characters"
@@ -280,16 +280,16 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    revStandaloneProgress "Preparing to build standalone..."
    
    -- pre build message
-   local tHasDesktop
+   local tHasDesktop?
    repeat for each item tTarget in revSBDesktopTargets()
       if sStandaloneSettingsA[tTarget] then
-         put true into tHasDesktop
+         put true into tHasDesktop?
          exit repeat
       end if
    end repeat
    
    local tStackFileName, tRestoreFileName
-   if tHasDesktop then
+   if tHasDesktop? then
       put the effective filename of stack pStack into tStackFileName
       if the mode of stack pStack > 0 then
          put the long name of stack pStack & return after sResetA["Reopen"]
@@ -374,7 +374,7 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
       end repeat
       
       -- post build message
-      if tHasDesktop then
+      if tHasDesktop? then
          __ReloadOriginalStackFile tStackFileName, pStack
          __SendStandaloneSavedMessage pStack, tOutputFolder
       end if
@@ -403,9 +403,9 @@ private function folderNameIllegalChars
    return revFolderNameIllegalChars()
 end folderNameIllegalChars
 
-private function folderNameIsIllegal pName
+private function folderNameIsIllegal? pName
    return revFolderNameIsIllegal(pName)
-end folderNameIsIllegal
+end folderNameIsIllegal?
 
 private function folderNameMakeLegal pName
    return revFolderNameMakeLegal(pName)
@@ -475,19 +475,16 @@ private function revStandalonePlatformDetails pTarget
 end revStandalonePlatformDetails
 
 # imported from LC-10.rc1
-function getIcuBundleNames
+private function getIcuBundleNames
    local icuArray
    
    put "icu-core.dat" into icuArray[1]
    put "icu-iter.dat" into icuArray[2]
    put "icu-coll.dat" into icuArray[3]
    return icuArray
-   --   return [ "icu-core.dat", \
-   --         "icu-iter.dat", \
-   --         "icu-coll.dat" ]
 end getIcuBundleNames
 
-function mapCommonPath pPath
+private function mapCommonPath pPath
    if revEnvironmentIsInstalled() then
       return revEnvironmentRuntimePath() & slash & "Common" & slash & pPath
    else
@@ -495,9 +492,9 @@ function mapCommonPath pPath
    end if
 end mapCommonPath
 
-function fakeMapCommonPath pDatFile
-	return "~/livecode/linux-x86_64-bin/Runtime/Common/" & pDatFile
-end fakeMapCommonPath
+--function fakeMapCommonPath pDatFile
+	--return kLocalRoot & "Runtime/Common/" & pDatFile
+--end fakeMapCommonPath
 
 #####################################################################
 # Main use-case controller for the Standalone Application Builder
@@ -1171,9 +1168,9 @@ command revSaveAsLinuxStandalone pStack, pRestoreFileName, pFolder, @xStandalone
       
       revStandaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
       
-      put param(0) & cr & "tEngineSourceFile=" && tEngineSourceFile &cr after msg
-      put "tTarget=" && tTarget &cr after msg
-      put "tDeployInfo=" && tDeployInfo &cr after msg
+--      put param(0) & cr & "tEngineSourceFile=" && tEngineSourceFile &cr after msg
+--      put "tTarget=" && tTarget &cr after msg
+--      put "tDeployInfo=" && tDeployInfo &cr after msg
       
       --Restore stack to its post-savingStandalone message state
       __RestoreStackFromTemporaryLocation pStack, pRestoreFileName, tOriginalFileName

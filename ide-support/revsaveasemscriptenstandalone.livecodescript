@@ -16,9 +16,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
--- Support for creating HTML5 standalones using Emscripten
-
---constant kLocalRoot = "~/livecode/linux-x86_64-bin/"
+-- Support for creating HTML5 and WASM standalones using Emscripten
 
 private command logDebug pStep, pMessage
    write "[" & pStep & "]" && pMessage & cr to stderr
@@ -597,48 +595,50 @@ end revGetEmscriptenFiles
 -- Return a number-indexed array of engine files that need to be
 -- copied into the standalone output folder.
 private function getEngineFiles pArch
-   local tFiles
+   local tFilesArray
    
    switch pArch
       case "js"
          -- Engine JavaScript
-//         put mapBinPath("js", "standalone-" & the version & ".js") \
-//            into tFiles["standalone-" & the version & ".js"]
+         //         put mapBinPath("js", "standalone-" & the version & ".js") \
+         //            into tFilesArray["standalone-" & the version & ".js"]
          put mapBinPath("js", "standalone.js") \
-            into tFiles["standalone.js"]
-
+               into tFilesArray["standalone.js"]
+         
          -- Memory initialisation file
-//         put mapBinPath("js", "standalone-" & the version & ".html.mem") \
-//            into tFiles["standalone-" & the version & ".html.mem"]
+         //         put mapBinPath("js", "standalone-" & the version & ".html.mem") \
+         //            into tFilesArray["standalone-" & the version & ".html.mem"]
          put mapBinPath("js", "standalone.html.mem") \
-            into tFiles["standalone.html.mem"]
+               into tFilesArray["standalone.html.mem"]
          break
       case "wasm"
       default
          -- Engine JavaScript
          put mapBinPath("wasm", "standalone.js") \
-            into tFiles["standalone.js"]
+               into tFilesArray["standalone.js"]
          -- Engine WebAssembly binary
          put mapBinPath("wasm", "standalone.wasm") \
-            into tFiles["standalone.wasm"]
+               into tFilesArray["standalone.wasm"]
          break
    end switch
-
-   -- ICU data
-#   put mapCommonPath("icu-core.dat") into tFiles["icu-core.dat"]
- #  put mapCommonPath("icu-iter.dat") into tFiles["icu-iter.dat"]
-  # put mapCommonPath("icu-coll.dat") into tFiles["icu-coll.dat"]
-
-   put fakeMapCommonPath("icu-core.dat") into tFiles["icu-core.dat"]
-   put fakeMapCommonPath("icu-iter.dat") into tFiles["icu-iter.dat"]
-   put fakeMapCommonPath("icu-coll.dat") into tFiles["icu-coll.dat"]
    
-   return tFiles
+   -- ICU data
+   put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
+   put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
+   put mapCommonPath("icu-coll.dat") into tFilesArray["icu-coll.dat"]
+   
+   return tFilesArray
 end getEngineFiles
 
-function fakeMapCommonPath pDatFile
-	return "~/livecode/linux-x86_64-bin/Runtime/Common/" & pDatFile
-end fakeMapCommonPath
+private function mapCommonPath pDatFile
+   set the itemdelimiter to slash
+   return slash & (item 2 to -2 of the address) & "/Runtime/Common/" & pDatFile
+end mapCommonPath
+
+private function mapEmscriptenPath pArch
+   set the itemdelimiter to slash
+   return slash & (item 2 to -2 of the address) & "/Runtime/Emscripten/" & pArch
+end mapEmscriptenPath
 
 -- Get the filename of the Emscripten standalone template folder.
 -- This is a folder that contains the default filesystem
@@ -711,12 +711,11 @@ end getRuntimeFolder
 -- Get the directory where Emscripten binaries end up (specifically,
 -- the engine's JavaScript file).
 -- Get the directory where Emscripten development binaries and resources are installed to.
-# TODO: Fix this
 private function getRepoBinariesFolder pArch
-	if pArch is not "wasm" then
-		throw "pArch should be wasm but is" && pArch
-	end if
-   return "~/livecode/linux-x86_64-bin/Runtime/Emscripten/" & pArch
+   if pArch is not among the items of "wasm,js" then
+      throw "pArch should be wasm or js but is" && pArch
+   end if
+   return mapEmscriptenPath(pArch)
 end getRepoBinariesFolder
 
 -- Get the directory where Emscripten resources are kept
@@ -745,8 +744,6 @@ end getTemporaryBuildFile
 private function isPermittedDeployment?
 	return true
 end isPermittedDeployment?
-
-
 
 private function isCommercialDeployment?
    if revLicenseType() is "community" then
