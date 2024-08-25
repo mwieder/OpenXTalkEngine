@@ -26,9 +26,158 @@ end logDebug
 -- Standalone generation
 ----------------------------------------------------------------
 
+command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
+   
+   logDebug "top", "----- Begin Emscripten HTML5 standalone"
+   
+   -- FIXME
+   --dispatch "revIDEDeployEmscriptenInitialize" to stack "revDeployLibrary"
+   
+   ---------- Pre-compute standalone build parameters
+   
+   -- Initial stack file
+   local tStackFile
+   put the effective filename of stack pStack into tStackFile
+   
+   -- Base directory
+   local tBaseFolder
+   set the itemDelimiter to slash
+   put item 1 to -2 of tStackFile into tBaseFolder
+   set the itemDelimiter to comma
+   
+   -- Other parameters
+   local tName
+   put pSettings["name"] into tName
+   
+   revStandaloneResetWarnings
+   
+   -- If we're searching for inclusions, do it here 
+   if pSettings["inclusions"] is "search" then 
+      revSBSearchForInclusions pStack, pSettings
+   end if
+   
+   -- Make sure all dependencies are included
+   revSBUpdateForDependencies "emscripten",,, pSettings
+   
+   revSBUpdateSettingsForExtensions "emscripten", pSettings
+   
+   local tResolvedFileData
+   revSBResolveCopyFilesList tBaseFolder, "emscripten", pSettings, tResolvedFileData
+   
+   local tDeploy
+   -- Update the deploy params with script library and extension inclusions
+   revSBUpdateDeployParams pStack, "emscripten", pSettings, tDeploy
+
+   local tError
+   try
+      ---------- Check deployment entitlement
+      revStandaloneProgress "Checking deployment entitlement..."
+      
+      ---------- Create a working directory
+      local tBuildFolder
+      put pOutputFolder into tBuildFolder
+      
+      logDebug "top", "Output folder: " && pOutputFolder
+      
+      ---------- Create new zip archive
+      revStandaloneProgress "Creating standalone archive..."
+      
+      local tBuildZip
+      put tBuildFolder & slash & "standalone.zip" into tBuildZip
+      
+      logDebug "top", "Archive:" && tBuildZip
+      
+      revZipOpenArchive tBuildZip, "write"
+      
+      if the result is not empty then
+         throw "could not create standalone archive"
+      end if
+      
+      -- Store template files
+      local tZipTemplateFile, tZipTemplateFolder, tZipTemplatePath
+      put getStandaloneTemplateFolder() into tZipTemplateFolder
+      
+      repeat for each element tZipTemplateFile in getStandaloneTemplateFiles()
+         put tZipTemplateFolder & slash & tZipTemplateFile into tZipTemplatePath
+         logDebug "template", "Storing" && tZipTemplatePath
+         revZipAddUncompressedItemWithFile tBuildZip, tZipTemplateFile, tZipTemplatePath
+         if the result is not empty then
+            throw "could not store template files in standalone archive"
+         end if
+      end repeat
+      
+      -- Define some paths within the zip archive
+      local tBootPath, tStandalonePath
+      local tDeployedStackPath
+      put "boot" into tBootPath
+      put tBootPath & slash & "__startup.data" into tDeployedStackPath
+      put tBootPath & slash & "standalone" into tStandalonePath
+      
+      -- Deploy the standalone application data
+      storeDeployedStack tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
+      
+      -- Store extra, copied files
+      storeAssets tBuildZip, tResolvedFileData, tStandalonePath, tBaseFolder
+      
+      -- Close zip file
+      revZipCloseArchive tBuildZip
+      if the result is not empty then
+         throw "could not create standalone archive:" && the result
+      end if
+      
+      ---------- Copy the engine into the build folder
+      revStandaloneProgress "Preparing engine files..."
+      local tEngineFile
+      repeat for each element tEngineFile in getEngineFiles()
+         logDebug "engine", "Copying" && tEngineFile
+         revSBCopyFileToFolder tEngineFile, tBuildFolder, \
+               "revStandaloneProgressCallback", the long id of me
+         
+         if the result is not empty then
+            throw "could not copy engine file" && the result
+         end if
+      end repeat
+      
+      ---------- Create HTML page
+      
+      -- FIXME just copies the Emscripten-generated page into place
+      revStandaloneProgress "Preparing HTML page..."
+      
+      local tHtmlFile
+      put tBuildFolder & slash & tName & ".html" into tHtmlFile
+      logDebug "html", "Creating" && tHtmlFile
+      logDebug "html", "Copying" && getHtmlTemplateFile()
+      revSBCopyFileToFile mapBinPath(getHtmlTemplateFile()), tHtmlFile, \
+            "revStandaloneProgressCallback", the long id of me
+      
+   catch tError
+      if tError is empty then
+         put "an unknown error occurred" into tError
+      end if
+      
+      -- Cleanup on failure
+      if there is a folder pOutputFolder then
+         revDeleteFolder pOutputFolder
+      end if
+   end try
+   
+   local tOutcome
+   if tError is not empty then
+      put "FAILURE" into tOutcome
+   else
+      put "SUCCESS" into tOutcome
+   end if
+   
+   logDebug "top", "----- (" & tOutcome & ") Emscripten HTML5 Standalone"
+   
+   if tError is not empty then
+      throw tError
+   end if
+end revSaveAsEmscriptenHTML5Standalone
+
 command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    
-   logDebug "top", "----- Begin Emscripten standalone"
+   logDebug "top", "----- Begin Emscripten WASM standalone"
    
    -- FIXME
    dispatch "revIDEDeployEmscriptenInitialize" to stack "revDeployLibrary"
@@ -99,9 +248,6 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    
    local tError
    try
-      ---------- Check deployment entitlement
-      --revStandaloneProgress "Checking deployment entitlement..."
-      
       repeat for each item tArch in tArchs
          ---------- Create a working directory
          local tBuildFolder
@@ -237,12 +383,11 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
       put "SUCCESS" into tOutcome
    end if
    
-   logDebug "top", "----- (" & tOutcome & ") Emscripten Standalone"
+   logDebug "top", "----- (" & tOutcome & ") Emscripten WASM Standalone"
    
    if tError is not empty then
       throw tError
    end if
-   
 end revSaveAsEmscriptenWASMStandalone
 
 ----------------------------------------------------------------
@@ -681,11 +826,8 @@ private function getRuntimeFolder pArch
 		case "js"
 			break
 		default
-			throw "pArch should be wasm but is" && pArch
+			throw "pArch should be js or wasm but is" && pArch
 	end switch
-	--if pArch is not "wasm" then
-		--throw "pArch should be wasm but is" && pArch
-	--end if
 
    put slash & "Emscripten" & slash & pArch into tRelFolder
    
@@ -741,24 +883,23 @@ end getTemporaryBuildFile
 ----------------------------------------------------------------
 
 -- Check if the license permits HTML5 deployment
-private function isPermittedDeployment?
-	return true
-end isPermittedDeployment?
+--private function isPermittedDeployment?
+	--return true
+--end isPermittedDeployment?
 
-private function isCommercialDeployment?
-   if revLicenseType() is "community" then
-      return false
-   else
-      return true
-   end if
-
-end isCommercialDeployment?
+--private function isCommercialDeployment?
+   --if revLicenseType() is "community" then
+      --return false
+   --else
+      --return true
+   --end if
+--end isCommercialDeployment?
 
 -- Get the engine type string ("commercial" or "community")
-private function getEngineType
-   if isCommercialDeployment?() then
-      return "commercial"
-   else
-      return "community"
-   end if
-end getEngineType
+--private function getEngineType
+   --if isCommercialDeployment?() then
+      --return "commercial"
+   --else
+      --return "community"
+   --end if
+--end getEngineType

@@ -610,19 +610,19 @@ private command revSaveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSett
    put pAppBundle & slash & tName into tDeploy["output"]
    
    -- Splash to use (if non-commercial)
-   if line 3 of the revLicenseInfo is among the words of "Educational Personal" then
-      -- MM-2011-09-28: Descend through possible spash settings until a splash is found.
-      repeat for each item tSplash in "splash,iphone splash,retina splash,ipad portrait splash,ipad landscape splash,ipad retina portrait splash,ipad retina landscape splash"
-         if pSettings["ios," & tSplash] is not empty then
-            put pSettings["ios," & tSplash] into tDeploy["splash"]
-            exit repeat
-         end if
-      end repeat
-      -- MW-2011-03-17: Make sure absolute paths work correctly
-      if not (tDeploy["splash"] begins with "/") then
-         put tBaseFolder & slash before tDeploy["splash"]
-      end if
-   end if
+   --   if line 3 of the revLicenseInfo is among the words of "Educational Personal" then
+   --      -- MM-2011-09-28: Descend through possible spash settings until a splash is found.
+   --      repeat for each item tSplash in "splash,iphone splash,retina splash,ipad portrait splash,ipad landscape splash,ipad retina portrait splash,ipad retina landscape splash"
+   --         if pSettings["ios," & tSplash] is not empty then
+   --            put pSettings["ios," & tSplash] into tDeploy["splash"]
+   --            exit repeat
+   --         end if
+   --      end repeat
+   --      -- MW-2011-03-17: Make sure absolute paths work correctly
+   --      if not (tDeploy["splash"] begins with "/") then
+   --         put tBaseFolder & slash before tDeploy["splash"]
+   --      end if
+   --   end if
    
    -- SN-2015-03-16: [[ iOS Font Mapping ]] Fontmapping deploy command added
    --  We have our fontmapping list (the default fonts), and the custom ones the user

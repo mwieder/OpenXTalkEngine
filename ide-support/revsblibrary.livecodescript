@@ -1177,15 +1177,15 @@ private command __RecursiveStackFileList pStack, @xStackFiles
    end repeat
 end __RecursiveStackFileList
 
-function revDownloadEngine pEngine
-  if revEngineCheck(pEngine) then
-    return true
-  else 
-    return false
-  end if
-end revDownloadEngine
+--function revDownloadEngine pEngine
+--  if revEngineCheck?(pEngine) then
+--    return true
+--  else 
+--    return false
+--  end if
+--end revDownloadEngine
 
-function revEngineCheck pEngine
+function revEngineCheck? pEngine
    -- MW-2013-06-13: [[ CloneAndRun ]] Assume appropriate things are there if not installed.
    if not revEnvironmentIsInstalled() then
       return true
@@ -1243,7 +1243,7 @@ function revEngineCheck pEngine
       end switch
    end repeat
    return false
-end revEngineCheck
+end revEngineCheck?
 
 # OK-2007-07-09 : Bug 4592, Abstracted this code as it was duplicated in four buttons
 
