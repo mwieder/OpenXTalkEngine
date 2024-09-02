@@ -99,10 +99,17 @@ command deployDo pTargetStack, pBrowser
       create folder tBuildFolder
       
       put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath 
+      replace "+" with "%20" in tStandalonePath
       
       try
-         dispatch "revSaveAsEmscriptenWASMStandalone" to stack "revsaveasemscriptenstandalone" with \
-               pTargetStack, tBuildFolder, tSettings
+         if tSettings["EmscriptenWASM"] is true then
+            dispatch "saveAsEmscriptenWASMStandalone" to stack "revsaveasemscriptenstandalone" with \
+                  pTargetStack, tBuildFolder, tSettings
+         end if
+         if tSettings["EmscriptenHTML5"] is true then
+            dispatch "saveAsEmscriptenHTML5Standalone" to stack "revsaveasemscriptenstandalone" with \
+                  pTargetStack, tBuildFolder, tSettings
+         end if
       catch tException
          put "Unable to build app for testing:" && tException into tError
       end try
@@ -134,9 +141,9 @@ end deployDo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-private function __wrapInQuotes pString
+private function q pString
    return quote & pString & quote
-end __wrapInQuotes
+end q
 
 -- Returns a return delimited list of the form <browser>,<path to exe>
 -- Use an internal command on OSX, the registery in Windows and a static list on Linux.
@@ -190,7 +197,7 @@ private function __deployGetBrowserList
          end repeat
          set the itemDel to comma
          
-         combine tBrowserList with return and comma
+         combine tBrowserList with cr and comma
          break
          
       default
@@ -249,12 +256,12 @@ private function __deployGetBrowserPrivateModeArgs pBrowser
 end __deployGetBrowserPrivateModeArgs
 
 private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
-   --put "pBrowser=" && pBrowser & cr after msg
    if pBrowser is empty or pBrowser is "default" then
       # use the default browser
       launch URL pURL
       return the result
    else
+      replace "chrome" with "google-chrome" in pBrowser
       local tArgs
       put __deployGetBrowserArgs(pBrowser) into tArgs
       if pPrivateMode then
@@ -271,13 +278,13 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
                -- Most browsers appear to handle relaunches in a graceful way.
                put "-n --args " before tArgs
             end if
-            return shell("open -a" && __wrapInQuotes(pBrowser) && tArgs && __wrapInQuotes(pURL))
+            return shell("open -a" && q(pBrowser) && tArgs && q(pURL))
             
          case "Win32"
             local tHideConsoleWindows
             put the hideConsoleWindows into tHideConsoleWindows
             set the hideConsoleWindows to true
-            get shell(__wrapInQuotes(pBrowser) && tArgs && __wrapInQuotes(pURL))
+            get shell(q(pBrowser) && tArgs && q(pURL))
             set the hideConsoleWindows to tHideConsoleWindows            
             return it
             
@@ -286,7 +293,10 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
             -- this will take care of firefox and google-chrome
             put lower(pBrowser) into tShell
             local tCommand
-            put tShell &&  tArgs && __wrapInQuotes(pURL) into tCommand
+            if "chrome" is in pBrowser then
+               put " --new-window --cors-exempt-headers" after tArgs
+            end if
+            put tShell && tArgs && pURL into tCommand
             return shell(tCommand)
          default
             launch URL pURL

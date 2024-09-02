@@ -302,7 +302,7 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
                exit repeat
             end if
          end if
-         -- Send the callback ones every 50 items, say, if for some reason no files were encountered..
+         -- Send the callback once every 50 items, say, if for some reason no files were encountered..
          if tNumberCopied mod 50 is 0 and pCallbackTarget is not empty and there is a pCallbackTarget then
             send pCallback && tNumberCopied, tTotalNumber to pCallbackTarget
          end if
@@ -827,7 +827,7 @@ function revSBDesktopTargets
    return kDesktopTargets
 end revSBDesktopTargets
 
-constant kAdditionalTargets = "iOS,Android,Emscripten"
+constant kAdditionalTargets = "iOS,Android,Emscripten,EmscriptenHTML5,EmscriptenWASM"
 function revSBAdditionalTargets
    return kAdditionalTargets
 end revSBAdditionalTargets
@@ -850,7 +850,7 @@ constant kMacOSXArchitectures = "x86-32,x86-64"
 constant kLinuxArchitectures =  "x86-32,x86-64,armv6-hf"
 constant kAndroidArchitectures =  "armv7,arm64,x86,x86_64"
 constant kiOSArchitectures =  "armv7,arm64"
-constant kEmscriptenArchitectures =  "js"
+constant kEmscriptenArchitectures =  "js,wasm"
 
 function revSBPlatformArchitectures pPlatform
    switch pPlatform
@@ -1008,7 +1008,6 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    put the processor into tProcessor
    put revSBPlatformToLicensedPlatform(tPlatform) into tLicensedPlatform
    put line 5 of revLicenseInfo into tLicensedTargets
-   --if tLicensedPlatform is among the items of tLicensedTargets then
       put tLicensedPlatform into tInitialTargets
       switch tInitialTargets
          case "Windows"
@@ -1026,12 +1025,6 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
                   into tInitialTargets
             break
       end switch
-   --else if the number of items of tLicensedTargets is 1 then
-      --put revSBLicensedPlatformToTargetPlatform(tLicensedTargets) \
-            --into tInitialTargets
-   --else
-      --put empty into tInitialTargets
-   --end if
    
    repeat for each item tTarget in tInitialTargets
       if tTarget is "MacOSX x86-64" then 
@@ -1092,7 +1085,11 @@ function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
          put "MacOSX x86-64" into tTargetPlatform
          break
       case "HTML5"
-         put "Emscripten" into tTargetPlatform
+      case "js"
+         put "EmscriptenHTML5" into tTargetPlatform
+         break
+      case "js"
+         put "EmscriptenHTML5" into tTargetPlatform
          break
       case "Windows"
          put "Windows,Windows x86-64" into tTargetPlatform
@@ -1109,17 +1106,7 @@ function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
 end revSBLicensedPlatformToTargetPlatform
 
 function revSBRemoveUnlicensedTargetsFromSettings @xSettingsA
-   -- don't build for any platform we are not licensed for
-   local tRemoved
-#   repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
-#      if xSettingsA[tTarget] then
-#         if not revSBLicensedToDeployToTarget(tTarget) then
-#            put false into xSettingsA[tTarget]
-#            put true into tRemoved[tTarget]
-#         end if
-#      end if
-#   end repeat
-   return the keys of tRemoved
+	return empty
 end revSBRemoveUnlicensedTargetsFromSettings
 
 
@@ -1201,9 +1188,10 @@ function revEngineCheck? pEngine
       
       -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all OSX builds to be Intel.
       switch pEngine
-         case "MacOSX"
-         case "MacOSX PowerPC-32"
+--         case "MacOSX PowerPC-32"
          case "MacOSX x86-32"
+            return there is a directory (tPath & "/Mac OS X/x86-32/Standalone.app")
+         case "MacOSX"
          case "MacOSX x86-64"
          case "MacOSX arm64"
             return there is a directory (tPath & "/Mac OS X/x86-64/Standalone.app")
@@ -1871,23 +1859,15 @@ constant kAndroidPlatform = "Android"
 constant kEmscriptenPlatform = "Emscripten"
 
 function revSBAllPlatforms
-   return kMacPlatform & comma & \
-         kWindowsPlatform & comma & \
-         kLinuxPlatform & comma & \
-         kiOSPlatform & comma & \
-         kAndroidPlatform & comma & \
-         kEmscriptenPlatform
+   return kMacPlatform & comma & kWindowsPlatform & comma & kLinuxPlatform & comma & kiOSPlatform & comma & kAndroidPlatform & comma & kEmscriptenPlatform
 end revSBAllPlatforms
 
 function revSBAllDesktopPlatforms
-   return kMacPlatform & comma & \
-         kWindowsPlatform & comma & \
-         kLinuxPlatform
+   return kMacPlatform & comma & kWindowsPlatform & comma & kLinuxPlatform
 end revSBAllDesktopPlatforms
 
 function revSBAllMobilePlatforms
-   return kiOSPlatform & comma & \
-         kAndroidPlatform
+   return kiOSPlatform & comma & kAndroidPlatform
 end revSBAllMobilePlatforms
 
 function revSBNormalizePlatforms pOS, pPlatforms
@@ -2623,22 +2603,22 @@ command revSBRemoveInclusions pStack, pPlatform, pConfirm, @xSettings
    repeat for each key tKey in sBuiltInInclusions[pPlatform]
       repeat for each key tName in sBuiltInInclusions[pPlatform][tKey]
          
-         local tInclude
-         put xSettings["overrideInclusions"][tName] into tInclude
+         local tInclude?
+         put xSettings["overrideInclusions"][tName] into tInclude?
          if pConfirm and xSettings["overrideInclusions"][tName] is empty then
-            local tSilenceWarning
-            dispatch "revConfirmInclusion" to stack "revStandaloneSettings" with tName, tInclude, tSilenceWarning
+            local tSilenceWarning?
+            dispatch "revConfirmInclusion" to stack "revStandaloneSettings" with tName, tInclude?, tSilenceWarning?
             
-            if tSilenceWarning then
+            if tSilenceWarning? then
                local tOverride
                put xSettings["overrideInclusions"] into tOverride
-               put tInclude into tOverride[tName]
+               put tInclude? into tOverride[tName]
                set the cRevStandaloneSettings["overrideInclusions"] of stack pStack to tOverride
                revIDESetEdited pStack
             end if
          end if
          
-         if tInclude is not true then
+         if tInclude? is not true then
             local tLineNo
             put lineOffset(tName, xSettings[tKey]) into tLineNo
             if tLineNo is not 0 then
@@ -2651,11 +2631,15 @@ end revSBRemoveInclusions
 
 private command revSBListWidgetsOfStack pStack, @xWidgetKindsA
    local tNumCards, tNumWidgets, tKind
-   put the number of cards of pStack into tNumCards
-   repeat with tCard = 1 to tNumCards
-      put the number of widgets of card tCard of pStack into tNumWidgets
+   
+   repeat for each line tCardID in the cardids of pStack
+      --put the number of cards of pStack into tNumCards
+      --repeat with tCard = 1 to tNumCards
+      --put the number of widgets of card tCard of pStack into tNumWidgets
+      put the number of widgets of card id tCardID of pStack into tNumWidgets
       repeat with tWidget = 1 to tNumWidgets
-         put the kind of widget tWidget of card tCard of pStack into tKind
+         --put the kind of widget tWidget of card tCard of pStack into tKind
+         put the kind of widget tWidget of card id tCardID of pStack into tKind
          put "" into xWidgetKindsA[tKind]
       end repeat
    end repeat
@@ -3127,7 +3111,7 @@ private command revSmartChecking pStackFilesList, @xSettings
       repeat for each line tStack in tStacksList
          if tNewSettings["inclusions"] is "search" then
             # OK-2009-09-07 : Value of password and passkey properties changed, the above test no longer works
-            if __ScriptIsLocked(tStack) then
+            if __ScriptIsLocked?(tStack) then
                revStandaloneAddWarning "Could not auto-detect inclusions or security categories because stack is password protected"
                exit revSmartChecking
             end if
@@ -3154,14 +3138,14 @@ private command revSmartChecking pStackFilesList, @xSettings
    unlock messages
 end revSmartChecking
 
-private function __ScriptIsLocked pStack
+private function __ScriptIsLocked? pStack
    try
       get the script of stack pStack
    catch tError
       return true
    end try
    return false
-end __ScriptIsLocked
+end __ScriptIsLocked?
 
 private command revCheckObject pObject,pUserLibraries, @xSettings, @xWidgetKinds
    
@@ -3308,28 +3292,32 @@ function revSBEnginePath pPlatform
       put revEnvironmentRuntimePath() into tRuntimePath
       switch pPlatform
          case "MacOSX"
-         case "MacOSX PowerPC-32"
          case "MacOSX x86-32"
+            // SN-2015-07-09: [[ StandaloneDeployment ]] Gypified Standalone-<edition>.app building does not
+            //  allow to create broken applications, so that the executable file in it bears the edition.
+            put the upper of char 1 of tEdition into char 1 of tEdition
+            return tRuntimePath & "/Mac OS X/x86-32/Standalone.app/Contents/MacOS/Standalone-" & tEdition
+            break
          case "MacOSX x86-64"
          case "MacOSX arm64"
-            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone"
+            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone-" & tEdition
             break
          case "Windows"
-            return tRuntimePath & "/Windows/x86-32/Standalone"
+            return tRuntimePath & "/Windows/x86-32/Standalone-" & tEdition
             break
          case "Windows x86-64"
-            return tRuntimePath & "/Windows/x86-64/Standalone"
+            return tRuntimePath & "/Windows/x86-64/Standalone-" & tEdition
             break
          case "Linux"
-            return tRuntimePath & "/Linux/x86-32/Standalone"
+            return tRuntimePath & "/Linux/x86-32/Standalone-" & toLower(tEdition)
             break
             -- MW-2013-11-06: [[ LinuxX64 ]] Compute the correct path for 64-bit linux.
          case "Linux x64"
-            return tRuntimePath & "/Linux/x86-64/Standalone"
+            return tRuntimePath & "/Linux/x86-64/Standalone-" & toLower(tEdition)
             break
             -- FG-2014-08-19: [[ RPi ]] Compute the correct path for ARMv6 Linux
          case "Linux armv6-hf"
-            return tRuntimePath & "/Linux/armv6-hf/Standalone"
+            return tRuntimePath & "/Linux/armv6-hf/Standalone-" & toLower(tEdition)
             break
          default
             return "error"
@@ -3363,12 +3351,12 @@ function revSBEnginePath pPlatform
             return empty
             break
       end switch
-   end if
+   end if # revEnvironmentIsInstalled
 end revSBEnginePath
 
-function revSBLicensedToDeployToTarget pTarget
-      return true
- end revSBLicensedToDeployToTarget
+--function revSBLicensedToDeployToTarget pTarget
+      --return true
+ --end revSBLicensedToDeployToTarget
 
 function revSBNoPlatforms? pSettings
    repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
@@ -3382,13 +3370,13 @@ end revSBNoPlatforms?
 
 local sDeployInclusions
 
-command revSBAddDeployInclusion pInclusion, pKey
-   put empty into sDeployInclusions[pKey][pInclusion]
-end revSBAddDeployInclusion
+--command revSBAddDeployInclusion pInclusion, pKey
+   --put empty into sDeployInclusions[pKey][pInclusion]
+--end revSBAddDeployInclusion
 
-command revSBRemoveDeployInclusion pInclusion, pKey
-   delete variable sDeployInclusions[pKey][pInclusion]
-end revSBRemoveDeployInclusion
+--command revSBRemoveDeployInclusion pInclusion, pKey
+   --delete variable sDeployInclusions[pKey][pInclusion]
+--end revSBRemoveDeployInclusion
 
 -- Standalone settings are always set on the mainstack
 function revSBGetSettings pStack, pDeploy

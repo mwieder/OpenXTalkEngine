@@ -206,14 +206,15 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 		
 		echo "*DEBUG* disabling c++11 support on incompatible platforms"
 		# Disable C++11 support on platforms where we can't guarantee a compatible runtime
+#			android|linux)
 		case "${PLATFORM}" in
-			android|linux)
+			android)
 				sed -i -e "s/\(^CXXFLAGS.*\)--std=c++0x/\1/" icudefs.mk
 				;;
 		esac	
 
 		# Make sure U_HAVE_STRTOD_L is 0 on android
- 		if [ "${PLATFORM}" == "android" ] ; then
+ 		if [ "android" == "${PLATFORM}" ] ; then
  			sed -i -e "s/U_HAVE_STRTOD_L=1/U_HAVE_STRTOD_L=0/" icudefs.mk
  		fi
  		
@@ -226,7 +227,7 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 		cd ..
 		
 		# Save the configuration for this build
-		if [ $RESULT == 0 ] ; then
+		if [ 0 == $RESULT  ] ; then
 			echo "${ICU_ARCH_CONFIG}" > "${ICU_ARCH_SRC}/config.cmd"
 		else
 			echo "    failed"

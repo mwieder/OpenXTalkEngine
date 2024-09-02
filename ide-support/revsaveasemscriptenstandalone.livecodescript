@@ -18,22 +18,76 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 -- Support for creating HTML5 and WASM standalones using Emscripten
 
+/*
+* logDebug
+*/
 private command logDebug pStep, pMessage
    write "[" & pStep & "]" && pMessage & cr to stderr
 end logDebug
+
+/*
+* createZipFileIfNecessary
+*/
+private command createZipFileIfNecessary pArchive
+   if there is a file pArchive then
+      revZipOpenArchive pArchive, "update"
+   else
+      revZipOpenArchive pArchive, "write"
+   end if
+   if the result is not empty then
+      throw "could not create standalone archive" && pArchive
+   end if
+end createZipFileIfNecessary
 
 ----------------------------------------------------------------
 -- Standalone generation
 ----------------------------------------------------------------
 
-command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
+/*
+* See which emscripten architectures we want to build
+*/
+private function architectureListFromSettingsArray pSettingsArray
+   local tArchs
+   repeat for each item tItem in revSBPlatformArchitectures("Emscripten")
+      if pSettingsArray["Emscripten",tItem] then
+         put true into tArchs[tItem]
+      end if
+   end repeat
+   # default to wasm build
+   if the number of elements of tArchs is 0 then
+      put true into tArchs["wasm"]
+   end if
+   combine tArchs by comma as set # just the keys
+   return tArchs
+end architectureListFromSettingsArray
+
+private function baseDirectoryFromStackFile pStackFolder
+   local tBaseFolder
+   set the itemDelimiter to slash
+   put item 1 to -2 of pStackFolder into tBaseFolder
+   return tBaseFolder
+end baseDirectoryFromStackFile
+
+private function createZipArchiveFromFolder pBuildFolder
+   local tBuildZipArchive
+   put pBuildFolder & slash & "standalone.zip" into tBuildZipArchive
    
+   logDebug "top", "Archive:" && tBuildZipArchive
+   
+   createZipFileIfNecessary tBuildZipArchive
+   return tBuildZipArchive
+end createZipArchiveFromFolder
+
+/*
+* saveAsEmscriptenHTML5Standalone
+*/
+command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    logDebug "top", "----- Begin Emscripten HTML5 standalone"
    
-   -- FIXME
-   --dispatch "revIDEDeployEmscriptenInitialize" to stack "revDeployLibrary"
+   ---------- Pre-compute standalone build parametersArch
    
-   ---------- Pre-compute standalone build parameters
+   local tArchs
+   put architectureListFromSettingsArray(pSettings) into tArchs
    
    -- Initial stack file
    local tStackFile
@@ -41,9 +95,7 @@ command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    
    -- Base directory
    local tBaseFolder
-   set the itemDelimiter to slash
-   put item 1 to -2 of tStackFile into tBaseFolder
-   set the itemDelimiter to comma
+   put baseDirectoryFromStackFile(tStackFile) into tBaseFolder
    
    -- Other parameters
    local tName
@@ -51,12 +103,12 @@ command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    
    revStandaloneResetWarnings
    
-   -- If we're searching for inclusions, do it here 
+   # If we're searching for inclusions, do it here 
    if pSettings["inclusions"] is "search" then 
       revSBSearchForInclusions pStack, pSettings
    end if
    
-   -- Make sure all dependencies are included
+   # Make sure all dependencies are included
    revSBUpdateForDependencies "emscripten",,, pSettings
    
    revSBUpdateSettingsForExtensions "emscripten", pSettings
@@ -67,37 +119,36 @@ command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    local tDeploy
    -- Update the deploy params with script library and extension inclusions
    revSBUpdateDeployParams pStack, "emscripten", pSettings, tDeploy
-
+   
    local tError
    try
-      ---------- Check deployment entitlement
-      revStandaloneProgress "Checking deployment entitlement..."
-      
       ---------- Create a working directory
       local tBuildFolder
+      
+      # TODO : Is this necessary?
+      replace space with "_" in pOutputFolder
       put pOutputFolder into tBuildFolder
+      create folder tBuildFolder # if it doesn't already exist
       
       logDebug "top", "Output folder: " && pOutputFolder
       
       ---------- Create new zip archive
       revStandaloneProgress "Creating standalone archive..."
       
-      local tBuildZip
-      put tBuildFolder & slash & "standalone.zip" into tBuildZip
+      local tBuildZip # destination path for the zip file
+      --      put tBuildFolder & slash & "standalone.zip" into tBuildZip
+      --      logDebug "top", "Archive:" && tBuildZip
+      --      createZipFileIfNecessary tBuildZip
       
-      logDebug "top", "Archive:" && tBuildZip
-      
-      revZipOpenArchive tBuildZip, "write"
-      
-      if the result is not empty then
-         throw "could not create standalone archive"
-      end if
+      put createZipArchiveFromFolder(tBuildFolder) into tBuildZip
       
       -- Store template files
       local tZipTemplateFile, tZipTemplateFolder, tZipTemplatePath
-      put getStandaloneTemplateFolder() into tZipTemplateFolder
+      put getStandaloneTemplateFolder("js") into tZipTemplateFolder
       
-      repeat for each element tZipTemplateFile in getStandaloneTemplateFiles()
+      logDebug "top", "zipTemplateFolder:" && tZipTemplateFolder
+      
+      repeat for each element tZipTemplateFile in HTML5.StandaloneTemplateFiles()
          put tZipTemplateFolder & slash & tZipTemplateFile into tZipTemplatePath
          logDebug "template", "Storing" && tZipTemplatePath
          revZipAddUncompressedItemWithFile tBuildZip, tZipTemplateFile, tZipTemplatePath
@@ -106,35 +157,49 @@ command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
          end if
       end repeat
       
-      -- Define some paths within the zip archive
+      # Define some paths within the zip archive
       local tBootPath, tStandalonePath
       local tDeployedStackPath
       put "boot" into tBootPath
       put tBootPath & slash & "__startup.data" into tDeployedStackPath
       put tBootPath & slash & "standalone" into tStandalonePath
       
-      -- Deploy the standalone application data
-      storeDeployedStack tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
+      # Deploy the standalone application data
+      storeDeployedStack "js", tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
       
-      -- Store extra, copied files
+      # Store extra, copied files
       storeAssets tBuildZip, tResolvedFileData, tStandalonePath, tBaseFolder
       
-      -- Close zip file
+      # Close zip file
       revZipCloseArchive tBuildZip
       if the result is not empty then
          throw "could not create standalone archive:" && the result
       end if
       
+      if there is no file tBuildZip then
+         throw "could not create standalone archive: no zip file"
+      end if
+      
       ---------- Copy the engine into the build folder
       revStandaloneProgress "Preparing engine files..."
       local tEngineFile
-      repeat for each element tEngineFile in getEngineFiles()
-         logDebug "engine", "Copying" && tEngineFile
-         revSBCopyFileToFolder tEngineFile, tBuildFolder, \
-               "revStandaloneProgressCallback", the long id of me
+      local tEngineFiles
+      --      repeat for each element tEngineFile in getEngineFiles("js")
+      --         logDebug "engine", "Copying" && tEngineFile
+      --         revSBCopyFileToFolder tEngineFile, tBuildFolder, "revStandaloneProgressCallback", the long id of me
+      
+      --         if the result is not empty then
+      --            throw "could not copy engine file" && the result
+      --         end if
+      --      end repeat
+      
+      put getEngineFiles("js") into tEngineFiles
+      repeat for each key tEngineFile in tEngineFiles
+         logDebug "engine", "Copying" && tEngineFiles[tEngineFile]
+         revSBCopyFileToFileInFolder tEngineFiles[tEngineFile], tBuildFolder, tEngineFile, "revStandaloneProgressCallback", the long id of me
          
          if the result is not empty then
-            throw "could not copy engine file" && the result
+            throw "could not copy engine file" && tEngineFiles[tEngineFile] && the result
          end if
       end repeat
       
@@ -146,19 +211,12 @@ command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
       local tHtmlFile
       put tBuildFolder & slash & tName & ".html" into tHtmlFile
       logDebug "html", "Creating" && tHtmlFile
-      logDebug "html", "Copying" && getHtmlTemplateFile()
-      revSBCopyFileToFile mapBinPath(getHtmlTemplateFile()), tHtmlFile, \
+      logDebug "html", "Copying" && getHtmlTemplateFile("js")
+      revSBCopyFileToFile mapBinPath("js", getHtmlTemplateFile("js")), tHtmlFile, \
             "revStandaloneProgressCallback", the long id of me
       
    catch tError
-      if tError is empty then
-         put "an unknown error occurred" into tError
-      end if
-      
-      -- Cleanup on failure
-      if there is a folder pOutputFolder then
-         revDeleteFolder pOutputFolder
-      end if
+      put cleanupOnFailure(tError, pOutputFolder) into tError
    end try
    
    local tOutcome
@@ -173,9 +231,12 @@ command revSaveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    if tError is not empty then
       throw tError
    end if
-end revSaveAsEmscriptenHTML5Standalone
+end saveAsEmscriptenHTML5Standalone
 
-command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
+/*
+* saveAsEmscriptenWASMStandalone
+*/
+command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    
    logDebug "top", "----- Begin Emscripten WASM standalone"
    
@@ -183,27 +244,17 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    dispatch "revIDEDeployEmscriptenInitialize" to stack "revDeployLibrary"
    
    local tArchs
-   repeat for each item tItem in revSBPlatformArchitectures("Emscripten")
-      if pSettings["Emscripten",tItem] then
-         put true into tArchs[tItem]
-      end if
-   end repeat
-   if the number of elements of tArchs is 0 then
-      put true into tArchs["wasm"]
-   end if
-   combine tArchs by comma as set
+   put architectureListFromSettingsArray(pSettings) into tArchs
    
    ---------- Pre-compute standalone build parameters
    
-   -- Initial stack file
+   # Initial stack file
    local tStackFile
    put the effective filename of stack pStack into tStackFile
    
-   -- Base directory
+   # Base directory
    local tBaseFolder
-   set the itemDelimiter to slash
-   put item 1 to -2 of tStackFile into tBaseFolder
-   set the itemDelimiter to comma
+   put baseDirectoryFromStackFile(tStackFile) into tBaseFolder
    
    -- Other parameters
    local tName
@@ -227,23 +278,17 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    local tResolvedFileData
    revSBResolveCopyFilesList tBaseFolder, "emscripten", pSettings, tResolvedFileData
    
-   if "wasm" is among the items of tArchs then
-      logDebug "tArch[wasm]", tArchs
-      	   
-      /* Process the resolved files, separating the custom standalone and fonts
-      * files if available */
-      local tCustomFiles
-      local tFilesArray
-      put "standalone.html" into tFilesArray[1]
-      put "emscripten-web-fonts.txt" into tFilesArray[2]
-      _processCustomFiles \
-            tResolvedFileData, \
-            tFilesArray, \
-            tCustomFiles
-   end if
+   logDebug "tArch[wasm]", tArchs
+   	   
+   # Process the resolved files, separating the custom standalone and fonts files if available
+   local tCustomFiles
+   local tFilesArray
+   put "standalone.html" into tFilesArray[1]
+   put "emscripten-web-fonts.txt" into tFilesArray[2]
+   WASM.ProcessCustomFiles tResolvedFileData, tFilesArray, tCustomFiles
    
    local tDeploy
-   -- Update the deploy params with script library and extension inclusions
+   # Update the deploy params with script library and extension inclusions
    revSBUpdateDeployParams pStack, "emscripten", pSettings, tDeploy
    
    local tError
@@ -270,27 +315,16 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
          revStandaloneProgress "Creating standalone archive..."
          
          local tBuildZip
-         put tBuildFolder & slash & "standalone.zip" into tBuildZip
+         --         put tBuildFolder & slash & "standalone.zip" into tBuildZip
          
-         logDebug "top", "Archive:" && tBuildZip
+         --         logDebug "top", "Archive:" && tBuildZip
          
-         revZipOpenArchive tBuildZip, "write"
+         --         createZipFileIfNecessary tBuildZip
          
-         if the result is not empty then
-            throw "could not create standalone archive"
-         end if
-         
-         if tArch is not "wasm" then
-            local tZipTemplatePath, tZipTemplateFolder
-            repeat for each element tZipTemplateFile in getStandaloneTemplateFiles()
-               put tZipTemplateFolder & slash & tZipTemplateFile into tZipTemplatePath
-               logDebug "template", "Storing" && tZipTemplatePath
-               revZipAddUncompressedItemWithFile tBuildZip, tZipTemplateFile, tZipTemplatePath
-               if the result is not empty then
-                  throw "could not store template files in standalone archive"
-               end if
-            end repeat
-         end if
+         put createZipArchiveFromFolder(tBuildFolder) into tBuildZip
+         --         if the result is not empty then
+         --            throw "could not create standalone archive"
+         --         end if
          
          -- Define some paths within the zip archive
          local tBootPath, tStandalonePath
@@ -320,12 +354,7 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
          put getEngineFiles(tArch) into tEngineFiles
          repeat for each key tEngineFile in tEngineFiles
             logDebug "engine", "Copying" && tEngineFiles[tEngineFile]
-            revSBCopyFileToFileInFolder \
-                  tEngineFiles[tEngineFile], \
-                  tBuildFolder, \
-                  tEngineFile, \
-                  "revStandaloneProgressCallback", \
-                  the long id of me
+            revSBCopyFileToFileInFolder tEngineFiles[tEngineFile], tBuildFolder, tEngineFile, "revStandaloneProgressCallback", the long id of me
             
             if the result is not empty then
                throw "could not copy engine file" && tEngineFiles[tEngineFile] && the result
@@ -334,7 +363,6 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
          
          ---------- Create HTML page
          
-         -- FIXME just copies the Emscripten-generated page into place
          revStandaloneProgress "Preparing HTML page..."
          
          local tHtmlFile
@@ -346,11 +374,12 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
          if tHtmlTemplate is empty then
             put getHtmlTemplateFile(tArch) into tHtmlTemplate
             /* Load the contents of the default or custom webfonts file */
-            local tWebFontsFile, tWebFontsText
+            local tWebFontsFile
             put tCustomFiles["web-fonts.txt"] into tWebFontsFile
             if tWebFontsFile is empty then
                put mapResPath(tArch, "emscripten-web-fonts.txt") into tWebFontsFile
             end if
+            local tWebFontsText
             put url("binfile:" & tWebFontsFile) into tWebFontsText
             
             /* Read and merge the webfonts contents with the HTML template and
@@ -366,14 +395,7 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
          end if
       end repeat
    catch tError
-      if tError is empty then
-         put "an unknown error occurred" into tError
-      end if
-      
-      -- Cleanup on failure
-      if there is a folder pOutputFolder then
-         revDeleteFolder pOutputFolder
-      end if
+      put cleanupOnFailure(tError, pOutputFolder) into tError
    end try
    
    local tOutcome
@@ -388,28 +410,47 @@ command revSaveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    if tError is not empty then
       throw tError
    end if
-end revSaveAsEmscriptenWASMStandalone
+end saveAsEmscriptenWASMStandalone
+
+private function cleanupOnFailure pError, pOutputFolder
+   if pError is empty then
+      put "an unknown error occurred" into pError
+   end if
+   
+   -- Cleanup on failure
+   if there is a folder pOutputFolder then
+      revDeleteFolder pOutputFolder
+   end if
+   return pError
+end cleanupOnFailure
 
 ----------------------------------------------------------------
 -- Standalone deployment
 ----------------------------------------------------------------
 
+/*
+* storeDeployedStack
+*/
 private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMainStack, pDeployParams
-   local tTempStackData, tTempStackPath, tStartupScript, tTempDeployPath
+   local tTempStackData, tTempStackPath, tTempDeployPath
    
    ---------- Generate the startup script
    logDebug "startup", "Generating startup script"
+   --   logDebug "startup", "pArch" && pArch
+   --   logDebug "startup", "pZip" && pZip
+   --   logDebug "startup", "pDeployPath" && pDeployPath
+   --   logDebug "startup", "pBuildFolder" && pBuildFolder
+   --   logDebug "startup", "pMainStack" && pMainStack
    
    put getTemporaryBuildFile(pBuildFolder, ".livecode") into tTempStackPath
+   logDebug "startup", "saving to" && tTempStackPath
    put getPreparedStackAsData(pMainStack, pBuildFolder) into tTempStackData
+   
    put tTempStackData into url ("binfile:" & tTempStackPath)
    
-   put getStartupScript(pArch, pDeployParams["startup_script"]) into tStartupScript
-
-   put pBuildFolder & slash & "emscriptendeploy.data" into tTempDeployPath
-   
-   put tStartupScript into pDeployParams["startup_script"]
+   put getStartupScript(pArch, pDeployParams["startup_script"]) into pDeployParams["startup_script"]
    put tTempStackPath into pDeployParams["stackfile"]
+   put pBuildFolder & slash & "emscriptendeploy.data" into tTempDeployPath
    put tTempDeployPath into pDeployParams["output"]
    put empty into pDeployParams["engine"]
    
@@ -419,7 +460,7 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    ---------- Perform standalone deployment
    logDebug "deploy", "Deploying standalone"
    
-    _internal deploy emscripten pDeployParams
+   _internal deploy emscripten pDeployParams
    if the result is not empty then
       throw "could not deploy startup stack:" && the result
    end if
@@ -432,14 +473,12 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    -- temporary file.  If used the file, we'd have to keep the
    -- file around until the zip file is finished.
    
-logDebug "tTempDeployPath=", tTempDeployPath
    open file tTempDeployPath for binary read
    read from file tTempDeployPath until end
    put it into tDeployData
    close file tTempDeployPath
    
-//   revZipAddUncompressedItemWithData pZip, pDeployPath, "tDeployData"
-   revZipAddItemWithData pZip, pDeployPath, "tDeployData"
+   revZipAddUncompressedItemWithData pZip, pDeployPath, "tDeployData"
    if the result is not empty then
       throw "could not store startup stack in standalone archive:" && the result
    end if
@@ -447,16 +486,17 @@ logDebug "tTempDeployPath=", tTempDeployPath
    ---------- Cleanup
    delete file tTempStackPath
    delete file tTempDeployPath # delete emscripten-deploy.data
-   
 end storeDeployedStack
 
--- Create the startup script by processing the startup stack template.
--- Engine-specific and standalone-specific data is substituted into the
--- template in order 
+/*
+* Create the startup script by processing the startup stack template.
+* Engine-specific and standalone-specific data is substituted into the template in order
+* The template file is identical for js and wasm builds
+*/
 private function getStartupScript pArch, pGeneratedStartupScript
    local tTemplateFile, tScript
    
-   -- Load template
+   -- Load emscripten-startup-template.livecodescript
    put getStartupTemplateFile(pArch) into tTemplateFile
    
    open file tTemplateFile for "UTF-8" text read
@@ -480,6 +520,9 @@ end getStartupScript
 -- Extra files from "copy files"
 ----------------------------------------------------------------
 
+/*
+*
+*/
 private command storeAssets pZip, pFileData, pStandalonePath, pBaseFolder
    -- Get a list of all the files to copy
    local tPath, tFiles, tCount
@@ -495,10 +538,10 @@ private command storeAssets pZip, pFileData, pStandalonePath, pBaseFolder
          put tFileInfoElement["resolved"] into tFolderFilesA[tFolderFilesCount]["resolved"]
       else if there is a folder tFileInfoElement["resolved"] then
          _storeAssetsR \
-            tFileInfoElement["resolved"], \
-            tFileInfoElement["name"], \
-            tFolderFilesA, \
-            tFolderFilesCount
+               tFileInfoElement["resolved"], \
+               tFileInfoElement["name"], \
+               tFolderFilesA, \
+               tFolderFilesCount
       end if
    end repeat
    
@@ -514,12 +557,11 @@ private command storeAssets pZip, pFileData, pStandalonePath, pBaseFolder
    end repeat
 end storeAssets
 
-private command _storeAssetsR \
-      pFolder, \
-      pName, \
-      @xFilesA, \
-      @xCount
-
+/*
+*
+*/
+private command _storeAssetsR pFolder, pName, @xFilesA, @xCount
+   
    local tFolderFiles
    put files(pFolder) into tFolderFiles
    repeat for each line tLine in tFolderFiles
@@ -528,7 +570,7 @@ private command _storeAssetsR \
       put pName & slash & tLine into xFilesA[xCount]["dest"]
       put pFolder & slash & tLine into xFilesA[xCount]["resolved"]
    end repeat
-
+   
    local tSubFolders
    put folders(pFolder) into tSubFolders
    repeat for each line tLine in tSubFolders
@@ -536,14 +578,17 @@ private command _storeAssetsR \
          next repeat
       end if
       _storeAssetsR \
-         pFolder & slash & tLine, \
-         pName & slash & tLine, \
-         xFilesA, \
-         xCount
+            pFolder & slash & tLine, \
+            pName & slash & tLine, \
+            xFilesA, \
+            xCount
    end repeat
 end _storeAssetsR
 
-private command _processCustomFiles @xResolvedFileData, pCustomFiles, @rCustomFiles
+/*
+* WASMProcessCustomFiles
+*/
+private command WASM.ProcessCustomFiles @xResolvedFileData, pCustomFiles, @rCustomFiles
    repeat for each line tKey in the keys of xResolvedFileData
       repeat for each element tCustomFile in pCustomFiles
          if xResolvedFileData[tKey]["resolved"] ends with tCustomFile then
@@ -552,15 +597,17 @@ private command _processCustomFiles @xResolvedFileData, pCustomFiles, @rCustomFi
          end if
       end repeat
    end repeat
-end _processCustomFiles
+end WASM.ProcessCustomFiles
 
 ----------------------------------------------------------------
 -- Stack manipulation functions
 ----------------------------------------------------------------
 
--- Modifies a copy of <pStackFile> to prepare it for deployment,
--- and then returns the modified stack file's contents as data. 
--- <pStackFile> is not modified.
+/*
+* Modifies a copy of <pStackFile> to prepare it for deployment,
+* and then returns the modified stack file's contents as data. 
+* <pStackFile> is not modified.
+*/
 private function getPreparedStackAsData pStackFile, pBuildFolder
    local tStack, tDefaultStack, tError, tResult
    local tTempFile, tCleanTempFile
@@ -572,8 +619,8 @@ private function getPreparedStackAsData pStackFile, pBuildFolder
    put the short name of stack pStackFile into tName
    try
       if revIDEStackNameIsIDEStack(the name of tStack) then
-         -- Don't manipulate IDE stacks if for some reason someone
-         -- tries to put one into a standalone
+         # Don't manipulate IDE stacks if for some reason someone
+         # tries to put one into a standalone
          put the filename of tStack into tTempFile
          put false into tCleanTempFile
          
@@ -584,24 +631,24 @@ private function getPreparedStackAsData pStackFile, pBuildFolder
          put true into tCleanTempFile
          
          /* Retain the standalone settings without the deployment password
-         * as some widgets, such as map, store the api key here which is
-         * needed at runtime. */
+         * as some widgets, such as map, store the api key here which is needed at runtime.
+		*/
          put the customProperties["cRevStandaloneSettings"] of tStack into tStandaloneSettings
          delete variable tStandaloneSettings["password"]
          set the customProperties["cRevStandaloneSettings"] of tStack to tStandaloneSettings      
          
-         -- Save the modified stack to the temporary file
+         # Save the modified stack to the temporary file
          lock screen
          
          save tStack as tTempFile with newest format
          put the result into tResult
          if tResult is not empty then
-            throw tTempFile & ":" && tResult
+            throw "error saving to" && tTempFile & ":" && tResult
          end if
          
          set the filename of stack tName to pStackFile
          
-         -- Revert to unmodified state
+         # Revert to unmodified state
          
          revert stack tName
          set the defaultStack to tName
@@ -612,7 +659,7 @@ private function getPreparedStackAsData pStackFile, pBuildFolder
       
       open file tTempFile for binary read
       if the result is not empty then
-         throw tTempFile & ":" && the result
+         throw "can't read" && tTempFile & ":" && the result
       end if
       read from file tTempFile until end
       put it into tStackData
@@ -635,28 +682,36 @@ private function getPreparedStackAsData pStackFile, pBuildFolder
    return tStackData
 end getPreparedStackAsData
 
+private function q pText
+   return quote & pText & quote
+end q
+
 ----------------------------------------------------------------
 -- File & path helper functions
 ----------------------------------------------------------------
 
--- Map a compiled file's path into an absolute filesystem path.  This
--- is used to cope with running from a git repository working tree.
+/*
+* Map a compiled file's path into an absolute filesystem path.  This
+* is used to cope with running from a git repository working tree.
+*/
 private function mapBinPath pArch, pPath
    if there is a file pPath then
       return pPath
    end if
    
    if revEnvironmentIsInstalled() then
-      -- We're running from an installed version of LiveCode
+      # We're running from an installed version of LiveCode
       return getRuntimeFolder(pArch) & slash & pPath
    else
-      -- We're running from a git checkout
+      # We're running from a git checkout
       return getRepoBinariesFolder(pArch) & slash & pPath
    end if
 end mapBinPath
 
+/*
 -- Map a resource file's path into an absolute filesystem path.  This
 -- is used to cope with running from a git repository working tree.
+*/
 private function mapResPath pArch, pPath
    if there is a file pPath then
       return pPath
@@ -669,8 +724,10 @@ private function mapResPath pArch, pPath
    end if
 end mapResPath
 
+/*
 -- Scan a directory, returning a number-indexed array of files found.
 -- The returned paths are relative to the specified directory.
+*/
 private function scanFolder pFolder
    local tTemplateRoot, tFiles, tCount, tError
    
@@ -697,7 +754,9 @@ private function scanFolder pFolder
    return tFiles
 end scanFolder
 
--- Recursive function used by scanFolder()
+/*
+* Recursive function used by scanFolder()
+*/
 private command scanFolder_recurse @xCount, @xFiles, pRelPath
    local tFile, tFilepath, tSaveFolder
 
@@ -733,102 +792,121 @@ private command scanFolder_recurse @xCount, @xFiles, pRelPath
    set the defaultFolder to tSaveFolder
 end scanFolder_recurse
 
-function revGetEmscriptenFiles pArch
-   return getEngineFiles(pArch)
-end revGetEmscriptenFiles
-
--- Return a number-indexed array of engine files that need to be
--- copied into the standalone output folder.
+/*
+* Return a number-indexed array of engine files that need to be
+* copied into the standalone output folder.
+*  pArch : js or wasm
+* the version = 9.9.9.
+* If this changes then it will have to be changed in both
+* standalone-<version>.js and standalone-<version>.html.mem using
+*  sed '/9.9.9/newversion/' filename > newfilename
+*/
 private function getEngineFiles pArch
    local tFilesArray
    
    switch pArch
       case "js"
-         -- Engine JavaScript
-         //         put mapBinPath("js", "standalone-" & the version & ".js") \
-         //            into tFilesArray["standalone-" & the version & ".js"]
-         put mapBinPath("js", "standalone.js") \
+         -- HTML5 engine JavaScript
+         put mapBinPath("js", "standalone-"&the version&".js") \
                into tFilesArray["standalone.js"]
          
-         -- Memory initialisation file
-         //         put mapBinPath("js", "standalone-" & the version & ".html.mem") \
-         //            into tFilesArray["standalone-" & the version & ".html.mem"]
-         put mapBinPath("js", "standalone.html.mem") \
-               into tFilesArray["standalone.html.mem"]
+         -- HTML5 memory initialisation file
+         put mapBinPath("js", "standalone-"&the version&".html.mem") \
+               into tFilesArray["standalone-"&the version&".html.mem"]
+         -- ICU data
+         put mapCommonPath("icudt63l.dat") into tFilesArray["icudt63l.dat"]
+         --put mapCommonPath("icudata-minimal.dat") into tFilesArray["icudata-minimal.dat"]
+         --put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
+         --put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
+         --put mapCommonPath("icu-coll.dat") into tFilesArray["icu-coll.dat"]
          break
       case "wasm"
       default
-         -- Engine JavaScript
+         -- WASM engine JavaScript
          put mapBinPath("wasm", "standalone.js") \
                into tFilesArray["standalone.js"]
-         -- Engine WebAssembly binary
+         -- WASM engine WebAssembly binary
          put mapBinPath("wasm", "standalone.wasm") \
                into tFilesArray["standalone.wasm"]
+         -- ICU data
+         put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
+         put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
+         put mapCommonPath("icu-coll.dat") into tFilesArray["icu-coll.dat"]
          break
    end switch
-   
-   -- ICU data
-   put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
-   put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
-   put mapCommonPath("icu-coll.dat") into tFilesArray["icu-coll.dat"]
    
    return tFilesArray
 end getEngineFiles
 
+/*
+* mapCommonPath
+*/
 private function mapCommonPath pDatFile
    set the itemdelimiter to slash
    return slash & (item 2 to -2 of the address) & "/Runtime/Common/" & pDatFile
 end mapCommonPath
 
+/*
+* mapEmscriptenPath
+*  pArch : js or wasm
+*/
 private function mapEmscriptenPath pArch
    set the itemdelimiter to slash
    return slash & (item 2 to -2 of the address) & "/Runtime/Emscripten/" & pArch
 end mapEmscriptenPath
 
--- Get the filename of the Emscripten standalone template folder.
--- This is a folder that contains the default filesystem
--- initialisation data that's automatically included in all
--- standalones (especially fonts).
-# HTML5 only
-private function getStandaloneTemplateFolder
-   return mapResPath("emscripten-standalone-template")
+/*
+* Get the filename of the Emscripten standalone template folder.
+* This is a folder that contains the default filesystem
+* initialisation data that's automatically included in all
+* standalones (especially fonts).
+* HTML5 only
+*  pArch : js or wasm
+*/
+private function getStandaloneTemplateFolder pArch
+   return mapResPath(pArch, "emscripten-standalone-template")
 end getStandaloneTemplateFolder
 
--- Return a number-indexed array of files in the Emscripten standalone
--- template folder.  The paths returned are relative to the path returned
--- by getStandaloneTemplateFolder()
+/*
+* Return a number-indexed array of files in the Emscripten standalone
+* template folder.  The paths returned are relative to the path returned
+* by getStandaloneTemplateFolder()
 # HTML5 only
-private function getStandaloneTemplateFiles
-   return scanFolder(getStandaloneTemplateFolder())
-end getStandaloneTemplateFiles
+*/
+private function HTML5.StandaloneTemplateFiles
+   return scanFolder(getStandaloneTemplateFolder("js"))
+end HTML5.StandaloneTemplateFiles
 
--- Get the filename of the Emscripten standalone template HTML file.
--- This has some standalone-dependent JavaScript substituted into it
--- to instantiate the engine.
+/*
+* Get the filename of the Emscripten standalone template HTML file.
+* This has some standalone-dependent JavaScript substituted into it to instantiate the engine.
+*/
 private function getHtmlTemplateFile pArch
-   --return mapBinPath("standalone-" & getEngineType() & "-" & the version & ".html")
    return mapBinPath(pArch, "standalone.html")
 end getHtmlTemplateFile
 
--- Get the filename of the Emscripten standalone startup script-only
--- stack template.
+/*
+* Get the filename of the Emscripten standalone startup script-only stack template.
+*/
 private function getStartupTemplateFile pArch
    return mapResPath(pArch, "emscripten-startup-template.livecodescript")
 end getStartupTemplateFile
 
--- Get the directory containing the Emscripten runtime
+/*
+* Get the directory containing the Emscripten runtime
+*/
 private function getRuntimeFolder pArch
    
    local tRelFolder, tOverridePath, tUserPath
    
-	switch pArch
-		case "wasm"
-		case "js"
-			break
-		default
-			throw "pArch should be js or wasm but is" && pArch
-	end switch
-
+   switch pArch
+      case "wasm"
+      case "js"
+         break
+      default
+         throw param(0) && "pArch should be js or wasm but is" && pArch
+   end switch
+   
    put slash & "Emscripten" & slash & pArch into tRelFolder
    
    put revOverrideRuntimePath() into tOverridePath
@@ -850,23 +928,21 @@ private function getRuntimeFolder pArch
    return revEnvironmentRuntimePath() & tRelFolder
 end getRuntimeFolder
 
--- Get the directory where Emscripten binaries end up (specifically,
--- the engine's JavaScript file).
--- Get the directory where Emscripten development binaries and resources are installed to.
+/*
+* Get the directory where Emscripten binaries end up (specifically,
+* the engine's JavaScript file).
+* Get the directory where Emscripten development binaries and resources are installed to.
+*/
 private function getRepoBinariesFolder pArch
    if pArch is not among the items of "wasm,js" then
-      throw "pArch should be wasm or js but is" && pArch
+      throw the executioncontexts &cr& "pArch should be wasm or js but is" && pArch
    end if
    return mapEmscriptenPath(pArch)
 end getRepoBinariesFolder
 
--- Get the directory where Emscripten resources are kept
---private function getRepoResourceFolder
---return revEnvironmentRepositoryPath() & slash & "engine" & slash & "rsrc"
---end getRepoResourceFolder
-
--- Get a temporary filename in <pBuildFolder> with the extension
--- <pExtension>
+/*
+* Get a temporary filename in <pBuildFolder> with the extension <pExtension>
+*/
 private function getTemporaryBuildFile pBuildFolder pExtension
    local tFile
    repeat forever
@@ -877,29 +953,3 @@ private function getTemporaryBuildFile pBuildFolder pExtension
    end repeat
    return tFile
 end getTemporaryBuildFile
-
-----------------------------------------------------------------
--- Other utility functions
-----------------------------------------------------------------
-
--- Check if the license permits HTML5 deployment
---private function isPermittedDeployment?
-	--return true
---end isPermittedDeployment?
-
---private function isCommercialDeployment?
-   --if revLicenseType() is "community" then
-      --return false
-   --else
-      --return true
-   --end if
---end isCommercialDeployment?
-
--- Get the engine type string ("commercial" or "community")
---private function getEngineType
-   --if isCommercialDeployment?() then
-      --return "commercial"
-   --else
-      --return "community"
-   --end if
---end getEngineType
