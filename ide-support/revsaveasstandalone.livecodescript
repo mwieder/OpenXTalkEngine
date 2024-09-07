@@ -20,20 +20,20 @@
 #
 #####################################################################
 
-private function revListFolders pPath
-   local tOldFolder, tFolders
-   
-   put the folder into tOldFolder
-   
-   set the folder to pPath
-   put the folders into tFolders
-   set the folder to tOldFolder
-   
-   filter tFolders without "[.][.]" -- filter out ".." folder
-   return tFolders
-end revListFolders
+--private function listFolders pPath
+--   local tOldFolder, tFolders
 
-private function revListFiles pPath
+--   put the folder into tOldFolder
+
+--   set the folder to pPath
+--   put the folders into tFolders
+--   set the folder to tOldFolder
+
+--   filter tFolders without "[.][.]" -- filter out ".." folder
+--   return tFolders
+--end listFolders
+
+private function listFiles pPath
    local tOldFolder, tFiles
    
    put the folder into tOldFolder
@@ -43,7 +43,7 @@ private function revListFiles pPath
    set the folder to tOldFolder
    
    return tFiles   
-end revListFiles
+end listFiles
 
 local sPlatformDirectoriesA       -- the list of desktop build directories
 local sResetA               -- stored info for resetting to the pre-build state
@@ -60,11 +60,11 @@ local sUserScriptLibraries
 constant kVersionFlds = "Comments,CompanyName,FileDescription,FileVersion,InternalName,LegalCopyright,LegalTrademarks,OriginalFilename,PrivateBuild,ProductName,ProductVersion,SpecialBuild"
 
 # AL-2015-01-29: [[ Scriptify revSaveAsStandalone ]] Initialise script locals here to replace custom props of stack
-local sWindowsMaxLengthsA
+--local sWindowsMaxLengthsA
 
-function getWindowsMaxLength pField
-   return sWindowsMaxLengthsA[pField]
-end getWindowsMaxLength
+--function getWindowsMaxLength pField
+--   return sWindowsMaxLengthsA[pField]
+--end getWindowsMaxLength
 
 #####################################################################
 # Main public API for the Standalone Application Builder
@@ -123,142 +123,149 @@ private function getBuildFolder pStack, pFolder, pSettings
    return tFolder
 end getBuildFolder
 
+/*
+* revSaveAsStandalone
+* This is the only public handler in this script.
+*  pStack
+*  pFolder
+*  pPreview
+*  pSuppressSuccessMsg
+*/
 on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
    global gREVStackStatus
    
-try
-   if pStack = empty then
-      put the short name of the topStack into pStack
-   end if
-   
-   if the fileName of stack pStack = empty then
-      put "edited" into gREVStackStatus[pStack]
-   end if
-   
-   # OK-2008-03-13 : Bug 5874. Do a complete check to see if the stack needs to be saved here
-   # so we can remove the later check from revCloseOpenStacks.
-   local tEdited
-   put false into tEdited
-   
-   # Find out if the stack or any substack has been edited
-   if gREVStackStatus[the short name of stack pStack] is "edited" then
-      put true into tEdited
-   else
-      local tSubstacks
-      put the substacks of stack pStack into tSubstacks
-      repeat for each line tSubstack in tSubstacks
-         if gREVStackStatus[the short name of stack tSubstack] is "edited" then
-            put true into tEdited
-         end if
-      end repeat
-   end if
-   
-   local tSettings
-   put revSBGetSettings(pStack) into tSettings
-   
-   -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all mac builds to now be Intel.
-   if tSettings["MacOSX"] then
-      delete variable tSettings["MacOSX"]
-      put true into tSettings["MacOSX x86-64"]
-      put true into tEdited
-   end if
-   if tSettings["MacOSX PowerPC-32"] then
-      delete variable tSettings["MacOSX PowerPC-32"]
-      put true into tSettings["MacOSX x86-64"]
-      put true into tEdited
-   end if
-   if tSettings["MacOSX x86-32"] then
-      delete variable tSettings["MacOSX x86-32"]
-      put true into tSettings["MacOSX x86-64"]
-      put true into tEdited
-   end if
-   
-   -- Make sure there is actually something to build..
-   if revSBNoPlatforms?(tSettings) then
-      local tMessage
-      put "You have not selected any platforms to build for. Please do so using Standalone Settings." into tMessage
-      if revSBSuppressDialogs() then
-         return tMessage
-      else
-         answer error tMessage
-      end if
-      exit revSaveAsStandalone
-   end if
-   
-   # OK-2010-03-31: Ensure that the standalone name doesn't contain stuff that is not allowed in folder names,
-   # otherwise this could cause problems. In particular a return char at the end of the name causes the cleanup
-   # routines to try and delete the parent folder, which can result in data loss. The data loss potential has also
-   # been eliminated at a lower level by redirecting all calls to revDeleteFolder through a wrapper, which checks that
-   # the folder is safe to delete using some rather strict tests. This may result in ocassional problems with cleanup not
-   # working.
-   if folderNameIsIllegal?(tSettings["name"]) then
-      put folderNameMakeLegal(tSettings["name"]) into tSettings["name"]
-      put true into tEdited
-      revStandaloneAddWarning "Standalone name was changed because it contained illegal characters"
-   end if
-   
-   # OK-2009-05-22 : Added ability to remember default folder. We now do the folder check before saving the stack,
-   # so that if the user chose a different folder, it can be remembered for next time.
-   local tFolder
-   put getBuildFolder(pStack, pFolder, tSettings) into tFolder
-   if tFolder is empty then
-      exit to top
-   end if
-   
-   # If the folder was changed, then we flag the stack as edited so it gets remembered
-   if tSettings["defaultBuildFolder"] is not tFolder then
-      put tFolder into tSettings["defaultBuildFolder"]
-      put true into tEdited
-   end if
-   
-   put tFolder into pFolder
-   
-   # If any have been edited, force the save dialog by setting edited on the mainstack
-   if tEdited then
-      revIDESetEdited pStack
-      revSBSetSettings pStack, tSettings
-   end if
-   
-   local tError
-   # Do the check and continue building as normal.
-   if revSaveCheck(pStack) then
-      local tStandalonePaths
-      revDoSaveAsStandalone pStack, pFolder, ,tStandalonePaths
-      put the result into tError
-   else
-      answer warning "Saving as standalone application was canceled" 
-      exit revSaveAsStandalone
-   end if
-   
-   if revStandaloneGetWarnings() is not empty and tError is empty then
-      if not revSBSuppressDialogs() then
-         set the cWarnings of stack "revBuildResults" \
-            to revStandaloneGetWarnings()
-      end if
-   else
-      if not revSBSuppressDialogs() and pSuppressSuccessMsg is not true and tError is empty then
-         answer information "Standalone application saved successfully."
+   try
+      if pStack = empty then
+         put the short name of the topStack into pStack
       end if
       
-      if pPreview is not "false" and sStubPath is not empty then
-         launch document sStubPath
+      if the fileName of stack pStack = empty then
+         put "edited" into gREVStackStatus[pStack]
       end if
-   end if
-catch e
-put e & cr after msg
-finally
-   return tError
-end try
+      
+      # OK-2008-03-13 : Bug 5874. Do a complete check to see if the stack needs to be saved here
+      # so we can remove the later check from closeOpenStacks.
+      local tEdited
+      put false into tEdited
+      
+      # Find out if the stack or any substack has been edited
+      if gREVStackStatus[the short name of stack pStack] is "edited" then
+         put true into tEdited
+      else
+         local tSubstacks
+         put the substacks of stack pStack into tSubstacks
+         repeat for each line tSubstack in tSubstacks
+            if gREVStackStatus[the short name of stack tSubstack] is "edited" then
+               put true into tEdited
+            end if
+         end repeat
+      end if
+      
+      local tSettings
+      put revSBGetSettings(pStack) into tSettings
+      
+      -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all mac builds to now be Intel.
+      if tSettings["MacOSX"] then
+         delete variable tSettings["MacOSX"]
+         put true into tSettings["MacOSX x86-64"]
+         put true into tEdited
+      end if
+      if tSettings["MacOSX PowerPC-32"] then
+         delete variable tSettings["MacOSX PowerPC-32"]
+         put true into tSettings["MacOSX x86-64"]
+         put true into tEdited
+      end if
+      if tSettings["MacOSX x86-32"] then
+         delete variable tSettings["MacOSX x86-32"]
+         put true into tSettings["MacOSX x86-64"]
+         put true into tEdited
+      end if
+      
+      -- Make sure there is actually something to build..
+      if revSBNoPlatforms?(tSettings) then
+         local tMessage
+         put "You have not selected any platforms to build for. Please do so using Standalone Settings." into tMessage
+         if revSBSuppressDialogs() then
+            return tMessage
+         else
+            answer error tMessage
+         end if
+         exit revSaveAsStandalone
+      end if
+      
+      # OK-2010-03-31: Ensure that the standalone name doesn't contain stuff that is not allowed in folder names,
+      # otherwise this could cause problems. In particular a return char at the end of the name causes the cleanup
+      # routines to try and delete the parent folder, which can result in data loss. The data loss potential has also
+      # been eliminated at a lower level by redirecting all calls to revDeleteFolder through a wrapper, which checks that
+      # the folder is safe to delete using some rather strict tests. This may result in ocassional problems with cleanup not
+      # working.
+      if folderNameIsIllegal?(tSettings["name"]) then
+         put folderNameMakeLegal(tSettings["name"]) into tSettings["name"]
+         put true into tEdited
+         revStandaloneAddWarning "Standalone name was changed because it contained illegal characters"
+      end if
+      
+      # OK-2009-05-22 : Added ability to remember default folder. We now do the folder check before saving the stack,
+      # so that if the user chose a different folder, it can be remembered for next time.
+      local tFolder
+      put getBuildFolder(pStack, pFolder, tSettings) into tFolder
+      if tFolder is empty then
+         exit to top
+      end if
+      
+      # If the folder was changed, then we flag the stack as edited so it gets remembered
+      if tSettings["defaultBuildFolder"] is not tFolder then
+         put tFolder into tSettings["defaultBuildFolder"]
+         put true into tEdited
+      end if
+      
+      put tFolder into pFolder
+      
+      # If any have been edited, force the save dialog by setting edited on the mainstack
+      if tEdited then
+         revIDESetEdited pStack
+         revSBSetSettings pStack, tSettings
+      end if
+      
+      local tError
+      # Do the check and continue building as normal.
+      if revSaveCheck(pStack) then
+         local tStandalonePaths
+         doSaveAsStandalone pStack, pFolder, ,tStandalonePaths
+         put the result into tError
+      else
+         answer warning "Saving as standalone application was canceled" 
+         exit revSaveAsStandalone
+      end if
+      
+      if revStandaloneGetWarnings() is not empty and tError is empty then
+         --         if not revSBSuppressDialogs() then
+         --            set the cWarnings of stack "revBuildResults" \
+         --                  to revStandaloneGetWarnings()
+         --         end if
+      else
+         if not revSBSuppressDialogs() and pSuppressSuccessMsg is not true and tError is empty then
+            answer information "Standalone application saved successfully."
+         end if
+         
+         if pPreview is not "false" and sStubPath is not empty then
+            launch document sStubPath
+         end if
+      end if
+   catch e
+      put e & cr after msg
+   finally
+      return tError
+   end try
 end revSaveAsStandalone
 
-command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
+private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    # OK-2007-12-18 : Bug 3612  Changed sGenericNumber from 1 to 0.
    put 0 into sGenericNumber
    lock cursor
    set cursor to watch
    
    put empty into sUserScriptLibraries
-   
    put empty into sStubPath
    
    put the directory into sResetA["Directory"]
@@ -272,7 +279,6 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    
    put the mainStack of stack pStack into pStack
    set the defaultStack to pStack
-   
    revStandaloneResetWarnings
    
    local tError, tStandaloneFolder
@@ -280,21 +286,21 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    revStandaloneProgress "Preparing to build standalone..."
    
    -- pre build message
-   local tHasDesktop?
+   local tHasDesktopTarget?
    repeat for each item tTarget in revSBDesktopTargets()
       if sStandaloneSettingsA[tTarget] then
-         put true into tHasDesktop?
+         put true into tHasDesktopTarget?
          exit repeat
       end if
    end repeat
    
    local tStackFileName, tRestoreFileName
-   if tHasDesktop? then
+   if tHasDesktopTarget? then
       put the effective filename of stack pStack into tStackFileName
       if the mode of stack pStack > 0 then
          put the long name of stack pStack & return after sResetA["Reopen"]
       end if
-      __SendSavingStandaloneMessage pStack
+      issueSavingStandaloneMessage pStack
       
       --Save copy of stack in its post-savingStandalone message state
       __SaveCopyOfStackInTemporaryLocation pStack, tRestoreFileName
@@ -303,7 +309,7 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    try
       -- Create an appropriate output dir
       local tOutputFolder
-      revOutputDirectories pFolder & slash
+      outputBuildDirectories pFolder & slash
       put the result into tOutputFolder
       if there is no folder tOutputFolder then
          create folder tOutputFolder
@@ -321,7 +327,7 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
       end repeat
       
       -- If we're searching for inclusions, do it here 
-      revSearchForInclusions pStack, sStandaloneSettingsA
+      searchForInclusions pStack, sStandaloneSettingsA
       
       -- keep a copy of the standalone settings to restore after each build
       local tStandaloneSettingsA
@@ -348,12 +354,12 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
                   next repeat
                end if
                put tTargetFolder & slash & sStandaloneSettingsA["name"] & ".app" into xStandalonePaths[tPlatform]
-               dispatch "revSaveAsMobileStandalone" to stack "revSaveAsIOSStandalone" with \
+               dispatch "saveAsMobileStandalone" to stack "revSaveAsIOSStandalone" with \
                      pStack, xStandalonePaths[tPlatform], "Device", sStandaloneSettingsA
                break
             case "Android"
                put tTargetFolder & slash & sStandaloneSettingsA["name"] & ".aab" into xStandalonePaths[tPlatform]
-               dispatch "revSaveAsMobileStandalone" to stack "revSaveAsAndroidStandalone" with \
+               dispatch "saveAsMobileStandalone" to stack "revSaveAsAndroidStandalone" with \
                      pStack, xStandalonePaths[tPlatform], "Build", sStandaloneSettingsA, xStandalonePaths
                break
             case "EmscriptenHTML5"
@@ -367,25 +373,25 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
                      pStack, xStandalonePaths[tPlatform], sStandaloneSettingsA, xStandalonePaths
                break
             case "MacOSX"
-               revSaveAsMacStandalone pStack, tRestoreFileName, tTargetFolder, xStandalonePaths
+               saveAsStandalone.Mac pStack, tRestoreFileName, tTargetFolder, xStandalonePaths
                break
             case "Windows"
-               revSaveAsWindowsStandalone pStack, tRestoreFileName, tTargetFolder, xStandalonePaths
+               saveAsStandalone.Windows pStack, tRestoreFileName, tTargetFolder, xStandalonePaths
                break
             case "Linux"
-               revSaveAsLinuxStandalone pStack, tRestoreFileName, tTargetFolder, xStandalonePaths
+               saveAsStandalone.Linux pStack, tRestoreFileName, tTargetFolder, xStandalonePaths
                break
          end switch
       end repeat
       
       -- post build message
-      if tHasDesktop? then
+      if tHasDesktopTarget? then
          __ReloadOriginalStackFile tStackFileName, pStack
-         __SendStandaloneSavedMessage pStack, tOutputFolder
+         issueStandaloneSavedMessage pStack, tOutputFolder
       end if
       
    catch tError
-      revAbort
+      abortBuild
       if word 1 of tError = "Standalone:" then 
          put word 2 to -1 of tError into tError
          if not revSBSuppressDialogs() then
@@ -399,24 +405,25 @@ command revDoSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
       return tError
    end try
    
-   revReset
+   buildReset
    
    return empty
-end revDoSaveAsStandalone
+end doSaveAsStandalone
 
-private function folderNameIllegalChars
-   return revFolderNameIllegalChars()
-end folderNameIllegalChars
+# these are in revSBLibrary
+--private function folderNameIllegalChars
+--   return revFolderNameIllegalChars()
+--end folderNameIllegalChars
 
-private function folderNameIsIllegal? pName
-   return revFolderNameIsIllegal(pName)
-end folderNameIsIllegal?
+--private function folderNameIsIllegal? pName
+--   return folderNameIsIllegal?(pName)
+--end folderNameIsIllegal?
 
-private function folderNameMakeLegal pName
-   return revFolderNameMakeLegal(pName)
-end folderNameMakeLegal
+--private function folderNameMakeLegal pName
+--   return revFolderNameMakeLegal(pName)
+--end folderNameMakeLegal
 
-private function revStandalonePlatformDetails pTarget
+private function standalonePlatformDetails pTarget
    local tPlatform
    put revSBTargetToPlatform(pTarget) into tPlatform
    
@@ -425,13 +432,13 @@ private function revStandalonePlatformDetails pTarget
    --  and Support contains support libraries (revpdfprinter and revsecurity):
    --  they should have their own keys in the details array.
    local tArchFolder
-	local tDetailBits
-	# TODO: still build for 32-bit?
+   local tDetailBits
+   # TODO: still build for 32-bit?
    switch tPlatform
       case "MacOSX"
          -- MM-2014-03-21: [[ PPC Support Dropped ]] We now only support intel Mac builds. Assume all mac builds to be intel.
          -- MW-2013-06-13: [[ CloneAndRun ]] If not installated type, then take from the binaries folder.
-			put "64" into tDetailBits
+         put "64" into tDetailBits
          put "Mac OS X/x86-" & tDetailBits into tArchFolder
          put ".bundle" into tDetailsA["loadable_extension"]
          put ".dylib" into tDetailsA["shared_extension"]
@@ -440,27 +447,27 @@ private function revStandalonePlatformDetails pTarget
          break
       case "Windows"
          if pTarget is "Windows" then
-			put "32" into tDetailBits
+            put "32" into tDetailBits
             --put "Windows/x86-32" into tArchFolder
             --put "x86-32" into tDetailsA["architecture"]
          else if pTarget is "Windows x86-64" then
-			put "64" into tDetailBits
+            put "64" into tDetailBits
             --put "Windows/x86-64" into tArchFolder
             --put "x86-64" into tDetailsA["architecture"]
          end if
-            put "Windows/x86-" & tDetailBits into tArchFolder
-            put "x86-" & tDetailBits into tDetailsA["architecture"]
+         put "Windows/x86-" & tDetailBits into tArchFolder
+         put "x86-" & tDetailBits into tDetailsA["architecture"]
          put ".dll" into tDetailsA["loadable_extension"]
          put "Windows" into tDetailsA["platform"]
          break
       case "Linux"
          if pTarget is "Linux" then
-			put "32" into tDetailBits
+            put "32" into tDetailBits
             put "Linux/x86-" & tDetailBits into tArchFolder
             put "x86-" & tDetailBits into tDetailsA["architecture"]
          else if pTarget is "Linux x64" then
             -- MW-2013-11-06: [[ LinuxX64 ]] Compute the correct path for 64-bit linux.
-			put "64" into tDetailBits
+            put "64" into tDetailBits
             put "Linux/x86-" & tDetailBits into tArchFolder
             put "x86-" & tDetailBits into tDetailsA["architecture"]
          else -- if pPlatform is "Linux armv6-hf" then
@@ -486,7 +493,7 @@ private function revStandalonePlatformDetails pTarget
       put revEnvironmentBinariesPath() into tDetailsA["support_folder"]
    end if
    return tDetailsA
-end revStandalonePlatformDetails
+end standalonePlatformDetails
 
 # imported from LC-10.rc1
 private function getIcuBundleNames
@@ -510,14 +517,14 @@ end mapCommonPath
 # Main use-case controller for the Standalone Application Builder
 #####################################################################
 
-command revSearchForInclusions pStack, @xSettings
+private command searchForInclusions pStack, @xSettings
    if not xSettings["searchedForInclusions"] then
       revSBSearchForInclusions pStack, xSettings
       put true into xSettings["searchedForInclusions"]
    end if
-end revSearchForInclusions
+end searchForInclusions
 
-private command revStandalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackName, @rStackFileList
+private command standalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackName, @rStackFileList
    revStandaloneProgress "Loading settings..."
    
    -- Make sure all dependencies are included
@@ -554,43 +561,43 @@ private command revStandalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStac
    revSBRelativeStackFilesList pStack, tStackFileList
    
    -- close the open stacks (ask to save if need be)
-   revCloseOpenStacks tStackFileList, pStack
+   closeOpenStacks tStackFileList, pStack
    
    set the defaultStack to the short name of stack tStackFileName
    
    put tStackName into rStackName
    put tStackFileList into rStackFileList
-end revStandalonePreBuild
+end standalonePreBuild
 
-private command revStandalonePostBuild pStack, pFolder
-end revStandalonePostBuild
+private command standalonePostBuild pStack, pFolder
+end standalonePostBuild
 
-private command revStandaloneCopyInclusions pStack, pStackFileList, pStackSourceFile, \ 
+private command standaloneCopyInclusions pStack, pStackFileList, pStackSourceFile, \ 
       pTarget, pDirectory, pStackPath, pStandalonePath, pEngineSourceFile
    -- copy resources (inclusions) to files
-   revCopyResources pStack, pStackFileList, pDirectory
+   copyResources pStack, pStackFileList, pDirectory
    
-   revCopyFiles pTarget, pDirectory, pStackPath
+   copyBuildFiles pTarget, pDirectory, pStackPath
    
    -- copy database drivers
-   revCopyDatabaseDrivers pTarget, pStackSourceFile, pStandalonePath, pEngineSourceFile
+   copyDatabaseDrivers pTarget, pStackSourceFile, pStandalonePath, pEngineSourceFile
    -- copy externals
-   revCopyExternals pTarget, pStackSourceFile, pEngineSourceFile, pStandalonePath
+   copyExternals pTarget, pStackSourceFile, pEngineSourceFile, pStandalonePath
    
    // IM-2015-10-14: [[ BrowserWidget ]] Copy CEF files needed for the browser widget.
    // IM-2014-03-20: [[ revBrowserCEF ]] Ensure CEF support files are copied if requested
    local tRevBrowser, tLibBrowser
    put "Browser (CEF)" is among the lines of sStandaloneSettingsA["scriptLibraries"] into tRevBrowser
    put "com.livecode.widget.browser" is among the lines of sStandaloneSettingsA["extensions"] into tLibBrowser
-   revCopyCEFResources pTarget, pStandalonePath, tRevBrowser, tLibBrowser
-end revStandaloneCopyInclusions
+   copyCEFResources pTarget, pStandalonePath, tRevBrowser, tLibBrowser
+end standaloneCopyInclusions
 
 local sLastUsedSettingsA
-function revStandaloneLastUsedSettings
-   return sLastUsedSettingsA
-end revStandaloneLastUsedSettings
+--function revStandaloneLastUsedSettings
+--   return sLastUsedSettingsA
+--end revStandaloneLastUsedSettings
 
-private function revStandaloneInitialDeployParams pTarget, pStackSourceFile, pStandalonePath, pEngineSourceFile
+private function standaloneInitialDeployParams pTarget, pStackSourceFile, pStandalonePath, pEngineSourceFile
    -- This array contains the parameters for the deploy command
    local tDeployInfo
    
@@ -609,11 +616,11 @@ private function revStandaloneInitialDeployParams pTarget, pStackSourceFile, pSt
    -- PM-2015-12-07: [[ Bug 15706 ]] Put double quotes around the stack name to avoid confusing the 
    -- parser when the stack name is 'copy of ...'
    repeat for each line tLine in sUserScriptLibraries
-      put return & "if there is a stack" && quote & tLine & quote && "then library" && quote & tLine & quote after tDeployInfo["startup_script"]
+      put cr & "if there is a stack" && q(tLine) && "then library" && q(tLine) after tDeployInfo["startup_script"]
    end repeat
    
    return tDeployInfo
-end revStandaloneInitialDeployParams
+end standaloneInitialDeployParams
 
 private command __SaveCopyOfStackInTemporaryLocation pStack, @rLocation
    local tFilename, tTemp
@@ -631,22 +638,22 @@ private command __RestoreStackFromTemporaryLocation pStack, pLocation, pOriginal
    set the filename of stack pStack to pOriginalFileName
 end __RestoreStackFromTemporaryLocation
 
-private command  __SendSavingStandaloneMessage pStack
+private command issueSavingStandaloneMessage pStack
    try
       dispatch "savingStandalone" to stack pStack
    end try
-end __SendSavingStandaloneMessage
+end issueSavingStandaloneMessage
 
-private command __SendStandaloneSavedMessage pStack, pFolder
+private command issueStandaloneSavedMessage pStack, pFolder
    if char -1 of pFolder is not slash then
       put slash after pFolder
    end if
    try
       dispatch "standaloneSaved" to stack pStack with pFolder
    end try
-end __SendStandaloneSavedMessage
+end issueStandaloneSavedMessage
 
-command revSaveAsMacStandalone pStack, pRestoreFileName, pFolder, @xStandalonePaths
+private command saveAsStandalone.Mac pStack, pRestoreFileName, pFolder, @xStandalonePaths
    local tStackFileList, tEngineSourceFile, tCount, tStackName, tStandalonePath
    local tDirectory, tStackSourceFile, tName, tOriginalFileName, tStackPath
    local tTargetDir
@@ -686,9 +693,9 @@ command revSaveAsMacStandalone pStack, pRestoreFileName, pFolder, @xStandalonePa
    -- Architectures
    local tArchitectures
    if sStandaloneSettingsA["MacOSX x86-64"] then put "x86-64," after tArchitectures
-
+   
    /* Building for arm64 is not supported on macOS < 10.13 as codesign does 
-    * not have the required support for the arm64 slice. */
+   * not have the required support for the arm64 slice. */
    set the itemDelimiter to "."
    if sStandaloneSettingsA["MacOSX arm64"] and item 1 to 2 of the systemVersion > 10.12 then 
       put "arm64," after tArchitectures
@@ -707,7 +714,7 @@ command revSaveAsMacStandalone pStack, pRestoreFileName, pFolder, @xStandalonePa
       -- Ensure standalone settings script local is reset when building for subsequent targets
       put tStandaloneSettingsA into sStandaloneSettingsA
       
-      revStandalonePreBuild pStack, pFolder, "macosx", tArchitectures, tStackName, tStackFileList
+      standalonePreBuild pStack, pFolder, "macosx", tArchitectures, tStackName, tStackFileList
       if the result is not empty then 
          return the result
       end if
@@ -733,11 +740,11 @@ command revSaveAsMacStandalone pStack, pRestoreFileName, pFolder, @xStandalonePa
       
       put tDirectory & tStackName into tStackSourceFile
       
-      revStandaloneCopyInclusions pStack, tStackFileList, tStackSourceFile, \ 
+      standaloneCopyInclusions pStack, tStackFileList, tStackSourceFile, \ 
             tTarget, tDirectory, tStackPath, tStandalonePath, tEngineSourceFile
       
       local tDeployInfo
-      put revStandaloneInitialDeployParams(tTarget, tStackSourceFile, \ 
+      put standaloneInitialDeployParams(tTarget, tStackSourceFile, \ 
             tStandalonePath, tEngineSourceFile) into tDeployInfo
       
       put tArchitectures into tDeployInfo["architectures"]
@@ -753,12 +760,12 @@ command revSaveAsMacStandalone pStack, pRestoreFileName, pFolder, @xStandalonePa
       -- Add a random uuid to use in the executable's uuid load command.
       put uuid() into tDeployInfo["uuid"]
       
-      revStandaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
+      standaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
       
       -- Make sure we finish off the bundle contents
-      revSetMacOS tStandalonePath, tTarget, tEngineSourceFile
+      setMacOS tStandalonePath, tTarget, tEngineSourceFile
       
-      revRedirectMacOSResources tStandalonePath
+      redirectMacOSResources tStandalonePath
       
       --Restore stack to its post-savingStandalone message state
       __RestoreStackFromTemporaryLocation pStack, pRestoreFileName, tOriginalFileName
@@ -773,18 +780,18 @@ command revSaveAsMacStandalone pStack, pRestoreFileName, pFolder, @xStandalonePa
       performAdHocCodesign tAppBundle
    end if
    
-   revStandalonePostBuild pStack, pFolder
+   standalonePostBuild pStack, pFolder
    
    return empty
-end revSaveAsMacStandalone
+end saveAsStandalone.Mac
 
 private command performAdHocCodesign pAppBundle
    local tShell, tEntitlementsFile
    put getPathToEntitlementsFile() into tEntitlementsFile
    put "codesign --deep --entitlements" && \
-         quote & tEntitlementsFile & quote && \
+         q(tEntitlementsFile) && \
          "-f -s -" && \
-         quote & pAppBundle & quote into tShell
+         q(pAppBundle) into tShell
    get shell(tShell)
    if the result is not zero then
       throw "Adding ad-hoc signature failed with error:" && it
@@ -802,29 +809,25 @@ private function getPathToEntitlementsFile
    end if
    return tEntitlementsFilePath
 end getPathToEntitlementsFile
-   
+
 private command clearExtendedAttributes pAppBundle
    local tShell
    -- make sure you have permission to clear extended attributes from bundle files
-   put "chmod -R u+w" && quote & pAppBundle & quote into tShell
+   put "chmod -R u+w" && q(pAppBundle) into tShell
    get shell(tShell)
    if the result is not zero then
       throw "Setting permissions failed with error:" && it
    end if
    
-   put "xattr -cr" && quote & pAppBundle & quote into tShell
+   put "xattr -cr" && q(pAppBundle) into tShell
    get shell(tShell)
    if the result is not zero then
       throw "Clearing extended attributes failed with error:" && it
    end if
 end clearExtendedAttributes
 
-command revSaveAsWindowsStandalone \
-      pStack, \
-      pRestoreFileName, \
-      pFolder, \
-      @xStandalonePaths
-
+private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xStandalonePaths
+   
    local tOriginalFileName
    put the effective filename of stack pStack into tOriginalFileName
    
@@ -832,10 +835,10 @@ command revSaveAsWindowsStandalone \
    set the itemDelimiter to slash
    put item 1 to -2 of tOriginalFileName into tStackPath
    set the itemDelimiter to comma
-
+   
    local tSampleIconFolder
    put revEnvironmentRuntimePath() & "/Windows/x86-32/Support/Sample Icons" \
-      into tSampleIconFolder
+         into tSampleIconFolder
    
    local tIconFile
    put sStandaloneSettingsA["Windows,iconFile"] into tIconFile
@@ -847,7 +850,7 @@ command revSaveAsWindowsStandalone \
    
    if tIconFile is not empty then
       /* Check if the icon path given is relative to the stack path, and use
-       * that if so */
+      * that if so */
       if there is a file (tStackPath & slash & tIconFile) then
          put tStackPath & slash before tIconFile
       else if there is not a file tIconFile then
@@ -862,7 +865,7 @@ command revSaveAsWindowsStandalone \
       else
          /* Use the icon from 'rsrc' by default if running from source */
          put revEnvironmentRepositoryPath() & "/engine/rsrc/standalone.ico" \
-            into tIconFile
+               into tIconFile
       end if
    end if
    
@@ -878,7 +881,7 @@ command revSaveAsWindowsStandalone \
    
    if tDocIconFile is not empty then
       /* Check if the icon path given is relative to the stack path, and use
-       * that if so */
+      * that if so */
       if there is a file (tStackPath & slash & tDocIconFile) then
          put tStackPath & slash before tDocIconFile
       else if there is not a file tDocIconFile then
@@ -893,7 +896,7 @@ command revSaveAsWindowsStandalone \
       else
          /* Use the icon from 'rsrc' by default if running from source */
          put revEnvironmentRepositoryPath() & "/engine/rsrc/document.ico" \
-            into tDocIconFile
+               into tDocIconFile
       end if
    end if
    
@@ -902,13 +905,13 @@ command revSaveAsWindowsStandalone \
    /* Keep a copy of the standalone settings to restore after each build */
    local tStandaloneSettingsA
    put sStandaloneSettingsA into tStandaloneSettingsA
-
+   
    repeat for each key tTarget in sPlatformDirectoriesA["Windows"]
       local tDirectory
       put sPlatformDirectoriesA["Windows"][tTarget] into tDirectory
       
       /* Ensure standalone settings script local is reset when building for
-       * subsequent targets */
+      * subsequent targets */
       put tStandaloneSettingsA into sStandaloneSettingsA
       
       local tArch, tRuntimeDir
@@ -922,19 +925,19 @@ command revSaveAsWindowsStandalone \
          put "x86" into tArch
          put "x86-32" into tRuntimeDir
       end if
-
+      
       local tStackFileList, tStackName
-      revStandalonePreBuild \
-         pStack, \
-         pFolder, \
-         "windows", \
-         tArch, \
-         tStackName, \
-         tStackFileList
+      standalonePreBuild \
+            pStack, \
+            pFolder, \
+            "windows", \
+            tArch, \
+            tStackName, \
+            tStackFileList
       if the result is not empty then 
          return the result
       end if
-
+      
       local tEngineSourceFile
       put revSBEnginePath(tTarget) into tEngineSourceFile
       
@@ -942,7 +945,7 @@ command revSaveAsWindowsStandalone \
       if revOverrideRuntimePath() is not empty then
          put revOverrideRuntimePath() into tEngineSourceFile
       end if
-
+      
       /* Ensure executable is at the expected location */
       if there is not a file tEngineSourceFile then
          throw "Standalone: Ensure that you have not renamed the main" && \
@@ -951,40 +954,40 @@ command revSaveAsWindowsStandalone \
       
       local tStandalonePath
       put format("%s%s.exe", tDirectory, sStandaloneSettingsA["name"]) \
-         into tStandalonePath
+            into tStandalonePath
       put tStandalonePath into xStandalonePaths[tTarget]
       
       local tStackSourceFile
       put tDirectory & tStackName into tStackSourceFile
       
-      revStandaloneCopyInclusions \
-         pStack, \
-         tStackFileList, \
-         tStackSourceFile, \
-         tTarget, \
-         tDirectory, \
-         tStackPath, \
-         tStandalonePath, \
-         tEngineSourceFile
+      standaloneCopyInclusions \
+            pStack, \
+            tStackFileList, \
+            tStackSourceFile, \
+            tTarget, \
+            tDirectory, \
+            tStackPath, \
+            tStandalonePath, \
+            tEngineSourceFile
       
       local tDeployInfo
-      put revStandaloneInitialDeployParams( \
+      put standaloneInitialDeployParams( \
             tTarget, \
             tStackSourceFile, \ 
             tStandalonePath, \
             tEngineSourceFile) \
-         into tDeployInfo
+            into tDeployInfo
       
       /* Make sure we include the app icon if any */
       if sStandaloneSettingsA["Windows,iconFile"] is not empty then
          put sStandaloneSettingsA["Windows,iconFile"] \
-            into tDeployInfo["appIcon"]
+               into tDeployInfo["appIcon"]
       end if
       
       /* Make sure we include the doc icon if any */
       if sStandaloneSettingsA["Windows,documentIconFile"] is not empty then
          put sStandaloneSettingsA["Windows,documentIconFile"] \
-            into tDeployInfo["docIcon"]
+               into tDeployInfo["docIcon"]
       end if
       
       /* Make sure we use the user's version info data */
@@ -994,7 +997,7 @@ command revSaveAsWindowsStandalone \
             sStandaloneSettingsA["Windows,fileversion2"], \
             sStandaloneSettingsA["Windows,fileversion3"], \
             sStandaloneSettingsA["Windows,fileversion4"]) \
-         into sStandaloneSettingsA["Windows,FileVersion"]
+            into sStandaloneSettingsA["Windows,FileVersion"]
       
       put format( \
             "%s.%s.%s.%s", \
@@ -1002,20 +1005,20 @@ command revSaveAsWindowsStandalone \
             sStandaloneSettingsA["Windows,productversion2"], \
             sStandaloneSettingsA["Windows,productversion3"], \
             sStandaloneSettingsA["Windows,productversion4"]) \
-         into sStandaloneSettingsA["Windows,ProductVersion"]
+            into sStandaloneSettingsA["Windows,ProductVersion"]
       
       repeat for each item tField in kVersionFlds
          put sStandaloneSettingsA["Windows", tField] \
-            into tDeployInfo["version"][tField]
+               into tDeployInfo["version"][tField]
       end repeat
       
       local tXMLTemplateSourceFolder
       if revEnvironmentIsInstalled() then
          put revEnvironmentRuntimePath() &  "/Windows/" & tRuntimeDir \
-            into tXMLTemplateSourceFolder
+               into tXMLTemplateSourceFolder
       else
          put revEnvironmentRepositoryPath() & "/engine/rsrc" \
-            into tXMLTemplateSourceFolder
+               into tXMLTemplateSourceFolder
       end if
       
       /* Manifest sections are split into separate template files. */
@@ -1024,10 +1027,10 @@ command revSaveAsWindowsStandalone \
       put false into tManifestNeeded
       
       put tXMLTemplateSourceFolder & "/w32-manifest-template.xml" \
-         into tManifestPath
+            into tManifestPath
       if there is not a file tManifestPath then
          revStandaloneAddWarning \
-            format( \
+               format( \
                "Windows, manifest template not found: \"%s\"", \
                tManifestPath)
       else
@@ -1035,27 +1038,27 @@ command revSaveAsWindowsStandalone \
       end if
       
       /* If the user has chosen something other than "default" from the UAC
-       * execution level drop-down then the manifest is needed */      
+      * execution level drop-down then the manifest is needed */      
       local tExecutionLevel
       put sStandaloneSettingsA["Windows,uacExecutionLevel"] into tExecutionLevel
-
+      
       local tManifestTrustInfo
       put empty into tManifestTrustInfo
       if tExecutionLevel is not empty and \
             tExecutionLevel is not "default" then
          local tManifestTrustInfoPath
          put tXMLTemplateSourceFolder & "/w32-manifest-template-trustinfo.xml" \
-            into tManifestTrustInfoPath
+               into tManifestTrustInfoPath
          
          if there is not a file tManifestTrustInfoPath then
             revStandaloneAddWarning \
-               format( \
+                  format( \
                   "Windows, manifest trustinfo template not found: \"%s\"", \
                   tManifestTrustInfoPath)
          else
             put url ("file:" & tManifestTrustInfoPath) into tManifestTrustInfo
             replace "[[executionLevel]]" with tExecutionLevel \
-               in tManifestTrustInfo
+                  in tManifestTrustInfo
             put true into tManifestNeeded
          end if
       end if
@@ -1063,22 +1066,22 @@ command revSaveAsWindowsStandalone \
       /* If DPI scaling is enabled then then the manifest is needed */
       local tUsePixelScaling
       put sStandaloneSettingsA["Windows,usePixelScaling"] into tUsePixelScaling
-
+      
       local tManifestApplication
       if tUsePixelScaling is empty or \
             tUsePixelScaling is true then
          local tManifestApplicationPath
          put tXMLTemplateSourceFolder & "/w32-manifest-template-dpiaware.xml" \
-            into tManifestApplicationPath
+               into tManifestApplicationPath
          
          if there is not a file tManifestApplicationPath then
             revStandaloneAddWarning \
-               format( \
+                  format( \
                   "Windows, manifest dpiaware template not found: \"%s\"", \
                   tManifestApplicationPath)
          else
             put url ("file:" & tManifestApplicationPath) \
-               into tManifestApplication
+                  into tManifestApplication
             put true into tManifestNeeded
          end if
       end if
@@ -1092,27 +1095,27 @@ command revSaveAsWindowsStandalone \
          put tManifestData into url ("binfile:" & tManifestFile)
          put tManifestFile into tDeployInfo["manifest"]
       end if
-
+      
       /* If console mode has been requested, then set the option. */
       if sStandaloneSettingsA["Windows,console"] then
          put true into tDeployInfo["console"]
       end if
       
-      revStandaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
+      standaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
       
       /* Restore stack to its post-savingStandalone message state */
       __RestoreStackFromTemporaryLocation \
-         pStack, \
-         pRestoreFileName, \
-         tOriginalFileName
+            pStack, \
+            pRestoreFileName, \
+            tOriginalFileName
    end repeat
    
-   revStandalonePostBuild pStack, pFolder
+   standalonePostBuild pStack, pFolder
    
    return empty
-end revSaveAsWindowsStandalone
+end saveAsStandalone.Windows
 
-command revSaveAsLinuxStandalone pStack, pRestoreFileName, pFolder, @xStandalonePaths
+private command saveAsStandalone.Linux pStack, pRestoreFileName, pFolder, @xStandalonePaths
    local tStackFileList, tEngineSourceFile, tCount, tStackName, tStandalonePath
    local tDirectory, tStackSourceFile, tName, tStackPath, tOriginalFileName
    
@@ -1138,7 +1141,7 @@ command revSaveAsLinuxStandalone pStack, pRestoreFileName, pFolder, @xStandalone
       else
          put "x86" into tArch
       end if
-      revStandalonePreBuild pStack, char 1 to -2 of tDirectory, "linux", tArch, tStackName, tStackFileList     
+      standalonePreBuild pStack, char 1 to -2 of tDirectory, "linux", tArch, tStackName, tStackFileList     
       if the result is not empty then 
          return the result
       end if
@@ -1169,27 +1172,23 @@ command revSaveAsLinuxStandalone pStack, pRestoreFileName, pFolder, @xStandalone
       
       put tDirectory & tStackName into tStackSourceFile
       
-      revStandaloneCopyInclusions pStack, tStackFileList, tStackSourceFile, \ 
+      standaloneCopyInclusions pStack, tStackFileList, tStackSourceFile, \ 
             tTarget, tDirectory, tStackPath, tStandalonePath, tEngineSourceFile
       
       local tDeployInfo
-      put revStandaloneInitialDeployParams(tTarget, tStackSourceFile, \ 
+      put standaloneInitialDeployParams(tTarget, tStackSourceFile, \ 
             tStandalonePath, tEngineSourceFile) into tDeployInfo
       
-      revStandaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
-      
-      --      put param(0) & cr & "tEngineSourceFile=" && tEngineSourceFile &cr after msg
-      --      put "tTarget=" && tTarget &cr after msg
-      --      put "tDeployInfo=" && tDeployInfo &cr after msg
+      standaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
       
       --Restore stack to its post-savingStandalone message state
       __RestoreStackFromTemporaryLocation pStack, pRestoreFileName, tOriginalFileName
    end repeat
    
-   revStandalonePostBuild pStack, pFolder
+   standalonePostBuild pStack, pFolder
    
    return empty
-end revSaveAsLinuxStandalone
+end saveAsStandalone.Linux
 
 
 private command  __ReloadOriginalStackFile pStackPath, pStack
@@ -1202,7 +1201,7 @@ private command  __ReloadOriginalStackFile pStackPath, pStack
       set the lockMessages to tOldLock
    end if
    
-   local tError
+   --local tError
    try
       get the short name of stack pStackPath
    catch tError
@@ -1215,7 +1214,7 @@ end __ReloadOriginalStackFile
 # Check for open stacks, ask to save if need be then close them
 #####################################################################
 
-private command revCloseOpenStacks pStackFileList, pStack
+private command closeOpenStacks pStackFileList, pStack
    local tStackFile,tSubList,tStack,tSubStack
    revStandaloneProgress "Closing open stacks..."
    
@@ -1238,7 +1237,7 @@ private command revCloseOpenStacks pStackFileList, pStack
          repeat for each line tStack in tSubList
             if the mode of stack tStack is not 0 then
                if not revSaveCheck(tStack) then
-                  revAbort
+                  abortBuild
                   # OK-2008-03-13 : Bug 5874
                   exit to top
                end if
@@ -1246,7 +1245,7 @@ private command revCloseOpenStacks pStackFileList, pStack
          end repeat
          if the mode of stack tStackFile is not 0 then
             if not revSaveCheck(the short name of stack tStackFile) then
-               revAbort
+               abortBuild
                # OK-2008-03-13 : Bug 5874
                exit to top
             end if
@@ -1279,7 +1278,7 @@ private command revCloseOpenStacks pStackFileList, pStack
          close stack tStack
       end if
    end repeat
-end revCloseOpenStacks
+end closeOpenStacks
 
 # OK-2008-11-10 : Bug 7382 - Remember if stacks were in message path
 private function stackIsInGlobalMessagePath pStack
@@ -1332,7 +1331,7 @@ end restoreStackToMessagePath
 #####################################################################
 
 
-private command revOutputDirectories pFolder
+private command outputBuildDirectories pFolder
    local tTarget,tDirectory,tPlatforms,tCount,tOSXCount
    revStandaloneProgress "Checking directories..."
    if there is a folder (pFolder & sStandaloneSettingsA["name"]) or \
@@ -1343,7 +1342,7 @@ private command revOutputDirectories pFolder
          add 1 to tCount
       end repeat
    end if
-
+   
    put 0 into tPlatforms
    local tTargets
    put revSBDesktopTargets() into tTargets
@@ -1356,10 +1355,10 @@ private command revOutputDirectories pFolder
          end if
       end if
    end repeat
-
+   
    if tOSXCount > 0 then
-		add 1 to tPlatforms
-	end if
+      add 1 to tPlatforms
+   end if
    repeat for each item tTarget in tTargets
       if sStandaloneSettingsA[tTarget] = true then
          if not revEngineCheck?(tTarget) then
@@ -1386,11 +1385,11 @@ private command revOutputDirectories pFolder
    put tPlatforms into sPlatformCount
    # Marcus: I need the root directory for U3, so return it here, nothing else uses a return
    return (pFolder & sStandaloneSettingsA["name"] & tCount)
-end revOutputDirectories
+end outputBuildDirectories
 
-private function revPlatformCount
+private function platformCount
    return sPlatformCount
-end revPlatformCount
+end platformCount
 
 #####################################################################
 # Copies general resources to the standalone stack and then does
@@ -1402,7 +1401,7 @@ end revPlatformCount
 # which meant that the cost of building for multiple platforms was far higher.
 #####################################################################
 
-private command revCopyResources pStack, pStackFileList, pDirectory
+private command copyResources pStack, pStackFileList, pDirectory
    local tCopyFiles, tLicenseType, tFileName, tLine, tSave, tStackFileSettingsA, tMainStackSubs
    local tLibraries, tOrigVisible, tPath, tCount, tRelativePath, tStack, tSubList, tStacksList, tVisibleA
    -- engine defaults are correct, except os 9 which is handled platform specific
@@ -1414,11 +1413,11 @@ private command revCopyResources pStack, pStackFileList, pDirectory
    toplevel pStack
    
    if the shadowColor of stack pStack = "" and the shadowPattern of stack pStack = "" then
-		set the shadowColor of stack pStack to 172,172,172
-	end if
+      set the shadowColor of stack pStack to 172,172,172
+   end if
    if the bottomColor of stack pStack = "" and the bottomPattern of stack pStack = "" then
-		set the bottomColor of stack pStack to 128,128,128
-	end if
+      set the bottomColor of stack pStack to 128,128,128
+   end if
    -- now add stuff to the mainstack
    -- need the substacks of the mainStack to avoid exporting all the stacks we're importing now
    -- it's better to do it this way than have heaps of extra saves or a separate mainstack script
@@ -1426,10 +1425,10 @@ private command revCopyResources pStack, pStackFileList, pDirectory
    
    if sStandaloneSettingsA["answerDialog"] then
       put "answer dialog"&cr after tCopyFiles
-      revAddDialogIcons
+      Build.AddDialogIcons
    end if
    if sStandaloneSettingsA["askDialog"] then
-      revAddDialogIcons
+      Build.AddDialogIcons
       put "ask dialog" &cr after tCopyFiles
    end if
    
@@ -1462,7 +1461,7 @@ private command revCopyResources pStack, pStackFileList, pDirectory
       show stack ("copy of" && tLine)
       set the name of stack ("copy of" && tLine) to tLine
    end repeat
-
+   
    put "" into tCopyfiles
    -- error reporting
    if sStandaloneSettingsA["errorDialog"] then
@@ -1500,8 +1499,8 @@ private command revCopyResources pStack, pStackFileList, pDirectory
    
    repeat for each line tLine in tCopyFiles
       if tLine is among the lines of the substacks of stack pStack then
-			next repeat
-		end if
+         next repeat
+      end if
       set the visible of stack tLine to false
       clone stack tLine
       set the mainStack of stack ("copy of "&tLine) to pStack
@@ -1546,7 +1545,7 @@ private command revCopyResources pStack, pStackFileList, pDirectory
       else
          put tStack into tStacksList
       end if
-
+      
       repeat for each line tLine in tStacksList
          --export images, remove dev custom props
          if the cRevStandaloneSettings["destroyStack"] of stack tLine then
@@ -1562,13 +1561,13 @@ private command revCopyResources pStack, pStackFileList, pDirectory
          end if
          
          # OK-2007-10-16 : Bug 5460
-         revEnumerateIcons tLine
+         enumerateIcons tLine
          
          if sStandaloneSettingsA["copyreferencedfiles"] is true then
-            revCopyReferencedFiles tLine, tRelativePath, sStandaloneSettingsA["ReferencedFilesDestination"], pDirectory
+            copyReferencedFiles tLine, tRelativePath, sStandaloneSettingsA["ReferencedFilesDestination"], pDirectory
          end if
       end repeat # for each line tLine in tStacksList
-
+      
       -- we need to do the icon stuff before we save the mainstack
       if tStack is not pStack then 
          close stack tStack
@@ -1586,9 +1585,9 @@ private command revCopyResources pStack, pStackFileList, pDirectory
    close stack pStack
    set the visible of stack pStack to tVisibleA[pStack]
    get saveStackFile(pStack, tMainStackSubs, "", pDirectory)
-end revCopyResources
+end copyResources
 
-private command revAddDialogIcons
+private command Build.AddDialogIcons
    repeat for each key tPlatform in sPlatformDirectoriesA
       switch tPlatform
          case "MacOSX"
@@ -1610,7 +1609,7 @@ private command revAddDialogIcons
             put true into sIconA[210010]
       end switch
    end repeat
-end revAddDialogIcons
+end Build.AddDialogIcons
 
 private function saveStackFile pStack, pSubList, pRelativePath, pDirectory
    local tStacksList, tLine, tFileName, tCopyFiles, tStackFileSettingsA, tSave
@@ -1620,7 +1619,7 @@ private function saveStackFile pStack, pSubList, pRelativePath, pDirectory
    add 1 to sGenericNumber
    
    repeat for each line tLine in pSubList
-      revSetStackProps tLine
+      setStackPropsOfStack tLine
       -- move substacks and save into data folders
       if tStackFileSettingsA["moveSubstacks"] = true then
          set the mainStack of stack tLine to tLine
@@ -1630,7 +1629,7 @@ private function saveStackFile pStack, pSubList, pRelativePath, pDirectory
             put tStackFileSettingsA["substackFolder"] & "/" after tSave
          end if
          
-         put revSaveToFolder(pDirectory & tSave, tLine, tStackFileSettingsA["renameGeneric"]) into tFileName
+         put saveToFolder(pDirectory & tSave, tLine, tStackFileSettingsA["renameGeneric"]) into tFileName
          
          if tLine,tSave & "/" & tFileName is not among the lines of tCopyFiles then put tLine,tSave & "/" & tFileName & return after tCopyFiles
          -- MM-2013-04-05: [[ Bug 10756 ]] Make sure we're allowed to delete the stack before deleteing.
@@ -1639,7 +1638,7 @@ private function saveStackFile pStack, pSubList, pRelativePath, pDirectory
       end if
       add 1 to sGenericNumber
    end repeat
-   revSetStackProps pStack
+   setStackPropsOfStack pStack
    if paramCount() = 2 then
       delete char -1 of tCopyFiles
       if the stackFiles of stack pStack is not "" then
@@ -1652,7 +1651,7 @@ private function saveStackFile pStack, pSubList, pRelativePath, pDirectory
    -- OK-2008-03-24 : Bug 6208. The mainstack must be saved after the substacks have 
    -- been saved / deleted, otherwise they remain in the built standalone, causing the wrong
    -- stacks to be used and resulting in the stacks not being saveable.
-   put revSaveToFolder(pDirectory & pRelativePath, pStack, false) into tFileName
+   put saveToFolder(pDirectory & pRelativePath, pStack, false) into tFileName
    
    put pStack,pRelativePath&tFileName & return after tCopyFiles
    if tStackFileSettingsA["moveSubstacks"] is not true then
@@ -1718,7 +1717,7 @@ end copyIcons
 #####################################################################
 
 
-private command revCopyFiles pTarget, pDirectory, pStackPath
+private command copyBuildFiles pTarget, pDirectory, pStackPath
    local tFileData
    revSBUpdateSettingsForExtensions pTarget, sStandaloneSettingsA
    revSBResolveCopyFilesList pStackPath, pTarget, sStandaloneSettingsA, tFileData
@@ -1727,7 +1726,7 @@ private command revCopyFiles pTarget, pDirectory, pStackPath
    revStandaloneProgress "Copying files..."
    set the itemDelimiter to slash
    repeat for each element tFile in tFileData
-      if revResourceExists(tFile["resolved"]) then
+      if resourceExists?(tFile["resolved"]) then
          revSBEnsureFolder pDirectory & slash & item 1 to -2 of tFile["name"]
          if there is a file tFile["resolved"] then      
             revSBCopyFileToFile tFile["resolved"], pDirectory & slash & tFile["name"], \
@@ -1737,15 +1736,15 @@ private command revCopyFiles pTarget, pDirectory, pStackPath
                   "revStandaloneProgressCallback", the long id of me
          end if
       else
-         revStandaloneAddWarning "File to include in standalone not found:" && quote & tFile & quote
+         revStandaloneAddWarning "File to include in standalone not found:" && q(tFile)
       end if
    end repeat
-end revCopyFiles
+end copyBuildFiles
 
 
 #####################################################################
 #
-# revAbort is called if we need to stop the build process for whatever
+# abortBuild is called if we need to stop the build process for whatever
 # reason.
 #
 #####################################################################
@@ -1753,17 +1752,17 @@ end revCopyFiles
 # OK-2010-03-31: Ensure that user data cannot be lost on cleanup by redirecting all calls to revDeleteFolder
 # via this command. The idea is that we check some basic stuff to ensure that if something goes wrong, we 
 # don't delete anything important.
-private command revStandaloneDeleteFolder pFolder
-   if revStandaloneFolderSafeToDelete(pFolder) then
+private command standaloneDeleteFolder pFolder
+   if standaloneFolderIsSafeToDelete?(pFolder) then
       revDeleteFolder pFolder
       return the result
    else
       # Best not to do anything here, its probably a cleanup issue so may not effect the built application,
       # additionally its maybe best if the user didn't know that rev nearly tried to delete the wrong folder...
    end if
-end revStandaloneDeleteFolder
+end standaloneDeleteFolder
 
-private function revStandaloneFolderSafeToDelete pFolder
+private function standaloneFolderIsSafeToDelete? pFolder
    set the itemDelimiter to slash
    
    # If we don't know the name of what we're building, don't risk deleting a folder, this should ever happen unless
@@ -1786,23 +1785,23 @@ private function revStandaloneFolderSafeToDelete pFolder
    # Maybe we should add more checks here, but the above ones seem like they should cover everything
    
    return true
-end revStandaloneFolderSafeToDelete
+end standaloneFolderIsSafeToDelete?
 
-private command revCleanOutputFolders
+private command cleanOutputFolders
    set the itemDel to "/"
    local tPlatform, tTarget, tDirectory
    put line 1 of the keys of sPlatformDirectoriesA into tPlatform
    put line 1 of the keys of sPlatformDirectoriesA[tPlatform] into tTarget
    put sPlatformDirectoriesA[tPlatform][tTarget] into tDirectory
    
-   if revPlatformCount() > 1 then
-      revStandaloneDeleteFolder item 1 to -2 of tDirectory
+   if platformCount() > 1 then
+      standaloneDeleteFolder item 1 to -2 of tDirectory
    else
-      revStandaloneDeleteFolder tDirectory
+      standaloneDeleteFolder tDirectory
    end if
-end revCleanOutputFolders
+end cleanOutputFolders
 
-private command revCleanBuildStacks
+private command cleanBuildStacks
    repeat for each line tLine in sResetA["Reopen"]
       if there is a stack tLine then
          if the mode of stack tLine is not 0 then
@@ -1815,15 +1814,15 @@ private command revCleanBuildStacks
          end if
       end if
    end repeat
-end revCleanBuildStacks
+end cleanBuildStacks
 
-private command revAbort
-   revCleanOutputFolders
-   revCleanBuildStacks
-   revReset
-end revAbort
+private command abortBuild
+   cleanOutputFolders
+   cleanBuildStacks
+   buildReset
+end abortBuild
 
-command revReset
+private command buildReset
    unlock cursor
    lock screen
    lock messages
@@ -1850,9 +1849,9 @@ command revReset
    delete variable sResetA               -- stored info for resetting to the pre-build state
    unlock screen
    revStandaloneProgressFinished
-end revReset
+end buildReset
 
-private command revSetMacOS pWhatFile, pPlatformCode, pEnginePath
+private command setMacOS pWhatFile, pPlatformCode, pEnginePath
    local tVers,tSize,tTempPlist,tDocTypeList,tDocExtList
    revStandaloneProgress "Building Mac OS components..."
    
@@ -1950,7 +1949,7 @@ private command revSetMacOS pWhatFile, pPlatformCode, pEnginePath
       --revSBCopyFile item 1 to -3 of pEnginePath & "/Resources/LiveCode.rsrc", item 1 to -3 of pWhatFile & "/Resources/" & sStandaloneSettingsA["name"] & ".rsrc", "RevStandaloneProgressCallback", the long id of me
       --end if
    end if
-end revSetMacOS
+end setMacOS
 
 -- MW-2013-11-06: [[ Bug 11385 ]] Utility function to make sure we don't have & in our
 --    plists as Mavericks doesn't like it!
@@ -1969,7 +1968,7 @@ private function normalizeForDisk pString
 end normalizeForDisk
 
 #####################################################################
-# revSetStackProps is a combination of revRemoveProps and revSetProfiles
+# setStackPropsOfStack is a combination of revRemoveProps and revSetProfiles
 # There's no point walking every object in the distribution twice
 # if we can avoid it right???
 #
@@ -1978,11 +1977,11 @@ end normalizeForDisk
 # cRevStandaloneSettings are also deleted here.
 ######################################################################
 
-private command revSetStackProps pStack
+private command setStackPropsOfStack pStack
    # OK-2009-10-08 : Bug 2217 : This bug requires the addition of a more efficient "repeat for each control" loop to fix properly.
    # For now however, I've added this hack to allow users to work around the issue themselves.
    if the cREVKeepDevelopmentProperties of stack pStack then
-      exit revSetStackProps
+      exit setStackPropsOfStack
    end if
    local tCard,tControl,tSetTo,tRemoveAll,tIncludeList,tCardNum,tControlNum
    lock screen
@@ -1993,19 +1992,19 @@ private command revSetStackProps pStack
    if sStandaloneSettingsA["setToProfile"] is not "" then put true into tSetTo
    -- stack properties
    set the customKeys["cREVStandaloneSettings"] of stack pStack to ""
-   revSetObjectProps the long id of stack pStack,tSetTo,sStandaloneSettingsA["includeProfiles"]
+   setObjectProps the long id of stack pStack,tSetTo,sStandaloneSettingsA["includeProfiles"]
    -- card properties
    put the number of cds in stack pStack into tCardNum
    repeat with tCard = 1 to tCardNum
-      revSetObjectProps the long id of cd tCard of stack pStack,tSetTo,sStandaloneSettingsA["includeProfiles"]
+      setObjectProps the long id of cd tCard of stack pStack,tSetTo,sStandaloneSettingsA["includeProfiles"]
       -- control properties
       put the number of controls of cd tCard of stack pStack into tControlNum
       repeat with tControl = 1 to tControlNum
-         revSetObjectProps the long id of control tControl of cd tCard of stack pStack,tSetTo,sStandaloneSettingsA["includeProfiles"],tControl
+         setObjectProps the long id of control tControl of cd tCard of stack pStack,tSetTo,sStandaloneSettingsA["includeProfiles"],tControl
       end repeat
    end repeat
    unlock screen
-end revSetStackProps
+end setStackPropsOfStack
 
 #####################################################################
 #
@@ -2014,7 +2013,7 @@ end revSetStackProps
 #####################################################################
 
 
-private command revSetObjectProps pObject,pSetTo,pIncludeList
+private command setObjectProps pObject,pSetTo,pIncludeList
    local tKeys,tProfileSets,tLine,tFinalList
    revStandaloneProgress "Removing development properties and setting profile options..."
    put the customProperties["cREVGeneral"] of pObject into tKeys
@@ -2048,7 +2047,7 @@ private command revSetObjectProps pObject,pSetTo,pIncludeList
    if pSetTo then unlock messages --activate profile libraries
    set the customProperties["cREVGeneral"] of pObject to tKeys
    if pSetTo then lock messages --activate profile libraries
-end revSetObjectProps
+end setObjectProps
 
 #####################################################################
 # Loops over all the images and players, copies the referenced
@@ -2056,13 +2055,13 @@ end revSetObjectProps
 # of the original stack.
 ######################################################################
 
-# OK-2007-10-16 : Bug 5460. It seems that the code that populates the sIconA array was moved to revCopyReferencedFiles at some point
-# but unfortunately because revCopyReferencedFiles is only called under certain circumstances, the correct icons / patterns are no 
+# OK-2007-10-16 : Bug 5460. It seems that the code that populates the sIconA array was moved to copyReferencedFiles at some point
+# but unfortunately because copyReferencedFiles is only called under certain circumstances, the correct icons / patterns are no 
 # longer copied. I think this was introduced in 2.9.0-dp-1.
 # This command finds the icons / patterns in use by the stack being built, and sticks their ids into sIconA.
 # Parameters
 #   pStack : The short name of the stack being built
-private command revEnumerateIcons pStack
+private command enumerateIcons pStack
    repeat for each line tIcon in the patterns of stack pStack
       if tIcon > 0 and tIcon < 137 then add 136 to tIcon
       if sIconA[tIcon] = "" and tIcon is not "" then put true into sIconA[tIcon]
@@ -2096,9 +2095,9 @@ private command revEnumerateIcons pStack
          end repeat
       end repeat
    end repeat
-end revEnumerateIcons
+end enumerateIcons
 
-private command revCopyReferencedFiles pStack, pFutureFilePath, pReferencedFilesDestination, pDirectory
+private command copyReferencedFiles pStack, pFutureFilePath, pReferencedFilesDestination, pDirectory
    local tControl, tCard, tChars, tOldFilePath, tFileName, tFutureFileName, tFutureFilePath, tIcon, \
          tCardNum, tControlNum
    lock screen
@@ -2120,20 +2119,20 @@ private command revCopyReferencedFiles pStack, pFutureFilePath, pReferencedFiles
          
          # OK-2010-04-27: Bug 8744 - Check that the filename is not empty before doing this
          if word 1 of tObject is "image" and the filename of tObject is not empty then
-            revCopyReferencedFile tObject, item 1 to -2 of the filename of stack pStack, pFutureFilePath, pReferencedFilesDestination, pDirectory
+            copyReferencedFile tObject, item 1 to -2 of the filename of stack pStack, pFutureFilePath, pReferencedFilesDestination, pDirectory
             put false into sIconA[tObject]
          end if
          if word 1 of tObject is "player" then
-            revCopyReferencedFile tObject, item 1 to -2 of the filename of stack pSTack, pFutureFilePath, pReferencedFilesDestination
+            copyReferencedFile tObject, item 1 to -2 of the filename of stack pSTack, pFutureFilePath, pReferencedFilesDestination
          end if
          --end repeat
          set the itemDel to ","
       end repeat
    end repeat
    unlock screen
-end revCopyReferencedFiles
+end copyReferencedFiles
 
-private command revCopyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFolderNewRelative, pRefFilesDestination, pDirectory
+private command copyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFolderNewRelative, pRefFilesDestination, pDirectory
    local tFileName, tRelativeFilename
    set the itemDelimiter to "/"
    
@@ -2179,14 +2178,14 @@ private command revCopyReferencedFile pObject, pStackOwnerFolderOld, pStackOwner
    
    get revSBCalculateRelativePath(tStackOwnerFolderNew, tNewFilename)
    set the filename of pObject to it
-end revCopyReferencedFile
+end copyReferencedFile
 
 #####################################################################
 # Saves a stack to a folder and if need be creates the folders
 # to save into.
 #####################################################################
 
-private function revSaveToFolder pFolder, pStack, pGeneric?
+private function saveToFolder pFolder, pStack, pGeneric?
    local tCheckFolder,tFileName
    revStandaloneProgress "Checking directory exists..."
    
@@ -2217,7 +2216,7 @@ private function revSaveToFolder pFolder, pStack, pGeneric?
    unlock messages
    unlock screen
    return tFileName
-end revSaveToFolder
+end saveToFolder
 
 #####################################################################
 #
@@ -2234,9 +2233,9 @@ end revSaveToFolder
 #
 #####################################################################
 
-private function revStandaloneDatabaseDriversPath pPlatform
+private function standaloneDatabaseDriversPath pPlatform
    local tCurrentFolder, tDetailsA
-   put revStandalonePlatformDetails(pPlatform) into tDetailsA
+   put standalonePlatformDetails(pPlatform) into tDetailsA
    
    # There are no legacy drivers for linux as we didn't have a linux version at the time the legacy drivers were current
    # If the legacy drivers are turned on but the folder is not present, we default to using the normal drivers, as the user could 
@@ -2258,24 +2257,24 @@ private function revStandaloneDatabaseDriversPath pPlatform
    end if
    
    return tCurrentFolder
-end revStandaloneDatabaseDriversPath
+end standaloneDatabaseDriversPath
 
-private command revCopyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, pEnginePath
+private command copyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, pEnginePath
    local tOriginalDriverPath,tNewDriverPath,tHomePath,tStandaloneFolder,tPlatformFile,tCurrentFileType
    local tDriverPath,tLibPath,tResourceList,i,tDriver,tDriverFile
    
    revStandaloneProgress "Copying database drivers..."
    
    if sStandaloneSettingsA["databaseDrivers"] is empty then
-      exit revCopyDatabaseDrivers
+      exit copyDatabaseDrivers
    end if
    
    local tDBLibPath
-   put revStandaloneDatabaseDriversPath(pPlatform) into tDBLibPath
+   put standaloneDatabaseDriversPath(pPlatform) into tDBLibPath
    
    local tExtension, tSharedExtension, tPlatform, tArch
    local tDetailsA
-   put revStandalonePlatformDetails(pPlatform) into tDetailsA
+   put standalonePlatformDetails(pPlatform) into tDetailsA
    put tDetailsA["loadable_extension"] into tExtension
    if tDetailsA["shared_extension"] is not empty then
       put tDetailsA["shared_extension"] into tSharedExtension
@@ -2314,12 +2313,12 @@ private command revCopyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePat
       
       put revDBDriverPath(tDriver, tPlatform, tArch) into tDriverPath
       if tDriverPath is empty then
-         revStandaloneAddWarning tPlatform && tArch & ", database driver not found:" & quote & tDriver & quote
+         revStandaloneAddWarning tPlatform && tArch & ", database driver not found:" & q(tDriver)
          next repeat
       end if
       
-      if not revResourceExists(line 1 of tDriverPath) then
-         revStandaloneAddWarning tPlatform && tArch & ", database driver file not found:" & quote & tDriverPath & quote
+      if not resourceExists?(line 1 of tDriverPath) then
+         revStandaloneAddWarning tPlatform && tArch & ", database driver file not found:" & q(tDriverPath)
          next repeat
       end if
       
@@ -2333,9 +2332,9 @@ private command revCopyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePat
          if the number of lines in tDriverPath > 1 then
             put tLineCount after tResourceName
          end if
-         revCopyModule tPlatform, tResourceName, item -1 of tLine, item 1 to -2 of tLine, tStandaloneFolder, "Externals/database_drivers", tPlatform is "MacOSX"
+         copyModule tPlatform, tResourceName, item -1 of tLine, item 1 to -2 of tLine, tStandaloneFolder, "Externals/database_drivers", tPlatform is "MacOSX"
          if the result is not empty then
-            revStandaloneAddWarning tPlatform && tArch & ", database driver" && the result & ":" && quote & tDriverPath & quote
+            revStandaloneAddWarning tPlatform && tArch & ", database driver" && the result & ":" && q(tDriverPath)
          else
             if tPlatform is "MacOSX" and there is no file (tStandaloneFolder & "Externals/revdb.bundle/Contents/PkgInfo") then
                -- missing PkgInfo file, so copy it in quietly
@@ -2343,9 +2342,9 @@ private command revCopyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePat
             end if
             if pPlatform contains "MacOSX" then
                revSBRemoveUnneededSlicesFromMacCode \
-                  tStandaloneFolder & "/Externals/database_drivers/" & (item -1 of tLine) & \
+                     tStandaloneFolder & "/Externals/database_drivers/" & (item -1 of tLine) & \
                      "/Contents/MacOS/db" & tResourceName, \
-                  sStandaloneSettingsA
+                     sStandaloneSettingsA
             end if
          end if
       end repeat
@@ -2359,7 +2358,7 @@ private command revCopyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePat
          end if
       end if 
    end repeat
-end revCopyDatabaseDrivers
+end copyDatabaseDrivers
 
 #####################################################################
 # Copy all the externals over. MacOS resource numbers are listed
@@ -2367,27 +2366,27 @@ end revCopyDatabaseDrivers
 # about adding external libraries to the build process for MacOS.
 #####################################################################
 
-private command revAddExternal pExternalName
+private command addExternal pExternalName
    if pExternalName is among the lines of sStandaloneSettingsA["externals"]  then
-      exit revAddExternal
+      exit addExternal
    end if
-
+   
    // AL-2015-05-07: [[ Bug 15320 ]] Don't duplicate external names in standalone settings
    if sStandaloneSettingsA["externals"] is not empty then put return after sStandaloneSettingsA["externals"]
    put pExternalName after sStandaloneSettingsA["externals"]
-end revAddExternal
+end addExternal
 
-private command revAddMapping pPlatform, pName, pLocation
+private command addMapping pPlatform, pName, pLocation
    -- The name comes in without 'db' in front of it for the existing database
    -- drivers, but it needs to be 'db*'.
    if pName is among the items of "sqlite,postgresql,odbc,mysql,oracle" then
       put "db" before pName
    end if
    revSBAddLibraryMapping pPlatform, pName, pLocation, sStandaloneSettingsA
-end revAddMapping
+end addMapping
 
 # AL-2015-01-29: [[ Scriptify IDE ]] Factor out external copy function to ensure external is included in deploy params
-private command revCopyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, pStandaloneRoot, pTargetFolder, pIsFolder
+private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, pStandaloneRoot, pTargetFolder, pIsFolder
    local tSourcePath, tTargetPath, tTargetModule
    put pSourceFolder & slash & pSourceFile into tSourcePath
    if pTargetFolder is not empty then
@@ -2419,18 +2418,18 @@ private command revCopyModule pPlatform, pModuleName, pSourceFile, pSourceFolder
       return "failed to copy"
    end if
    
-   revAddMapping pPlatform, pModuleName, tTargetModule
-end revCopyModule
+   addMapping pPlatform, pModuleName, tTargetModule
+end copyModule
 
-private command revCopyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserResources, pCopyLibBrowserResources
+private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserResources, pCopyLibBrowserResources
    if not (pCopyRevBrowserResources or pCopyLibBrowserResources) then
       // No CEF resources required
-      exit revCopyCEFResources
+      exit copyCEFResources
    end if
    
    // IM-2014-08-14: [[ LibCef2062 ]] Reorganisation of libcef framework files
    local tDetails
-   put revStandalonePlatformDetails(pPlatform) into tDetails
+   put standalonePlatformDetails(pPlatform) into tDetails
    local tExternalPath
    put revExternalPath("Browser", tDetails["platform"], tDetails["architecture"]) into tExternalPath
    // AL-2015-03-13: [[ Bug 14936 ]] Switch where case takes an expression should not switch on a value
@@ -2444,12 +2443,12 @@ private command revCopyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserR
          
          revSBEnsureFolder tCEFDest
          if the result is not empty then
-            revStandaloneAddWarning "Windows, external failed to create folder:" && quote & tCEFDest & quote
+            revStandaloneAddWarning "Windows, external failed to create folder:" && q(tCEFDest)
          end if
          
          local tCEFFiles
          // make sure we only copy the required helper process executable
-         put revListFiles(tCEFResources) into tCEFFiles
+         put listFiles(tCEFResources) into tCEFFiles
          filter lines of tCEFFIles not matching "*.exe"
          if the last char of tCEFFiles is not return then
             put return after tCEFFiles
@@ -2463,15 +2462,15 @@ private command revCopyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserR
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & tCEFFile, tCEFDest, "revStandaloneProgressCallback", the long id of me
             if the result is not empty then
-               revStandaloneAddWarning "Windows, external failed to copy:" && quote & tCefResources & slash & tCEFFile & quote
+               revStandaloneAddWarning "Windows, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
          
          revSBCopyFolderToDestination tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
-            revStandaloneAddWarning "Windows, external failed to copy:" && quote & tCefResources & slash & "locales" & quote
+            revStandaloneAddWarning "Windows, external failed to copy:" && q(tCefResources & slash & "locales")
          end if
-         revAddMapping pPlatform, "CEF/libcef", "Externals/CEF/libcef"
+         addMapping pPlatform, "CEF/libcef", "Externals/CEF/libcef"
          break
       case pPlatform contains "Linux"
          if revEnvironmentIsInstalled() then
@@ -2483,23 +2482,23 @@ private command revCopyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserR
          
          revSBEnsureFolder tCEFDest
          if the result is not empty then
-            revStandaloneAddWarning "Linux, external failed to create folder:" && quote & tCEFDest & quote
+            revStandaloneAddWarning "Linux, external failed to create folder:" && q(tCEFDest)
          end if
          
          // make sure we only copy the required helper process executable
-         put revListFiles(tCEFResources) into tCEFFiles
+         put listFiles(tCEFResources) into tCEFFiles
          
          // Copy files to CEF resource folder.
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & tCEFFile, tCEFDest, "revStandaloneProgressCallback", the long id of me
             if the result is not empty then
-               revStandaloneAddWarning "Linux, external failed to copy:" && quote & tCefResources & slash & tCEFFile & quote
+               revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
          
          revSBCopyFolderToDestination tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
-            revStandaloneAddWarning "Linux, external failed to copy:" && quote & tCefResources & slash & "locales" & quote
+            revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & "locales")
          end if
          
          // Copy files to standalone folder
@@ -2514,17 +2513,17 @@ private command revCopyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserR
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & ".." & slash & ".." & slash & tCEFFile, tCurrentLocation, "revStandaloneProgressCallback", the long id of me
             if the result is not empty then
-               revStandaloneAddWarning "Linux, external failed to copy:" && quote & tCefResources & slash & tCEFFile & quote
+               revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
-         revAddMapping pPlatform, "CEF/libcef", "Externals/CEF/libcef"
+         addMapping pPlatform, "CEF/libcef", "Externals/CEF/libcef"
          break
       default
          break
    end switch
-end revCopyCEFResources
+end copyCEFResources
 
-private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStandalonePath
+private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalonePath
    local tExternalRes, tColors, tCursorName, tCurrentLocation, tExternalPath, tExternals, tExternalLibrary
    local tCopyFiles, tOrigVisible, tPath, tExternalFile, x, tColor, tPattern, tExternalName
    
@@ -2544,7 +2543,7 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
    
    local tSupportFolder, tExtension, tSharedExtension, tPlatform, tArch
    local tDetailsA
-   put revStandalonePlatformDetails(pPlatform) into tDetailsA
+   put standalonePlatformDetails(pPlatform) into tDetailsA
    -- SN-2015-03-04: [[ IDE Restructure ]] revpdfprinter and revsecurity are in the support folder
    put tDetailsA["support_folder"] into tSupportFolder
    put tDetailsA["loadable_extension"] into tExtension
@@ -2559,28 +2558,28 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
    
    # OK-2010-04-26: Bug 8539 - PDF Printer not included
    if sStandaloneSettingsA["pdfPrinter"] then
-      revCopyModule tPlatform, "revpdfprinter", "revpdfprinter" & tExtension, tSupportFolder, tCurrentLocation, "", tPlatform is "MacOSX"
+      copyModule tPlatform, "revpdfprinter", "revpdfprinter" & tExtension, tSupportFolder, tCurrentLocation, "", tPlatform is "MacOSX"
       if the result is not empty then
          revStandaloneAddWarning tPlatform && tArch & ", Support, revpdfprinter" & tExtension && the result & ": required for PDF printing."
       else
-         --revAddExternal "revpdfprinter"
+         --addExternal "revpdfprinter"
          local tRevPdfPrinterExecutable
          put tCurrentLocation & "/revpdfprinter.bundle/Contents/MacOS/revpdfprinter" into tRevPdfPrinterExecutable
          if pPlatform contains "MacOSX" then
-         	revSBRemoveUnneededSlicesFromMacCode tRevPdfPrinterExecutable, sStandaloneSettingsA
-		end if
+            revSBRemoveUnneededSlicesFromMacCode tRevPdfPrinterExecutable, sStandaloneSettingsA
+         end if
       end if
    end if
    
    -- MM-2014-01-29: [[ OpenSSL ]] We now build our own version of OpenSSL. 
    if "SSL & Encryption" is among the lines of sStandaloneSettingsA["scriptLibraries"] then
-      revCopyModule tPlatform, "revsecurity", "revsecurity" & tSharedExtension, tSupportFolder, tCurrentLocation, "", false
+      copyModule tPlatform, "revsecurity", "revsecurity" & tSharedExtension, tSupportFolder, tCurrentLocation, "", false
       if the result is not empty then
          revStandaloneAddWarning tPlatform && tArch & ", Support, revsecurity" & tSharedExtension && the result & ": required for SSL."
       else
          if pPlatform contains "MacOSX" then
-         	revSBRemoveUnneededSlicesFromMacCode tCurrentLocation & "/revsecurity.dylib", sStandaloneSettingsA
-		end if
+            revSBRemoveUnneededSlicesFromMacCode tCurrentLocation & "/revsecurity.dylib", sStandaloneSettingsA
+         end if
       end if
    end if
    
@@ -2674,9 +2673,9 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
       local tExternal
       put revSBExternalNameFromFile(tPlatform, tSourceExternal) into tExternal
       
-      revCopyModule tPlatform, tExternal, tSourceExternal, item 1 to -2 of tExternalPath, tCurrentLocation, "Externals", tPlatform is "MacOSX"
+      copyModule tPlatform, tExternal, tSourceExternal, item 1 to -2 of tExternalPath, tCurrentLocation, "Externals", tPlatform is "MacOSX"
       if the result is not empty then
-         revStandaloneAddWarning tPlatform && tArch & ", external" && the result & ":" && quote & tExternalPath & quote
+         revStandaloneAddWarning tPlatform && tArch & ", external" && the result & ":" && q(tExternalPath)
          next repeat
       else
          if tPlatform is "MacOSX" and there is no file (tCurrentLocation & slash & "Externals/" & (item -1 of tExternalPath) & "/Contents/PkgInfo") then
@@ -2686,12 +2685,12 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
          end if
          if pPlatform contains "MacOSX" then
             revSBRemoveUnneededSlicesFromMacCode \
-               tCurrentLocation & "/Externals/" & (item -1 of tExternalPath) & \
+                  tCurrentLocation & "/Externals/" & (item -1 of tExternalPath) & \
                   "/Contents/MacOS/" & tExternal, \
-               sStandaloneSettingsA
+                  sStandaloneSettingsA
          end if
       end if
-      revAddExternal tExternal
+      addExternal tExternal
    end repeat
    
    local tSourceFile, tSourceFolder, tTargetFolder, tDestFolder
@@ -2702,7 +2701,7 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
       put tCurrentLocation & slash & "Externals/JVM" into tDestFolder
       
       revSBEnsureFolder tDestFolder
-      revCopyModule tPlatform, tSourceFile, tSourceFile, \
+      copyModule tPlatform, tSourceFile, tSourceFile, \
             tSourceFolder, tCurrentLocation, "Externals/JVM", false
    end repeat
    
@@ -2714,12 +2713,12 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
       
       revSBEnsureFolder tDestFolder
       set the itemDelimiter to "."
-      revCopyModule tPlatform, item 1 to -2 of tSourceFile, tSourceFile, \
+      copyModule tPlatform, item 1 to -2 of tSourceFile, tSourceFile, \
             tSourceFolder, tCurrentLocation, "Externals", there is a folder tLib
       if pPlatform contains "MacOSX" then
          revSBRemoveUnneededSlicesFromMacCode \
-            tCurrentLocation & "/Externals/" & tSourceFile, \
-            sStandaloneSettingsA
+               tCurrentLocation & "/Externals/" & tSourceFile, \
+               sStandaloneSettingsA
       end if
    end repeat
    
@@ -2732,11 +2731,7 @@ private command revCopyExternals pPlatform, pStackFilePath, pEnginePath, pStanda
    -- MM-2013-04-05: [[ Bug 10756 ]] Make sure we're allowed to delete the stack before deleteing.
    set the cantDelete of stack pStackFilePath to false
    delete stack pStackFilePath
-end revCopyExternals
-
-on tmpLog pMsg
-   #put pMSg & return after msg
-end tmpLog
+end copyExternals
 
 private command log pMessage
    put pMessage & return after msg
@@ -2750,7 +2745,7 @@ end log
 # the cRevStandaloneSettings into sStandaloneSettings
 #####################################################################
 
-command revStandaloneDeployWithParams pTarget, pStackFilePath, pDeployInfo
+private command standaloneDeployWithParams pTarget, pStackFilePath, pDeployInfo
    -- Resave the stack (not sure what this is for exactly, but was present
    -- in the original handler and serves our purposes to guarantee the right
    -- origin info).
@@ -2758,24 +2753,24 @@ command revStandaloneDeployWithParams pTarget, pStackFilePath, pDeployInfo
    lock messages
    lock screen
    save stack pStackFilePath
-   -- MM-2013-04-05: [[ Bug 10756 ]] Make sure we're allowed to delete the stack before deleteing.
+   -- MM-2013-04-05: [[ Bug 10756 ]] Make sure we're allowed to delete the stack before deleting.
    set the cantDelete of stack pStackFilePath to false
    delete stack pStackFilePath
    unlock screen
    unlock messages
-
+   
    -- Actually do the standalone engine build - we probably need some sort of
    -- error handling here :oD
    revStandaloneProgress "Attaching engine..."
    switch word 1 of pTarget
       case "Windows"
-         do "_internal deploy windows pDeployInfo"
+         _internal deploy windows pDeployInfo
          break
       case "Linux"
-         do "_internal deploy linux pDeployInfo"
+         _internal deploy linux pDeployInfo
          break
       case "MacOSX"
-         do "_internal deploy macosx pDeployInfo"
+         _internal deploy macosx pDeployInfo
          break
    end switch
    if the result is not empty then
@@ -2785,9 +2780,9 @@ command revStandaloneDeployWithParams pTarget, pStackFilePath, pDeployInfo
    -- Again, present in the original, this will remove the stackfile we saved
    -- above.
    revDeleteFile pStackFilePath
-end revStandaloneDeployWithParams
+end standaloneDeployWithParams
 
-command revRedirectMacOSResources pStandalonePath
+private command redirectMacOSResources pStandalonePath
    local tOldRFolder, tNewRFolder
    set the itemDelimiter to slash
    put item 1 to -2 of pStandalonePath into tOldRFolder
@@ -2796,10 +2791,10 @@ command revRedirectMacOSResources pStandalonePath
    create folder (tOldRFolder & slash & "../Resources")
    create folder (tOldRFolder & slash & "../Resources/_MacOS")
    
-   revRedirectMacOSResourcesRecurse tOldRFolder, tNewRFolder
-end revRedirectMacOSResources
+   redirectMacOSResourcesRecurse tOldRFolder, tNewRFolder
+end redirectMacOSResources
 
-command revRedirectMacOSResourcesRecurse pSourceFolder, pTargetFolder
+private command redirectMacOSResourcesRecurse pSourceFolder, pTargetFolder
    create folder pTargetFolder
    
    local tFiles
@@ -2807,7 +2802,7 @@ command revRedirectMacOSResourcesRecurse pSourceFolder, pTargetFolder
       if tFile ends with ".dylib" then
          next repeat
       end if
-      if revRedirectMacOSResourcesIsExecutable(pSourceFolder & slash & tFile) then
+      if redirectMacOSResourcesIsExecutable?(pSourceFolder & slash & tFile) then
          next repeat
       end if
       rename (pSourceFolder & slash & tFile) to (pTargetFolder & slash & tFile)
@@ -2827,15 +2822,15 @@ command revRedirectMacOSResourcesRecurse pSourceFolder, pTargetFolder
       if tFolder ends with ".framework" then
          next repeat
       end if
-      revRedirectMacOSResourcesRecurse pSourceFolder & slash & tFolder, pTargetFolder & slash & tFolder
+      redirectMacOSResourcesRecurse pSourceFolder & slash & tFolder, pTargetFolder & slash & tFolder
    end repeat
    
    if files(pSourceFolder) is empty and folders(pSourceFolder) is ".." then
       delete folder pSourceFolder
    end if
-end revRedirectMacOSResourcesRecurse
+end redirectMacOSResourcesRecurse
 
-private function revRedirectMacOSResourcesIsExecutable pFile
+private function redirectMacOSResourcesIsExecutable? pFile
    local tIsExecutable
    put false into tIsExecutable
    
@@ -2851,9 +2846,13 @@ private function revRedirectMacOSResourcesIsExecutable pFile
    close file pFile
    
    return tIsExecutable
-end revRedirectMacOSResourcesIsExecutable
+end redirectMacOSResourcesIsExecutable?
 
-private function revResourceExists pResource
-  # pResource is either a file, folder or bundle.
-  return (there is a file pResource or there is a folder pResource)
-end revResourceExists
+private function resourceExists? pResource
+   # pResource is either a file, folder or bundle.
+   return (there is a file pResource or there is a folder pResource)
+end resourceExists?
+
+private function q pText
+   return quote & pText & quote
+end q

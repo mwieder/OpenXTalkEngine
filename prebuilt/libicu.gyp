@@ -262,6 +262,7 @@
 								'-licutu',
 								'-licuuc',
 								'-licudata',
+								'-ldl',
 							],
 						},
 					],

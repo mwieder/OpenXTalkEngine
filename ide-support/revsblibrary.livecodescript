@@ -112,7 +112,7 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
    local tAmountRead
    if tResult is empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
-         send pCallback to pCallbackTarget
+         dispatch pCallback to pCallbackTarget
       end if
       repeat forever
          read from file pFile for 524288
@@ -126,13 +126,15 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
          end if
          add 524288 to tAmountRead
          if pCallbackTarget is not empty and there is a pCallbackTarget then
-            send pCallback && tAmountRead, tTotalSize to pCallbackTarget
+            --send pCallback && tAmountRead, tTotalSize to pCallbackTarget
+            dispatch pCallback to pCallbackTarget with tAmountRead, tTotalSize
          end if
       end repeat
    end if
    if tResult is empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
-         send pCallback && tAmountRead, tTotalSize to pCallbackTarget
+         --send pCallback && tAmountRead, tTotalSize to pCallbackTarget
+         dispatch pCallback to pCallbackTarget with tAmountRead, tTotalSize
       end if
    end if
    
@@ -183,7 +185,7 @@ on revSBWriteFile pFile, pMode, @pData, pCallback, pCallbackTarget, pLog
       put the number of chars of pData into tTotalSize
       put 1 into tCurrentCount
       if pCallbackTarget is not empty and there is a pCallbackTarget then
-         send pCallback to pCallbackTarget
+         dispatch pCallback to pCallbackTarget
       end if
       repeat forever
          get char tCurrentCount to (tCurrentCount + 524288 - 1) of pData
@@ -197,13 +199,15 @@ on revSBWriteFile pFile, pMode, @pData, pCallback, pCallbackTarget, pLog
          end if
          add 524288 to tCurrentCount
          if pCallbackTarget is not empty and there is a pCallbackTarget then
-            send pCallback && tCurrentCount, tTotalSize to pCallbackTarget
+            --send pCallback && tCurrentCount, tTotalSize to pCallbackTarget
+            dispatch pCallback to pCallbackTarget with tCurrentCount, tTotalSize
          end if
       end repeat
    end if
    if tResult is not empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
-         send pCallback && tTotalSize, tTotalSize to pCallbackTarget
+         --send pCallback && tTotalSize, tTotalSize to pCallbackTarget
+         dispatch pCallback to pCallbackTarget with tTotalSize
       end if
    end if
    
@@ -255,7 +259,7 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
    put 0 into tNumberCopied
    if tResult is empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
-         send pCallback to pCallbackTarget -- with empty paramaters..
+         dispatch pCallback to pCallbackTarget -- with empty paramaters..
       end if
       repeat for each line tResource in tResourceList
          add 1 to tNumberCopied
@@ -279,7 +283,7 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
                set the itemDelimiter to ","
                put item 8 of it into tUser
                put item 9 of it into tGroup
-
+               
                local tTargetUser, tTargetGroup
                set the itemDelimiter to slash
                get folders(item 1 to -2 of tSubFolder, "detailed")
@@ -289,7 +293,7 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
                put item 9 of it into tTargetGroup
                if (tUser is not empty or tGroup is not empty) and \
                      (tUser is not tTargetUser or tGroup is not tTargetGroup) then
-                  get shell("chown" && tUser & ":" & tGroup && quote & tSubFolder & quote)
+                  get shell("chown" && tUser & ":" & tGroup && q(tSubFolder))
                end if
             end if
             # Creating a folder takes no time, so do not send a callback.
@@ -304,7 +308,8 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
          end if
          -- Send the callback once every 50 items, say, if for some reason no files were encountered..
          if tNumberCopied mod 50 is 0 and pCallbackTarget is not empty and there is a pCallbackTarget then
-            send pCallback && tNumberCopied, tTotalNumber to pCallbackTarget
+            --send pCallback && tNumberCopied, tTotalNumber to pCallbackTarget
+            dispatch pCallback to pCallbackTarget with tNumberCopied, tTotalNumber
          end if
       end repeat
    end if
@@ -312,14 +317,15 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
    -- make sure we finish on a "full" callback
    if tResult is empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
-         send pCallback && tTotalNumber, tTotalNumber to pCallbackTarget
+         --send pCallback && tTotalNumber, tTotalNumber to pCallbackTarget
+         dispatch pCallback to pCallbackTarget with tTotalNumber
       end if
    end if
    
    set the defaultFolder to tOldFolder
    
    if tResult is not empty then
-      revStandaloneAddWarning tResult & ":" && quote & pSource & quote
+      revStandaloneAddWarning tResult & ":" && q(pSource)
    end if
    
    return tResult
@@ -334,7 +340,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
    -- Stat the source file
    local tOldFolder, tSize, tPermissions, tUser, tGroup, tFileType
    local tResult
-
+   
    if tResult is empty then
       put the defaultFolder into tOldFolder
       set the itemDelimiter to "/"
@@ -366,7 +372,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          end if
       end if
    end if
-
+   
    local tSourceFileIsLink
    if tResult is empty then
       if the platform is "macos" then
@@ -381,8 +387,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
    if tSourceFileIsLink then
       if tResult is empty then
          # __readlink only works for MacOS and Linux so no need for a switch here
-         get shell("cp -a" && quote & pSourceFile & quote && \
-               quote & pTargetfile & quote)
+         get shell("cp -a" && q(pSourceFile) && q(pTargetfile))
          if it is not empty then
             put "cannot copy symbolic link" into tResult
          end if
@@ -390,7 +395,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
       end if
    else # regular file
       /* If there is no callback, just grab the contents of the source and put
-       * it into the target */
+      * it into the target */
       if revSBSuppressDialogs() or pCallback is empty then
          if tResult is empty then
             local tSource
@@ -425,7 +430,8 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          local tAmountCopied
          if tResult is empty then
             if pCallbackTarget is not empty and there is a pCallbackTarget then
-               send pCallback && 0, tSize to pCallbackTarget
+               --send pCallback && 0, tSize to pCallbackTarget
+               dispatch pCallback to pCallbackTarget with 0, tSize
             end if
             repeat forever
                read from file pSourceFile for 1048576
@@ -443,7 +449,8 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
                end if
                add the number of bytes of it to tAmountCopied
                if pCallbackTarget is not empty and there is a pCallbackTarget then
-                  send pCallback && tAmountCopied, tSize to pCallbackTarget
+                  --send pCallback && tAmountCopied, tSize to pCallbackTarget
+                  dispatch pCallback to pCallbackTarget with tAmountCopied, tSize
                end if
             end repeat
          end if
@@ -468,11 +475,11 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
       put item 9 of it into tTargetGroup
       put item 10 of it into tTargetPermissions
       if tPermissions is not empty and tTargetPermissions is not tPermissions then
-         get shell("chmod" && tPermissions && quote & pTargetFile & quote)
+         get shell("chmod" && tPermissions && q(pTargetFile))
       end if
       if (tUser is not empty or tGroup is not empty) and \
             (tUser is not tTargetUser or tGroup is not tTargetGroup) then
-         get shell("chown" && tUser & ":" & tGroup && quote & pTargetFile & quote)
+         get shell("chown" && tUser & ":" & tGroup && q(pTargetFile))
       end if
    end if
    
@@ -484,8 +491,8 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
    end if
    
    /* WORKAROUND: BUG 22255 
-    *
-    * Multiple shell calls in a tight loop can cause a deadlock on macOS */
+   *
+   * Multiple shell calls in a tight loop can cause a deadlock on macOS */
    wait 0 with messages
    
    return tResult
@@ -506,9 +513,9 @@ command revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    if pSettings is empty then
       exit revSBRemoveUnneededSlicesFromMacCode
    end if
-
+   
    /* If running on macOS Sierra and below, then codesign will fail on arm64
-    * slices, so we always remove them. */
+   * slices, so we always remove them. */
    local tAppleArchSupported
    if the platform is "macos" then
       set the itemDelimiter to "."
@@ -517,9 +524,9 @@ command revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    else
       put true into tAppleArchSupported
    end if
-
+   
    /* Work out which slices to keep. If the result cannot be codesigned then
-    * we just keep intel. */
+   * we just keep intel. */
    local tKeepIntel, tKeepApple
    if tAppleArchSupported then
       if pSettings["MacOSX x86-64"] then
@@ -532,15 +539,15 @@ command revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
       put true into tKeepIntel
       put false into tKeepApple
    end if
-
+   
    /* If both slices are wanted, then there is nothing to do. */
    if tKeepIntel and tKeepApple then
       exit revSBRemoveUnneededSlicesFromMacCode
    end if
-
+   
    /* We need to put the file on a diet, so first rename the existing file. As
-    * we can't control what files might be alongside the original, we loop until
-    * we find one which does not exist. */
+   * we can't control what files might be alongside the original, we loop until
+   * we find one which does not exist. */
    local tInput, tIndex
    repeat forever
       add 1 to tIndex
@@ -550,7 +557,7 @@ command revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
       end if
    end repeat
    rename file pTargetFile to tInput
-
+   
    /* Setup the params array for the internal diet command. */
    local tParams
    put tInput into tParams["input"]
@@ -560,12 +567,12 @@ command revSBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    else if tKeepApple then
       put true into tParams["keep_arm64"]
    end if
-
+   
    /* Execute the internal diet command.
-    * Note: The only reason we use 'do' here is so that the linter doesn't
-    * complain, as this is development engine-only syntax. */
+   * Note: The only reason we use 'do' here is so that the linter doesn't
+   * complain, as this is development engine-only syntax. */
    do "_internal diet macosx tParams"
-
+   
    /* Remove the original input file. */
    delete file tInput
 end revSBRemoveUnneededSlicesFromMacCode
@@ -708,7 +715,7 @@ private function __readlink pPath
    if the platform is "Win32" then
       return empty
    end if
-
+   
    if the platform is "macOS" then
       local tFileType
       set the itemDelimiter to slash
@@ -720,9 +727,9 @@ private function __readlink pPath
          return empty
       end if
    end if
-
+   
    local tLink
-   put shell("readlink " & quote & pPath & quote) into tLink
+   put shell("readlink " & q(pPath)) into tLink
    if the last char of tLink is cr then
       delete the last char of tLink
    end if
@@ -770,7 +777,7 @@ end revStandaloneAddWarning
 
 command revStandaloneProgress pMessage
    if not revSBSuppressDialogs() then
-      send "revUpdateStandaloneProgress pMessage" to stack "revStandaloneSettings"
+      dispatch "revUpdateStandaloneProgress pMessage" to stack "revStandaloneSettings"
    end if
 end revStandaloneProgress
 
@@ -790,12 +797,12 @@ end revStandaloneProgressFinished
 ----------
 
 # AL-2015-01-29: [[ Scriptify revSaveAsStandalone ]] Move some general utility code into revSBLibrary
-function revFolderNameIllegalChars
-   return "\/:*?<>|" & quote & return
-end revFolderNameIllegalChars
+function folderNameIllegalChars
+   return "\/:*?<>|" & quote & cr
+end folderNameIllegalChars
 
-function revFolderNameIsIllegal pName
-   repeat for each char tChar in revFolderNameIllegalChars()
+function folderNameIsIllegal? pName
+   repeat for each char tChar in folderNameIllegalChars()
       if pName contains tChar then
          return true
       end if
@@ -808,18 +815,18 @@ function revFolderNameIsIllegal pName
    end if
    
    return false
-end revFolderNameIsIllegal
+end folderNameIsIllegal?
 
-function revFolderNameMakeLegal pName
+function folderNameMakeLegal pName
    local tLegalName
    put pName into tLegalName
    
-   repeat for each char tChar in revFolderNameIllegalChars()
+   repeat for each char tChar in folderNameIllegalChars()
       replace tChar with space in tLegalName
    end repeat
    
    return tLegalName
-end revFolderNameMakeLegal
+end folderNameMakeLegal
 
 // List of all desktop target platforms + architecture
 constant kDesktopTargets = "Windows,Windows x86-64,MacOSX x86-64,MacOSX arm64,Linux,Linux x64,Linux armv6-hf"
@@ -999,32 +1006,32 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    if xSettingsA["UNIX,fileSelector"] = "" then put true into xSettingsA["UNIX,fileSelector"]
    
    /* - if IDE platform is in deployment targets, then default 
-    *   to IDE platform + IDE arch 
-    * - if there is a single deployment target, then default to 
-    *   all archs for that platform
-    * - otherwise no defaults, so the user must choose */
+   *   to IDE platform + IDE arch 
+   * - if there is a single deployment target, then default to 
+   *   all archs for that platform
+   * - otherwise no defaults, so the user must choose */
    local tPlatform, tProcessor, tLicensedPlatform, tLicensedTargets, tInitialTargets
    put the platform into tPlatform
    put the processor into tProcessor
    put revSBPlatformToLicensedPlatform(tPlatform) into tLicensedPlatform
    put line 5 of revLicenseInfo into tLicensedTargets
-      put tLicensedPlatform into tInitialTargets
-      switch tInitialTargets
-         case "Windows"
-            if tProcessor contains "64" then
-               put "Windows x86-64" into tInitialTargets
-            end if
-            break
-         case "Linux"
-            if tProcessor contains "64" then
-               put "Linux x64" into tInitialTargets
-            end if
-            break
-         default
-            put revSBLicensedPlatformToTargetPlatform(tInitialTargets) \
-                  into tInitialTargets
-            break
-      end switch
+   put tLicensedPlatform into tInitialTargets
+   switch tInitialTargets
+      case "Windows"
+         if tProcessor contains "64" then
+            put "Windows x86-64" into tInitialTargets
+         end if
+         break
+      case "Linux"
+         if tProcessor contains "64" then
+            put "Linux x64" into tInitialTargets
+         end if
+         break
+      default
+         put revSBLicensedPlatformToTargetPlatform(tInitialTargets) \
+               into tInitialTargets
+         break
+   end switch
    
    repeat for each item tTarget in tInitialTargets
       if tTarget is "MacOSX x86-64" then 
@@ -1106,7 +1113,7 @@ function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
 end revSBLicensedPlatformToTargetPlatform
 
 function revSBRemoveUnlicensedTargetsFromSettings @xSettingsA
-	return empty
+   return empty
 end revSBRemoveUnlicensedTargetsFromSettings
 
 
@@ -1188,7 +1195,7 @@ function revEngineCheck? pEngine
       
       -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all OSX builds to be Intel.
       switch pEngine
---         case "MacOSX PowerPC-32"
+         --         case "MacOSX PowerPC-32"
          case "MacOSX x86-32"
             return there is a directory (tPath & "/Mac OS X/x86-32/Standalone.app")
          case "MacOSX"
@@ -1241,32 +1248,32 @@ end revEngineCheck?
 #   Prompts the user to choose an icon file as appropriate to the platform. Returns the full path of the file, or empty
 #   if no file was chosen.
 function utilityChooseIconFile pTargetPlatform
-  local tPrompt
-  put "Select icon file: " into tPrompt
-  
-  local tTypes
-  put "All files|*" & return into tTypes
-  
-  # Roughly preserves old behavior, just using answer file with type instead of filter.
-  local tIconFile
-  if pTargetPlatform is "Mac OS X" then
-    put "Icon Resource Files|icns|ICNS" after tTypes
-  else if pTargetPlatform is "Windows" then
-    put "Icon Files|ico|ICO" after tTypes
-  end if
-  
-  if the number of lines of tTypes is 2 then
-    answer file tPrompt with type (line 2 of tTypes) or type (line 1 of tTypes)
-  else
-    answer file tPrompt with type (line 1 of tTypes)
-  end if
-  put it into tIconFile
-  
-  if tIconFile is empty then
-    return empty
-  end if
-  
-  return tIconFile
+   local tPrompt
+   put "Select icon file: " into tPrompt
+   
+   local tTypes
+   put "All files|*" & return into tTypes
+   
+   # Roughly preserves old behavior, just using answer file with type instead of filter.
+   local tIconFile
+   if pTargetPlatform is "Mac OS X" then
+      put "Icon Resource Files|icns|ICNS" after tTypes
+   else if pTargetPlatform is "Windows" then
+      put "Icon Files|ico|ICO" after tTypes
+   end if
+   
+   if the number of lines of tTypes is 2 then
+      answer file tPrompt with type (line 2 of tTypes) or type (line 1 of tTypes)
+   else
+      answer file tPrompt with type (line 1 of tTypes)
+   end if
+   put it into tIconFile
+   
+   if tIconFile is empty then
+      return empty
+   end if
+   
+   return tIconFile
 end utilityChooseIconFile
 
 # Parameters
@@ -1277,22 +1284,22 @@ end utilityChooseIconFile
 #   be make relative, ie because it is not in pFolder then the function returns pFile. If pFile can be made relative
 #   then the relative path from pFolder to pFile is returned.
 function utilityMakePathRelative pFile, pFolder
-  local tFolder
-  put pFolder into tFolder
-  if the last char of tFolder is not slash then
-    put slash after tFolder
-  end if
-  
-  local tFile
-  put pFile into tFile
-  
-  local tCharCount
-  put the number of chars of tFolder into tCharCount
-  if char 1 to tCharCount of tFile = tFolder then
-    delete char 1 to tCharCount of tFile
-  end if
-  
-  return tFile
+   local tFolder
+   put pFolder into tFolder
+   if the last char of tFolder is not slash then
+      put slash after tFolder
+   end if
+   
+   local tFile
+   put pFile into tFile
+   
+   local tCharCount
+   put the number of chars of tFolder into tCharCount
+   if char 1 to tCharCount of tFile = tFolder then
+      delete char 1 to tCharCount of tFile
+   end if
+   
+   return tFile
 end utilityMakePathRelative
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1483,7 +1490,7 @@ private function revSBMobileExternalsFromFolder pFolder
          put true into tListA[word 2 to -1 of tItem]
       end if
    end repeat
-
+   
    return tListA
 end revSBMobileExternalsFromFolder
 
@@ -1527,7 +1534,7 @@ end revSBExternalsList
 
 -- MW-2013-06-13: [[ CloneAndRun ]] If we aren't installed, then generate the externals
 --   list by hand.
-private function revSBDatabaseDriversBuildList pPlatform
+private function SBDatabaseDriversBuildList pPlatform
    -- For now, only allow externals for the current build platform
    local tExpectedPlatform
    switch the platform
@@ -1548,7 +1555,7 @@ private function revSBDatabaseDriversBuildList pPlatform
    end if
    
    return revDatabaseDriverList()
-end revSBDatabaseDriversBuildList
+end SBDatabaseDriversBuildList
 
 private function revSBDesktopDatabaseDriversFromFolder pFolder
    -- Find all relevant Database Drivers.txt files
@@ -1569,7 +1576,7 @@ end revSBDesktopDatabaseDriversFromFolder
 
 -- Check in the IDE and user-defined DB driver locations for 
 -- Database Drivers.txt files
-private function revSBDesktopDatabaseDriversList pPlatform
+private function SBDesktopDatabaseDriversList pPlatform
    local tPlatformFolder
    put revSBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
    
@@ -1583,9 +1590,9 @@ private function revSBDesktopDatabaseDriversList pPlatform
    union tListA with revSBDesktopDatabaseDriversFromFolder(tTargetFolder)
    
    return the keys of tListA
-end revSBDesktopDatabaseDriversList
+end SBDesktopDatabaseDriversList
 
-private function revSBMobileDatabaseDriversFromFolder pFolder
+private function SBMobileDatabaseDriversFromFolder pFolder
    local tFilesList
    put revSBEnumerateFolder(pFolder) into tFilesList
    
@@ -1606,11 +1613,11 @@ private function revSBMobileDatabaseDriversFromFolder pFolder
          put true into tListA[word 2 to -1 of tItem]
       end if
    end repeat
-
+   
    return tListA
-end revSBMobileDatabaseDriversFromFolder
+end SBMobileDatabaseDriversFromFolder
 
-private function revSBMobileDatabaseDriversList pPlatform
+private function SBMobileDatabaseDriversList pPlatform
    -- Since the mobile Runtime folders don't have Externals.txt, 
    -- just check which DB drivers are available from the fixed list
    local tPlatformFolder
@@ -1620,27 +1627,27 @@ private function revSBMobileDatabaseDriversList pPlatform
    
    local tTargetFolder
    put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBMobileDatabaseDriversFromFolder(tTargetFolder)
+   union tListA with SBMobileDatabaseDriversFromFolder(tTargetFolder)
    
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBMobileDatabaseDriversFromFolder(tTargetFolder)
+   union tListA with SBMobileDatabaseDriversFromFolder(tTargetFolder)
    
    return the keys of tListA
-end revSBMobileDatabaseDriversList
+end SBMobileDatabaseDriversList
 
 function revSBDatabaseDriversList pPlatform
    if not revEnvironmentIsInstalled() then
-      return revSBDatabaseDriversBuildList(pPlatform)
+      return SBDatabaseDriversBuildList(pPlatform)
    end if
    
    switch pPlatform
       case "MacOSX"
       case "Linux"
       case "Windows"
-         return revSBDesktopDatabaseDriversList(pPlatform)
+         return SBDesktopDatabaseDriversList(pPlatform)
       case "iOS"
       case "Android"
-         return revSBMobileDatabaseDriversList(pPlatform)
+         return SBMobileDatabaseDriversList(pPlatform)
       default 
          return empty
    end switch
@@ -1656,48 +1663,48 @@ function revSBBuiltinInclusions pPlatform
    repeat for each line tLine in it
       put empty into tLibrariesA[tLine]
    end repeat
-
+   
    if pPlatform is not "emscripten" then
-   put empty into tLibrariesA["SSL & Encryption"]
+      put empty into tLibrariesA["SSL & Encryption"]
       put empty into tLibrariesA["Revolution Zip"]
    end if
    
    if "Browser" is among the keys of tLibrariesA then
       put empty into tLibrariesA["Browser (CEF)"]
    end if
-
+   
    return the keys of tLibrariesA
 end revSBBuiltinInclusions
 
 function revSBLcextFileIsZipArchive \
-		pFile, \
-		@rError
-
-	local tResult
-	open file pFile for binary read
-	put the result into tResult
-
-	if tResult is empty then
-		read from file pFile for 4 bytes
-		put the result into tResult
-		close file pFile
-	end if
-
-	switch tResult
-	case empty
-		break
-	case "eof"
-		return false
-	default
-		put "could not open external -" && pFile into rError
-		return false
-	end switch
-
-	return \
-			byte 1 of it is "P" and \
-			byte 2 of it is "K" and \
-			byte 3 of it is numToByte(3) and \
-			byte 4 of it is numToByte(4)
+      pFile, \
+      @rError
+   
+   local tResult
+   open file pFile for binary read
+   put the result into tResult
+   
+   if tResult is empty then
+      read from file pFile for 4 bytes
+      put the result into tResult
+      close file pFile
+   end if
+   
+   switch tResult
+      case empty
+         break
+      case "eof"
+         return false
+      default
+         put "could not open external -" && pFile into rError
+         return false
+   end switch
+   
+   return \
+         byte 1 of it is "P" and \
+         byte 2 of it is "K" and \
+         byte 3 of it is numToByte(3) and \
+         byte 4 of it is numToByte(4)
 end revSBLcextFileIsZipArchive
 
 function revSBLcextExternalHasFolder pExternal, pPlatform
@@ -2326,7 +2333,7 @@ end prependToStringList
 
 private command __LoadStackOnStartup pStackName, @xAuxStackFiles, @xStartupScript, @xGeneratedStartupScript
    appendToStringList the effective filename of stack pStackName, xAuxStackFiles
-   appendToStringList "revInternal__LoadLibrary" && quote & pStackName & quote, xStartupScript
+   appendToStringList "revInternal__LoadLibrary" && q(pStackName), xStartupScript
    
    -- allow libraries to generate some additional startup script
    dispatch "extensionStartupScript" to stack pStackName
@@ -2391,12 +2398,12 @@ command revSBUpdateSettingsForExtensions pTarget, @xSettingsA
          repeat for each line tLine in tContents
             local tFileData
             put tResourcesFolder & slash & tLine into tFileData["resolved"]
-
+            
             -- __EnumerateFolder list folders and we only want to add files
             if there is a folder tFileData["resolved"] then
                next repeat
             end if
-
+            
             put tTargetResourceFolder & slash & tLine into tFileData["name"]
             addToList tFileData, xSettingsA["files_computed"]
          end repeat
@@ -2409,50 +2416,50 @@ command revSBUpdateSettingsForExtensions pTarget, @xSettingsA
                tTargetResourceFolder, xSettingsA
       end if
       put tExtensionData into xSettingsA["extensions_computed"][tLoadIndex]
-
+      
       /* Check for any custom manifest fragments */
       local tManifests
       put revIDEExtensionProperty(tExtension, "manifests") into tManifests
       if tManifests[pTarget] is not empty then
          local tManifestFolder
          put the tempName into tManifestFolder
-
+         
          local tManifestFile, tSettingsKey
          switch pTarget
-         case "android"
-            put tManifestFolder & slash & "AndroidManifest.xml" \
-               into tManifestFile
-            put "androidManifests" into tSettingsKey
-            break
-         default
-            /* Manifest merging not yet implemented for other platforms */
-            revStandaloneAddWarning \
-               format( \
-                  "Extension %s manifest for %s will not be used", \
-                  tExtension, \
-                  pTarget)
-            break
+            case "android"
+               put tManifestFolder & slash & "AndroidManifest.xml" \
+                     into tManifestFile
+               put "androidManifests" into tSettingsKey
+               break
+            default
+               /* Manifest merging not yet implemented for other platforms */
+               revStandaloneAddWarning \
+                     format( \
+                     "Extension %s manifest for %s will not be used", \
+                     tExtension, \
+                     pTarget)
+               break
          end switch
-
+         
          /* If we support manifest merging for the target platform, then
-          * ensure all params are injected (by setting the `tInclusionSettings`
-          * variable and using the merge function) and then add to the settings
-          * array as appropriate */
+         * ensure all params are injected (by setting the `tInclusionSettings`
+         * variable and using the merge function) and then add to the settings
+         * array as appropriate */
          if tManifestFile is not empty then
             __revSBEnsureFolder tManifestFolder
-
+            
             local tExtensionManifest
             put textDecode(url("binfile:" & tManifests[pTarget]), "utf-8") \
-               into tExtensionManifest
-
+                  into tExtensionManifest
+            
             local tInclusionSettings
             put xSettingsA[tExtension] into tInclusionSettings
             put textEncode(merge(tExtensionManifest), "utf-8") into \
-               url("binfile:" & tManifestFile)
-
+                  url("binfile:" & tManifestFile)
+            
             appendToStringList \
-               tManifestFile, \
-               xSettingsA[tSettingsKey]
+                  tManifestFile, \
+                  xSettingsA[tSettingsKey]
          end if
       end if
    end repeat
@@ -2552,7 +2559,7 @@ command revSBUpdateDeployParams pStack, pTarget, pStandaloneSettings, @xDeployPa
       local tRevInitialisationLibrary
       put the effective filename of stack "revInitialisationLibrary" into tRevInitialisationLibrary
       local tInitScript
-      put "insert the script of stack" && quote & "revInitialisationLibrary" & quote && "into back" into tInitScript
+      put "insert the script of stack" && q("revInitialisationLibrary") && "into back" into tInitScript
       prependToStringList tRevInitialisationLibrary, tAuxiliaryStackFiles
       prependToStringList tInitScript, tStartupScript
    end if
@@ -2859,13 +2866,13 @@ private command __UpdateSettingsFromCodeFolder pPath, pCodeFolderName, pPlatform
    put pPath & slash & pCodeFolderName into tFolderPath
    put files(tFolderPath) into tFiles
    filter tFiles without ".*"
-
+   
    /* When running from source, the code folders could have debugging files in
-    * them, so we remove those from the files list here. */
+   * them, so we remove those from the files list here. */
    filter tFiles without "*.dbg"
    filter tFiles without "*.dSYM"
    filter tFiles without "*.pdb"
-
+   
    switch pCodeFolderName
       case "jvm-android"
          local tAndroidJarFiles, tAndroidAarFiles
@@ -2938,11 +2945,11 @@ private command __UpdateSettingsFromCodeFolder pPath, pCodeFolderName, pPlatform
                local tFolders
                put folders(tFolderPath) into tFolders
                filter tFolders without ".*"
-
+               
                /* On macOS and iOS, when running from source, the folders list
-                * might include dSYM folders, so remove those here. */
+               * might include dSYM folders, so remove those here. */
                filter tFolders without "*.dSYM"
-
+               
                repeat for each line tLine in tFolders
                   if tLine is empty then
                      next repeat
@@ -2988,7 +2995,7 @@ end revSBSanitiseExternalsList
 ------------------- SMART CHECKING --------------------
 
 local sPatternsA, sSearchInitialised
-on initialiseSearchForInclusions
+private command initialiseSearchForInclusions
    if sSearchInitialised then
       exit initialiseSearchForInclusions
    end if
@@ -3021,7 +3028,7 @@ on initialiseSearchForInclusions
    put "revSetDatabaseDriverPath,revAddXMLNode,revAppendXML,revCreateXMLTree,revCreateXMLTreeFromFile,revDeleteAllXMLTrees,revDeleteXMLNode,revDeleteXMLTree,revPutIntoXMLNode,revSetXMLAttribute" into sPatternsA["XML"]["Script"]
    put "scriptLibraries" into sPatternsA["XML"]["Key"]
    
-    # XMLRPC
+   # XMLRPC
    put "revXMLRPC_" into sPatternsA["XMLRPC"]["Root"]
    put "scriptLibraries" into sPatternsA["XMLRPC"]["Key"]
    
@@ -3054,8 +3061,8 @@ on initialiseSearchForInclusions
       local tDBName, tDB
       put word 1 of tDBDriver into tDB
       put word 2 to -1 of tDBDriver into tDBName
-      put "revOpenDatabase.*\(.*" & quote & tDB & quote & comma \
-            & "revdb_connect.*\(.*" & quote & tDB & quote into sPatternsA[tDBName]["Regex"]
+      put "revOpenDatabase.*\(.*" & q(tDB) & comma \
+            & "revdb_connect.*\(.*" & q(tDB) into sPatternsA[tDBName]["Regex"]
       put "databaseDrivers" into sPatternsA[tDBName]["Key"]
    end repeat
    
@@ -3068,10 +3075,10 @@ command revSBSearchForInclusions pStack, @xSettings
    local tStackFilesList
    revSBGetStackFilesList pStack, tStackFilesList
    
-   revSmartChecking tStackFilesList, xSettings
+   smartChecking tStackFilesList, xSettings
 end revSBSearchForInclusions
 
-private command revSmartChecking pStackFilesList, @xSettings
+private command smartChecking pStackFilesList, @xSettings
    local tNewSettings
    put xSettings into tNewSettings
    local tPath,tLine,tStack,tList,tHandler,tUserLibs,tStackFile,tCard,tControl,tSave,tStacksList,tDB,tProps,tCardNum,tControlNum,tBg,tEnvironmentIcons, tUserIcons
@@ -3113,7 +3120,7 @@ private command revSmartChecking pStackFilesList, @xSettings
             # OK-2009-09-07 : Value of password and passkey properties changed, the above test no longer works
             if __ScriptIsLocked?(tStack) then
                revStandaloneAddWarning "Could not auto-detect inclusions or security categories because stack is password protected"
-               exit revSmartChecking
+               exit smartChecking
             end if
          end if
          
@@ -3136,7 +3143,7 @@ private command revSmartChecking pStackFilesList, @xSettings
    -- Update the output settings
    put tNewSettings into xSettings
    unlock messages
-end revSmartChecking
+end smartChecking
 
 private function __ScriptIsLocked? pStack
    try
@@ -3354,10 +3361,6 @@ function revSBEnginePath pPlatform
    end if # revEnvironmentIsInstalled
 end revSBEnginePath
 
---function revSBLicensedToDeployToTarget pTarget
-      --return true
- --end revSBLicensedToDeployToTarget
-
 function revSBNoPlatforms? pSettings
    repeat for each item tTarget in kDesktopTargets, kAdditionalTargets
       if pSettings[tTarget] then
@@ -3413,3 +3416,7 @@ command revSBSetSettings pStack, pSettings
    set the customProperties["cRevStandaloneSettings"] of stack \
          (the mainstack of stack pStack) to pSettings
 end revSBSetSettings
+
+private function q pText
+   return quote & pText & quote
+end q

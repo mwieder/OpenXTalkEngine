@@ -9,7 +9,8 @@
 --   destroyStack
 --   password
 
-command revSaveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
+# this is the only public handler in this script
+command saveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    local tTargetType
    if pTarget contains "device" then
       put "ios device" into tTargetType
@@ -22,7 +23,7 @@ command revSaveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    end try
    
    try
-      revSaveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSettings
+      saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSettings
    catch tError
       if revTestEnvironment() then
          return tError
@@ -42,14 +43,14 @@ command revSaveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    
    -- SN-2014-01-31: [[ Bug 11124 ]] No warning when an external file is missing
    if revStandaloneGetWarnings() is not empty and pTarget contains "Simulator" then
-      set the cWarnings of stack "revBuildResults" to revStandaloneGetWarnings()
+      put revStandaloneGetWarnings() & cr after msg
    end if
-end revSaveAsMobileStandalone
+end saveAsMobileStandalone
 
-private function getIosSdkInfo pSDKVersion, @rInfo
+private function getIosSdkInfo? pSDKVersion, @rInfo
    local tSDKPath, tSettings
    put merge("/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS[[pSDKVersion]].sdk") into tSDKPath
-   get revIDEDeployIOSGetDeviceSDK(pSDKVersion)
+   get deploy.IOS.DeviceSDK(pSDKVersion)
    if there is no folder (it & tSDKPath) then
       return false
    end if
@@ -60,12 +61,12 @@ private function getIosSdkInfo pSDKVersion, @rInfo
    put revMobileRuntimeFolder("Device", tSettings["suffix"]) into tSettings["runtime path"]
    put tSettings into rInfo
    return true
-end getIosSdkInfo
+end getIosSdkInfo?
 
 // Check whether the output from linking is valid.
 // This has been added after Xcode 7.0 adds warnings when the minimum
 // version does not match the compiled version.
-private function linkingIsValid pLinkingOutput
+private function linkingIsValid? pLinkingOutput
    if pLinkingOutput is empty then return true
    
    repeat for each line tLine in pLinkingOutput
@@ -78,10 +79,10 @@ private function linkingIsValid pLinkingOutput
    end repeat
    
    return true
-end linkingIsValid
+end linkingIsValid?
    
 constant kIosExternals = "revzip revxml dbsqlite dbmysql dbodbc dbpostgresql revpdfprinter revsecurity"
-private command revSaveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSettings
+private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSettings
    if the platform is not "macos" then
       throw "not supported on this platform"
    end if
@@ -111,18 +112,18 @@ private command revSaveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSett
    if pTarget is "Device" then
       local tIosXcodePairs, tValid
       
-      put revIDEDeployIOSGetIphoneOSes() into tIosXcodePairs
+      put deploy.IOS.IphoneOSes() into tIosXcodePairs
       put false into tValid
       
       repeat for each element tIosXcodePair in tIosXcodePairs
-         if getIosSDKInfo(item 1 of tIosXcodePair, tSDKInfo) then
+         if getIosSDKInfo?(item 1 of tIosXcodePair, tSDKInfo) then
             put true into tValid
             exit repeat
          end if
       end repeat
       
       if not tValid then
-         throw revIDEDeployIOSGetInvalidityMessage(tIosXcodePairs)
+         throw deploy.IOS.InvalidityMessage(tIosXcodePairs)
       end if
       put tSDKInfo into tSDKs["arm"]
       
@@ -539,7 +540,7 @@ private command revSaveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSett
             
             put tArchSpecificEngineFile & space after tArchSpecificEngineList
             delete file tLinkOptionsFile
-            if not linkingIsValid(it) or there is no file tArchSpecificEngineFile then
+            if not linkingIsValid?(it) or there is no file tArchSpecificEngineFile then
                throw "linking for" && tInstSet && " (" & tArch & ") failed with " & it
             end if
          end repeat
@@ -825,7 +826,7 @@ private command revSaveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSett
    if not (tResult contains "signed bundle" or tResult contains "signed app bundle") then
       throw "codesigning failed with" && tResult
    end if
-end revSaveAsMobileStandaloneMain
+end saveAsMobileStandaloneMain
 
 private command __CodesignFrameworks pPath, pCertificate
    local tFrameworks
@@ -843,22 +844,22 @@ private command __CodesignFrameworks pPath, pCertificate
    end repeat
 end __CodesignFrameworks
 
-command revSaveAsMobileDeployer pDeployAppBundle, pAppBundle, pAppName, pAppId, pAppExecutables
-   create folder pDeployAppBundle
-   create folder pDeployAppBundle & slash & "Contents"
-   create folder pDeployAppBundle & slash & "Contents" & "MacOS"
-   
-   local tProperties
-   put pAppName into tProperties["name"]
-   put pAppId into tProperties["id"]
-   put pAppExecutables into tProperties["executables"]
-   --put url ("binfile:" & revMobileRuntimeFolder(pTarget) & slash & "StoreEntitlements.xcent") into tProperties["store_entitlements"]
-   --put url ("binfile:" & revMobileRuntimeFolder(pTarget) & slash & "Entitlements.xcent") into tProperties["entitlements"]
-   --put the compress of the arrayEncode of tProperties into url ("binfile:" & pDeployAppBundle & slash & "Contents/MacOS/properties")
-   
-   local tDeploy
-   -- TODO build executable
-end revSaveAsMobileDeployer
+--command revSaveAsMobileDeployer pDeployAppBundle, pAppBundle, pAppName, pAppId, pAppExecutables
+--   create folder pDeployAppBundle
+--   create folder pDeployAppBundle & slash & "Contents"
+--   create folder pDeployAppBundle & slash & "Contents" & "MacOS"
+
+--   local tProperties
+--   put pAppName into tProperties["name"]
+--   put pAppId into tProperties["id"]
+--   put pAppExecutables into tProperties["executables"]
+--   --put url ("binfile:" & revMobileRuntimeFolder(pTarget) & slash & "StoreEntitlements.xcent") into tProperties["store_entitlements"]
+--   --put url ("binfile:" & revMobileRuntimeFolder(pTarget) & slash & "Entitlements.xcent") into tProperties["entitlements"]
+--   --put the compress of the arrayEncode of tProperties into url ("binfile:" & pDeployAppBundle & slash & "Contents/MacOS/properties")
+
+--   local tDeploy
+--   -- TODO build executable
+--end revSaveAsMobileDeployer
 
 ################################################################################
 
@@ -978,7 +979,7 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
          put tEntry after tContentsJSON
          
          if tDimensions is empty then
-            put imageGetDimensions(tFile) into tDimensions
+            put imageDimensionsOf(tFile) into tDimensions
             switch tScale
                case "2x"
                   put item 1 of tDimensions div 2, \
@@ -1045,13 +1046,13 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
    put line 5 to -3 of tPartialPlist into rCFBundleIcons
 end revDecorateImageAssets
 
-private function imageGetDimensions pImageFile
-     local tDims
-     set the filename of the templateImage to pImageFile
-     put (the formattedWidth of the templateImage, the formattedHeight of the templateImage) into tDims
-     reset the templateImage
-     return tDims
-end imageGetDimensions
+private function imageDimensionsOf pImageFile
+   local tDims
+   set the filename of the templateImage to pImageFile
+   put (the formattedWidth of the templateImage, the formattedHeight of the templateImage) into tDims
+   reset the templateImage
+   return tDims
+end imageDimensionsOf
 
 private command revCompileStoryboardFiles pTarget, pSettings, pMinVersion, pImageDimensions, pAppBundle
    revStandaloneProgress "Compiling storyboard files..."    
@@ -1826,7 +1827,7 @@ private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPl
       // we want the app to access Location Services when it is used. If we want to access Location Services always, we need the old NSLocationAlwaysUsageDescription 
       // key too (i.e. 3 keys in total). Moreover, NSLocationAlwaysUsageDescription is required for backwards compatibility
       local tSdkVersion
-      put revIDEDeployIOSGetSDKVersions() into tSdkVersion
+      put deploy.IOS.SDKVersions() into tSdkVersion
       set the itemDel to "."
       if item 1 of tSdkVersion >= 11 then
          get "<key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>This application requires access to Location Services</string>" & CR \
@@ -1955,14 +1956,14 @@ private function revGetMobileProfileInfo pProfileId
 end revGetMobileProfileInfo
 
 ################################################################################
-function revMobileRuntimeFolder pTarget, pVersion
+private function revMobileRuntimeFolder pTarget, pVersion
    local tStub
    if pTarget is "Device" then
       if pVersion is empty then
          // SN-2015-04-30: [[ Bug 15175 ]] Take the latest valid SDK installed
          // (can be 8.2 or 8.3 onwards on Yosemite).
          local tVersion
-         if revIDEDeployIOSGetLatestSDKInstalled(tVersion) then
+         if deploy.IOS.LatestSDKInstalled(tVersion) then
             replace "." with "_" in tVersion
             put tVersion into pVersion
          end if
@@ -1995,7 +1996,7 @@ end revMobileRuntimeFolder
 
 -- MW-2013-06-13: [[ CloneAndRun ]] Map a file path from where the sb expects them to be to local
 --   files in the build folder.
-function mapFilePath pPath
+private function mapFilePath pPath
    if revEnvironmentIsInstalled() then
       return pPath
    end if

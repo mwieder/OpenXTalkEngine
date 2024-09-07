@@ -12,7 +12,7 @@ command revSaveAsMobileStandalone \
       pSettings, \
       @xStandalonePaths, \
       pDevice
-
+   
    local tPath
    put the cMobileSupport["android.sdk"] of stack "revPreferences" into tPath
    
@@ -21,10 +21,10 @@ command revSaveAsMobileStandalone \
             " you need to choose the location of your Android development SDK" & \
             " in Preferences -> Mobile Support")
    end if
-   if not revIDEDeployAndroidIsValidSDK(tPath) then
+   if not deploy.Android.IsValidSDK?(tPath) then
       throw revIDELocalise("The chosen folder in Preferences -> Mobile Support" & \
             " is not a valid Android SDK. Please ensure you have installed it correctly," & \
-            " and enabled support for") && revIDEDeployAndroidRequiredSDK()
+            " and enabled support for") && deploy.Android.RequiredSDK()
    end if
    
    local tTargetType
@@ -33,7 +33,7 @@ command revSaveAsMobileStandalone \
    else
       put "android test" into tTargetType
    end if
-
+   
    local tPackage
    put pAabFile into tPackage
    if not pSettings["android,use bundle"] then
@@ -41,7 +41,7 @@ command revSaveAsMobileStandalone \
       put "apk" into the last item of tPackage
       set the itemDelimiter to ","
    end if
-
+   
    try
       put the cMobileSupport["android.jdk"] of stack "revPreferences" into sJavaRoot
       dispatch "savingMobileStandalone" to stack pStack with tTargetType, tPackage
@@ -49,11 +49,11 @@ command revSaveAsMobileStandalone \
    
    try
       revSaveAsMobileStandaloneMain \
-         pStack, \
-         pAabFile, \
-         pTarget, \
-         pSettings, \
-         pDevice
+            pStack, \
+            pAabFile, \
+            pTarget, \
+            pSettings, \
+            pDevice
    catch tError
    end try
    
@@ -172,7 +172,7 @@ private command revSaveAsMobileStandaloneMain \
    combine tArchABIs by comma as set
    combine tArchs by comma as set
    
-   dispatch "revIDEDeployAndroidInitialize" to stack "revDeployLibrary"
+   dispatch "deploy.Android.Initialize" to stack "revDeployLibrary"
    
    -- If we're searching for inclusions, do it here 
    local tConfirm, tResult
@@ -236,8 +236,8 @@ private command revSaveAsMobileStandaloneMain \
    // SN-2015-05-13: [[ AndroidVersions ]] Make sure that the minimum version is
    // the minimum version that we can use.
    local tMinimumVersion, tMaximumVersion
-   put item 1 of revIDEDeployAndroidGetApisList() into tMinimumVersion
-   put last item of revIDEDeployAndroidGetApisList() into tMaximumVersion
+   put item 1 of deploy.Android.GetApisList() into tMinimumVersion
+   put last item of deploy.Android.GetApisList() into tMaximumVersion
    
    if pSettings["android,minimum version"] is empty then
       put tMinimumVersion into pSettings["android,minimum version"]
@@ -2024,7 +2024,7 @@ end addExternalFromFolder
 
 ################################################################################
 
-function revMobileRuntimeFolder pTarget
+private function revMobileRuntimeFolder pTarget
    local tOverridePath, tUserPath
    
    # TODO: fix this
@@ -2214,15 +2214,16 @@ private function pathToZipAlign pRoot
    return the result
 end pathToZipAlign
 
-command setMavenDownloadCallback pHandler, pObjectId, pContext
+# NOTE: pContext is always empty
+private command setMavenDownloadCallback pHandler, pObjectId, pContext
    dispatch "setMavenDownloadCallback" to stack kDeployLibrary with pHandler, pObjectId, pContext
 end setMavenDownloadCallback
 
-command resolveAndroidLibraryDependencyList @xDependencies, pRoot, pDependencyList
+private command resolveAndroidLibraryDependencyList @xDependencies, pRoot, pDependencyList
    dispatch "resolveAndroidLibraryDependencyList" to stack kDeployLibrary with xDependencies, pRoot, pDependencyList
 end resolveAndroidLibraryDependencyList
 
-command fetchAndroidLibraryDependencies pRoot, pDependencies, @xJarFiles, @xAarFiles
+private command fetchAndroidLibraryDependencies pRoot, pDependencies, @xJarFiles, @xAarFiles
    dispatch "fetchAndroidLibraryDependencies" to stack kDeployLibrary with pRoot, pDependencies, xJarFiles, xAarFiles
 end fetchAndroidLibraryDependencies
 
@@ -2281,7 +2282,7 @@ end mapAndroidPath
 
 -- MW-2013-06-13: [[ CloneAndRun ]] Map a file path from where the sb expects them to be to local
 --   files in the build folder.
-function mapFilePath pPath
+private function mapFilePath pPath
    if revEnvironmentIsInstalled() then
       // SN-2015-01-19: [[ Bug 13213 ]] Linux filepaths are case-sensitive.
       //   so we try to caselessly match the targetted file, with the actual files.
@@ -2393,7 +2394,7 @@ end mapFilePath
 
 ################################################################################
 
-function androidCreateAppManifest pMainManifest, pAdditionalManifestsA, pBuildVariables
+private function androidCreateAppManifest pMainManifest, pAdditionalManifestsA, pBuildVariables
    local tMainArrayA, tAdditionalArraysA
    put androidManifestToArray(pMainManifest, pBuildVariables) into tMainArrayA
    repeat for each element tManifest in pAdditionalManifestsA
@@ -2404,7 +2405,7 @@ function androidCreateAppManifest pMainManifest, pAdditionalManifestsA, pBuildVa
    return ConvertArrayToXML(tMainArrayA, "utf-8")
 end androidCreateAppManifest
 
-command mergeManifestArrays @xManifestArrayA, pAdditionalsA
+private command mergeManifestArrays @xManifestArrayA, pAdditionalsA
    repeat for each element tAdditionalA in pAdditionalsA
       mergeManifestElementList xManifestArrayA, tAdditionalA
    end repeat
@@ -2413,7 +2414,7 @@ end mergeManifestArrays
 constant kMergePolicyMerge = "merge"
 constant kMergePolicyMergeChildrenOnly = "mergeChildrenOnly"
 constant kMergePolicyKeep = "keep"
-function mergeElementPolicy pManifestElement
+private function mergeElementPolicy pManifestElement
    switch pManifestElement["@name"]
       case "action"
       case "activity"
@@ -2453,7 +2454,7 @@ function mergeElementPolicy pManifestElement
    end switch
 end mergeElementPolicy
 
-function mergeElementMatch pElementA, pElementB
+private function mergeElementMatch? pElementA, pElementB
    if pElementA["@name"] is not pElementB["@name"] then
       // Different types of element do not match
       return false
@@ -2507,15 +2508,15 @@ function mergeElementMatch pElementA, pElementB
          // Don't match custom elements
          return false
    end switch
-end mergeElementMatch
+end mergeElementMatch?
 
-command mergeManifestElementList @xManifestElements, pNewElements
+private command mergeManifestElementList @xManifestElements, pNewElements
    repeat for each element tNew in pNewElements
       // find matching element index (if any)
       local tMatch
       put empty into tMatch
       repeat with i = 1  to the number of elements in xManifestElements
-         if mergeElementMatch(xManifestElements[i], tNew) then
+         if mergeElementMatch?(xManifestElements[i], tNew) then
             put i into tMatch
             exit repeat
          end if
@@ -2530,7 +2531,7 @@ command mergeManifestElementList @xManifestElements, pNewElements
    end repeat
 end mergeManifestElementList
 
-command mergeManifestElements @xElement, pNewElement
+private command mergeManifestElements @xElement, pNewElement
    local tMergePolicy
    put mergeElementPolicy(xElement) into tMergePolicy
    if tMergePolicy is kMergePolicyMerge then
@@ -2562,12 +2563,12 @@ command mergeManifestElements @xElement, pNewElement
    end if
 end mergeManifestElements
 
-command replaceAndroidManifestPlaceholders @xManifestXMLData, pBuildVariables
+private command replaceAndroidManifestPlaceholders @xManifestXMLData, pBuildVariables
    -- The only placeholder encountered so far is the "${applicationId}" placeholder
    replace "${applicationId}" with pBuildVariables["applicationId"] in xManifestXMLData
 end replaceAndroidManifestPlaceholders
 
-function androidManifestToArray pManifestFile, pBuildVariables
+private function androidManifestToArray pManifestFile, pBuildVariables
    local tXML
    put url("binfile:" & pManifestFile) into tXML
    replaceAndroidManifestPlaceholders tXML, pBuildVariables
@@ -2587,7 +2588,7 @@ pXML: The xml to convert.
 pStoreEncodedAs: 
 Encoding to use. Must be a value that can be passed to textEncode. Default is "utf-8".
 */
-function ConvertXMLToArray pXML, pStoreEncodedAs
+private function ConvertXMLToArray pXML, pStoreEncodedAs
    local theArray,theResult,theRootNode,theTreeID
    local theXMLEncoding, tVersion
    
@@ -2624,7 +2625,7 @@ pStoreEncodedAs: See docs for ConvertXMLToArray.
 Description:
 See docs for ConvertXMLToArray.
 */
-function ConvertXMLTreeToArray pXMLTree, pStoreEncodedAs
+private function ConvertXMLTreeToArray pXMLTree, pStoreEncodedAs
    return ConvertXMLToArray(revXMLText(pXMLTree), pStoreEncodedAs)
 end ConvertXMLTreeToArray
 
@@ -2647,7 +2648,7 @@ each node is an array with three possible keys,
 - @value: The text value of the node
 Returns: Text of the XML represented by the array, or error message.
 */
-function ConvertArrayToXML pArray, pArrayEncoding, pStoreEncodedAs
+private function ConvertArrayToXML pArray, pArrayEncoding, pStoreEncodedAs
    local theError,theRootNode,theXML,theXMLTree
    
    ## if pArrayEncoding is empty then current platform encoding is assumed
@@ -2822,7 +2823,7 @@ end EncodeString
 
 ##########
 
-function getGoogleServicesStringResources pAppId, pJSON
+private function getGoogleServicesStringResources pAppId, pJSON
    local tResources
    local tGS
    
@@ -2869,7 +2870,7 @@ function getGoogleServicesStringResources pAppId, pJSON
    return tResources
 end getGoogleServicesStringResources
 
-function generateStringResourceXML pStringResources
+private function generateStringResourceXML pStringResources
    local tXML
    put "<?xml version="&quote&"1.0"&quote&" encoding="&quote&"utf-8"&quote&"?>" & return after tXML
    put "<resources>" & return after tXML

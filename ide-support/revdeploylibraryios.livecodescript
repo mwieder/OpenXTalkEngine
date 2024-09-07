@@ -207,7 +207,7 @@ command deployDo pTargetStack, pSimulator, pAppBundle
          put tTempFolder & slash & tSettings["name"] & ".app" into tTempAppBundle
          try
             put revIDEDeployIOSGetSdkVersionFromSimulatorVersion(tVersion) into tVersion
-            dispatch "revSaveAsMobileStandalone" to stack "revSaveAsIOSStandalone" with \
+            dispatch "saveAsMobileStandalone" to stack "revSaveAsIOSStandalone" with \
                   pTargetStack, tTempAppBundle, "Simulator" && tVersion, tSettings
          catch tException
             put "Unable to build app for simulation:" && tException into tError

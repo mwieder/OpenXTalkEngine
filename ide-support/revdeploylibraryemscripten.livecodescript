@@ -44,8 +44,10 @@ command deployInitialize
 end deployInitialize
 
 function deployIsAvailable?
-   get deployListTargets()
-   return it is not empty
+   # never empty (always has at least "Default Browser") so always return true
+   return true
+   --   get deployListTargets()
+   --   return it is not empty
 end deployIsAvailable?
 
 function deployListTargets
@@ -105,8 +107,7 @@ command deployDo pTargetStack, pBrowser
          if tSettings["EmscriptenWASM"] is true then
             dispatch "saveAsEmscriptenWASMStandalone" to stack "revsaveasemscriptenstandalone" with \
                   pTargetStack, tBuildFolder, tSettings
-         end if
-         if tSettings["EmscriptenHTML5"] is true then
+         else if tSettings["EmscriptenHTML5"] is true then
             dispatch "saveAsEmscriptenHTML5Standalone" to stack "revsaveasemscriptenstandalone" with \
                   pTargetStack, tBuildFolder, tSettings
          end if

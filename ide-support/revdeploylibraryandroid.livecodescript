@@ -103,7 +103,7 @@ command deployDo pTargetStack, pTargetDevice
       put tTempName & ".apks" into tTempApksFile
       try
          local tStandalonePaths
-         dispatch "revSaveAsMobileStandalone" to stack "revSaveAsAndroidStandalone" with \
+         dispatch "saveAsMobileStandalone" to stack "revSaveAsAndroidStandalone" with \
                pTargetStack, \
                tTempName & ".aab", \
                "Test", \
@@ -1061,6 +1061,7 @@ function resolvePOMDependency pDependency, pDependencyManagement
    return pDependency
 end resolvePOMDependency
 
+# NOTE: pContext is always empty
 command setMavenDownloadCallback pCallbackHandler, pCallbackObjectID, pCallbackContext
    local tCallback
    if pCallbackHandler is empty then
@@ -1068,7 +1069,7 @@ command setMavenDownloadCallback pCallbackHandler, pCallbackObjectID, pCallbackC
    else
       put pCallbackHandler into tCallback["handler"]
       put pCallbackObjectId into tCallback["objectId"]
-      put pCallbackContext into tCallback["context"]
+      put pCallbackContext into tCallback["context"] # always empty
    end if
    put tCallback into sDownloadCallback
 end setMavenDownloadCallback

@@ -127,35 +127,35 @@ on startup pTest
    /*local tActivationDetails, tFirstRun
    fetchActivationDetails  tActivationDetails
    --if the result is "not found" then
-      --put true into tFirstRun
+   --put true into tFirstRun
    --else
-      put false into tFirstRun
-      
-      --if the result is not "found" then
-         --put "automatic" into tActivationDetails["type"]
-         --put empty into tActivationDetails["email"]
-         --put empty into tActivationDetails["password"]
-      --end if
-   end if
+   put false into tFirstRun
+   
+   --if the result is not "found" then
+   --put "automatic" into tActivationDetails["type"]
+   --put empty into tActivationDetails["email"]
+   --put empty into tActivationDetails["password"]
+   --end if
+   --end if
    
    -- Compute the token
-   put activationLicenseFileForVersion(sVersion) into sToken*/
+   put activationLicenseFilePath() into sToken*/
    
    -- EJB Activation Removal
    local tLicense
    
-   fetchLicenseForVersion sVersion, tLicense
+   fetchLicenseTo tLicense
    licenseUnlock tLicense
    
    --if firstRun() then
-      --go to card "AccountSignUp"
-      --return empty
+   --go to card "AccountSignUp"
+   --return empty
    --else
-      return sHomePath
+   return sHomePath
    --end if
    
    /*local tLicense
-   fetchLicenseForVersion sVersion, tLicense
+   fetchLicenseTo tLicense
    switch the result
       case "found"
          -- Attempt to unlock
@@ -188,7 +188,7 @@ on startup pTest
    -- If we got to here, something went wrong, so make sure the token is the local
    -- one.
    /*put empty into sGlobalLicensePath
-   put activationLicenseFileForVersion(sVersion) into sToken
+   put activationLicenseFilePath() into sToken
    
    -- If we have previously saved activation details then what we do now depends on those.
    if tActivationDetails is an array then
@@ -216,12 +216,12 @@ end shutdown
 on log pMessage
    if sDevelopment is true and sLogPath is not empty then
       open file sLogPath for text append
-      write pMessage & return to file sLogPath
+      write pMessage & cr to file sLogPath
       close file sLogPath
    end if
 end log
 
-command configureFonts pStack
+private command configureFonts pStack
    switch the platform
       case "win32"
          if word 2 of the systemVersion >= 6  and "Segoe UI" is among the lines of the fontNames then
@@ -246,13 +246,13 @@ command configureFonts pStack
    end switch
 end configureFonts
 
-function resolveImageId pImage
+private function resolveImageId pImage
    return the id of image (pImage & ".png") of card "Resources" of stack "EnvironmentResources"
 end resolveImageId
 
-function resolveImageLongId pImage
-   return the long id of image (pImage & ".png") of card "Resources" of stack "EnvironmentResources"
-end resolveImageLongId
+--function resolveImageLongId pImage
+--   return the long id of image (pImage & ".png") of card "Resources" of stack "EnvironmentResources"
+--end resolveImageLongId
 
 ######################################################################
 
@@ -352,7 +352,7 @@ end messageFontSize
 
 ################################################################################
 
-function urlForCreateAccount
+private function urlForCreateAccount
    return "http://www.runrev.com/links/livecode/activate-signup"
 end urlForCreateAccount
 
@@ -366,12 +366,12 @@ command doQuit
    end if
 end doQuit
 
-command doContinueToLiveCode
-   if there is no stack "Home" then
-      close this stack
-      exit to top
-   end if
-end doContinueToLiveCode
+--command doContinueToLiveCode
+--   if there is no stack "Home" then
+--      close this stack
+--      exit to top
+--   end if
+--end doContinueToLiveCode
 
 ################################################################################
 
@@ -395,117 +395,117 @@ function activationLogin
    return tResult
 end activationLogin
 
-command performFacelessActivation
-   -- Check we can faceless activate
-   if sGlobalLicensePath is empty then
-      write "All-user activation not supported on this platform." & return to stdout
-      quit 1
-   end if
-   
-   -- Check we can create/write into the license folder
-   ensureFolder sGlobalLicensePath
-   put empty into url ("file:" & sGlobalLicensePath & slash & "access.txt")
-   if there is no file (sGlobalLicensePath & slash & "access.txt") then
-      write "Unable to write to all-user license file location - make sure you are running as administrator." & return to stdout
-      quit 2
-   end if
-   delete file (sGlobalLicensePath & slash & "access.txt")
-   
-   -- Check the required parameters have been supplied
-   if $1 is not "-file" or $3 is not "-passphrase" or $4 is empty then
-      write "Usage: <exe> activate -file <licensefile> -passphrase <passphrase>" & return to stdout
-      quit 3
-   end if
-   
-   -- Get the parameters
-   local tLicenseFile
-   put $2 into tLicenseFile
-   if there is no file tLicenseFile then
-      write "Specified license file could not be found." & return to stdout
-      quit 4
-   end if
-   
-   local tPassphrase
-   put the sha1Digest of $4 into tPassphrase
-   
-   local tLicense
-   put url ("file:" & tLicenseFile) into tLicense
-   if the result is not empty then
-      write "Could not load specified license file." & return to stdout
-      quit 5
-   end if
-   
-   -- Actually do the activation
-   licenseUnlock tLicense, tPassphrase, true
-   switch the result
-#      case "wrong challenge"
-#         write "Incorrect passphrase for that license." & return to stdout
-#         quit 6
-#      case "wrong version"
-#         write "The provided license was generated for a different version of LiveCode." & return to stdout
-#         quit 7
-#      case "invalid"
-#         write "The provided file is not a valid LiveCode license." & return to stdout
-#         quit 8
-#      case "lapsed"
-#         write "The provided license is no longer valid." & return to stdout
-#         quit 9
-         
-#      case "trial licensed"
-#      case "trial expired"
-#         write "Trial licenses cannot be used with faceless activation." & return to stdout
-#         quit 10
-         
-#      case "prerelease expired"
-#         write "The pre-release you are trying to activate has expired. Please download a newer version." & return to stdout
-#         quit 11
-         
-      case "prerelease licensed"
-      case "licensed"
-         storeLicenseForVersion sVersion, tLicense, tPassphrase, true
-         break
-         
-      default
-         write "An unknown error occurred." & return to stdout
-         quit 12
-   end switch
-   
-   write "All-user activation succeeded for version" && sVersion & return to stdout
-end performFacelessActivation
+--command performFacelessActivation
+--   -- Check we can faceless activate
+--   if sGlobalLicensePath is empty then
+--      write "All-user activation not supported on this platform." & return to stdout
+--      quit 1
+--   end if
 
-command performFacelessDeactivation
-   -- Check we can faceless activate
-   if sGlobalLicensePath is empty then
-      write "All-user deactivation not supported on this platform." & return to stdout
-      quit 1
-   end if
-   
-   -- Check we can create/write into the license folder
-   ensureFolder sGlobalLicensePath
-   put empty into url ("file:" & sGlobalLicensePath & slash & "access.txt")
-   if there is no file (sGlobalLicensePath & slash & "access.txt") then
-      write "Unable to write to all-user license file location - try running as administrator." & return to stdout
-      quit 2
-   end if
-   delete file (sGlobalLicensePath & slash & "access.txt")
-   
-   -- Actually do the deactivation
-   local tLicenseFile
-   put activationLicenseFileForVersion(sVersion, true) into tLicenseFile
-   
-   if there is no file tLicenseFile then
-      write "No all-user activation found for this version." & return to stdout
-      quit 3
-   end if
-   
-   delete file tLicenseFile
-   if the result is not empty then
-      write "Unable to remove all-user activation file for this version - try running as administrator." & return to stdout
-      quit 4
-   end if
-   
-   write "All-user deactivation succeeded for version" && sVersion & return to stdout
-end performFacelessDeactivation
+--   -- Check we can create/write into the license folder
+--   ensureFolder sGlobalLicensePath
+--   put empty into url ("file:" & sGlobalLicensePath & slash & "access.txt")
+--   if there is no file (sGlobalLicensePath & slash & "access.txt") then
+--      write "Unable to write to all-user license file location - make sure you are running as administrator." & return to stdout
+--      quit 2
+--   end if
+--   delete file (sGlobalLicensePath & slash & "access.txt")
+
+--   -- Check the required parameters have been supplied
+--   if $1 is not "-file" or $3 is not "-passphrase" or $4 is empty then
+--      write "Usage: <exe> activate -file <licensefile> -passphrase <passphrase>" & return to stdout
+--      quit 3
+--   end if
+
+--   -- Get the parameters
+--   local tLicenseFile
+--   put $2 into tLicenseFile
+--   if there is no file tLicenseFile then
+--      write "Specified license file could not be found." & return to stdout
+--      quit 4
+--   end if
+
+--   local tPassphrase
+--   put the sha1Digest of $4 into tPassphrase
+
+--   local tLicense
+--   put url ("file:" & tLicenseFile) into tLicense
+--   if the result is not empty then
+--      write "Could not load specified license file." & return to stdout
+--      quit 5
+--   end if
+
+--   -- Actually do the activation
+--   licenseUnlock tLicense, tPassphrase, true
+--   switch the result
+--#      case "wrong challenge"
+--#         write "Incorrect passphrase for that license." & return to stdout
+--#         quit 6
+--#      case "wrong version"
+--#         write "The provided license was generated for a different version of LiveCode." & return to stdout
+--#         quit 7
+--#      case "invalid"
+--#         write "The provided file is not a valid LiveCode license." & return to stdout
+--#         quit 8
+--#      case "lapsed"
+--#         write "The provided license is no longer valid." & return to stdout
+--#         quit 9
+
+--#      case "trial licensed"
+--#      case "trial expired"
+--#         write "Trial licenses cannot be used with faceless activation." & return to stdout
+--#         quit 10
+
+--#      case "prerelease expired"
+--#         write "The pre-release you are trying to activate has expired. Please download a newer version." & return to stdout
+--#         quit 11
+
+--      case "prerelease licensed"
+--      case "licensed"
+--         storeLicenseForVersion sVersion, tLicense, tPassphrase, true
+--         break
+
+--      default
+--         write "An unknown error occurred." & return to stdout
+--         quit 12
+--   end switch
+
+--   write "All-user activation succeeded for version" && sVersion & return to stdout
+--end performFacelessActivation
+
+--command performFacelessDeactivation
+--   -- Check we can faceless activate
+--   if sGlobalLicensePath is empty then
+--      write "All-user deactivation not supported on this platform." & return to stdout
+--      quit 1
+--   end if
+
+--   -- Check we can create/write into the license folder
+--   ensureFolder sGlobalLicensePath
+--   put empty into url ("file:" & sGlobalLicensePath & slash & "access.txt")
+--   if there is no file (sGlobalLicensePath & slash & "access.txt") then
+--      write "Unable to write to all-user license file location - try running as administrator." & return to stdout
+--      quit 2
+--   end if
+--   delete file (sGlobalLicensePath & slash & "access.txt")
+
+--   -- Actually do the deactivation
+--   local tLicenseFile
+--   put activationLicenseFilePath(true) into tLicenseFile
+
+--   if there is no file tLicenseFile then
+--      write "No all-user activation found for this version." & return to stdout
+--      quit 3
+--   end if
+
+--   delete file tLicenseFile
+--   if the result is not empty then
+--      write "Unable to remove all-user activation file for this version - try running as administrator." & return to stdout
+--      quit 4
+--   end if
+
+--   write "All-user deactivation succeeded for version" && sVersion & return to stdout
+--end performFacelessDeactivation
 
 command performAutomaticActivation pEmail, pPassword, pHashedPassword
    -- Make sure we have libUrl
@@ -552,52 +552,52 @@ command performAutomaticActivation pEmail, pPassword, pHashedPassword
    end if   
 end performAutomaticActivation
 
-private command automaticActivationLogin pEmail
-   -- Get the version name for the activation request.
-   local tVersionName
-   set the itemDelimiter to "-"
-   put item 1 to -2 of sVersion into tVersionName
-   set the itemDelimiter to comma
-   
-   -- Build the request
-   local tPostData
-   put "action=login" & return & \
-         "email=" & pEmail & return & \
-         "version=" & tVersionName into tPostData
-   
-   -- Submit the request
-   local tPostResult, tPostError
-   enterRemoteOperation
-   post encodeForPost(tPostData) to kActivationUrl
-   put the result into tPostError
-   put it into tPostResult
-   leaveRemoteOperation
-   if the result is "cancelled" then
-      put empty into sActivateError
-      return "error"
-   end if
-   
-   -- If a network error was returned, do the right thing
-   if tPostError is not empty then
-      automaticActivationSetPostError tPostError
-      return "error"
-   end if
-   
-   -- Extract the reponse
-   split tPostResult by return and "="
-   
-   -- If it was unsuccessful, then do the right thing
-   if tPostResult["result"] is not "success" then
-      automaticActivationSetProtocolError tPostResult["result"]
-      return "error"
-   end if
-   
-   -- Act on the response
-   put tPostResult["session"] into sActivateSession
-   put hexDecode(tPostResult["challenge"]) into sActivateChallenge
-   
-   return "success"
-end automaticActivationLogin
+--private command automaticActivationLogin pEmail
+--   -- Get the version name for the activation request.
+--   local tVersionName
+--   set the itemDelimiter to "-"
+--   put item 1 to -2 of sVersion into tVersionName
+--   set the itemDelimiter to comma
+
+--   -- Build the request
+--   local tPostData
+--   put "action=login" & return & \
+--         "email=" & pEmail & return & \
+--         "version=" & tVersionName into tPostData
+
+--   -- Submit the request
+--   local tPostResult, tPostError
+--   enterRemoteOperation
+--   post encodeForPost(tPostData) to kActivationUrl
+--   put the result into tPostError
+--   put it into tPostResult
+--   leaveRemoteOperation
+--   if the result is "cancelled" then
+--      put empty into sActivateError
+--      return "error"
+--   end if
+
+--   -- If a network error was returned, do the right thing
+--   if tPostError is not empty then
+--      automaticActivationSetPostError tPostError
+--      return "error"
+--   end if
+
+--   -- Extract the reponse
+--   split tPostResult by return and "="
+
+--   -- If it was unsuccessful, then do the right thing
+--   if tPostResult["result"] is not "success" then
+--      automaticActivationSetProtocolError tPostResult["result"]
+--      return "error"
+--   end if
+
+--   -- Act on the response
+--   put tPostResult["session"] into sActivateSession
+--   put hexDecode(tPostResult["challenge"]) into sActivateChallenge
+
+--   return "success"
+--end automaticActivationLogin
 
 private command automaticActivationList
    -- Get the version name for the activation request.
@@ -749,27 +749,26 @@ end encodeForPost
 
 ################################################################################
 
-function activationDetailsFile
+private function activationDetailsFile
    return sLicensePath & slash & "xtalk-community.lcld"
 end activationDetailsFile
 
-function activationLicenseFileForVersion pVersion, pForceGlobal
+private function activationLicenseFilePath pForceGlobal?
    local tLeaf
-   replace "." with "_" in pVersion
    put "xtalk.lclk" into tLeaf
    
    local tPath
    if sGlobalLicensePath is not empty then
       put sGlobalLicensePath & slash & tLeaf into tPath
-      if there is a file tPath or pForceGlobal then
+      if there is a file tPath or pForceGlobal? then
          return tPath
       end if
    end if
    
    return sLicensePath & slash & tLeaf
-end activationLicenseFileForVersion
+end activationLicenseFilePath
 
-command fetchActivationDetails @rDetails
+private command fetchActivationDetails @rDetails
    local tDetailsFile
    put activationDetailsFile() into tDetailsFile
    
@@ -792,9 +791,9 @@ command fetchActivationDetails @rDetails
    return "found"
 end fetchActivationDetails
 
-command fetchLicenseForVersion pVersion, @rLicense
+private command fetchLicenseTo @rLicense
    local tLicenseFile
-   put activationLicenseFileForVersion(pVersion) into tLicenseFile
+   put activationLicenseFilePath() into tLicenseFile
    
    if there is no file tLicenseFile then
       return "not found"
@@ -804,18 +803,18 @@ command fetchLicenseForVersion pVersion, @rLicense
    put url ("file:" & tLicenseFile) into tKey
    
    if the first line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" or \
-          the last line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" then
+         the last line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" then
       return "invalid"
    end if
    
    put line 2 to -2 of tKey into rLicense   
    return "found"
-end fetchLicenseForVersion
+end fetchLicenseTo
 
-command storeActivationDetails
+private command storeActivationDetails
    local tDetails
    put "---- XTALK ACTIVATION DETAILS (R1) ----" & return into tDetails
-   put "email=" & sActivateEmail & return after tDetails
+   put "email=" & sActivateEmail & cr after tDetails
    if sActivateHashedPassword is not empty then
       put "password=" & hexEncode(sActivateHashedPassword) & return after tDetails
    else
@@ -825,20 +824,20 @@ command storeActivationDetails
    put tDetails into url ("file:" & activationDetailsFile())
 end storeActivationDetails
 
-command storeLicenseForVersion pVersion, pLicense, pForceGlobal
+private command storeLicenseForVersion pVersion, pLicense, pForceGlobal?
    local tKey
-   put "---- XTALK ACTIVATION KEY (R1) ----" & return into tKey
-   put pLicense & return after tKey
+   put "---- XTALK ACTIVATION KEY (R1) ----" & cr into tKey
+   put pLicense & cr after tKey
    put "---- XTALK ACTIVATION KEY (R1) ----" after tKey
-   put tKey into url ("file:" & activationLicenseFileForVersion(pVersion, pForceGlobal))
+   put tKey into url ("file:" & activationLicenseFilePath(pForceGlobal?))
 end storeLicenseForVersion
 
 ################################################################################
 
 -- This command unlocks the product with the given license.
-command licenseUnlock pLicense
+private command licenseUnlock pLicense
    local tSettings
-   split pLicense by return and "="
+   split pLicense by cr and "="
    
    -- Only include the token if it is not global
    if sGlobalLicensePath is not empty and sToken begins with sGlobalLicensePath then
@@ -849,10 +848,10 @@ command licenseUnlock pLicense
    
    put pLicense["name"] into tSettings["name"]
    put pLicense["organization"] into tSettings["organization"]
---   put "community" into tSettings["class"]
+   --   put "community" into tSettings["class"]
    put "commercial" into tSettings["class"]
    put 1 into tSettings["multiplicity"]   
-   put "macosx,windows,linux,ios,android,html5" into tSettings["deploy"]
+   put "macosx,windows,linux,ios,android,html5,wasm" into tSettings["deploy"]
    
    put "0"           into tSettings["scriptlimit"]
    put "0"           into tSettings["dolimit"]
@@ -861,14 +860,15 @@ command licenseUnlock pLicense
    
    put true into sUnlocked
    
-   do "set the revLicenseLimits to tSettings"   
+   --do "set the revLicenseLimits to tSettings"   
+   set the revLicenseLimits to tSettings   
    return "licensed"
 end licenseUnlock
 
 ################################################################################
 
 -- Encode a string of bytes as hexadecimal
-function hexEncode pValue
+private function hexEncode pValue
    if pValue is empty then
       return empty
    end if
@@ -878,7 +878,7 @@ function hexEncode pValue
    return tHexValue
 end hexEncode
 
-function hexDecode pHexValue
+private function hexDecode pHexValue
    if pHexValue is empty then
       return empty
    end if
@@ -895,9 +895,9 @@ private command ensureFolder pFolder
    end repeat
 end ensureFolder
 
-private function utf8ToNative pUtf8
-   return uniDecode(uniEncode(pUtf8, "UTF8"), "Roman")
-end utf8ToNative
+--private function utf8ToNative pUtf8
+--   return uniDecode(uniEncode(pUtf8, "UTF8"), "Roman")
+--end utf8ToNative
 
 ################################################################################
 on accountCreate pFirstname, pEmail, pPassword
@@ -938,16 +938,16 @@ on accountCreate pFirstname, pEmail, pPassword
    end if
 end accountCreate
 
-command accountSignupSkip
+private command accountSignupSkip
    local tLicense
-   fetchLicenseForVersion sVersion, tLicense
+   fetchLicenseTo tLicense
    licenseUnlock tLicense
    close this stack
 end accountSignupSkip
 
 command accountSignupFinish
    local tLicense
-   fetchLicenseForVersion sVersion, tLicense
+   fetchLicenseTo tLicense
    licenseUnlock tLicense
    
    libUrlResetAll
@@ -966,12 +966,12 @@ on accountSignupMessageClose
    hide field "signup_message" of card "AccountSignup"
 end accountSignupMessageClose
 
-function firstRun
+private function firstRun
    -- Create a blank old style activation file. This tells the updater that
    -- this version has been installed.
    --
    local tLicense
-   put "name=LiveCode Community User" & return & "organization=" & return & "time=" & the seconds into tLicense
+   put "name=LiveCode Community User" & cr & "organization=" & cr & "time=" & the seconds into tLicense
    storeLicenseForVersion sVersion, tLicense   
    
    local tFirstRunPath, tCommunityLCLD, tCommercialLCLD  
@@ -989,7 +989,8 @@ function firstRun
    end if
 end firstRun
 
-command guessRepositoryPath
+# the same guessRepositoryPath function is in the home stack
+private command guessRepositoryPath
    -- Build and package directories
    local tPlatform
    local tProcessor

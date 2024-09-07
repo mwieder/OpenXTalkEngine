@@ -80,6 +80,7 @@ end createZipArchiveFromFolder
 
 /*
 * saveAsEmscriptenHTML5Standalone
+*  pSettings : array of assets to encapsulate
 */
 command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    logDebug "top", "----- Begin Emscripten HTML5 standalone"
@@ -88,6 +89,7 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    
    local tArchs
    put architectureListFromSettingsArray(pSettings) into tArchs
+   logDebug "tArchs", tArchs
    
    -- Initial stack file
    local tStackFile
@@ -136,15 +138,11 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
       revStandaloneProgress "Creating standalone archive..."
       
       local tBuildZip # destination path for the zip file
-      --      put tBuildFolder & slash & "standalone.zip" into tBuildZip
-      --      logDebug "top", "Archive:" && tBuildZip
-      --      createZipFileIfNecessary tBuildZip
-      
       put createZipArchiveFromFolder(tBuildFolder) into tBuildZip
       
       -- Store template files
       local tZipTemplateFile, tZipTemplateFolder, tZipTemplatePath
-      put getStandaloneTemplateFolder("js") into tZipTemplateFolder
+      put HTML5.standaloneTemplateFolder("js") into tZipTemplateFolder
       
       logDebug "top", "zipTemplateFolder:" && tZipTemplateFolder
       
@@ -164,10 +162,10 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
       put tBootPath & slash & "__startup.data" into tDeployedStackPath
       put tBootPath & slash & "standalone" into tStandalonePath
       
-      # Deploy the standalone application data
+      # Deploy the standalone application data into /boot/__startup.data
       storeDeployedStack "js", tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
       
-      # Store extra, copied files
+      # Store extra, copied files into /boot/standalone
       storeAssets tBuildZip, tResolvedFileData, tStandalonePath, tBaseFolder
       
       # Close zip file
@@ -235,6 +233,7 @@ end saveAsEmscriptenHTML5Standalone
 
 /*
 * saveAsEmscriptenWASMStandalone
+*  pSettings : array of assets to encapsulate
 */
 command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    
@@ -274,7 +273,8 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    * set the resources path appropriately. */
    put "/boot/standalone" into pSettings["resources_path"]
    revSBUpdateSettingsForExtensions "emscripten", pSettings
-   
+#         storeAssets tBuildZip, tResolvedFileData, tStandalonePath, tBaseFolder
+
    local tResolvedFileData
    revSBResolveCopyFilesList tBaseFolder, "emscripten", pSettings, tResolvedFileData
    
@@ -294,6 +294,7 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    local tError
    try
       repeat for each item tArch in tArchs
+         logDebug "loop", "tArch: " && tArch
          ---------- Create a working directory
          local tBuildFolder
          if the number of items in tArchs > 1 then
@@ -377,7 +378,7 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
             local tWebFontsFile
             put tCustomFiles["web-fonts.txt"] into tWebFontsFile
             if tWebFontsFile is empty then
-               put mapResPath(tArch, "emscripten-web-fonts.txt") into tWebFontsFile
+               put mapBinPath(tArch, "emscripten-web-fonts.txt") into tWebFontsFile
             end if
             local tWebFontsText
             put url("binfile:" & tWebFontsFile) into tWebFontsText
@@ -709,22 +710,6 @@ private function mapBinPath pArch, pPath
 end mapBinPath
 
 /*
--- Map a resource file's path into an absolute filesystem path.  This
--- is used to cope with running from a git repository working tree.
-*/
-private function mapResPath pArch, pPath
-   if there is a file pPath then
-      return pPath
-   end if
-
-   if revEnvironmentIsInstalled() then
-      return getRuntimeFolder(pArch) & slash & pPath
-   else
-      return getRepoBinariesFolder(pArch) & slash & pPath
-   end if
-end mapResPath
-
-/*
 -- Scan a directory, returning a number-indexed array of files found.
 -- The returned paths are relative to the specified directory.
 */
@@ -863,18 +848,18 @@ end mapEmscriptenPath
 * HTML5 only
 *  pArch : js or wasm
 */
-private function getStandaloneTemplateFolder pArch
-   return mapResPath(pArch, "emscripten-standalone-template")
-end getStandaloneTemplateFolder
+private function HTML5.standaloneTemplateFolder pArch
+   return mapBinPath(pArch, "emscripten-standalone-template")
+end HTML5.standaloneTemplateFolder
 
 /*
 * Return a number-indexed array of files in the Emscripten standalone
 * template folder.  The paths returned are relative to the path returned
-* by getStandaloneTemplateFolder()
+* by HTML5.standaloneTemplateFolder()
 # HTML5 only
 */
 private function HTML5.StandaloneTemplateFiles
-   return scanFolder(getStandaloneTemplateFolder("js"))
+   return scanFolder(HTML5.standaloneTemplateFolder("js"))
 end HTML5.StandaloneTemplateFiles
 
 /*
@@ -889,7 +874,7 @@ end getHtmlTemplateFile
 * Get the filename of the Emscripten standalone startup script-only stack template.
 */
 private function getStartupTemplateFile pArch
-   return mapResPath(pArch, "emscripten-startup-template.livecodescript")
+   return mapBinPath(pArch, "emscripten-startup-template.livecodescript")
 end getStartupTemplateFile
 
 /*
