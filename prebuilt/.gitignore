@@ -5,4 +5,5 @@ lib/*
 bin/*
 share/*
 build/*
+include/*
 

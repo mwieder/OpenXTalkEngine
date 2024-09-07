@@ -295,6 +295,20 @@ on deployEmscriptenNewHTTPRequest pSocketID, pRequest
    set the itemDel to comma
    put sHTTPFileSpace & slash before tPath
    
+   local tMimeType
+   if tPath ends with ".html" then
+      put "text/html" into tMimeType
+   else if tPath ends with ".js" then
+      put "text/javascript" into tMimeType
+   else if tPath ends with ".wasm" then
+      put "application/wasm" into tMimeType
+   end if
+   
+   local tResponseHeaders
+   if tMimeType is not empty then
+      put "Content-Type:" && tMimeType & return after tResponseHeaders
+   end if
+
    if there is a file tPath then
       httpdResponse pSocketID, 200, URL ("binfile:" & tPath)
    else

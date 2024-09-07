@@ -226,7 +226,7 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 		cd ..
 		
 		# Save the configuration for this build
-		if [ $RESULT == 0 ] ; then
+		if [ 0 == $RESULT ] ; then
 			echo "${ICU_ARCH_CONFIG}" > "${ICU_ARCH_SRC}/config.cmd"
 		else
 			echo "    failed"
@@ -246,10 +246,11 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	if [ ! -f "${OUTPUT_DIR}/share/icudt${ICU_VERSION_MAJOR}l.dat" ] ; then
 		echo "Copying icu data file"
 		mkdir -p "${OUTPUT_DIR}/share"
-		cp "${INSTALL_DIR}/${NAME}/share/icu/${ICU_VERSION}/icudt${ICU_VERSION_MAJOR}l.dat" "${OUTPUT_DIR}/share/icudt${ICU_VERSION_MAJOR}l.dat"
+		cp ${INSTALL_DIR}/${NAME}/share/icu/${ICU_VERSION}/icudt${ICU_VERSION_MAJOR}l.dat ${OUTPUT_DIR}/share/icudt${ICU_VERSION_MAJOR}l.dat
 	fi
 	
 	# Copy libraries
+	echo "Copying icu libraries"
 	for L in ${ICU_LIBS} ; do
 		if [ -f "${INSTALL_DIR}/${NAME}/lib/libicu${L}.a" ] ; then
 			if [ "${PLATFORM}" == "mac" -o "${PLATFORM}" == "ios" ] ; then
@@ -263,6 +264,7 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	done
 
 	# Copy executables
+	echo "Copying icu executables"
 	for B in ${ICU_BINARIES} ; do
 		if [ -f "${INSTALL_DIR}/${NAME}/bin/${B}" ] ; then
 			if [ "${PLATFORM}" == "mac" -o "${PLATFORM}" == "ios" ] ; then
