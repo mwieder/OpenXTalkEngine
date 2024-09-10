@@ -348,6 +348,8 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
             revSBEnsureFolder tTargetFolder
          end if
          
+         put param(0) && tPlatform & cr after msg
+         
          switch tPlatform
             case "iOS"
                if not (the platform begins with "MacOS") then
@@ -362,7 +364,7 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
                dispatch "saveAsMobileStandalone" to stack "revSaveAsAndroidStandalone" with \
                      pStack, xStandalonePaths[tPlatform], "Build", sStandaloneSettingsA, xStandalonePaths
                break
-            case "EmscriptenHTML5"
+            case "EmscriptenJS"
                put tTargetFolder into xStandalonePaths[tPlatform]
                dispatch "saveAsEmscriptenHTML5Standalone" to stack "revSaveAsEmscriptenStandalone" with \
                      pStack, xStandalonePaths[tPlatform], sStandaloneSettingsA, xStandalonePaths

@@ -834,7 +834,7 @@ function revSBDesktopTargets
    return kDesktopTargets
 end revSBDesktopTargets
 
-constant kAdditionalTargets = "iOS,Android,Emscripten,EmscriptenHTML5,EmscriptenWASM"
+constant kAdditionalTargets = "iOS,Android,EmscriptenJS,EmscriptenWASM"
 function revSBAdditionalTargets
    return kAdditionalTargets
 end revSBAdditionalTargets
@@ -1093,10 +1093,10 @@ function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
          break
       case "HTML5"
       case "js"
-         put "EmscriptenHTML5" into tTargetPlatform
+         put "EmscriptenJS" into tTargetPlatform
          break
-      case "js"
-         put "EmscriptenHTML5" into tTargetPlatform
+      case "WASM"
+         put "EmscriptenWASM" into tTargetPlatform
          break
       case "Windows"
          put "Windows,Windows x86-64" into tTargetPlatform
