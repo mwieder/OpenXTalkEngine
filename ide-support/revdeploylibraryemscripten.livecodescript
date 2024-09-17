@@ -28,7 +28,7 @@ local sHTTPFileSpace
 command deployInitialize
    local tBrowserList
    put __deployGetBrowserList() into tBrowserList
-   split tBrowserList by return and comma
+   split tBrowserList by cr and comma
    put tBrowserList into sBrowsers
    
    repeat for each key tBrowser in tBrowserList
@@ -50,7 +50,9 @@ end deployIsAvailable?
 function deployListTargets
    local tTargets
    put the keys of sBrowsers into tTargets
+   filter tTargets without empty
    sort tTargets
+   
    if tTargets is not empty then
       put cr before tTargets
    end if
@@ -58,10 +60,11 @@ function deployListTargets
    return tTargets   
 end deployListTargets
 
--- Create a local HTTP server using the HTTPd library,
--- build the HTML 5 standalone then launch the local URL
--- for the standalone in the chosen browser.
---
+/*
+*  Create a local HTTP server using the HTTPd library,
+*  build the HTML 5 standalone then launch the local URL
+*  for the standalone in the chosen browser.
+*/
 command deployDo pTargetStack, pBrowser
    local tError
    put empty into tError
@@ -104,7 +107,7 @@ command deployDo pTargetStack, pBrowser
          if tSettings["EmscriptenWASM"] is true then
             dispatch "saveAsEmscriptenWASMStandalone" to stack "revsaveasemscriptenstandalone" with \
                   pTargetStack, tBuildFolder, tSettings
-         else if tSettings["EmscriptenHTML5"] is true then
+         else if tSettings["EmscriptenJS"] is true then
             dispatch "saveAsEmscriptenHTML5Standalone" to stack "revsaveasemscriptenstandalone" with \
                   pTargetStack, tBuildFolder, tSettings
          end if
@@ -159,12 +162,11 @@ private function __deployGetBrowserList
       case "Win32"
          -- According to https://msdn.microsoft.com/en-us/library/dd203067(VS.85).aspx
          -- browsers should register in the registry at HKEY_LOCAL_MACHINE\SOFTWARE\Clients\StartMenuInternet
-         --
          local tBrowsers
          put listRegistry("HKEY_LOCAL_MACHINE\SOFTWARE\Clients\StartMenuInternet") into tBrowsers
          repeat for each line tBrowser in tBrowsers
             if tBrowserList is not empty then
-               put return after tBrowserList
+               put cr after tBrowserList
             end if
             put queryRegistry("HKEY_LOCAL_MACHINE\SOFTWARE\Clients\StartMenuInternet\" & tBrowser & backslash) & comma & \
                   queryRegistry("HKEY_LOCAL_MACHINE\SOFTWARE\Clients\StartMenuInternet\" & tBrowser & "\shell\open\command\") after tBrowserList
@@ -175,7 +177,6 @@ private function __deployGetBrowserList
       case "Linux"
          -- For linux, we have a list of known browsers.
          -- Check to see if the exe is in the path or installed in the user's home dir.
-         --
          local tBrowserArray
          put kLinuxBrowserList into tBrowserArray
          split tBrowserArray by comma and "="
@@ -202,7 +203,6 @@ private function __deployGetBrowserList
          put empty into tBrowserList
          break
    end switch
-   
    return tBrowserList
 end __deployGetBrowserList
 
@@ -299,7 +299,7 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
          default
             launch URL pURL
             return the result
-      end switch      
+      end switch
    end if
 end __deployLaunchURLInBrowser
 

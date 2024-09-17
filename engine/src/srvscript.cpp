@@ -201,19 +201,18 @@ Parse_stat MCServerScript::ParseNextStatement(MCScriptPoint& sp, MCStatement*& r
 			else if (sp . lookup(SP_HANDLER, t_symbol) == PS_NORMAL)
 			{
 				// Its a handler or variable definition
-				if (t_symbol -> type == TT_HANDLER)
+				if (TT_HANDLER == t_symbol -> type)
 				{
 					bool t_is_private;
 					t_is_private = false;
 					
-					if (t_symbol -> which == HT_PRIVATE)
+					if (HT_PRIVATE == t_symbol -> which)
 					{
 						t_is_private = true;
 						
 						sp . next(t_type);
 						if (sp . lookup(SP_HANDLER, t_symbol) != PS_NORMAL)
 							t_symbol = nil;
-							
 					}
 					if (t_symbol != nil && (t_symbol -> which == HT_MESSAGE || t_symbol -> which == HT_FUNCTION))
 					{

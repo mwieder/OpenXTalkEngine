@@ -20,19 +20,6 @@
 #
 #####################################################################
 
---private function listFolders pPath
---   local tOldFolder, tFolders
-
---   put the folder into tOldFolder
-
---   set the folder to pPath
---   put the folders into tFolders
---   set the folder to tOldFolder
-
---   filter tFolders without "[.][.]" -- filter out ".." folder
---   return tFolders
---end listFolders
-
 private function listFiles pPath
    local tOldFolder, tFiles
    
@@ -59,12 +46,6 @@ local sUserScriptLibraries
 -- list of info fields for the windows engine
 constant kVersionFlds = "Comments,CompanyName,FileDescription,FileVersion,InternalName,LegalCopyright,LegalTrademarks,OriginalFilename,PrivateBuild,ProductName,ProductVersion,SpecialBuild"
 
-# AL-2015-01-29: [[ Scriptify revSaveAsStandalone ]] Initialise script locals here to replace custom props of stack
---local sWindowsMaxLengthsA
-
---function getWindowsMaxLength pField
---   return sWindowsMaxLengthsA[pField]
---end getWindowsMaxLength
 
 #####################################################################
 # Main public API for the Standalone Application Builder
@@ -348,8 +329,6 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
             revSBEnsureFolder tTargetFolder
          end if
          
-         put param(0) && tPlatform & cr after msg
-         
          switch tPlatform
             case "iOS"
                if not (the platform begins with "MacOS") then
@@ -497,7 +476,7 @@ private function standalonePlatformDetails pTarget
    return tDetailsA
 end standalonePlatformDetails
 
-# imported from LC-10.rc1
+# sort of imported from LC-10.rc1
 private function getIcuBundleNames
    local icuArray
    
@@ -2779,8 +2758,7 @@ private command standaloneDeployWithParams pTarget, pStackFilePath, pDeployInfo
       throw "Build failed for " & pTarget & ":" && the result
    end if
    
-   -- Again, present in the original, this will remove the stackfile we saved
-   -- above.
+   -- Again, present in the original, this will remove the stackfile we saved above.
    revDeleteFile pStackFilePath
 end standaloneDeployWithParams
 

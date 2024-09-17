@@ -259,7 +259,7 @@ function revDocsParseDictionaryToLibraryArray pRootDir
          filter it with "*.lcdoc"
          repeat for each line tFile in it
             if the environment is "development" and \
-                not revTestEnvironment() then
+                  not revTestEnvironment() then
                wait 0 with messages
             end if
             local tFullPath
@@ -530,7 +530,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      # eat the word 'public'
                      put word 2 to -1 of tLine into tLine
                      put token 2 of tLine into tEntryData["name"]
-                  
+                     
                      # If we have a widget, then public handlers are not in the message path and so don't need docs.
                      put not tIsWidget into tEntryData["need_docs"]
                   end if
@@ -599,7 +599,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                put false into tInEntry
                # Check if this is a new comment block
                if tFirstWord begins with "/**" and \
-                  not (tFirstWord begins with "/**/") then
+                     not (tFirstWord begins with "/**/") then
                   
                   # If this is script, and this is an initial block of comments,
                   # then treat as the library description
@@ -659,7 +659,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
          # handle line continuations
          if char -2 of tData is "\" then
             delete char -2 to -1 of tData
-         # ignore empty lines
+            # ignore empty lines
          else if tFirstWord is empty then
             if tIsLCIDL then
                put true into tEntryEnded
@@ -2167,15 +2167,15 @@ end revDocsFormatLibraryDocArrayAsJSON
 function revDocsCreateAPIJSON pLibraryTitle, pLibraryName, pAuthor, pDocContentJSON
    local tJSON
    put "{" after tJSON
-   put return & __tabs(2) & keyValue("display name",pLibraryTitle) & comma after tJSON
-   put return & __tabs(2) & keyValue("name",pLibraryName) & comma after tJSON
+   put cr & __tabs(2) & keyValue("display name",pLibraryTitle) & comma after tJSON
+   put cr & __tabs(2) & keyValue("name",pLibraryName) & comma after tJSON
    if pAuthor is not empty then
-      put return & __tabs(2) & keyValue("author",pAuthor) & comma after tJSON
+      put cr & __tabs(2) & keyValue("author",pAuthor) & comma after tJSON
    end if
-   put return & __tabs(2) & escape("doc") & ":[" after tJSON
+   put cr & __tabs(2) & escape("doc") & ":[" after tJSON
    put pDocContentJSON after tJSON
    put "]" after tJSON
-   put return & tab & "}" after tJSON
+   put cr & tab & "}" after tJSON
    return tJSON
 end revDocsCreateAPIJSON
 
@@ -2187,35 +2187,35 @@ private function revDocsFormatLibraryArrayAsJSON pLibraryA
          pLibraryA["author"], tDocContent)
 end revDocsFormatLibraryArrayAsJSON
 
-private function __revDocsParamIsDefinedType pType
-   switch pType
-      case "pointer"
-      case "bool"
-      case "int"
-      case "uint"
-      case "index"
-      case "uindex"
-      case "float"
-      case "double"
-      case "any"
-      case "boolean"
-      case "integer"
-      case "real"
-      case "number"
-      case "string"
-      case "data"
-      case "binary string"
-      case "array"
-      case "list"
-      case "undefined"
-      case "enum"
-      case "set"
-      case "id"
-         return false
-      default
-         return true
-   end switch
-end __revDocsParamIsDefinedType
+--private function __revDocsParamIsDefinedType?? pType
+--   switch pType
+--      case "pointer"
+--      case "bool"
+--      case "int"
+--      case "uint"
+--      case "index"
+--      case "uindex"
+--      case "float"
+--      case "double"
+--      case "any"
+--      case "boolean"
+--      case "integer"
+--      case "real"
+--      case "number"
+--      case "string"
+--      case "data"
+--      case "binary string"
+--      case "array"
+--      case "list"
+--      case "undefined"
+--      case "enum"
+--      case "set"
+--      case "id"
+--         return false
+--      default
+--         return true
+--   end switch
+--end __revDocsParamIsDefinedType?
 
 private function revDocsArrayParamToJSON pParamA, pDepth
    if the keys of pParamA is empty then
@@ -2244,7 +2244,7 @@ private function revDocsEnumParamToJSON pParamA
       return empty
    end if
    local tOutput, tPrefix
-   put return & __tabs(4) into tPrefix
+   put cr & __tabs(4) into tPrefix
    put tPrefix & escape("enum") & ":[" after tOutput
    repeat for each element tKeyValue in pParamA
       put tPrefix & tab & "{" & keyValue("value", tKeyValue["value"]) & comma after tOutput
@@ -2260,7 +2260,7 @@ private function revDocsTypedParamToJSON pParamA, pDepth, pRef
       return empty
    end if
    local tOutput, tPrefix
-   put return & __tabs(pDepth) after tPrefix
+   put cr & __tabs(pDepth) after tPrefix
    put tPrefix & keyValue("name", pParamA["name"]) & comma into tOutput
    put tPrefix & keyValue("type", pParamA["type"]) & comma after tOutput
    if pRef is not false then
@@ -2296,7 +2296,7 @@ private function __revDocsFormatParamArrayAsJSON pParamA
    repeat with x = 1 to the number of elements in pParamA
       put "{" after tOutput
       put revDocsTypedParamToJSON(pParamA[x], 4, true) after tOutput
-      put return & __tabs(3) & "}" & comma after tOutput
+      put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
    delete the last char of tOutput
    put "]" after tOutput
@@ -2316,7 +2316,7 @@ private function __revDocsFormatValuesArrayAsJSON pParamA
       put "{" after tOutput
       put tReturn into pParamA[tReturn]["name"]
       put revDocsTypedParamToJSON(pParamA[tReturn], 4, false) after tOutput
-      put return & __tabs(3) & "}" & comma after tOutput
+      put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
    delete the last char of tOutput
    put "]" after tOutput
@@ -2327,8 +2327,8 @@ private function __revDocsFormatExamplesArrayAsJSON pExampleA
    local tOutput
    put "[" into tOutput 
    repeat for each element tExample in pExampleA
-      put "{" & return & __tabs(4) & keyValue("script", tExample) after tOutput
-      put return & __tabs(3) & "}" & comma after tOutput
+      put "{" & cr & __tabs(4) & keyValue("script", tExample) after tOutput
+      put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
    delete the last char of tOutput
    put "]" after tOutput
@@ -2366,10 +2366,10 @@ private function __revDocsFormatDisplaySyntaxArrayAsJSON pSyntaxA
    local tOutput
    put "[" into tOutput 
    repeat for each element tExample in pSyntaxA
-      put return & __tabs(4) & escape(__formatParamsAsItalic(tExample)) & comma after tOutput
+      put cr & __tabs(4) & escape(__formatParamsAsItalic(tExample)) & comma after tOutput
    end repeat
    delete the last char of tOutput
-   put return & __tabs(3) & "]" after tOutput
+   put cr & __tabs(3) & "]" after tOutput
    return tOutput
 end __revDocsFormatDisplaySyntaxArrayAsJSON
 
@@ -2377,10 +2377,10 @@ private function __revDocsFormatSyntaxArrayAsJSON pSyntaxA
    local tOutput
    put "[" into tOutput 
    repeat for each element tExample in pSyntaxA
-      put return & __tabs(4) & escape(tExample) & comma after tOutput
+      put cr & __tabs(4) & escape(tExample) & comma after tOutput
    end repeat
    delete the last char of tOutput
-   put return & __tabs(3) & "]" after tOutput
+   put cr & __tabs(3) & "]" after tOutput
    return tOutput
 end __revDocsFormatSyntaxArrayAsJSON
 
@@ -2422,7 +2422,7 @@ private function outputElement pElement, pValue, pTabCount
    repeat pTabCount
       put tab after tOutput
    end repeat
-   put keyValue(pElement, pValue) & comma & return after tOutput
+   put keyValue(pElement, pValue) & comma & cr after tOutput
    return tOutput
 end outputElement
 
@@ -2439,13 +2439,13 @@ private function __revDocsFormatReferencesArrayAsJSON pReferencesA
    end if
    
    local tOutput
-   put tab & tab & tab & escape("references") & ":{" & return into tOutput
+   put tab & tab & tab & escape("references") & ":{" & cr into tOutput
    repeat for each key tKey in pReferencesA
       get revDocsItemListToJSONArray(pReferencesA, tKey, 4)
       put it after tOutput
    end repeat
    delete char -2 to -1 of tOutput
-   put return & tab & tab & tab & "}," & return after tOutput
+   put cr & tab & tab & tab & "}," & cr after tOutput
    return tOutput
 end __revDocsFormatReferencesArrayAsJSON
 
@@ -2455,15 +2455,15 @@ private function __revDocsFormatCustomArrayAsJSON pKey, pArray
    end if
    switch pKey
       case "syntax"
-         return tab & tab & tab & escape("syntax") & ":" & __revDocsFormatSyntaxArrayAsJSON(pArray["syntax"]) & comma & return
+         return tab & tab & tab & escape("syntax") & ":" & __revDocsFormatSyntaxArrayAsJSON(pArray["syntax"]) & comma & cr
       case "display syntax"
-         return tab & tab & tab & escape("display syntax") & ":" & __revDocsFormatDisplaySyntaxArrayAsJSON(pArray["display syntax"]) & comma & return
+         return tab & tab & tab & escape("display syntax") & ":" & __revDocsFormatDisplaySyntaxArrayAsJSON(pArray["display syntax"]) & comma & cr
       case "params"
-         return tab & tab & tab & escape("parameters") & ":" & __revDocsFormatParamArrayAsJSON(pArray["params"]) & comma & return
+         return tab & tab & tab & escape("parameters") & ":" & __revDocsFormatParamArrayAsJSON(pArray["params"]) & comma & cr
       case "example"
-         return tab & tab & tab & escape("examples") & ":" & __revDocsFormatExamplesArrayAsJSON(pArray["example"]) & comma & return 
+         return tab & tab & tab & escape("examples") & ":" & __revDocsFormatExamplesArrayAsJSON(pArray["example"]) & comma & cr
       case "value"
-         return tab & tab & tab & escape("value") & ":" & __revDocsFormatValuesArrayAsJSON(pArray["value"]) & comma & return
+         return tab & tab & tab & escape("value") & ":" & __revDocsFormatValuesArrayAsJSON(pArray["value"]) & comma & cr
       default
          throw "invalid value " & pKey & "passed to __revDocsFormatCustomArrayAsJSON"
          return empty
@@ -2476,7 +2476,7 @@ Format the library array data as a JSON array as needed by the docs viewer
 
 private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    local tJSON
-   put "{" & return into tJSON
+   put "{" & cr into tJSON
    
    if pDocDataA["display name"] is empty then
       put pDocDataA["name"] into pDocDataA["display name"]
@@ -2568,7 +2568,7 @@ private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    put outputElementIfExists("changes", pDocDataA, 3) after tJSON
    
    delete char -2 to -1 of tJSON
-   put return & tab & tab & "}" after tJSON
+   put cr & tab & tab & "}" after tJSON
    return tJSON
    
 end revDocsFormatLibraryDataAsJSON
@@ -2590,7 +2590,7 @@ on revDocsOpenAPIDatabase pFolder
    put revOpenDatabase("sqlite",revDocsAPIDatabasePath(pFolder),,,,,,) into tConnection
    
    if tConnection is not a number then
-      return "unable to create sqlite API database" & return & the result
+      return "unable to create sqlite API database" & cr & the result
    end if
    
    return tConnection
@@ -2618,7 +2618,7 @@ on revDocsUpdateDatabase pConnection, pAPI, pLibraryA
    end if
    
    if tResult is not a number then
-      return "unable to open table 'apis'" & return & tResult
+      return "unable to open table 'apis'" & cr & tResult
    end if
    
    # Create the library data table. This might already exist, so do it unchecked.
@@ -2630,7 +2630,7 @@ on revDocsUpdateDatabase pConnection, pAPI, pLibraryA
    
    revDocsUpdateLibrary pConnection, pAPI, tName, pLibraryA["doc"]
    if the result is not empty then
-      return "unable to update data for library" && tName & return & the result
+      return "unable to update data for library" && tName & cr & the result
    end if
    
    return empty
@@ -2640,10 +2640,10 @@ private command revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
    # Find the API id
    local tSQL, tAPIID
    put "SELECT api_id FROM apis WHERE api_name = :1" into tSQL
-   put revDataFromQuery(comma, return, pConnection, tSQL, "pAPI") into tAPIID
+   put revDataFromQuery(comma, cr, pConnection, tSQL, "pAPI") into tAPIID
    
    if the result is not a number then
-      return "error finding api id for" && pAPI & return & the result
+      return "error finding api id for" && pAPI & cr & the result
    end if
    
    local tDocA, tDocName
@@ -2667,7 +2667,7 @@ private command revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
       end if
       
       if tResult is not a number then
-         return "unable to insert data for" && pName & ":" & tDocName & return & the result
+         return "unable to insert data for" && pName & ":" & tDocName & cr & the result
       end if
    end repeat
    return empty

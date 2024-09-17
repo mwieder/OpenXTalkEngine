@@ -909,15 +909,15 @@ Boolean MCScreenDC::handle(Boolean dispatch, Boolean anyevent, Boolean& abort, B
                         // Get the requested representation of the data
                         const MCRawClipboardItemRep* t_rep = NULL;
                         MCAutoRefcounted<const MCLinuxRawClipboardItem> t_item = t_clipboard->GetSelectionItem();
-                        if (t_item != NULL)
+                        if (NULL != t_item)
                             t_rep = t_item->FetchRepresentationByType(*t_atom_string);
                         
                         // Get the data in the requested form
                         MCAutoDataRef t_data;
-                        if (t_rep != NULL)
+                        if (NULL != t_rep)
                             t_data.Give(t_rep->CopyData());
                         
-                        if (*t_data != NULL)
+                        if (NULL != *t_data)
                         {
                             // Transfer the data to the requestor via the
                             // property that it specified
@@ -1012,7 +1012,7 @@ void MCScreenDC::EnqueueGdkEvents(bool p_block)
         
         // Enqueue any further GDK events
         GdkEvent *t_event = gdk_event_get();
-        if (t_event == NULL)
+        if (NULL == t_event)
             break;
         
         // GTK hasn't had a chance at this event yet
@@ -1031,7 +1031,7 @@ bool MCScreenDC::GetFilteredEvent(bool (*p_filterfn)(GdkEvent*, void*), GdkEvent
     EnqueueGdkEvents(p_may_block);
     
     MCEventnode *t_eventnode = pendingevents;
-    while (t_eventnode != NULL)
+    while (NULL != t_eventnode)
     {
         if (p_filterfn(t_eventnode->event, p_context))
         {
@@ -1062,7 +1062,7 @@ void MCScreenDC::IME_OnCommit(GtkIMContext*, gchar *p_utf8_string)
     MCAutoStringRef t_text;
     /* UNCHECKED */ MCStringCreateWithBytes((byte_t*)p_utf8_string, strlen(p_utf8_string), kMCStringEncodingUTF8, false, &t_text);
     
-    if (MCStringGetLength(*t_text) == 1)
+    if (1 == MCStringGetLength(*t_text))
     {
         if (MCStringIsNative(*t_text))
             MCdispatcher->wkdown(MCactivefield->getstack()->getwindow(), *t_text, MCStringGetCodepointAtIndex(*t_text, 0));
@@ -1241,12 +1241,25 @@ void MCScreenDC::DnDClientEvent(GdkEvent* p_event)
             
             // Convert the selected drag action to the corresponding GDK value
             GdkDragAction t_gdk_action = GdkDragAction(0);
-            if (t_action == DRAG_ACTION_COPY)
-                t_gdk_action = GDK_ACTION_COPY;
-            else if (t_action == DRAG_ACTION_MOVE)
-                t_gdk_action = GDK_ACTION_MOVE;
-            else if (t_action == DRAG_ACTION_LINK)
-                t_gdk_action = GDK_ACTION_LINK;
+			switch (t_action)
+			{
+				case DRAG_ACTION_COPY:
+                	t_gdk_action = GDK_ACTION_COPY;
+					break;
+				case DRAG_ACTION_MOVE:
+                	t_gdk_action = GDK_ACTION_MOVE;
+					break;
+				case DRAG_ACTION_LINK:
+                	t_gdk_action = GDK_ACTION_LINK;
+					break;
+			}
+
+//            if (DRAG_ACTION_COPY == t_action)
+//                t_gdk_action = GDK_ACTION_COPY;
+//            else if (DRAG_ACTION_MOVE == t_action)
+//                t_gdk_action = GDK_ACTION_MOVE;
+//            else if (DRAG_ACTION_LINK == t_action)
+//                t_gdk_action = GDK_ACTION_LINK;
             
             // Reply to the motion event
             gdk_drag_status(p_event->dnd.context, t_gdk_action, GDK_CURRENT_TIME);

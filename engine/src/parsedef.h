@@ -628,7 +628,7 @@ enum Handler_type {
 	HT_BEFORE,
 	HT_AFTER,
 
-    HT_PRIVATE,
+	HT_PRIVATE,
 
     HT_MAX = HT_PRIVATE
 };
