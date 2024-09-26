@@ -51,9 +51,9 @@ myFavourite.command,ANOther.function
 Tags: documentation, meta 
 */
 
-private function revDocsInlineDocsParsingTest pArrayParam, pEnumParam, pOptionalParam, pParam
-   return empty
-end revDocsInlineDocsParsingTest
+--private function docs.InlineDocsParsingTest pArrayParam, pEnumParam, pOptionalParam, pParam
+--   return empty
+--end docs.InlineDocsParsingTest
 
 function revDocsGetBuiltinModuleList pModuleInterfacePath, pRepoPath
    local tModulePath, tEngine, tScript, tListA
@@ -99,58 +99,58 @@ function revDocsGetBuiltinModuleList pModuleInterfacePath, pRepoPath
    return the keys of tListA
 end revDocsGetBuiltinModuleList
 
-function revDocsGenerateDocsFilesFromBuiltIn pModuleInterfacePath, pRepoPath
-   local tModulePath, tEngine, tScript
-   
-   put pModuleInterfacePath into tModulePath
-   put pRepoPath & slash & "engine" & slash & "src" into tEngine
-   put pRepoPath & slash & "libscript" & slash & "src" into tScript
-   
-   local tInstalled
-   put files(tModulePath) into tInstalled
-   filter tInstalled with "*.lci"
-   
-   local tSourcePaths
-   put tScript into tSourcePaths[1]
-   put tEngine into tSourcePaths[2]
-   
-   local tCount
-   put 1 into tCount
-   
-   set the itemdelimiter to "."
-   local tFiles
-   repeat for each element tElement in tSourcePaths
-      local tDocsA
-      put files(tElement) into tFiles
-      filter tFiles with regex pattern ".*(\.(mlc|lcb))+"
-      # Check to see if the corresponding interface file exists so that we 
-      # don't add anything to the dictionary that isn't actually there.
-      repeat for each line tFile in tFiles
-         local tInterfaceFile
-         put "com.livecode." & tFile into tInterfaceFile
-         put "lci" into item -1 of tInterfaceFile
-         if replaceText(tInterfaceFile, "-", "") is not among the lines of tInstalled then next repeat
-         get revDocsGenerateDocsFileFromModularFile(tFile)
-         if it is not empty then
-            put it into tDocsA[tCount]
-            add 1 to tCount
-         end if
-      end repeat
-   end repeat
-   
-   put files(pRepoPath & slash & "docs" & slash & "builder") into tFiles
-   filter tFiles with "*.lcdoc"
-   repeat for each line tFile in tFiles
-      local tContents
-      put revDocsUtf8FileContents(tFile) into tContents
-      if tContents is not empty then
-         put tContents into tDocsA[tCount]
-         add 1 to tCount
-      end if
-   end repeat
-   
-   return tDocsA
-end revDocsGenerateDocsFilesFromBuiltIn
+--function revDocsGenerateDocsFilesFromBuiltIn pModuleInterfacePath, pRepoPath
+--   local tModulePath, tEngine, tScript
+
+--   put pModuleInterfacePath into tModulePath
+--   put pRepoPath & slash & "engine" & slash & "src" into tEngine
+--   put pRepoPath & slash & "libscript" & slash & "src" into tScript
+
+--   local tInstalled
+--   put files(tModulePath) into tInstalled
+--   filter tInstalled with "*.lci"
+
+--   local tSourcePaths
+--   put tScript into tSourcePaths[1]
+--   put tEngine into tSourcePaths[2]
+
+--   local tCount
+--   put 1 into tCount
+
+--   set the itemdelimiter to "."
+--   local tFiles
+--   repeat for each element tElement in tSourcePaths
+--      local tDocsA
+--      put files(tElement) into tFiles
+--      filter tFiles with regex pattern ".*(\.(mlc|lcb))+"
+--      # Check to see if the corresponding interface file exists so that we 
+--      # don't add anything to the dictionary that isn't actually there.
+--      repeat for each line tFile in tFiles
+--         local tInterfaceFile
+--         put "com.livecode." & tFile into tInterfaceFile
+--         put "lci" into item -1 of tInterfaceFile
+--         if replaceText(tInterfaceFile, "-", "") is not among the lines of tInstalled then next repeat
+--         get revDocsGenerateDocsFileFromModularFile(tFile)
+--         if it is not empty then
+--            put it into tDocsA[tCount]
+--            add 1 to tCount
+--         end if
+--      end repeat
+--   end repeat
+
+--   put files(pRepoPath & slash & "docs" & slash & "builder") into tFiles
+--   filter tFiles with "*.lcdoc"
+--   repeat for each line tFile in tFiles
+--      local tContents
+--      put docs.Utf8FileContents(tFile) into tContents
+--      if tContents is not empty then
+--         put tContents into tDocsA[tCount]
+--         add 1 to tCount
+--      end if
+--   end repeat
+
+--   return tDocsA
+--end revDocsGenerateDocsFilesFromBuiltIn
 
 /*
 Summary: Formats a libraries array as JSON.
@@ -168,18 +168,18 @@ There are a number of ways of creating a library array:
 * <revDocsParseDictionaryToLibraryArray> creates the dictionary library array
 
 */
-function revDocsFormatLibrariesArrayAsJSON pLibrariesA
-   local tJSON
-   repeat for each element tLibraryA in pLibrariesA
-      get revDocsFormatLibraryArrayAsJSON(tLibraryA) 
-      if it is not empty then 
-         put it & comma after tJSON
-      end if
-   end repeat
-   
-   delete the last char of tJSON
-   return tJSON
-end revDocsFormatLibrariesArrayAsJSON
+--function revDocsFormatLibrariesArrayAsJSON pLibrariesA
+--   local tJSON
+--   repeat for each element tLibraryA in pLibrariesA
+--      get docs.FormatLibraryArrayAsJSON(tLibraryA) 
+--      if it is not empty then 
+--         put it & comma after tJSON
+--      end if
+--   end repeat
+
+--   delete the last char of tJSON
+--   return tJSON
+--end revDocsFormatLibrariesArrayAsJSON
 
 /* 
 Summary: Create a library array with all the docs data from the specified directory
@@ -206,26 +206,26 @@ value(array): an array of all the docs elements for this handler or piece of syn
 }
 */
 
-function revDocsParseDirectoryToLibraryArray pLibraryName, pAuthor, pRootDir, pType, pRecursive
-   local tLibraryA
-   if there is a folder pRootDir then
-      put pLibraryName into tLibraryA["name"]
-      put pAuthor into tLibraryA["author"]
-      put pType into tLibraryA["type"]
-      
-      if pType is "dictionary" then
-         put revDocsParseDictionaryToLibraryArray(pRootDir) into tLibraryA["doc"]
-      else
-         put __revDocsParseDirectoryToLibraryArray(pType, pRootDir, pRecursive) into tLibraryA["doc"]
-      end if
-   end if
-   
-   if tLibraryA["doc"] is not empty then
-      return tLibraryA
-   end if
-   
-   return empty
-end revDocsParseDirectoryToLibraryArray
+--private function revDocsParseDirectoryToLibraryArray pLibraryName, pAuthor, pRootDir, pType, pRecursive
+--   local tLibraryA
+--   if there is a folder pRootDir then
+--      put pLibraryName into tLibraryA["name"]
+--      put pAuthor into tLibraryA["author"]
+--      put pType into tLibraryA["type"]
+
+--      if pType is "dictionary" then
+--         put revDocsParseDictionaryToLibraryArray(pRootDir) into tLibraryA["doc"]
+--      else
+--         put __revDocsParseDirectoryToLibraryArray(pType, pRootDir, pRecursive) into tLibraryA["doc"]
+--      end if
+--   end if
+
+--   if tLibraryA["doc"] is not empty then
+--      return tLibraryA
+--   end if
+
+--   return empty
+--end revDocsParseDirectoryToLibraryArray
 
 
 /*
@@ -241,7 +241,7 @@ function revDocsParseDictionaryToLibraryArray pRootDir
    
    # Get the list of canonical glossary entries
    local tGlossaryA
-   put revDocsCollectGlossarySynonyms(pRootDir) into tGlossaryA
+   put docs.CollectGlossarySynonyms(pRootDir) into tGlossaryA
    
    local tDictionaryRoot, tGlossaryRoot
    put pRootDir & slash & "dictionary" into tDictionaryRoot
@@ -264,7 +264,7 @@ function revDocsParseDictionaryToLibraryArray pRootDir
             end if
             local tFullPath
             put tRoot & slash & tLine & slash & tFile into tFullPath
-            put revDocsUtf8FileContents(tFullPath) into tText
+            put docs.Utf8FileContents(tFullPath) into tText
             put revDocsParseDocText(tText, tFullPath) into tParsedA
             put tParsedA["doc"][1] into tLibraryA[tCount]
             add 1 to tCount
@@ -281,9 +281,9 @@ Summary: Takes a .lcdoc file and formats it as a JSON array.
 function revDocsFormatAPIAsJSON pLibraryName, pAuthor, pAPIFile
    # Get the data
    local tText
-   put revDocsUtf8FileContents(pAPIFile) into tText
+   put docs.Utf8FileContents(pAPIFile) into tText
    
-   return revDocsFormatDocTextAsJSON(pAPIFile, tText, pLibraryName, pAuthor)
+   return docs.FormatDocTextAsJSON(pAPIFile, tText, pLibraryName, pAuthor)
 end revDocsFormatAPIAsJSON
 
 /*
@@ -292,7 +292,7 @@ Summary: Takes a .lcdoc file and parses it into a library array.
 function revDocsParseFileToArray pFile, pType, @xCount, @xLibraryA
    # Get the data
    local tText
-   put revDocsUtf8FileContents(pFile) into tText
+   put docs.Utf8FileContents(pFile) into tText
    
    return revDocsParseFileContentsToArray(pFile, tText, pType, xCount, xLibraryA)
 end revDocsParseFileToArray
@@ -359,7 +359,7 @@ Tags: Package building
 
 function revDocsGenerateDocsFileFromModularFile pFile
    local tContents
-   put revDocsUtf8FileContents(pFile) into tContents
+   put docs.Utf8FileContents(pFile) into tContents
    return revDocsGenerateDocsFileFromModular(tContents, pFile)
 end revDocsGenerateDocsFileFromModularFile
 
@@ -384,7 +384,7 @@ function revDocsGenerateDocsFileFromText pText, pSource
    local tHandlerData, tPhraseData
    
    local tLibraryData, tAPIData
-   revDocsExtractDocBlocks pText, pSource, tAPIData, tLibraryData
+   docs.ExtractDocBlocks pText, pSource, tAPIData, tLibraryData
    
    # Allow inline module description as valid docs
    if tAPIData is empty then
@@ -396,7 +396,7 @@ function revDocsGenerateDocsFileFromText pText, pSource
    end if
    
    local tOutput
-   put revDocsFormatInlineComments(tLibraryData, true) into tOutput
+   put docs.FormatInlineComments(tLibraryData, true) into tOutput
    
    if tOutput is empty then
       logWarning "Invalid library-level docs", pSource
@@ -404,7 +404,7 @@ function revDocsGenerateDocsFileFromText pText, pSource
    
    repeat for each key tKey in tAPIData
       local tFormatted
-      put revDocsFormatInlineComments(tAPIData[tKey], false) into tFormatted
+      put docs.FormatInlineComments(tAPIData[tKey], false) into tFormatted
       if tFormatted is empty then
          logWarning "No docs for element" && tKey, pSource
       else
@@ -428,13 +428,13 @@ pSource : The source of the script (either a filename or an object id)
 Returns (array) : An array containing the details for the comment blocks associated with each api entry
 
 */
-private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
+private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
    local tEntryType
    put empty into tEntryType
    
-   local tInComment, tInEntry, tEntryEnded
-   put false into tInComment
-   put false into tInEntry
+   local tInComment?, tInEntry?, tEntryEnded?
+   put false into tInComment?
+   put false into tInEntry?
    
    local tFirstWord, tEntryData, tTrimLine
    local tComment, tCommentOffset, tData
@@ -443,47 +443,47 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
    local tLibraryData, tAPIData
    
    # Keep track of if this is a widget module or not
-   local tIsWidget
-   put false into tIsWidget
+   local tIsWidget?
+   put false into tIsWidget?
    
    # If the source is an object, then we are parsing script
    local tIsScript
    put there is a pSource into tIsScript
    
-   local tIsLCIDL = false
+   local tIsLCIDL? = false
    
    repeat for each line tLine in pText
       # Check to see if this is the start of a handler / syntax or a block of comments 
       put word 1 of tLine into tFirstWord
       
       # By default, the entry doesn't end on this line
-      put false into tEntryEnded
+      put false into tEntryEnded?
       
       # If we are neither in a comment block or in handler / syntax then 
-      if not tInComment and not tInEntry then
+      if not tInComment? and not tInEntry? then
          # In almost all cases, we will be in a new entry
-         put true into tInEntry
+         put true into tInEntry?
          
          switch tFirstWord
             case "external"
-               put true into tIsLCIDL
+               put true into tIsLCIDL?
                put "library" into tEntryData["type"]
                put word 2 to -1 of tLine into tEntryData["name"]
-               put false into tInEntry
+               put false into tInEntry?
                put true into tEntryData["need_docs"]
                break
             case "module"
             case "library"
                put tFirstWord into tEntryData["type"]
                put word 2 to -1 of tLine into tEntryData["name"]
-               put true into tEntryEnded
+               put true into tEntryEnded?
                put true into tEntryData["need_docs"]
                break
             case "widget"
-               put true into tIsWidget
+               put true into tIsWidget?
                put "widget" into tEntryData["type"]
                put word 2 to -1 of tLine into tEntryData["name"]
-               put true into tEntryEnded
+               put true into tEntryEnded?
                put true into tEntryData["need_docs"]
                break
             case "metadata"
@@ -501,7 +501,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                   end if
                end if
                # Metadata is not treated as an entry
-               put false into tInEntry
+               put false into tInEntry?
                break
             case "handler"
                put "handler" into tEntryData["type"]
@@ -515,7 +515,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                   # eat the word 'private'
                   put word 2 to -1 of tLine into tLine
                else
-                  put false into tInEntry
+                  put false into tInEntry?
                end if
                break
             case "public"
@@ -524,7 +524,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      put true into tEntryData["private"]
                      put "type" into tEntryData["type"]
                      put word 3 to -1 of tLine into tLine
-                     put true into tEntryEnded
+                     put true into tEntryEnded?
                   else
                      put "handler" into tEntryData["type"]
                      # eat the word 'public'
@@ -532,7 +532,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      put token 2 of tLine into tEntryData["name"]
                      
                      # If we have a widget, then public handlers are not in the message path and so don't need docs.
-                     put not tIsWidget into tEntryData["need_docs"]
+                     put not tIsWidget? into tEntryData["need_docs"]
                   end if
                else 
                   put true into tEntryData["private"]
@@ -544,10 +544,10 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      end if
                      # eat the words 'public foreign'
                      put word 3 to -1 of tLine into tLine
-                     put true into tEntryEnded
+                     put true into tEntryEnded?
                   else if word 2 of tLine is "type" then
                      put word 3 to -1 of tLine into tLine
-                     put true into tEntryEnded
+                     put true into tEntryEnded?
                   end if
                end if
                break
@@ -564,12 +564,12 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                put word 2 of tLine into tEntryData["name"]
                put "property" into tEntryData["type"]
                # Properties are one-liners
-               put true into tEntryEnded
+               put true into tEntryEnded?
                put true into tEntryData["need_docs"]
                break
             case "on"
-               if tIsLCIDL then
-                  put false into tInEntry
+               if tIsLCIDL? then
+                  put false into tInEntry?
                   break
                end if
                put "command" into tEntryData["type"]
@@ -577,8 +577,8 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                put false into tEntryData["need_docs"]
                break
             case "tail"
-               if not tIsLCIDL then
-                  put false into tInEntry
+               if not tIsLCIDL? then
+                  put false into tInEntry?
                   break
                end if
                -- eat tail in lcidl
@@ -596,7 +596,7 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                break
             default
                # This is not a new entry
-               put false into tInEntry
+               put false into tInEntry?
                # Check if this is a new comment block
                if tFirstWord begins with "/**" and \
                      not (tFirstWord begins with "/**/") then
@@ -609,14 +609,14 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      put the short name of pSource into tLibraryData["name"]
                   end if
                   
-                  if tIsLCIDL and tAPIData is empty and tComment is not empty then
+                  if tIsLCIDL? and tAPIData is empty and tComment is not empty then
                      put tEntryData into tLibraryData
                      put tComment into tLibraryData["comments"]
                   end if
                   
                   # Discard any previous comments
                   put empty into tComment
-                  put true into tInComment
+                  put true into tInComment?
                   put offset("/**", tLine) into tCommentOffset
                   put char (tCommentOffset + 3) to -1 of tLine into tLine
                   
@@ -628,9 +628,9 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
       end if
       
       # If we're in comments check to see if this is the end of a block of comments
-      if tInComment then
+      if tInComment? then
          if word -1 of tLine ends with "*/" then
-            put false into tInComment
+            put false into tInComment?
             put offset("*/", tLine) into tCommentOffset
             delete char tCommentOffset to -1 of tLine
             
@@ -639,8 +639,8 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                delete char -1 of tLine
             end if
             
-            if tIsLCIDL then
-               put false into tInEntry
+            if tIsLCIDL? then
+               put false into tInEntry?
             end if
             
             # If there's nothing else on this line, don't add it.
@@ -650,36 +650,36 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
          else if tComment is empty and tFirstWord is empty then
             next repeat
          end if
-         put tLine & return after tComment
+         put tLine & cr after tComment
          next repeat
       end if
       
       # If we are in an entry, add the line to the current data
-      if tInEntry then
+      if tInEntry? then
          # handle line continuations
          if char -2 of tData is "\" then
             delete char -2 to -1 of tData
             # ignore empty lines
          else if tFirstWord is empty then
-            if tIsLCIDL then
-               put true into tEntryEnded
+            if tIsLCIDL? then
+               put true into tEntryEnded?
             else
                next repeat
             end if
          else if tFirstWord is "end" then
-            put true into tEntryEnded
+            put true into tEntryEnded?
          end if
          # continuation character can have spaces afterwards [[Bug 19927]]
          # trim trailing spaces before adding
          if matchText(tLine, "^(.*\\)\s*$", tTrimLine) then
-            put tTrimLine & return after tData
+            put tTrimLine & cr after tData
          else
-            put tLine & return after tData
+            put tLine & cr after tData
          end if
       end if
       
       # If the entry is ended, convert all the collected data to a structured array
-      if tEntryEnded then
+      if tEntryEnded? then
          # Extract data from the syntax / handler if comments are not empty
          if tComment is not empty then
             switch tEntryData["type"]
@@ -690,15 +690,15 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                   put tEntryData into tLibraryData
                   break
                case "handler"
-                  revDocsParseHandler line 1 of tData, tHandlerData
-                  revDocsUpdateDocBlocks true, "handler", line 1 of tData, tComment, tAPIData
+                  docs.ParseHandler line 1 of tData, tHandlerData
+                  docs.UpdateDocBlocks true, "handler", line 1 of tData, tComment, tAPIData
                   break
                case "function"
                case "command"
-                  if tIsLCIDL then
-                     revDocsUpdateDocBlocksForLCIDL  tEntryData["name"], tEntryData["type"], tData, tComment, tAPIData
+                  if tIsLCIDL? then
+                     docs.UpdateDocBlocksForLCIDL  tEntryData["name"], tEntryData["type"], tData, tComment, tAPIData
                   else
-                     revDocsUpdateDocBlocks false, tEntryData["type"], line 1 of tData, tComment, tAPIData
+                     docs.UpdateDocBlocks false, tEntryData["type"], line 1 of tData, tComment, tAPIData
                   end if
                   break
                case "type"
@@ -707,10 +707,10 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                   put tData into tPhraseData[word 2 of tData]
                   break
                case "syntax"
-                  revDocsUpdateModularSyntaxDocBlocks tData, tComment, tHandlerData, tPhraseData, tAPIData
+                  docs.UpdateModularSyntaxDocBlocks tData, tComment, tHandlerData, tPhraseData, tAPIData
                   break
                case "property"
-                  revDocsUpdateDocBlocksForProperty tData, tComment, tAPIData
+                  docs.UpdateDocBlocksForProperty tData, tComment, tAPIData
                   break
             end switch
             
@@ -722,16 +722,16 @@ private command revDocsExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
          put empty into tEntryData
          put empty into tComment
          put empty into tData
-         put false into tInEntry
+         put false into tInEntry?
       end if
    end repeat
    
    put tAPIData into rAPIData
    put tLibraryData into rLibraryData
-end revDocsExtractDocBlocks 
+end docs.ExtractDocBlocks 
 
 private command log pOutput
-   write pOutput & return to stdout
+   write pOutput & cr to stdout
 end log
 
 private command logError pError, pFilename
@@ -753,52 +753,52 @@ private function extensionsFromType pType
    end switch
 end extensionsFromType
 
-private function __revDocsParseDirectoryToLibraryArray pType, pRootDir, pRecursive
-   if there is not a folder pRootDir then
-      return empty
-   end if
-   
-   local tFiles, tExtensionRegex
-   put extensionsFromType(pType) into tExtensionRegex
-   put files(pRootDir) into tFiles
-   filter tFiles with regex pattern tExtensionRegex
-   
-   local tCount
-   put 1 into tCount
-   
-   local tLibraryA
-   if tFiles is not empty then
-      repeat for each line tFile in tFiles
-         revDocsParseFileToArray(tFile, pType, tCount, tLibraryA)
-      end repeat
-   end if
-   
-   if pRecursive then
-      local tSubDirA
-      repeat for each line tLine in the folders
-         if tLine is ".." then
-            next repeat
-         end if
-         put __revDocsParseDirectoryToLibraryArray(pType, pRootDir & slash & tLine, pRecursive) into tSubDirA
-         repeat for each key tEntry in tSubDirA
-            put tSubDirA[tEntry] into tLibraryA[tCount]
-            add 1 to tCount
-         end repeat
-      end repeat
-   end if
-   
-   return tLibraryA
-end __revDocsParseDirectoryToLibraryArray
+--private function __revDocsParseDirectoryToLibraryArray pType, pRootDir, pRecursive
+--   if there is not a folder pRootDir then
+--      return empty
+--   end if
 
-function revDocsFormatInlineComments pDataA, pIsLibrary
+--   local tFiles, tExtensionRegex
+--   put extensionsFromType(pType) into tExtensionRegex
+--   put files(pRootDir) into tFiles
+--   filter tFiles with regex pattern tExtensionRegex
+
+--   local tCount
+--   put 1 into tCount
+
+--   local tLibraryA
+--   if tFiles is not empty then
+--      repeat for each line tFile in tFiles
+--         revDocsParseFileToArray(tFile, pType, tCount, tLibraryA)
+--      end repeat
+--   end if
+
+--   if pRecursive then
+--      local tSubDirA
+--      repeat for each line tLine in the folders
+--         if tLine is ".." then
+--            next repeat
+--         end if
+--         put __revDocsParseDirectoryToLibraryArray(pType, pRootDir & slash & tLine, pRecursive) into tSubDirA
+--         repeat for each key tEntry in tSubDirA
+--            put tSubDirA[tEntry] into tLibraryA[tCount]
+--            add 1 to tCount
+--         end repeat
+--      end repeat
+--   end if
+
+--   return tLibraryA
+--end __revDocsParseDirectoryToLibraryArray
+
+private function docs.FormatInlineComments pDataA, pIsLibrary
    local tComment
    put pDataA["comments"] into tComment
    
    local tElementsA
-   put revDocsExtractElements(tComment) into tElementsA
+   put docs.ExtractElements(tComment) into tElementsA
    
    local tEntriesA
-   put revDocsGroupElements(tElementsA) into tEntriesA
+   put docs.GroupElements(tElementsA) into tEntriesA
    
    # If tEntries is empty, there was an error (docs empty, or no Name element)
    if tEntriesA is empty then
@@ -973,9 +973,9 @@ function revDocsFormatInlineComments pDataA, pIsLibrary
    end repeat
    
    return tDocData
-end revDocsFormatInlineComments
+end docs.FormatInlineComments
 
-private function revDocsCollectGlossarySynonyms pRoot
+private function docs.CollectGlossarySynonyms pRoot
    local tGlossaryA, tText, tName, tSynonyms
    local tFolders
    put folders(pRoot & slash & "glossary") into tFolders
@@ -989,7 +989,7 @@ private function revDocsCollectGlossarySynonyms pRoot
             local tFullPath
             put pRoot & slash & "glossary" & slash & \ 
                   tLine & slash & tFile into tFullPath
-            put revDocsUtf8FileContents(tFullPath) into tText
+            put docs.Utf8FileContents(tFullPath) into tText
             get lineOffset("Name:", tText)
             put word 2 to -1 of line it of tText into tName
             if tName is empty then
@@ -1009,7 +1009,7 @@ private function revDocsCollectGlossarySynonyms pRoot
       end if
    end repeat
    return tGlossaryA
-end revDocsCollectGlossarySynonyms
+end docs.CollectGlossarySynonyms
 
 private function __elementRegex
    # Regex used to determine if this line starts a new element
@@ -1026,7 +1026,7 @@ end __arrayElementRegex
 
 constant kAlwaysRecognizeAsElement = "Description"
 
-private function revDocsExtractElementsWithRegex pText, pRegex
+private function docs.ExtractElementsWithRegex pText, pRegex
    local tElementRegex
    put pRegex into tElementRegex
    
@@ -1152,15 +1152,15 @@ private function revDocsExtractElementsWithRegex pText, pRegex
    end if
    
    return tElementsA
-end revDocsExtractElementsWithRegex
+end docs.ExtractElementsWithRegex
 
 /*
 Utility function to extract any elements matching the docs element style
 */
-private function revDocsExtractElements pText
+private function docs.ExtractElements pText
    # Use the element-matching regex
-   return revDocsExtractElementsWithRegex(pText, __elementRegex())
-end revDocsExtractElements
+   return docs.ExtractElementsWithRegex(pText, __elementRegex())
+end docs.ExtractElements
 
 private command __nameToKeyAndType pName, @rKey, @rType
    put pName into rKey
@@ -1232,7 +1232,7 @@ private command __nameToKeyAndType pName, @rKey, @rType
    end switch
 end __nameToKeyAndType
 
-private function revDocsParseElements pExtractedA, pBlocksA, pFilename
+private function docs.ParseElements pExtractedA, pBlocksA, pFilename
    local tParsedA
    
    local tParams
@@ -1245,8 +1245,8 @@ private function revDocsParseElements pExtractedA, pBlocksA, pFilename
    
    # If we have an unknown docs element which is not under a Parameters: element, then
    # append it to the previous element. 
-   local tDoingParams
-   put false into tDoingParams
+   local tDoingParams?
+   put false into tDoingParams?
    
    repeat with tElementNum = 1 to the number of elements of pExtractedA
       local tElementA
@@ -1258,10 +1258,10 @@ private function revDocsParseElements pExtractedA, pBlocksA, pFilename
       if tType is not "param" then
          # If any of these elements are already parsed and we are 'doing params'
          # then remaining ones should be treated as param elements
-         if tType is "standard" and tParsedA[tKey] is not empty and tDoingParams then
+         if tType is "standard" and tParsedA[tKey] is not empty and tDoingParams? then
             put "param" into tType
          else
-            put false into tDoingParams
+            put false into tDoingParams?
          end if
       end if
       
@@ -1286,7 +1286,7 @@ private function revDocsParseElements pExtractedA, pBlocksA, pFilename
             break
          case "references"
             # References require a bit of custom treatment
-            put revDocsParseReferences(tElementA["content"]) into tParsedA[tKey]
+            put docs.ParseReferences(tElementA["content"]) into tParsedA[tKey]
             break
          case "param"
             local tRefParam, tFormattedA
@@ -1298,11 +1298,11 @@ private function revDocsParseElements pExtractedA, pBlocksA, pFilename
                if tKey is not "Value" then
                   # If there was no explicit 'Parameters' declaration, and there is no match, append to previous
                   # Otherwise, warn and output anyway
-                  if tDoingParams then
+                  if tDoingParams? then
                      logWarning tKey && "in" && pExtractedA[1]["content"] && "is not an element type, and does not match a param name.", pFilename
                   else
                      # 'unparse' the element
-                     put return & tKey & ":" & tElementA["content"] after tExtraA[tLastKey]
+                     put cr & tKey & ":" & tElementA["content"] after tExtraA[tLastKey]
                      break
                   end if
                end if
@@ -1311,19 +1311,19 @@ private function revDocsParseElements pExtractedA, pBlocksA, pFilename
             # Fall through if this is a property and there is a 'Value' element
             if tKey is not "Value" or tParsedA["type"] is not "property" then
                get the number of elements of tParsedA["params"] + 1
-               put revDocsParseDescriptionForType(tElementA["type"], tElementA["content"]) into tParsedA["params"][it]
+               put docs.ParseDescriptionForType(tElementA["type"], tElementA["content"]) into tParsedA["params"][it]
                put tRefParam into tParsedA["params"][it]["refparam"]
                put tKey into tParsedA["params"][it]["name"]
                break
             end if
          case "return"
-            put revDocsParseDescriptionForType(tElementA["type"], tElementA["content"]) into tParsedA["value"][tKey]
+            put docs.ParseDescriptionForType(tElementA["type"], tElementA["content"]) into tParsedA["value"][tKey]
             break
          case "parameters"
-            put true into tDoingParams
+            put true into tDoingParams?
             break
          default
-            logWarning "Invalid type returned from nameToKeyAndType", pFilename
+            logWarning "Invalid type returned from nameToKeyAndType:" && tType, pFilename
             break
       end switch
       if tType is "standard" then
@@ -1350,7 +1350,7 @@ private function revDocsParseElements pExtractedA, pBlocksA, pFilename
    end if
    
    return tParsedA
-end revDocsParseElements
+end docs.ParseElements
 
 private command __updateParamsFromSyntaxLine pLine, @xParamsA
    local tParamStart, tParamEnd
@@ -1362,11 +1362,11 @@ end __updateParamsFromSyntaxLine
 
 --function revDocsFormatDocFileAsJSON pFile, pLibraryName, pAuthor
 --   local tFileContents
---   put revDocsUtf8FileContents(pFile) into tFileContents
---   return revDocsFormatDocTextAsJSON(pFile, tFileContents, pLibraryName, pAuthor)
+--   put docs.Utf8FileContents(pFile) into tFileContents
+--   return docs.FormatDocTextAsJSON(pFile, tFileContents, pLibraryName, pAuthor)
 --end revDocsFormatDocFileAsJSON
 
-private function revDocsFormatDocTextAsJSON pFile, pText, pLibraryName, pAuthor
+private function docs.FormatDocTextAsJSON pFile, pText, pLibraryName, pAuthor
    if pText is empty then
       return empty
    end if
@@ -1374,12 +1374,12 @@ private function revDocsFormatDocTextAsJSON pFile, pText, pLibraryName, pAuthor
    # Parse the doc text into a library array
    local tLIbraryA
    put revDocsParseDocTextToLibraryArray(pFile, pText, pLibraryName, pAuthor) into tLibraryA
-   return revDocsFormatLibraryArrayAsJSON(tLibraryA)
-end revDocsFormatDocTextAsJSON
+   return docs.FormatLibraryArrayAsJSON(tLibraryA)
+end docs.FormatDocTextAsJSON
 
 function revDocsParseDocFileToLibraryArray pFile, pLibraryName, pAuthor
    local tFileContents
-   put revDocsUtf8FileContents(pFile) into tFileContents
+   put docs.Utf8FileContents(pFile) into tFileContents
    return revDocsParseDocTextToLibraryArray(pFile, tFileContents, pLibraryName, pAuthor)
 end revDocsParseDocFileToLibraryArray
 
@@ -1396,11 +1396,11 @@ end revDocsParseDocTextToLibraryArray
 
 function revDocsParseDocFile pFile
    local tFileContents
-   put revDocsUtf8FileContents(pFile) into tFileContents
+   put docs.Utf8FileContents(pFile) into tFileContents
    return revDocsParseDocText(tFileContents, pFile)
 end revDocsParseDocFile
 
-private function revDocsGroupElements pElementsA
+private function docs.GroupElements pElementsA
    local tLibraryName
    
    local tElementsA
@@ -1445,7 +1445,7 @@ private function revDocsGroupElements pElementsA
    end repeat
    return tEntriesA
    
-end revDocsGroupElements
+end docs.GroupElements
 
 -- Elements that when defined at the library level
 -- apply to all docs in the api
@@ -1454,7 +1454,7 @@ constant kInheritedElements = "author,version,associations,tags,requires,uses,os
 constant kLibraryEntryElements = "name,display name,summary,description,type,example,references,edition,os,platforms,associations"
 function revDocsParseDocText pText, pFilename, pDefaults, pOverrides
    local tElementsA
-   put revDocsExtractElements(pText) into tElementsA
+   put docs.ExtractElements(pText) into tElementsA
    
    local tLibraryName
    local tEntriesA, tEntryCount
@@ -1582,11 +1582,11 @@ function revDocsParseDocText pText, pFilename, pDefaults, pOverrides
          end if
       end repeat
       
-      put revDocsParseElements(tLibraryElementsA, empty, pFilename) into tLibraryA
+      put docs.ParseElements(tLibraryElementsA, empty, pFilename) into tLibraryA
    end if
    
    repeat for each key tKey in tEntriesA
-      put revDocsParseElements(tEntriesA[tKey]["elements"], tEntriesA[tKey], pFilename) into tLibraryA["doc"][tKey]
+      put docs.ParseElements(tEntriesA[tKey]["elements"], tEntriesA[tKey], pFilename) into tLibraryA["doc"][tKey]
    end repeat
    
    if tHasLibraryEntry then  
@@ -1645,7 +1645,7 @@ private function formatSyntaxLine pLine, pPhrases
    return pLine
 end formatSyntaxLine
 
-private command revDocsParseHandler pHandler, @xHandlers
+private command docs.ParseHandler pHandler, @xHandlers
    local tHandlerParams, tHandlerResult, tHandlerResult2
    get matchText(pHandler, "\((.*)\)(?: as (\w*)(?: (\w*))?)?", tHandlerParams, tHandlerResult, tHandlerResult2)
    
@@ -1668,17 +1668,17 @@ private command revDocsParseHandler pHandler, @xHandlers
       end if
       put tHandlerResult into xHandlers[tHandlerName]["the result"]["type"]
    end if
-end revDocsParseHandler
+end docs.ParseHandler
 
-private command revDocsUpdateDocBlocksForProperty pData, pComment, @xDataA
+private command docs.UpdateDocBlocksForProperty pData, pComment, @xDataA
    local tName
    put token 1 to -1 of word 2 of pData into tName
    put pComment into xDataA[tName]["comments"]
    put "property" into xDataA[tName]["type"]
    put tName into xDataA[tName]["name"]
-end revDocsUpdateDocBlocksForProperty
+end docs.UpdateDocBlocksForProperty
 
-private command revDocsUpdateModularSyntaxDocBlocks pData, pComment, pHandlersA, pPhrasesA, @xDataA
+private command docs.UpdateModularSyntaxDocBlocks pData, pComment, pHandlersA, pPhrasesA, @xDataA
    local tNameLine, tSyntaxLine, tBindingLines, tDeprecated
    local tCurrentLine
    put 1 into tCurrentLine
@@ -1765,16 +1765,16 @@ private command revDocsUpdateModularSyntaxDocBlocks pData, pComment, pHandlersA,
       put tDeprecated into xDataA[tEntryName]["deprecated"]
    end if
    put tEntryName into xDataA[tEntryName]["name"]
-end revDocsUpdateModularSyntaxDocBlocks
+end docs.UpdateModularSyntaxDocBlocks
 
-private command revDocsUpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
+private command docs.UpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
    if pComment is empty then
-      exit revDocsUpdateDocBlocks
+      exit docs.UpdateDocBlocks
    end if
    
    get word 1 of pLine
    if it is "private" then
-      exit revDocsUpdateDocBlocks
+      exit docs.UpdateDocBlocks
    end if
    
    if it is "public" then
@@ -1828,11 +1828,11 @@ private command revDocsUpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
    put pComment into xDataA[tEntryName]["comments"]
    # Distinguish from syntax
    put "handler" into xDataA[tEntryName]["kind"]
-end revDocsUpdateDocBlocks
+end docs.UpdateDocBlocks
 
-private command revDocsUpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment, @xDataA
+private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment, @xDataA
    if pComment is empty then
-      exit revDocsUpdateDocBlocksForLCIDL
+      exit docs.UpdateDocBlocksForLCIDL
    end if
    
    local tSyntax
@@ -1911,9 +1911,9 @@ private command revDocsUpdateDocBlocksForLCIDL pEntryName, pType, pData, pCommen
    
    # Distinguish from syntax
    put "handler" into xDataA[pEntryName]["kind"]
-end revDocsUpdateDocBlocksForLCIDL
+end docs.UpdateDocBlocksForLCIDL
 
-private function revDocsParseReferences pDescription
+private function docs.ParseReferences pDescription
    local tReferences
    
    local tRef, tType
@@ -1925,9 +1925,9 @@ private function revDocsParseReferences pDescription
       end if
    end repeat
    return tReferences
-end revDocsParseReferences
+end docs.ParseReferences
 
-private function revDocsParseDescriptionForType pType, pDescription
+private function docs.ParseDescriptionForType pType, pDescription
    if word 1 of pType is "optional" then
       // more formatting for optional type?
       put word 2 to -1 of pType into pType
@@ -1935,10 +1935,10 @@ private function revDocsParseDescriptionForType pType, pDescription
    local tArray
    switch pType
       case "array"
-         put revDocsParseDescriptionOfArray(pDescription) into tArray
+         put docs.ParseDescriptionOfArray(pDescription) into tArray
          break
       case "enum"
-         put revDocsParseDescriptionOfEnum(pDescription) into tArray
+         put docs.ParseDescriptionOfEnum(pDescription) into tArray
          break
       default
          put pDescription into tArray["description"]
@@ -1946,9 +1946,9 @@ private function revDocsParseDescriptionForType pType, pDescription
          break
    end switch
    return tArray
-end revDocsParseDescriptionForType
+end docs.ParseDescriptionForType
 
-private function revDocsParseKeyValuePair pToParse
+private function docs.ParseKeyValuePair pToParse
    local tArray
    local tOptional 
    put false into tOptional
@@ -1957,7 +1957,7 @@ private function revDocsParseKeyValuePair pToParse
    repeat with x = 1 to 2
       put word 1 to -1 of line x of pToParse & return after tToParse
    end repeat
-   put revDocsExtractElementsWithRegex(tToParse, __arrayElementRegex()) into tElementsA
+   put docs.ExtractElementsWithRegex(tToParse, __arrayElementRegex()) into tElementsA
    
    // flush out key value pair into tArray
    if word 1 of tElementsA[1]["type"] is "optional" then
@@ -1973,9 +1973,9 @@ private function revDocsParseKeyValuePair pToParse
    put tElementsA[2]["type"] into tArray["value"]["type"]
    put tElementsA[2]["content"] into tArray["value"]["description"]
    return tArray
-end revDocsParseKeyValuePair
+end docs.ParseKeyValuePair
 
-private function revDocsParseSubArray pToParse
+private function docs.ParseSubArray pToParse
    local tArray
    local tStart, tFinish, tArrayDef
    
@@ -1990,7 +1990,7 @@ private function revDocsParseSubArray pToParse
          next repeat
       end if
       
-      put revDocsParseKeyValuePair(line 1 to 2 of pToParse) into tArray[tCount]
+      put docs.ParseKeyValuePair(line 1 to 2 of pToParse) into tArray[tCount]
       
       local tOpenOffset, tCloseOffset, tUpdateOpen
       put 0 into tOpenOffset
@@ -2026,7 +2026,7 @@ private function revDocsParseSubArray pToParse
             put tCloseOffset into tCurrent
             if tNesting is 0 then
                put char tStart to tCloseOffset - 1 of pToParse into tSubArray
-               get revDocsParseSubArray(tSubArray) -- recurse
+               get docs.ParseSubArray(tSubArray) -- recurse
                put it into tArray[tCount]["value"]["array"]
                add 1 to tCount
                put char tCloseOffset + 1 to -1 of pToParse into pToParse
@@ -2053,7 +2053,7 @@ private function revDocsParseSubArray pToParse
       end repeat
    end repeat
    return tArray
-end revDocsParseSubArray
+end docs.ParseSubArray
 
 /*
 Parses a parameter description according to the rules of documenting an array
@@ -2063,7 +2063,7 @@ Returns (array) : An array representing the data for the documented array
 
 */
 
-private function revDocsParseDescriptionOfArray pDescription
+private function docs.ParseDescriptionOfArray pDescription
    local tCount
    put 1 into tCount
    
@@ -2084,9 +2084,9 @@ private function revDocsParseDescriptionOfArray pDescription
    
    put tOutput into tArray["description"]
    put "array" into tArray["type"]
-   put revDocsParseSubArray(tArrayDef) into tArray["array"]
+   put docs.ParseSubArray(tArrayDef) into tArray["array"]
    return tArray
-end revDocsParseDescriptionOfArray
+end docs.ParseDescriptionOfArray
 
 /*
 Parses a parameter description according to the rules of documenting an enum
@@ -2096,7 +2096,7 @@ Returns (array) : An array representing the data for the documented array
 
 */
 
-private function revDocsParseDescriptionOfEnum pDescription
+private function docs.ParseDescriptionOfEnum pDescription
    local tArray, tOutput, tInEnum
    local tCount
    put 1 into tCount
@@ -2131,7 +2131,7 @@ private function revDocsParseDescriptionOfEnum pDescription
    put tOutput into tArray["description"]
    put "enum" into tArray["type"]
    return tArray
-end revDocsParseDescriptionOfEnum
+end docs.ParseDescriptionOfEnum
 
 ##################################################
 #
@@ -2155,7 +2155,7 @@ function revDocsFormatLibraryDocArrayAsJSON pLibraryA
       add 1 to tCount
       put pLibraryA["name"] & "-" & tCount into tId
       local tDocJson
-      put revDocsFormatLibraryDataAsJSON(tId, tDoc, pLibraryA) into tDocJson 
+      put docs.FormatLibraryDataAsJSON(tId, tDoc, pLibraryA) into tDocJson 
       if tDocJson is not empty then
          put tDocJson & comma after tJSON
       end if
@@ -2179,13 +2179,13 @@ function revDocsCreateAPIJSON pLibraryTitle, pLibraryName, pAuthor, pDocContentJ
    return tJSON
 end revDocsCreateAPIJSON
 
-private function revDocsFormatLibraryArrayAsJSON pLibraryA
+private function docs.FormatLibraryArrayAsJSON pLibraryA
    local tDocContent
    put revDocsFormatLibraryDocArrayAsJSON(pLibraryA) \
          into tDocContent
    return revDocsCreateAPIJSON(pLibraryA["display name"], pLibraryA["name"], \
          pLibraryA["author"], tDocContent)
-end revDocsFormatLibraryArrayAsJSON
+end docs.FormatLibraryArrayAsJSON
 
 --private function __revDocsParamIsDefinedType?? pType
 --   switch pType
@@ -2217,7 +2217,7 @@ end revDocsFormatLibraryArrayAsJSON
 --   end switch
 --end __revDocsParamIsDefinedType?
 
-private function revDocsArrayParamToJSON pParamA, pDepth
+private function docs.ArrayParamToJSON pParamA, pDepth
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2231,15 +2231,15 @@ private function revDocsArrayParamToJSON pParamA, pDepth
       put tPrefix & tab & tab & keyValue("type", tKeyValue["key"]["type"]) & comma after tOutput
       put tPrefix & tab & tab & keyValue("description", tKeyValue["key"]["description"]) & "}" & comma after tOutput
       put tPrefix & tab & escape("value") & ": {"  after tOutput
-      put revDocsTypedParamToJSON(tKeyValue["value"], pDepth + 2) & "}" after tOutput
+      put docs.TypedParamToJSON(tKeyValue["value"], pDepth + 2) & "}" after tOutput
       put tPrefix & "}" & comma  after tOutput
    end repeat
-   delete the last char of tOutput
-   put "]" after tOutput
+   --delete the last char of tOutput
+   put "]" into the last char of tOutput
    return tOutput
-end revDocsArrayParamToJSON
+end docs.ArrayParamToJSON
 
-private function revDocsEnumParamToJSON pParamA
+private function docs.EnumParamToJSON pParamA
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2250,12 +2250,12 @@ private function revDocsEnumParamToJSON pParamA
       put tPrefix & tab & "{" & keyValue("value", tKeyValue["value"]) & comma after tOutput
       put tPrefix & tab & keyValue("description", tKeyValue["description"]) & "}" & comma after tOutput
    end repeat
-   delete the last char of tOutput
-   put "]" after tOutput
+   --delete the last char of tOutput
+   put "]" into the last char of tOutput
    return tOutput
-end revDocsEnumParamToJSON
+end docs.EnumParamToJSON
 
-private function revDocsTypedParamToJSON pParamA, pDepth, pRef
+private function docs.TypedParamToJSON pParamA, pDepth, pRef
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2273,13 +2273,13 @@ private function revDocsTypedParamToJSON pParamA, pDepth, pRef
    
    switch pParamA["type"]
       case "array"
-         get revDocsArrayParamToJSON(pParamA["array"], pDepth)
+         get docs.ArrayParamToJSON(pParamA["array"], pDepth)
          if it is not empty then
             put comma & tPrefix & it after tOutput
          end if
          break
       case "enum"
-         get revDocsEnumParamToJSON(pParamA["enum"]) 
+         get docs.EnumParamToJSON(pParamA["enum"]) 
          if it is not empty then
             put comma & tPrefix & it after tOutput
          end if
@@ -2288,25 +2288,25 @@ private function revDocsTypedParamToJSON pParamA, pDepth, pRef
          break
    end switch
    return tOutput
-end revDocsTypedParamToJSON
+end docs.TypedParamToJSON
 
 private function __revDocsFormatParamArrayAsJSON pParamA
    local tOutput
    put "[" into tOutput 
    repeat with x = 1 to the number of elements in pParamA
       put "{" after tOutput
-      put revDocsTypedParamToJSON(pParamA[x], 4, true) after tOutput
+      put docs.TypedParamToJSON(pParamA[x], 4, true) after tOutput
       put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
-   delete the last char of tOutput
-   put "]" after tOutput
+   --delete the last char of tOutput
+   put "]" into the last char of tOutput
    return tOutput
 end __revDocsFormatParamArrayAsJSON
 
 private function __revDocsFormatValuesArrayAsJSON pParamA
    local tOutput
    put "[" into tOutput 
-
+   
    local tReturnTypes
    put "return,value,it,the result" into tReturnTypes
    repeat for each item tReturn in tReturnTypes
@@ -2315,11 +2315,11 @@ private function __revDocsFormatValuesArrayAsJSON pParamA
       end if
       put "{" after tOutput
       put tReturn into pParamA[tReturn]["name"]
-      put revDocsTypedParamToJSON(pParamA[tReturn], 4, false) after tOutput
+      put docs.TypedParamToJSON(pParamA[tReturn], 4, false) after tOutput
       put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
-   delete the last char of tOutput
-   put "]" after tOutput
+   --delete the last char of tOutput
+   put "]" into the last char of tOutput
    return tOutput
 end __revDocsFormatValuesArrayAsJSON
 
@@ -2330,12 +2330,12 @@ private function __revDocsFormatExamplesArrayAsJSON pExampleA
       put "{" & cr & __tabs(4) & keyValue("script", tExample) after tOutput
       put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
-   delete the last char of tOutput
-   put "]" after tOutput
+   --delete the last char of tOutput
+   put "]" into the last char of tOutput
    return tOutput
 end __revDocsFormatExamplesArrayAsJSON
 
-private function revDocsItemListToJSONArray pArray, pKey, pTabs
+private function docs.ItemListToJSONArray pArray, pKey, pTabs
    if pArray[pKey] is empty then
       return empty
    end if
@@ -2351,7 +2351,7 @@ private function revDocsItemListToJSONArray pArray, pKey, pTabs
    end if
    
    return __tabs(pTabs) & escape(pKey) & ":[" & tTagList & "]" & comma & return
-end revDocsItemListToJSONArray
+end docs.ItemListToJSONArray
 
 private function __formatParamsAsItalic pText
    local tStart, tEnd
@@ -2401,7 +2401,7 @@ private function escape pString, pConvertLineEndings
    //replace "<" with "&lt;" in pString
    //replace ">" with "&gt;" in pString
    replace tab with "\t" in pString
-   return (quote & pString & quote)
+   return q(pString)
 end escape
 
 function revDocsModifyForURL pName
@@ -2441,7 +2441,7 @@ private function __revDocsFormatReferencesArrayAsJSON pReferencesA
    local tOutput
    put tab & tab & tab & escape("references") & ":{" & cr into tOutput
    repeat for each key tKey in pReferencesA
-      get revDocsItemListToJSONArray(pReferencesA, tKey, 4)
+      get docs.ItemListToJSONArray(pReferencesA, tKey, 4)
       put it after tOutput
    end repeat
    delete char -2 to -1 of tOutput
@@ -2474,7 +2474,7 @@ end __revDocsFormatCustomArrayAsJSON
 Format the library array data as a JSON array as needed by the docs viewer
 */
 
-private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
+private function docs.FormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    local tJSON
    put "{" & cr into tJSON
    
@@ -2520,10 +2520,10 @@ private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    put __revDocsFormatCustomArrayAsJSON("display syntax", pDocDataA) after tJSON
    
    # Synonyms
-   put revDocsItemListToJSONArray(pDocDataA, "synonyms") after tJSON
+   put docs.ItemListToJSONArray(pDocDataA, "synonyms") after tJSON
    
    # Associations
-   put revDocsItemListToJSONArray(pDocDataA, "associations") after tJSON
+   put docs.ItemListToJSONArray(pDocDataA, "associations") after tJSON
    
    # Summary
    put outputElementIfExists("summary", pDocDataA, 3) after tJSON
@@ -2538,13 +2538,13 @@ private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    put outputElementIfExists("deprecated", pDocDataA, 3) after tJSON
    
    # OS
-   put revDocsItemListToJSONArray(pDocDataA, "OS") after tJSON
+   put docs.ItemListToJSONArray(pDocDataA, "OS") after tJSON
    
    # Platforms
-   put revDocsItemListToJSONArray(pDocDataA, "platforms") after tJSON
+   put docs.ItemListToJSONArray(pDocDataA, "platforms") after tJSON
    
    # Security
-   put revDocsItemListToJSONArray(pDocDataA, "security") after tJSON
+   put docs.ItemListToJSONArray(pDocDataA, "security") after tJSON
    
    # Parameters
    put __revDocsFormatCustomArrayAsJSON("params", pDocDataA) after tJSON
@@ -2562,7 +2562,7 @@ private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    put __revDocsFormatReferencesArrayAsJSON(pDocDataA["references"]) after tJSON
    
    # Tags
-   put revDocsItemListToJSONArray(pDocDataA, "tags") after tJSON
+   put docs.ItemListToJSONArray(pDocDataA, "tags") after tJSON
    
    # Changes
    put outputElementIfExists("changes", pDocDataA, 3) after tJSON
@@ -2571,7 +2571,7 @@ private function revDocsFormatLibraryDataAsJSON pID, pDocDataA, pLibraryDataA
    put cr & tab & tab & "}" after tJSON
    return tJSON
    
-end revDocsFormatLibraryDataAsJSON
+end docs.FormatLibraryDataAsJSON
 
 ##################################################
 #
@@ -2628,7 +2628,7 @@ on revDocsUpdateDatabase pConnection, pAPI, pLibraryA
    local tName
    put pLibraryA["display name"] into tName
    
-   revDocsUpdateLibrary pConnection, pAPI, tName, pLibraryA["doc"]
+   docs.UpdateLibrary pConnection, pAPI, tName, pLibraryA["doc"]
    if the result is not empty then
       return "unable to update data for library" && tName & cr & the result
    end if
@@ -2636,7 +2636,7 @@ on revDocsUpdateDatabase pConnection, pAPI, pLibraryA
    return empty
 end revDocsUpdateDatabase
 
-private command revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
+private command docs.UpdateLibrary pConnection, pAPI, pName, pDocDataA
    # Find the API id
    local tSQL, tAPIID
    put "SELECT api_id FROM apis WHERE api_name = :1" into tSQL
@@ -2649,7 +2649,7 @@ private command revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
    local tDocA, tDocName
    repeat for each element tDocA in pDocDataA
       put tDocA["display name"] into tDocName
-
+      
       local tType
       put tDocA["type"] into tType
       
@@ -2671,7 +2671,7 @@ private command revDocsUpdateLibrary pConnection, pAPI, pName, pDocDataA
       end if
    end repeat
    return empty
-end revDocsUpdateLibrary
+end docs.UpdateLibrary
 
 /*
 on revDocsRemoveLibrary pConnection, pAPI, pName
@@ -2704,12 +2704,12 @@ between *must* be blank or contain a "key: value" pair.  For example:
 group: deployment
 ---
 */
-private command revDocsSplitMetadata pText, @rMarkdown, @rMetadata
+private command docs.SplitMetadata pText, @rMarkdown, @rMetadata
    -- Check for a metadata block
    if the first line of pText is not "---" then
       put empty into rMetadata
       put pText into rMarkdown
-      exit revDocsSplitMetadata
+      exit docs.SplitMetadata
    end if
    
    -- Search for a terminal "---" line
@@ -2719,16 +2719,16 @@ private command revDocsSplitMetadata pText, @rMarkdown, @rMetadata
       throw "Unterminated metadata header"
    end if
    
-   put revDocsParseYaml(line 2 to tMetadataEnd of pText) into rMetadata
+   put docs.ParseYaml(line 2 to tMetadataEnd of pText) into rMetadata
    put line (tMetadataEnd + 2) to -1 of pText into rMarkdown
-end revDocsSplitMetadata
+end docs.SplitMetadata
 
 /*
 Parse yaml into a structured array.
 At the moment, we only deal with key value pairs, where the value is
 either a string or a list.
 */
-private function revDocsParseYaml pYaml
+private function docs.ParseYaml pYaml
    local tYaml
    
    local tNumLines
@@ -2754,7 +2754,7 @@ private function revDocsParseYaml pYaml
             put tNumLines + 1 into tNextKey
          end if
          put line tCurLine + 1 to tNextKey - 1 of pYaml into tList
-         put revDocsParseYamlList(tList) into tValue
+         put docs.ParseYamlList(tList) into tValue
          put tNextKey into tCurLine
       else
          # simple key-value pair
@@ -2764,7 +2764,7 @@ private function revDocsParseYaml pYaml
       put tValue into tYaml[tKey]
    end repeat
    return tYaml
-end revDocsParseYaml
+end docs.ParseYaml
 
 private command addToList pElement, @xArray
    local tCount
@@ -2772,7 +2772,7 @@ private command addToList pElement, @xArray
    put pElement into xArray[tCount + 1]
 end addToList
 
-private function revDocsParseYamlList pYaml
+private function docs.ParseYamlList pYaml
    local tListA
    repeat for each line tLine in pYaml
       set the itemdelimiter to "-"
@@ -2784,26 +2784,26 @@ private function revDocsParseYamlList pYaml
       addToList word 1 to -1 of item 2 of tLine, tListA
    end repeat
    return tListA
-end revDocsParseYamlList
+end docs.ParseYamlList
 
-private function revDocsGuideNameFromFile pFile
+private function docs.GuideNameFromFile pFile
    set the itemdelimiter to "."
    return item 1 to -2 of pFile
-end revDocsGuideNameFromFile
+end docs.GuideNameFromFile
 
-private function revDocsGuideData pFolder, pLocation, pFile
+private function docs.GuideData pFolder, pLocation, pFile
    local tGuideContent, tGuideFile
    put pFolder & slash & pFile into tGuideFile
-   put revDocsUtf8FileContents(tGuideFile) into tGuideContent
+   put docs.Utf8FileContents(tGuideFile) into tGuideContent
    
    local tGuideDataA
    if tGuideContent is not empty then
-      revDocsSplitMetadata tGuideContent, tGuideDataA["data"], tGuideDataA["metadata"]
+      docs.SplitMetadata tGuideContent, tGuideDataA["data"], tGuideDataA["metadata"]
       
       replace "[toc]" with empty in tGuideDataA["data"]
       
       local tGuideName
-      put revDocsGuideNameFromFile(pFile) into tGuideName
+      put docs.GuideNameFromFile(pFile) into tGuideName
       
       put tGuideName into tGuideDataA["display name"]
       put revDocsModifyForURL(tGuideName) into tGuideDataA["name"]
@@ -2812,29 +2812,29 @@ private function revDocsGuideData pFolder, pLocation, pFile
       put tGuideFile into tGuideDataA["file"]
    end if
    return tGuideDataA
-end revDocsGuideData
+end docs.GuideData
 
-private function revDocsListGuides pFolder
+private function docs.ListGuides pFolder
    local tGuides
    put files(pFolder) into tGuides
    filter tGuides with "*.md"
    filter tGuides without "README.md"
    
    return tGuides
-end revDocsListGuides
+end docs.ListGuides
 
-private function revDocsGuideDataFromFolder pFolder, pLocation
+private function docs.GuideDataFromFolder pFolder, pLocation
    local tGuides
-   put revDocsListGuides(pFolder) into tGuides
-
+   put docs.ListGuides(pFolder) into tGuides
+   
    local tGuideDataA, tKey
    repeat for each line tGuideFile in tGuides
       put pFolder & slash & tGuideFile into tKey
-      put revDocsGuideData(pFolder, pLocation, tGuideFile) into tGuideDataA[tKey]
+      put docs.GuideData(pFolder, pLocation, tGuideFile) into tGuideDataA[tKey]
    end repeat
-
+   
    return tGuideDataA
-end revDocsGuideDataFromFolder
+end docs.GuideDataFromFolder
 
 constant kNoGuideGroup = "no group"
 private function groupOrder pOrderA, pGuideDataA, pKey
@@ -2847,7 +2847,7 @@ private function groupOrder pOrderA, pGuideDataA, pKey
    end if
 end groupOrder
 
-private function revDocsUtf8FileContents pFile
+private function docs.Utf8FileContents pFile
    local tContents
    put url ("binfile:" & pFile) into tContents
    put textDecode(tContents, "utf-8") into tContents
@@ -2856,19 +2856,19 @@ private function revDocsUtf8FileContents pFile
    replace CRLF with LF in tContents
    replace numToCodepoint(13) with LF in tContents
    return tContents
-end revDocsUtf8FileContents
+end docs.Utf8FileContents
 
 constant kGuideOrderFile = "guide-order.yml"
 private function groupOrderYaml pOrderFileLocation
-   return revDocsUtf8FileContents(pOrderFileLocation & slash & kGuideOrderFile)
+   return docs.Utf8FileContents(pOrderFileLocation & slash & kGuideOrderFile)
 end groupOrderYaml
 
-private function revDocsGroupOrder pOrderFileLocation
+private function docs.GroupOrder pOrderFileLocation
    local tOrderYaml
    put groupOrderYaml(pOrderFileLocation) into tOrderYaml
    
    local tParsedA
-   put revDocsParseYaml(line 2 to -2 of tOrderYaml) into tParsedA
+   put docs.ParseYaml(line 2 to -2 of tOrderYaml) into tParsedA
    
    local tOrderA
    put tParsedA["group-order"] into tOrderA
@@ -2882,7 +2882,7 @@ private function revDocsGroupOrder pOrderFileLocation
    end repeat
    
    return tOrderLookupA
-end revDocsGroupOrder
+end docs.GroupOrder
 
 function revDocsOrderedGuideData pGuideFoldersA, pOrderFileLocation
    local tGuideDataA
@@ -2890,7 +2890,7 @@ function revDocsOrderedGuideData pGuideFoldersA, pOrderFileLocation
       local tLocation, tFolder
       put tGuideWithLocation["location"] into tLocation
       put tGuideWithLocation["folder"] into tFolder
-      union tGuideDataA with revDocsGuideDataFromFolder(tFolder, tLocation)
+      union tGuideDataA with docs.GuideDataFromFolder(tFolder, tLocation)
    end repeat
    
    local tGuides
@@ -2901,7 +2901,7 @@ function revDocsOrderedGuideData pGuideFoldersA, pOrderFileLocation
    
    # Then sort by group order
    local tGroupOrder
-   put revDocsGroupOrder(pOrderFileLocation) into tGroupOrder
+   put docs.GroupOrder(pOrderFileLocation) into tGroupOrder
    repeat for each key tGuide in tGuideDataA
       local tGroup
       put groupOrder(tGroupOrder, tGuideDataA, tGuide) into tGroup
@@ -2925,10 +2925,10 @@ end revDocsOrderedGuideData
 
 function revDocsFormatGuideDataAsJSON pGuideDataA
    local tGuideName, tGuideData
-   put tab & escape("name") & ":" & escape(revDocsModifyForURL(pGuideDataA["name"])) & comma & return after tGuideData 
-   put tab & escape("display name") & ":" & escape(pGuideDataA["display name"]) & comma & return after tGuideData 
-   put tab & escape("location") & ":" & escape(pGuideDataA["location"]) & comma & return after tGuideData
-   put tab & escape("group") & ":" & escape(pGuideDataA["group"]) & comma & return after tGuideData
+   put tab & escape("name") & ":" & escape(revDocsModifyForURL(pGuideDataA["name"])) & comma & cr after tGuideData 
+   put tab & escape("display name") & ":" & escape(pGuideDataA["display name"]) & comma & cr after tGuideData 
+   put tab & escape("location") & ":" & escape(pGuideDataA["location"]) & comma & cr after tGuideData
+   put tab & escape("group") & ":" & escape(pGuideDataA["group"]) & comma & cr after tGuideData
    put tab & escape("data") & ":" & escape(pGuideDataA["data"], true)  after tGuideData
    return tGuideData
 end revDocsFormatGuideDataAsJSON
@@ -2937,3 +2937,7 @@ end revDocsFormatGuideDataAsJSON
 on pushNotificationRegistrationError pErrorMessage
    
 end pushNotificationRegistrationError
+
+private function q pText
+   return quote & pText & quote
+end q

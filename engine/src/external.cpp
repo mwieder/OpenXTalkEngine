@@ -285,7 +285,7 @@ MCExternal *MCExternal::Load(MCStringRef p_filename)
 		else if (MCU_library_lookup(*t_module, MCSTR("getXtable")) != nil)
 			t_external = MCExternalCreateV0();
 		
-		if (t_external != nil)
+		if (nil != t_external)
 		{
 			t_external -> m_next = s_externals;
 			s_externals = t_external;
@@ -302,7 +302,7 @@ MCExternal *MCExternal::Load(MCStringRef p_filename)
 
 	// Now we attempt to initialize the external - if it isn't already initialized.
 	// (i.e. if the reference count > 0).
-	if (t_success && t_external -> m_references == 0)
+	if (t_success && 0 == t_external -> m_references)
 		t_success = t_external -> Initialize();
 
 	// Finally, increment the reference count and we are done.
@@ -314,14 +314,14 @@ MCExternal *MCExternal::Load(MCStringRef p_filename)
 
 void MCExternal::Unload(MCExternal *p_external)
 {
-	if (p_external == nil)
+	if (nil == p_external)
 		return;
 	
 	// Decrement the reference count.
 	p_external -> m_references -= 1;
 
 	// If the reference count reaches 0, then finalize.
-	if (p_external -> m_references == 0)
+	if (0 == p_external -> m_references)
 		p_external -> Finalize();
 }
 

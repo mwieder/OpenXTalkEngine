@@ -479,6 +479,8 @@ private command storeDeployedStack pArch, pZip, pDeployPath, pBuildFolder, pMain
    put it into tDeployData
    close file tTempDeployPath
    
+   --logDebug "deploy", "length=" && length(tDeployData)
+   
    revZipAddUncompressedItemWithData pZip, pDeployPath, "tDeployData"
    if the result is not empty then
       throw "could not store startup stack in standalone archive:" && the result
@@ -531,6 +533,8 @@ private command storeAssets pZip, pFileData, pStandalonePath, pBaseFolder
    -- Store all the files in the zip archive
    local tFolderFilesA,tFolderFilesCount
    put 0 into tFolderFilesCount
+   
+   logDebug "storeAssets", "numObjects=" & the number of elements of pFileData
    repeat for each element tFileInfoElement in pFileData
       if there is a file tFileInfoElement["resolved"] then
          add 1 to tFolderFilesCount
@@ -551,7 +555,7 @@ private command storeAssets pZip, pFileData, pStandalonePath, pBaseFolder
       logDebug "asset", "Storing" && tFileInfo["resolved"]
       
       put pStandalonePath & slash & tFileInfo["dest"] into tZipPath
-      revZipAddItemWithFile pZip, tZipPath, tFileInfo["resolved"]
+      revZipAddUncompressedItemWithFile pZip, tZipPath, tFileInfo["resolved"]
       if the result is not empty then
          throw "could not store asset file in standalone archive"
       end if
@@ -636,8 +640,9 @@ private function getPreparedStackAsData pStackFile, pBuildFolder
 		*/
          put the customProperties["cRevStandaloneSettings"] of tStack into tStandaloneSettings
          delete variable tStandaloneSettings["password"]
-         set the customProperties["cRevStandaloneSettings"] of tStack to tStandaloneSettings      
-         
+         --set the customProperties["cRevStandaloneSettings"] of tStack to tStandaloneSettings      
+          set the customProperties["cRevStandaloneSettings"] of tStack to empty     
+        
          # Save the modified stack to the temporary file
          lock screen
          
@@ -736,6 +741,7 @@ private function scanFolder pFolder
       throw tError
    end if
    
+logDebug "scanFolder", tCount
    return tFiles
 end scanFolder
 
@@ -792,14 +798,18 @@ private function getEngineFiles pArch
    switch pArch
       case "js"
          -- HTML5 engine JavaScript
-         put mapBinPath("js", "standalone-"&the version&".js") \
+         --put mapBinPath("js", "standalone-"&the version&".js") \
+         --into tFilesArray["standalone.js"]
+         put mapBinPath("js", "standalone-"&"community-9.6.3"&".js") \
                into tFilesArray["standalone.js"]
          
          -- HTML5 memory initialisation file
-         put mapBinPath("js", "standalone-"&the version&".html.mem") \
-               into tFilesArray["standalone-"&the version&".html.mem"]
+         --put mapBinPath("js", "standalone-"&the version&".html.mem") \
+               --into tFilesArray["standalone"&".html.mem"]
+         put mapBinPath("js", "standalone-"&"community-9.6.3"&".html.mem") \
+               into tFilesArray["standalone"&".html.mem"]
          -- ICU data
-         put mapCommonPath("icudt63l.dat") into tFilesArray["icudt63l.dat"]
+         --put mapCommonPath("icudt63l.dat") into tFilesArray["icudt63l.dat"]
          --put mapCommonPath("icudata-minimal.dat") into tFilesArray["icudata-minimal.dat"]
          --put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
          --put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
@@ -867,6 +877,7 @@ end HTML5.StandaloneTemplateFiles
 * This has some standalone-dependent JavaScript substituted into it to instantiate the engine.
 */
 private function getHtmlTemplateFile pArch
+   return mapBinPath(pArch, "standalone-community-9.6.3.html")
    return mapBinPath(pArch, "standalone.html")
 end getHtmlTemplateFile
 

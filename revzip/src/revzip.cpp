@@ -187,7 +187,8 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 
 	struct zip *t_archive = NULL;
 	int t_err;
-	char t_errstr[1024]; 
+//	char t_errstr[1024];
+	const char *t_errstr; 
 
 	if (NULL == t_result)
 	{
@@ -207,7 +208,10 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 		{
 			if (NULL == (t_archive = zip_open(t_path, t_openflag, &t_err)) ) 
 			{
-				zip_error_to_str(t_errstr, sizeof(t_errstr), t_err, errno);
+//				zip_error_to_str(t_errstr, sizeof(t_errstr), t_err, errno);
+				zip_error_t error;
+				zip_error_init_with_code(&error, t_err);
+				t_errstr = zip_error_strerror(&error);
 				std::string t_outerr = "ziperr," + std::string(t_errstr);
 				t_result = strdup(t_outerr.c_str());
 			}
@@ -269,7 +273,8 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 	if (NULL == t_result)
 	{
 		int t_err;
-		char t_errstr[1024]; 
+//		char t_errstr[1024]; 
+		const char *t_errstr; 
 
 		s_operation_in_progress = true;
 		s_operation_cancelled = false;
@@ -284,7 +289,10 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 		}
 		else if (0 != t_err)
 		{
-			zip_error_to_str(t_errstr, sizeof(t_errstr), t_err, errno);
+			zip_error_t error;
+			zip_error_init_with_code(&error, t_err);
+			t_errstr = zip_error_strerror(&error);
+//			zip_error_to_str(t_errstr, sizeof(t_errstr), t_err, errno);
 			std::string t_outerr = "ziperr," + std::string(t_errstr);
 			t_result = strdup(t_outerr.c_str());
 			t_error = False;
@@ -394,7 +402,8 @@ static void revZipAddItemWithDataAndCompression(char *p_arguments[], int p_argum
 			char* t_data = NULL;
 			t_data = (char*) imemdup(mcData.buffer, mcData.length);
 			if (((t_source = zip_source_buffer(t_archive, t_data, mcData.length, 1)) == NULL) ||
-				 (zip_file_add(t_archive, p_arguments[1], t_source, 0) < 0))
+				 (zip_file_add(t_archive, p_arguments[1], t_source, ZIP_FL_OVERWRITE) < 0))
+//				 (zip_file_add(t_archive, p_arguments[1], t_source, 0) < 0))
 			{
 				zip_source_free(t_source);
 				std::string t_outerr = "ziperr add item with data and compression," + std::string((zip_strerror(t_archive)));
@@ -403,8 +412,10 @@ static void revZipAddItemWithDataAndCompression(char *p_arguments[], int p_argum
 			}
 			else
 			{
-//				if (!p_compressed)
-//					zip_recompress(t_archive, zip_name_locate(t_archive, p_arguments[1], 0), ZIP_CM_STORE);
+			if (!p_compressed)
+//				zip_file_add(t_archive, p_arguments[1], zip_name_locate(t_archive, p_arguments[1], 0), ZIP_FL_OVERWRITE);
+//				zip_recompress(t_archive, zip_name_locate(t_archive, p_arguments[1], 0), ZIP_CM_STORE);
+				zip_set_file_compression(t_archive, zip_name_locate(t_archive, p_arguments[1], 0), ZIP_CM_STORE, 0);
 			}
 		}
 	}
@@ -469,11 +480,13 @@ static void revZipAddItemWithFileAndCompression(char *p_arguments[], int p_argum
 
 	struct zip_source *t_source;
 	t_source = NULL;
+
+
 	if (NULL == t_result)
 	{
 //		if (((t_source = zip_source_file(t_archive, t_filepath, 0, ZIP_LENGTH_TO_END)) == NULL) ||
-		if (((t_source = zip_source_file(t_archive, t_filepath, 0, 0)) == NULL) ||
-			 (zip_add(t_archive, p_arguments[1], t_source) < 0))
+		if (((t_source = zip_source_file(t_archive, t_filepath, 0, ZIP_LENGTH_TO_END)) == NULL) ||
+			 (zip_file_add(t_archive, p_arguments[1], t_source, ZIP_FL_OVERWRITE) < 0))
 		{
 			zip_source_free(t_source);
 			std::string t_outerr = "ziperr add item with file and compression," + std::string((zip_strerror(t_archive)));
@@ -482,8 +495,10 @@ static void revZipAddItemWithFileAndCompression(char *p_arguments[], int p_argum
 		}
 		else
 		{
-//			if (!p_compressed)
+			if (!p_compressed)
+//				zip_file_add(t_archive, p_arguments[1], zip_name_locate(t_archive, p_arguments[1], 0), ZIP_FL_OVERWRITE);
 //				zip_recompress(t_archive, zip_name_locate(t_archive, p_arguments[1], 0), ZIP_CM_STORE);
+				zip_set_file_compression(t_archive, zip_name_locate(t_archive, p_arguments[1], 0), ZIP_CM_STORE, 0);
 		}
 	}
 
