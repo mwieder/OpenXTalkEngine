@@ -535,7 +535,7 @@ void MCInterfaceEvalMouseText(MCExecContext& ctxt, MCStringRef& r_string)
 	if (MCmousestackptr)
 	{
 		MCControl *mfocused = MCmousestackptr->getcard()->getmfocused();
-		if (mfocused != NULL && mfocused->gettype() == CT_FIELD)
+		if (NULL != mfocused && CT_FIELD == mfocused->gettype())
 		{
 			MCField *fptr = (MCField *)mfocused;
 			if (fptr->loctext(False, r_string))
@@ -556,7 +556,7 @@ void MCInterfaceEvalMouseCharChunk(MCExecContext& ctxt, MCStringRef& r_string)
 	if (MCmousestackptr)
 	{
 		MCControl *mfocused = MCmousestackptr->getcard()->getmfocused();
-		if (mfocused != NULL && mfocused->gettype() == CT_FIELD)
+		if (NULL != mfocused && CT_FIELD == mfocused->gettype())
 		{
 			MCField *fptr = (MCField *)mfocused;
 			if (fptr->loccharchunk(False, r_string))
@@ -577,7 +577,7 @@ void MCInterfaceEvalMouseChunk(MCExecContext& ctxt, MCStringRef& r_string)
 	if (MCmousestackptr)
 	{
 		MCControl *mfocused = MCmousestackptr->getcard()->getmfocused();
-		if (mfocused != NULL && mfocused->gettype() == CT_FIELD)
+		if (NULL != mfocused && CT_FIELD == mfocused->gettype())
 		{
 			MCField *fptr = (MCField *)mfocused;
 			if (fptr->locchunk(False, r_string))
@@ -598,7 +598,7 @@ void MCInterfaceEvalMouseLine(MCExecContext& ctxt, MCStringRef& r_string)
 	if (MCmousestackptr)
 	{
 		MCControl *mfocused = MCmousestackptr->getcard()->getmfocused();
-		if (mfocused != NULL && mfocused->gettype() == CT_FIELD)
+		if (NULL != mfocused && CT_FIELD == mfocused->gettype())
 		{
 			MCField *fptr = (MCField *)mfocused;
 			if (fptr->locline(False, r_string))

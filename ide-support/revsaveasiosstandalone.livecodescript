@@ -2018,11 +2018,11 @@ private function mapFilePath pPath
       put "/Release" after tBuild
    end if
    
-   if the editionType is "community" then
-      put "community" into tSuffix
-   else
+   --if the editionType is "community" then
+      --put "community" into tSuffix
+   --else
       put "commercial" into tSuffix
-   end if
+   --end if
    
    local tPath
    switch the last item of pPath

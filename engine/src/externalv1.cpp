@@ -2778,6 +2778,8 @@ static MCExternalError MCExternalInterfaceQuery(MCExternalInterfaceQueryTag op, 
 
 MCExternalError MCExternalLicenseCheckEdition(unsigned int p_options, unsigned int p_min_edition)
 {
+	return kMCExternalErrorNone;
+
     MCAutoStringRef t_key;
     
     uint32_t t_index;

@@ -179,7 +179,7 @@ on startup pTest
          end if
          break
       case "invalid"
-         put "The current license for this version has become corrupted, please activate to continue." into sActivateReason
+         put "The current license for this version has become invalid, please activate to continue." into sActivateReason
          break
       default
          break
@@ -791,10 +791,11 @@ private command fetchActivationDetails @rDetails
    return "found"
 end fetchActivationDetails
 
-private command fetchLicenseTo @rLicense
+command fetchLicenseTo @rLicense
    local tLicenseFile
    put activationLicenseFilePath() into tLicenseFile
    
+   put "/home/mwieder/.runrev/licenses/xtalk.lclk" into tLicenseFile
    if there is no file tLicenseFile then
       return "not found"
    end if
@@ -816,9 +817,9 @@ private command storeActivationDetails
    put "---- XTALK ACTIVATION DETAILS (R1) ----" & return into tDetails
    put "email=" & sActivateEmail & cr after tDetails
    if sActivateHashedPassword is not empty then
-      put "password=" & hexEncode(sActivateHashedPassword) & return after tDetails
+      put "password=" & hexEncode(sActivateHashedPassword) & cr after tDetails
    else
-      put "password=" & hexEncode(the md5Digest of sActivatePassword) & return after tDetails
+      put "password=" & hexEncode(the md5Digest of sActivatePassword) & cr after tDetails
    end if
    put "---- XTALK ACTIVATION DETAILS (R1) ----" after tDetails
    put tDetails into url ("file:" & activationDetailsFile())
@@ -835,7 +836,7 @@ end storeLicenseForVersion
 ################################################################################
 
 -- This command unlocks the product with the given license.
-private command licenseUnlock pLicense
+command licenseUnlock pLicense
    local tSettings
    split pLicense by cr and "="
    
@@ -851,7 +852,7 @@ private command licenseUnlock pLicense
    --   put "community" into tSettings["class"]
    put "commercial" into tSettings["class"]
    put 1 into tSettings["multiplicity"]   
-   put "macosx,windows,linux,ios,android,html5,wasm" into tSettings["deploy"]
+   --put "macosx,windows,linux,ios,android,html5,wasm" into tSettings["deploy"]
    
    put "0"           into tSettings["scriptlimit"]
    put "0"           into tSettings["dolimit"]
@@ -860,7 +861,7 @@ private command licenseUnlock pLicense
    
    put true into sUnlocked
    
-   --do "set the revLicenseLimits to tSettings"   
+   do "set the revLicenseLimits to tSettings"   
    set the revLicenseLimits to tSettings   
    return "licensed"
 end licenseUnlock

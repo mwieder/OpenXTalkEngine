@@ -15,7 +15,7 @@ private command appendToStringList @xList, pItem
       if xList is empty then
          put tLine into xList
       else
-         put return & tLine after xList
+         put cr & tLine after xList
       end if
    end repeat
 end appendToStringList
@@ -38,7 +38,7 @@ function deployListTargets
    get the keys of sAvailableDevices
    sort it
    repeat for each line tTarget in it
-      put "Android" && tTarget & return after tTargets
+      put "Android" && tTarget & cr after tTargets
    end repeat
    delete the last char of tTargets
    return tTargets
@@ -71,15 +71,15 @@ command deployDo pTargetStack, pTargetDevice
    
    local tDeviceID
    put word 2 to -1 of pTargetDevice into tDeviceID
-
+   
    if tError is empty then
       revStandaloneProgress "Checking target device architecture..."
       
       executeShellCommand \
-         pathToAdb(), \
-         "-s", tDeviceID, \
-         "shell", \
-         "getprop", \
+            pathToAdb(), \
+            "-s", tDeviceID, \
+            "shell", \
+            "getprop", \
          "ro.product.cpu.abi"
 
       local tABI
@@ -277,7 +277,7 @@ function deployRequiredSDK
    return format("%s (API %s)", tAndroidVersion, kDeployAndroidTargetSDK)
 end deployRequiredSDK
 
-function deployIsValidSDK pPath 
+function deploy.IsValidSDK? pPath 
    if there is no folder (pPath & slash & "platforms") or \
          there is no folder (pPath & slash & "platform-tools") or \
          there is no folder (pPath & slash & "tools") then
@@ -313,7 +313,7 @@ function deployIsValidSDK pPath
    --end if
    
    return true
-end deployIsValidSDK
+end deploy.IsValidSDK?
 
 function deployGetSDK
    return sAndroidRoot

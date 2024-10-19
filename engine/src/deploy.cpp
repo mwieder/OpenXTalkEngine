@@ -829,7 +829,7 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 	
 	t_params . banner_class = t_license_class;
 	
-	bool t_is_licensed;
+//	bool t_is_licensed;
 
 	uint32_t t_platform = PLATFORM_NONE;
 	switch(m_platform)
@@ -857,7 +857,6 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 			break;
 		case PLATFORM_EMSCRIPTEN_HTML5:
 			t_platform = kMCLicenseDeployToHTML5;
-//			t_platform = kMCLicenseDeployToWASM;
 			break;
 		case PLATFORM_EMSCRIPTEN_WASM:
 			t_platform = kMCLicenseDeployToWASM;
@@ -897,10 +896,8 @@ void MCIdeDeploy::exec_ctxt(MCExecContext& ctxt)
 				MCDeployToIOS(t_params, true);
 				break;
 			case PLATFORM_EMSCRIPTEN_HTML5:
-				MCDeployToEmscriptenHTML5(t_params);
-				break;
 			case PLATFORM_EMSCRIPTEN_WASM:
-				MCDeployToEmscriptenWasm(t_params);
+				MCDeployToEmscripten(t_params);
 				break;
 		}
 

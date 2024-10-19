@@ -16,6 +16,7 @@ function editionTitleCase pEdition
 	case "indy"
 		return "Indy"
 	case "business"
+	case "professional"
 		return "Business"
 	case "commercial"
 		return "Commercial"
@@ -31,6 +32,7 @@ function editionDisplayName pEdition
 	case "indy"
 		return "Indy"
 	case "business"
+	case "professional"
 		return "Business"
 	case "commercial"
 		return "Commercial"
@@ -47,7 +49,6 @@ end editionCompare
 
 function editionBaseEditionType pEdition
 	if editionIsInPrivateRepo(pEdition) then
-#	if pEdition is among the items of kCommercialBaseEditions then
 		return "Commercial"
 	else
 		return "Community"

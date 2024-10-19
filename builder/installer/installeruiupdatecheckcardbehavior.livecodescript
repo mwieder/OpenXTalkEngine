@@ -284,9 +284,9 @@ private command checkForUpdates @rUpdateData
       --get getLicensesFolderLocation() & "/livecode-community.lcld"
       get getLicensesFolderLocation() & "/xtalk.lcld"
    end if
-   if there is no file it then
+   --if there is no file it then
       --return "no lcld file"
-   end if
+   --end if
    
    local tActivationDetails
    put url ("file:" & it) into tActivationDetails
@@ -321,7 +321,7 @@ private command checkForUpdates @rUpdateData
       return the result
    end if
    
-   -- Secondly, we send a digest of the password baack to the server.
+   -- Secondly, we send a digest of the password back to the server.
    -- If successful, we'll get back a list of updates for the current user.
    --
    serverList tActivationDetails["password"], tSessionID, tChallenge, getBuildNumber(), getPlatformString(), rUpdateData

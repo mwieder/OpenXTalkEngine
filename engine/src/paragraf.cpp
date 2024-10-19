@@ -2868,14 +2868,14 @@ int2 MCParagraph::setfocus(int4 x, int4 y, uint2 fixedheight,
 					// It rounds originalindex up to the end of the word it is in.
 					// It then rounds focusedindex down to the beginning of the
 					// previous word.
-                    // The first time we are moving backwards, originalindex is
-                    // at the beginning of the word and endindex at the end.
-                    // We simply move originalindex to endindex
-                    if (originalindex < endindex)
-                        originalindex = endindex;
+					// The first time we are moving backwards, originalindex is
+					// at the beginning of the word and endindex at the end.
+					// We simply move originalindex to endindex
+					if (originalindex < endindex)
+						originalindex = endindex;
 
 					bptr = indextoblock(focusedindex, False);
-					focusedindex = findwordbreakbefore(bptr, focusedindex);
+						focusedindex = findwordbreakbefore(bptr, focusedindex);
 				}
 				if (direction > 0 || first)
 					state &= ~PS_FRONT;
@@ -2908,7 +2908,7 @@ int2 MCParagraph::setfocus(int4 x, int4 y, uint2 fixedheight,
 
 					bptr = indextoblock(originalindex, False);
 					if (originalindex != startindex)
-                        originalindex = findwordbreakbefore(bptr, originalindex);
+						originalindex = findwordbreakbefore(bptr, originalindex);
 				}
 				if (direction < 0 || last)
 					state &= ~PS_BACK;
@@ -3596,7 +3596,7 @@ void MCParagraph::getclickindex(int2 x, int2 y,
                                    Boolean wholeword, Boolean chunk)
 {
 	uint2 theight;
-	if (fixedheight == 0)
+	if (0 == fixedheight)
         theight = ceilf(lines->GetHeight());
 	else
 		theight = fixedheight;
@@ -3609,8 +3609,8 @@ void MCParagraph::getclickindex(int2 x, int2 y,
 	{
 		ty += theight;
 		lptr = lptr->next();
-		if (fixedheight == 0)
-            theight = ceilf(lptr->GetHeight());
+		if (0 == fixedheight)
+			theight = ceilf(lptr->GetHeight());
 	};
 
 	// MW-2012-01-08: [[ ParaStyles ]] Text finishes before spacing below.
@@ -3618,9 +3618,9 @@ void MCParagraph::getclickindex(int2 x, int2 y,
 
 	// MW-2012-01-08: [[ Paragraph Align ]] Adjust the x start taking into account
 	//   indents, list indents and alignment. (Field to Paragraph so -ve)
-    // SN-2014-08-14: [[ Bug 13106 ]] Having a Vgrid discards the line offsets
-    if (!getvgrid())
-        x -= computelineoffset(lptr);
+	// SN-2014-08-14: [[ Bug 13106 ]] Having a Vgrid discards the line offsets
+	if (!getvgrid())
+		x -= computelineoffset(lptr);
 
 	si = lptr->GetCursorIndex(x, chunk, true);
 	int4 lwidth = lptr->getwidth();
@@ -3677,38 +3677,38 @@ void MCParagraph::getclickindex(int2 x, int2 y,
 		// AL-2014-04-07: [[ Bug 12143 ]] Advancing the index here causes the mouseChunk to report incorrect end index
         // bptr -> AdvanceIndex(ei);
 		
-		return;
+//		return;
 	}
 }
 
 findex_t MCParagraph::findwordbreakbefore(MCBlock *p_block, findex_t p_index)
 {    
 	// Create the word break iterator
-    MCBreakIteratorRef t_breaker;
-    MCLocaleBreakIteratorCreate(kMCBasicLocale, kMCBreakIteratorTypeWord, t_breaker);
-    MCLocaleBreakIteratorSetText(t_breaker, *m_text);
-    
-    // Find the preceding word break
-    findex_t t_break;
-    t_break = MCLocaleBreakIteratorBefore(t_breaker, p_index);
-    MCLocaleBreakIteratorRelease(t_breaker);
-    
-    return (t_break == kMCLocaleBreakIteratorDone) ? 0 : t_break;
+	MCBreakIteratorRef t_breaker;
+	MCLocaleBreakIteratorCreate(kMCBasicLocale, kMCBreakIteratorTypeWord, t_breaker);
+	MCLocaleBreakIteratorSetText(t_breaker, *m_text);
+
+	// Find the preceding word break
+	findex_t t_break;
+	t_break = MCLocaleBreakIteratorBefore(t_breaker, p_index);
+	MCLocaleBreakIteratorRelease(t_breaker);
+	
+	return (t_break == kMCLocaleBreakIteratorDone) ? 0 : t_break;
 }
 
 findex_t MCParagraph::findwordbreakafter(MCBlock *p_block, findex_t p_index)
 {
 	// Create the word break iterator
-    MCBreakIteratorRef t_breaker;
-    MCLocaleBreakIteratorCreate(kMCBasicLocale, kMCBreakIteratorTypeWord, t_breaker);
-    MCLocaleBreakIteratorSetText(t_breaker, *m_text);
-    
-    // Find the succeeding word break
-    findex_t t_break;
-    t_break = MCLocaleBreakIteratorAfter(t_breaker, p_index);
-    MCLocaleBreakIteratorRelease(t_breaker);
-    
-    return (t_break == kMCLocaleBreakIteratorDone) ? MCStringGetLength(*m_text) : t_break;
+	MCBreakIteratorRef t_breaker;
+	MCLocaleBreakIteratorCreate(kMCBasicLocale, kMCBreakIteratorTypeWord, t_breaker);
+	MCLocaleBreakIteratorSetText(t_breaker, *m_text);
+
+	// Find the succeeding word break
+	findex_t t_break;
+	t_break = MCLocaleBreakIteratorAfter(t_breaker, p_index);
+	MCLocaleBreakIteratorRelease(t_breaker);
+
+	return (t_break == kMCLocaleBreakIteratorDone) ? MCStringGetLength(*m_text) : t_break;
 }
 
 void MCParagraph::sethilite(Boolean newstate)

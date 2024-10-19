@@ -130,7 +130,7 @@ static const PropList stackprops[] =
         {"underlineLinks", P_UNDERLINE_LINKS},
         {"visible", P_VISIBLE},
         {"windowManagerPlace", P_WM_PLACE},
-        {"windowShape", P_WINDOW_SHAPE}
+        {"windowShape", P_WINDOW_SHAPE},
     };
 
 static const PropList cardprops[] =
@@ -168,7 +168,7 @@ static const PropList cardprops[] =
         {"textStyle", P_TEXT_STYLE},
         {"threeD", P_3D},
         {"topColor", P_TOP_COLOR},
-        {"topPattern", P_TOP_PATTERN}
+        {"topPattern", P_TOP_PATTERN},
     };
 
 static const PropList groupprops[] =
@@ -238,7 +238,7 @@ static const PropList groupprops[] =
         {"toolTip", P_TOOL_TIP},
         {"visible", P_VISIBLE},
         {"vScroll", P_VSCROLL},
-        {"vScrollbar", P_VSCROLLBAR}
+        {"vScrollbar", P_VSCROLLBAR},
     };
 
 static const PropList buttonprops[] =
@@ -325,7 +325,7 @@ static const PropList buttonprops[] =
         {"traversalOn", P_TRAVERSAL_ON},
         {"text", P_TEXT},
         {"toolTip", P_TOOL_TIP},
-        {"visible", P_VISIBLE},
+		{"visible", P_VISIBLE},
         {"visitedIcon", P_VISITED_ICON}
     };
 

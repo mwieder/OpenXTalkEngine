@@ -124,6 +124,8 @@ static MCPropertyInfo kMCPropertyInfoTable[] =
     DEFINE_RW_ARRAY_PROPERTY(P_REV_LIBRARY_MAPPING, String, Engine, RevLibraryMappingByKey)
     DEFINE_RO_ARRAY_PROPERTY(P_REV_LICENSE_INFO, Array, License, RevLicenseInfoByKey)
 	DEFINE_RO_PROPERTY(P_REV_LICENSE_INFO, String, License, RevLicenseInfo)
+//    DEFINE_RW_ARRAY_PROPERTY(P_REV_LICENSE_INFO, Array, License, RevLicenseInfoByKey)
+//	DEFINE_RW_PROPERTY(P_REV_LICENSE_INFO, String, License, RevLicenseInfo)
 	DEFINE_RW_PROPERTY(P_REV_LICENSE_LIMITS, Array, License, RevLicenseLimits)
 	DEFINE_RW_PROPERTY(P_REV_RUNTIME_BEHAVIOUR, UInt16, Legacy, RevRuntimeBehaviour)
 	DEFINE_RW_PROPERTY(P_HC_IMPORT_STAT, String, Legacy, HcImportStat)

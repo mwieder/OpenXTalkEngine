@@ -1014,7 +1014,7 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    put the platform into tPlatform
    put the processor into tProcessor
    put revSBPlatformToLicensedPlatform(tPlatform) into tLicensedPlatform
-   put line 5 of revLicenseInfo into tLicensedTargets
+   --put line 5 of revLicenseInfo into tLicensedTargets
    put tLicensedPlatform into tInitialTargets
    switch tInitialTargets
       case "Windows"
@@ -1058,11 +1058,11 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    end if
    
    -- Auto-remove stack passwords from community stacks
-   if not revEnvironmentEditionProperty("password_protection") then
-      if xSettingsA["password"] is not empty then
-         delete variable xSettingsA["password"]
-      end if
-   end if
+   --if not revEnvironmentEditionProperty("password_protection") then
+      --if xSettingsA["password"] is not empty then
+         --delete variable xSettingsA["password"]
+      --end if
+   --end if
 end revSBDefaultStandaloneSettings
 
 function revSBPlatformToLicensedPlatform pPlatform
@@ -1187,7 +1187,7 @@ function revEngineCheck? pEngine
    
    -- MW-2013-11-06: [[ LinuxX64 ]] Make sure we check both runtime and user runtime paths
    local tPaths
-   put revEnvironmentRuntimePath() & return & revEnvironmentUserRuntimePath() into tPaths
+   put revEnvironmentRuntimePath() & cr & revEnvironmentUserRuntimePath() into tPaths
    repeat for each line tPath in tPaths
       if tPath is empty then
          next repeat
@@ -1227,6 +1227,11 @@ function revEngineCheck? pEngine
             -- FG-2014-08-19: [[ RPi ]] Check to see if the ARMv6 engine is present
          case "Linux ARMv6-HF"
             if there is a file (tPath & "/Linux/armv6-hf/Standalone") then
+               return true
+            end if
+            break
+         case "Linux ARM64"
+            if there is a file (tPath & "/Linux/arm64/Standalone") then
                return true
             end if
             break
@@ -3287,8 +3292,9 @@ function revSBEnginePath pPlatform
    //  allow to create broken applications, so that the executable file in it bears the edition.
    --if tEdition is not "community" then
    --put "Commercial" into tEdition
+   put "Professional" into tEdition
    --end if
-   put "Community" into tEdition
+   --put "Community" into tEdition
    
    -- MW-2013-06-13: [[ CloneAndRun ]] If not installed, then fetch the engine locally.
    if revEnvironmentIsInstalled() then

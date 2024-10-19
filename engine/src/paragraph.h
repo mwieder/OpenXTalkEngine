@@ -275,7 +275,7 @@ public:
 	MCRectangle getcursorrect(int4 fi, uint4 align, uint2 fixedheight, MCFontStruct *pfont);
 
 	void indextoloc(uint2 tindex, uint4 align, uint2 fixedheight, int2& x, int2& y, MCFontStruct *pfont);
-	void getclickindex(int2 x, int2 y, uint4 align, uint2 fixedheight, uint2& si, uint2& ei, MCFontStruct *pfont, Boolean wholewords, Boolean chunk);
+//	void getclickindex(int2 x, int2 y, uint4 align, uint2 fixedheight, uint2& si, uint2& ei, MCFontStruct *pfont, Boolean wholewords, Boolean chunk);
 
 	Boolean getatts(uint2 si, uint2 ei, const char*& fname, uint2& size, uint2& style,
 		const MCColor*& color, const MCColor*& backcolor, int2& shift, uint2& mixed);

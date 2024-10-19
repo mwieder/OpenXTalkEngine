@@ -1177,7 +1177,7 @@ bool MCStandaloneCapsuleCallback(void *p_self, const uint8_t *p_digest, MCCapsul
 	case kMCCapsuleSectionTypeMainStack:
 		if (MCdispatcher -> readstartupstack(p_stream, self -> stack) != IO_NORMAL)
 		{
-			MCresult -> sets("failed to read project stack");
+			MCresult -> sets("failed to read project main stack");
 			return false;
 		}
             
@@ -1189,7 +1189,7 @@ bool MCStandaloneCapsuleCallback(void *p_self, const uint8_t *p_digest, MCCapsul
     case kMCCapsuleSectionTypeScriptOnlyMainStack:
         if (MCdispatcher -> readscriptonlystartupstack(p_stream, p_length, self -> stack) != IO_NORMAL)
         {
-            MCresult -> sets("failed to read project stack");
+            MCresult -> sets("failed to read project script-only stack");
             return false;
         }
         
@@ -1260,7 +1260,7 @@ bool MCStandaloneCapsuleCallback(void *p_self, const uint8_t *p_digest, MCCapsul
                                                            t_result)
             != IO_NORMAL)
         {
-            MCresult -> sets("failed to read auxillary stack");
+            MCresult -> sets("failed to read auxillary script-only stack");
             return false;
         }
         MCdispatcher -> processstack(kMCEmptyString, t_aux_stack);
@@ -1275,7 +1275,7 @@ bool MCStandaloneCapsuleCallback(void *p_self, const uint8_t *p_digest, MCCapsul
         if (IO_read(&t_class, 1, p_stream) != IO_NORMAL ||
             (p_length > 1 && IO_read_valueref_new(&t_addons, p_stream) != IO_NORMAL))
 		{
-			MCresult -> sets("failed to read license");
+			MCresult -> sets("failed to read addons from license");
 			return false;
 		}
 	}

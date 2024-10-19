@@ -41,9 +41,12 @@ command deployInitialize
    if not (there is a folder sHTTPFileSpace) then
       create folder sHTTPFileSpace
    end if
+# NOTE: got this from 10.0.0-dp8
+   revIDEDeployTargetsChanged
 end deployInitialize
 
 function deployIsAvailable?
+	# never empty, so
    return true
 end deployIsAvailable?
 
@@ -87,6 +90,17 @@ command deployDo pTargetStack, pBrowser
       end if
    end if
    
+   /* Ensure the temporary folder used to build emscripten standalones for testing exists. */
+   if tError is empty and sHTTPFileSpace is empty then
+      put the temporary folder & slash & "livecode-emscripten-builds" into sHTTPFileSpace
+      if there is not a folder sHTTPFileSpace then
+         create folder sHTTPFileSpace
+         if the result is not empty then
+           put "Could not create temporary build folder:" && the result into tError
+         end if
+      end if
+   end if
+    
    local tBuildFolder, tStandalonePath
    if tError is empty then
       revStandaloneProgress "Building standalone..."   
@@ -94,6 +108,22 @@ command deployDo pTargetStack, pBrowser
       local tSettings
       put revSBGetSettings(pTargetStack, true) into tSettings
       
+----------------------------------------------
+# NOTE: from 10.0.0-dp8 : do we want/need this?
+      # Set WASM output explicitly if no arch target specified
+      if tSettings["Emscripten"] and not (tSettings["EmscriptenWASM"] or tSettings["EmscriptenJS"]) then
+         put true into tSettings["EmscriptenWASM"]
+      end if
+
+      # Only use js output if wasm is not specified
+      if tSettings["EmscriptenWASM"] then
+         put false into tSettings["EmscriptenJS"]
+      else
+         put true into tSettings["EmscriptenJS"]
+      end if
+      
+----------------------------------------------
+
       put sHTTPFileSpace & slash & tSettings["name"] into tBuildFolder
       if there is a folder tBuildFolder then
          revDeleteFolder tBuildFolder
@@ -101,14 +131,14 @@ command deployDo pTargetStack, pBrowser
       create folder tBuildFolder
       
       put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath 
-      replace "+" with "%20" in tStandalonePath
+#      replace "+" with "%20" in tStandalonePath
       
       try
          if tSettings["EmscriptenWASM"] is true then
-            dispatch "saveAsEmscriptenWASMStandalone" to stack "revsaveasemscriptenstandalone" with \
+            dispatch "saveAsEmscriptenWASMStandalone" to stack "revsaveasEmscriptenStandalone" with \
                   pTargetStack, tBuildFolder, tSettings
          else if tSettings["EmscriptenJS"] is true then
-            dispatch "saveAsEmscriptenHTML5Standalone" to stack "revsaveasemscriptenstandalone" with \
+            dispatch "saveAsEmscriptenHTML5Standalone" to stack "revsaveasEmscriptenStandalone" with \
                   pTargetStack, tBuildFolder, tSettings
          end if
       catch tException
