@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 **********************************************************************
@@ -56,18 +56,6 @@ public:
     ~CharString() {}
 
     /**
-     * Move constructor; might leave src in an undefined state.
-     * This string will have the same contents and state that the source string had.
-     */
-    CharString(CharString &&src) U_NOEXCEPT;
-    /**
-     * Move assignment operator; might leave src in an undefined state.
-     * This string will have the same contents and state that the source string had.
-     * The behavior is undefined if *this and src are the same object.
-     */
-    CharString &operator=(CharString &&src) U_NOEXCEPT;
-
-    /**
      * Replaces this string's contents with the other string's contents.
      * CharString does not support the standard copy constructor nor
      * the assignment operator, to make copies explicit and to
@@ -123,7 +111,6 @@ public:
                           UErrorCode &errorCode);
 
     CharString &appendInvariantChars(const UnicodeString &s, UErrorCode &errorCode);
-    CharString &appendInvariantChars(const UChar* uchars, int32_t ucharsLen, UErrorCode& errorCode);
 
     /**
      * Appends a filename/path part, e.g., a directory name.

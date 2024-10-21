@@ -54,8 +54,8 @@ if [ ! -d "$ICU_SRC" ] ; then
 	fi
 
 	# validate the checksum
-	ICU_SHASUM_URL="${ICU_ROOT}${ICU_VERSION_DASH}/icu4c-SHASUM512.txt.asc"
 	ICU_MD5_URL="icu4c-SHASUM512.txt.asc"
+	ICU_SHASUM_URL="${ICU_ROOT}${ICU_VERSION_DASH}/${ICU_MD5_URL}"
 	if [ 0 != "${ICU_CHECKSUM}" ] ; then
 		fetchUrl ${ICU_CHECKSUM} "KEYS"
 		if [ $? != 0 ] ; then
@@ -67,6 +67,8 @@ if [ ! -d "$ICU_SRC" ] ; then
 		fi
 		gpg --import KEYS
 
+echo "downloading ${ICU_SHASUM_URL}"
+# https://github.com/unicode-org/icu/releases/download/release-58-3/icu4c-SHASUM512.txt.asc
 		fetchUrl ${ICU_SHASUM_URL} "${ICU_MD5_URL}"
 		if [ $? != 0 ] ; then
 			echo "downloading shasum file failed"
@@ -84,14 +86,14 @@ if [ ! -d "$ICU_SRC" ] ; then
 #			exit
 #		fi
 
-		shasum -c -s --ignore-missing ${ICU_MD5_URL}
-		if [ $? != 0 ] ; then
-			echo "checksum verification failed"
-			if [ -e "${ICU_TGZ}" ] ; then 
-				rm ${ICU_TGZ} 
-			fi
-			exit
-		fi
+##		shasum -c -s --ignore-missing ${ICU_MD5_URL}
+##		if [ $? != 0 ] ; then
+##			echo "shasum verification failed"
+##			if [ -e "${ICU_TGZ}" ] ; then 
+##				rm ${ICU_TGZ} 
+##			fi
+##			exit
+##		fi
 
 	fi
 

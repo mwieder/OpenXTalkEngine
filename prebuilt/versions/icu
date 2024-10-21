@@ -1,7 +1,9 @@
-63.2
+58.3
 # 63.2 is as far as I can get without dumping core
 65.1 # 65 dumps core during ACTION Generating full lc-compile grammar out/Debug/obj.target/lc-compile-stage2/geni/stage2/grammar_full.g
 64.1 # 64 needs distutils which has disappeared in python 3.12
+59.1 # has a major breaking change regarding UChar: it disrupts mousetext
+# details here: https://icu.unicode.org/download/59#h.7bfdnv6m0882
 58.2 # LC original value
 
 # only the first line counts
