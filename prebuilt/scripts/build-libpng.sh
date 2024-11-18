@@ -9,12 +9,12 @@ source "${BASEDIR}/scripts/util.inc"
 
 THIS="libpng"
 # should do this with sed
-UNTARRED="lpng1643"
+UNTARRED="lpng1644"
 URL_ROOT="https://sourceforge.net/projects/${THIS}/files/latest/download"
 ARCHIVE_DESTINATION="${THIS}-${libpng_VERSION}"
 FILE_DIRECTORY="../../thirdparty/${THIS}/src"
 
-function unxzBinary
+function unxzpngBinary
 {
 	echo "Untarring ${THIS}-${libpng_VERSION}"
 	unzip -o "${THIS}-${libpng_VERSION}.tar"
@@ -22,7 +22,8 @@ function unxzBinary
 
 
 fetchBinary
-unxzBinary
+unxzpngBinary
+echo "renaming ${UNTARRED} to ${ARCHIVE_DESTINATION}"
 mv "${UNTARRED}" "${ARCHIVE_DESTINATION}"
 buildLibrary
 
