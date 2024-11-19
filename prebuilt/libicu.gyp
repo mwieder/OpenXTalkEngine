@@ -14,7 +14,7 @@
 					'variables':
 					{
 # change this value if you change the versions/icu file contents
-						'icu_version': '58',
+						'icu_version': '63',
 					},
 				},
 			],

@@ -59,7 +59,6 @@ function makeBinary
 		echo "running make"
 		#mkdir -p ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
 		#pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-		./configure
 		make
 		#popd
 	fi
