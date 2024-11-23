@@ -26,8 +26,8 @@ function fetchBinary
 			fetchUrl "${URL_ROOT}" "${ARCHIVE_DESTINATION}.tar"
 			if [ $? != 0 ] ; then
 				echo "downloading ${URL_ROOT} failed"
-				if [ -e "${ARCHIVE_DESTINATION}" ] ; then 
-					rm ${ARCHIVE_DESTINATION} 
+				if [ -e "${ARCHIVE_DESTINATION}" ] ; then
+					rm ${ARCHIVE_DESTINATION}
 				fi
 				exit
 			fi
@@ -97,6 +97,7 @@ function mesonBinary
 # copy files if we have a newer version
 function buildLibrary {
 	cmakeBinary
+	mkdir -p ${FILE_DIRECTORY}
 	cp ${BUILDDIR}/${ARCHIVE_DESTINATION}/*.h ${FILE_DIRECTORY}
 	cp ${BUILDDIR}/${ARCHIVE_DESTINATION}/*.c ${FILE_DIRECTORY}
 }
@@ -107,4 +108,3 @@ function buildSrcLibrary {
 	cp -r ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.h ${INCLUDE_DIRECTORY}
 	cp -r ${BUILDDIR}/${ARCHIVE_DESTINATION}/src/*.c ${FILE_DIRECTORY}
 }
-
