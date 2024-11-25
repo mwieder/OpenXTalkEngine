@@ -231,6 +231,7 @@ static constexpr const Cvalue constant_table_values[] =
     {"right", "right"},
     {"scrollbarfactor", 65535},
     {"seven", 7},
+	{"singlequote", "'"},
     {"six", 6},
     {"slash", "/"},
     {"space", " "},
@@ -491,6 +492,7 @@ const static LT encryption_table[] =
 
 const static LT exit_table[] =
     {
+        {"handler", TT_UNDEFINED, ET_HANDLER},
         {"hypercard", TT_UNDEFINED, ET_ALL},
         {"metacard", TT_UNDEFINED, ET_ALL},
         {"repeat", TT_UNDEFINED, ET_REPEAT},
@@ -553,9 +555,9 @@ const LT factor_table[] =
         {"=", TT_BINOP, O_EQ},
         {">", TT_BINOP, O_GT},
         {">=", TT_BINOP, O_GE},
-        {"^", TT_BINOP, O_POW},	
+        {"^", TT_BINOP, O_POW},
 // 		{"≠", TT_BINOP, O_NE},
- 		{"\u2660", TT_BINOP, O_NE},
+// 		{"\u2660", TT_BINOP, O_NE},
 #ifdef MODE_DEVELOPMENT
 		{"_hscrollbarid", TT_PROPERTY, P_HSCROLLBARID},
 		{"_ideoverride", TT_PROPERTY, P_IDE_OVERRIDE},
@@ -975,7 +977,7 @@ const LT factor_table[] =
         {"fontlanguage", TT_FUNCTION, F_FONT_LANGUAGE},
         {"fontnames", TT_FUNCTION, F_FONT_NAMES},
         {"fontsizes", TT_FUNCTION, F_FONT_SIZES},
-        {"fontstyles", TT_FUNCTION, F_FONT_STYLES},		
+        {"fontstyles", TT_FUNCTION, F_FONT_STYLES},
         {"forecolor", TT_PROPERTY, P_FORE_COLOR},
         {"foregroundcolor", TT_PROPERTY, P_FORE_COLOR},
         {"foregroundpattern", TT_PROPERTY, P_FORE_PATTERN},
@@ -1397,13 +1399,13 @@ const LT factor_table[] =
 		{"preservevars", TT_PROPERTY, P_PRESERVE_VARIABLES},
         {"prev", TT_CHUNK, CT_PREV},
         {"previous", TT_CHUNK, CT_PREV},
-		
+
         {"printcardborders", TT_PROPERTY, P_PRINT_CARD_BORDERS},
 		{"printcollate", TT_PROPERTY, P_PRINT_JOB_COLLATE},
         {"printcolors", TT_PROPERTY, P_PRINT_JOB_COLOR},
         {"printcommand", TT_PROPERTY, P_PRINT_COMMAND},
 		{"printcopies", TT_PROPERTY, P_PRINT_JOB_COPIES},
-		{"printduplex", TT_PROPERTY, P_PRINT_JOB_DUPLEX}, 
+		{"printduplex", TT_PROPERTY, P_PRINT_JOB_DUPLEX},
 
 		{"printerfeatures", TT_PROPERTY, P_PRINT_DEVICE_FEATURES},
 		{"printername", TT_PROPERTY, P_PRINT_DEVICE_NAME},
@@ -1412,9 +1414,9 @@ const LT factor_table[] =
 
         {"printfonttable", TT_PROPERTY, P_PRINT_FONT_TABLE},
         {"printgutters", TT_PROPERTY, P_PRINT_GUTTERS},
-	
+
 		{"printmargins", TT_PROPERTY, P_PRINT_MARGINS},
-        
+
 		{"printpagenumber", TT_PROPERTY, P_PRINT_JOB_PAGE},
 		{"printpaperorientation", TT_PROPERTY, P_PRINT_PAGE_ORIENTATION},
 		{"printpaperrect", TT_PROPERTY, P_PRINT_PAGE_RECTANGLE},
@@ -1428,7 +1430,7 @@ const LT factor_table[] =
         {"printrotated", TT_PROPERTY, P_PRINT_ROTATED},
         {"printrowsfirst", TT_PROPERTY, P_PRINT_ROWS_FIRST},
         {"printscale", TT_PROPERTY, P_PRINT_SCALE},
-		
+
         {"printtextalign", TT_PROPERTY, P_PRINT_TEXT_ALIGN},
         {"printtextfont", TT_PROPERTY, P_PRINT_TEXT_FONT},
         {"printtextheight", TT_PROPERTY, P_PRINT_TEXT_HEIGHT},
@@ -1436,7 +1438,7 @@ const LT factor_table[] =
         {"printtextstyle", TT_PROPERTY, P_PRINT_TEXT_STYLE},
 
 		{"printtitle", TT_PROPERTY, P_PRINT_JOB_NAME},
-		
+
         {"privatecolors", TT_PROPERTY, P_PRIVATE_COLORS},
         {"processid", TT_FUNCTION, F_PROCESS_ID},
         {"processor", TT_FUNCTION, F_PROCESSOR},
@@ -1566,7 +1568,7 @@ const LT factor_table[] =
         {"scriptparsingerrors", TT_PROPERTY, P_SCRIPT_PARSING_ERRORS},
         {"scriptstatus", TT_PROPERTY, P_SCRIPT_STATUS},
         {"scripttextfont", TT_PROPERTY, P_SCRIPT_TEXT_FONT},
-        {"scripttextsize", TT_PROPERTY, P_SCRIPT_TEXT_SIZE},		
+        {"scripttextsize", TT_PROPERTY, P_SCRIPT_TEXT_SIZE},
         {"scroll", TT_PROPERTY, P_VSCROLL},
         {"scrollbar", TT_CHUNK, CT_SCROLLBAR},
         {"scrollbars", TT_CLASS, CT_SCROLLBAR},
@@ -1882,7 +1884,9 @@ const LT factor_table[] =
         {"zoombox", TT_PROPERTY, P_ZOOM_BOX},
 		{"\255", TT_BINOP, O_NE},
         {"\262", TT_BINOP, O_LE},
-        {"\263", TT_BINOP, O_GE}
+        {"\263", TT_BINOP, O_GE},
+ 		{"≠", TT_BINOP, O_NE},
+ 		{"\u2660", TT_BINOP, O_NE}
     };
 
 extern const uint4 factor_table_size = ELEMENTS(factor_table);
@@ -2159,9 +2163,9 @@ const static LT sugar_table[] =
         {"file", TT_UNDEFINED, SG_FILE},
         {"font", TT_UNDEFINED, SG_FONT},
         {"globally", TT_UNDEFINED, SG_GLOBALLY},
-		
+
         // MM-2014-06-13: [[ Bug 12567 ]] Added host. Used in 'with verification for host <host>'
-		{"host", TT_UNDEFINED, SG_HOST},		
+		{"host", TT_UNDEFINED, SG_HOST},
 		{"initially", TT_UNDEFINED, SG_INITIALLY},
         {"keyword", TT_CHUNK, CT_UNDEFINED},
 		{"level", TT_UNDEFINED, SG_LEVEL},

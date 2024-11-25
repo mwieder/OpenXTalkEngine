@@ -41,6 +41,11 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #define LOWERED_PAD 64
 
+/*
+#### NOTE: the "livecode" name is embedded here for server scripts
+# mdw 2024.11.25
+*/
+
 extern const uint8_t type_table[];
 extern const uint8_t unicode_type_table[];
 extern const Cvalue *constant_table;
@@ -113,17 +118,17 @@ MCScriptPoint::MCScriptPoint(MCObject *o, MCHandlerlist *hl, MCDataRef s)
 {
     utf16_script = MCValueRetain(s);
     length = MCDataGetLength(s) / 2 - 1;
-    
+
 	curobj = o;
 	curhlist = hl;
 	curhandler = NULL;
 	curptr = tokenptr = backupptr = (const unichar_t *)MCDataGetBytePtr(utf16_script);
     endptr = curptr + length;
-    
+
     uindex_t t_index = 0;
     codepoint = MCUnicodeCodepointAdvance(curptr, length, t_index);
     curlength = t_index;
-    
+
 	line = pos = 1;
 	escapes = False;
 	tagged = False;
@@ -137,17 +142,17 @@ MCScriptPoint::MCScriptPoint(MCObject *o, MCHandlerlist *hl, MCStringRef s)
     unichar_t *t_unicode_string;
     /* UNCHECKED */ MCStringConvertToUnicode(s, t_unicode_string, length);
     /* UNCHECKED */ MCDataCreateWithBytesAndRelease((byte_t *)t_unicode_string, (length + 1) * 2, utf16_script);
-    
+
     curobj = o;
     curhlist = hl;
     curhandler = NULL;
     curptr = tokenptr = backupptr = (const unichar_t *)MCDataGetBytePtr(utf16_script);
     endptr = curptr + length;
-    
+
     uindex_t t_index = 0;
     codepoint = MCUnicodeCodepointAdvance(curptr, length, t_index);
     curlength = t_index;
-    
+
     line = pos = 1;
     escapes = False;
     tagged = False;
@@ -206,24 +211,24 @@ MCScriptPoint::MCScriptPoint(MCExecContext &ctxt, MCStringRef p_string)
     unichar_t *t_unicode_string;
 	/* UNCHECKED */ MCStringConvertToUnicode(p_string, t_unicode_string, length);
 	/* UNCHECKED */ MCDataCreateWithBytesAndRelease((byte_t *)t_unicode_string, (length + 1) * 2, utf16_script);
-    
+
     curobj = ctxt . GetObject();
     curhlist = ctxt . GetHandlerList();
     curhandler = ctxt . GetHandler();
     curptr = tokenptr = backupptr = (const unichar_t *)MCDataGetBytePtr(utf16_script);
     endptr = curptr + length;
-    
+
     uindex_t t_index = 0;
     codepoint = MCUnicodeCodepointAdvance(curptr, length, t_index);
     curlength = t_index;
-    
+
     line = pos = 0;
     escapes = False;
     tagged = False;
     in_tag = False;
     was_in_tag = False;
     token_nameref = MCValueRetain(kMCEmptyName);
-    
+
     m_type = ST_UNDEFINED;
 }
 
@@ -232,24 +237,24 @@ MCScriptPoint::MCScriptPoint(MCStringRef p_string)
     unichar_t *t_unicode_string;
 	/* UNCHECKED */ MCStringConvertToUnicode(p_string, t_unicode_string, length);
 	/* UNCHECKED */ MCDataCreateWithBytesAndRelease((byte_t *)t_unicode_string, (length + 1) * 2, utf16_script);
-    
+
 	curobj = NULL;
 	curhlist = NULL;
 	curhandler = NULL;
 	curptr = tokenptr = backupptr = (const unichar_t *)MCDataGetBytePtr(utf16_script);
     endptr = curptr + length;
-    
+
     uindex_t t_index = 0;
     codepoint = MCUnicodeCodepointAdvance(curptr, length, t_index);
     curlength = t_index;
-    
+
 	line = pos = 0;
 	escapes = False;
 	tagged = False;
 	in_tag = False;
 	was_in_tag = False;
 	token_nameref = MCValueRetain(kMCEmptyName);
-    
+
     m_type = ST_UNDEFINED;
 }
 
@@ -258,7 +263,7 @@ MCScriptPoint& MCScriptPoint::operator =(const MCScriptPoint& sp)
     MCValueAssign(utf16_script, sp . utf16_script);
     codepoint = sp.codepoint;
     curlength = sp.curlength;;
-    
+
 	curobj = sp.curobj;
 	curhlist = sp.curhlist;
 	curhandler = sp.curhandler;
@@ -315,32 +320,32 @@ Symbol_type MCScriptPoint::gettype(codepoint_t p_codepoint)
 {
     Symbol_type type;
     type = ST_UNDEFINED;
-    
+
     // Check type table for first 256 Unicode codepoints
     if (p_codepoint <= 0x00FF)
         type = unicode_type_table[p_codepoint];
-    
+
     if (type == ST_UNDEFINED)
     {
         // Otherwise check mac roman from 128 - 256
         uint2 high = ELEMENTS(remainder_table);
         uint2 low = 0;
         codepoint_t t_new_codepoint;
-        
+
         while (low < high)
         {
             uint2 mid = low + ((high - low) >> 1);
             t_new_codepoint = remainder_table[mid] . codepoint;
             if (t_new_codepoint == p_codepoint)
                 return remainder_table[mid] . type;
-            
+
             if (t_new_codepoint > p_codepoint)
                 high = mid;
             else
                 low = mid + 1;
         }
     }
-    
+
     return type;
 }
 
@@ -352,26 +357,26 @@ bool MCScriptPoint::is_identifier(codepoint_t p_codepoint, bool p_initial)
     {
         if (t_type == ST_ID || (!p_initial && t_type == ST_NUM))
             return true;
-        
+
         return false;
     }
-    
+
     if (p_initial)
         return MCUnicodeIsIdentifierInitial(p_codepoint);
-    
+
     return MCUnicodeIsIdentifierContinue(p_codepoint);
 }
 
 void MCScriptPoint::advance(uindex_t number)
 {
     curptr += curlength;
-    
+
     uindex_t t_index = 0;
     while (--number)
         MCUnicodeCodepointAdvance(curptr, endptr - curptr, t_index);
 
     curptr += t_index;
-    
+
     t_index = 0;
     codepoint = MCUnicodeCodepointAdvance(curptr, endptr - curptr, t_index);
     curlength = t_index;
@@ -393,7 +398,7 @@ codepoint_t MCScriptPoint::getcodepointatindex(uindex_t p_index)
     uindex_t t_index = 0;
     while (p_index--)
         MCUnicodeCodepointAdvance(curptr, endptr - curptr - t_index, t_index);
-    
+
     return MCUnicodeCodepointAdvance(curptr, endptr - curptr - t_index, t_index);
 }
 
@@ -415,7 +420,7 @@ Parse_stat MCScriptPoint::skip_space()
 		else
 			break;
 	}
-    
+
 	switch (gettype(*curptr))
 	{
         case ST_COM:
@@ -463,7 +468,7 @@ Parse_stat MCScriptPoint::skip_space()
                             //   then eat the LF.
                             if (curptr[0] == 13 && curptr[1] == 10)
                                 curptr++;
-                            
+
                             line++;
                             pos = 1;
                         }
@@ -533,14 +538,14 @@ Parse_stat MCScriptPoint::skip_eol()
 		if (in_tag && type == ST_TAG && curptr[1] == '>')
 		{
 			in_tag = False;
-			
+
 			// Make sure we eat a subsequence newline
 			if (curptr[2] == 10)
 			{
 				// Take account of CR LF line ending
 				if (curptr[3] == 13)
 					curptr += 1;
-				
+
 				pos = 1;
 				curptr += 3;
 				line += 1;
@@ -550,7 +555,7 @@ Parse_stat MCScriptPoint::skip_eol()
 				pos += 2;
 				curptr += 2;
 			}
-            
+
 			tokenptr = curptr;
 			break;
 		}
@@ -581,7 +586,7 @@ Parse_stat MCScriptPoint::backup()
 	{
 		pos -= curptr - tokenptr;
 		curptr = tokenptr;
-		
+
 		// MW-2011-06-23: [[ SERVER ]] Restore the backup 'in tag' state.
 		if (tagged)
 			in_tag = was_in_tag;
@@ -593,11 +598,11 @@ Parse_stat MCScriptPoint::backup()
 Parse_stat MCScriptPoint::next(Symbol_type &type)
 {
 	Parse_stat stat;
-	
+
 	cleartoken();
-    
+
 	const unichar_t *startptr = curptr;
-	
+
 	// MW-2011-06-23: [[ SERVER ]] If we are in tagged mode and not in a tag, we
     //   check to see if there is a ST_DATA to produce. This involves advancing
     //   through the input buffer until we encounter a '<?rev'
@@ -623,16 +628,16 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 			}
 			startptr = curptr;
 		}
-		
+
 		// Store the previous tag state for backup purposes.
 		was_in_tag = False;
-		
+
 		// We will be inside a tag after this (or at the end!)
 		in_tag = True;
-		
+
 		// Stores the length of the <? tag (if found)
 		uint32_t t_tag_length = 0;
-        
+
 		// Loop until a NUL char, or we find '<?rev'
 		bool t_in_comment;
 		t_in_comment = false;
@@ -670,41 +675,41 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 					break;
 				}
 			}
-            
+
 			// Check for and advance past any newlines
 			if (curptr[0] == 13)
 			{
 				if (curptr[1] == 10)
 					curptr += 1;
-                
+
 				pos = 1, line += 1;
 			}
 			else if (curptr[0] == 10)
 				pos = 1, line += 1;
-			
+
 			pos += 1;
 			curptr += 1;
 		}
-		
+
 		if (curptr != startptr)
 		{
 			// Type of symbol is ST_DATA
 			type = ST_DATA;
-			
+
 			// Set the previous token-pointer
 			backupptr = tokenptr;
-			
+
 			// Token starts at start (should be immediately after a ?> or beginning of file).
 			tokenptr = startptr;
-			
+
 			// Set the token string appropriately.
 			token.setstring((const char *)tokenptr);
 			token.setlength(curptr - tokenptr);
-			
+
 			// If we aren't looking at the end of the data, then advance by 5 to skip '<?rev'.
 			if (*curptr != '\0')
 				curptr += t_tag_length;
-			
+
 			// Return our token.
 			return PS_NORMAL;
 		}
@@ -717,7 +722,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	}
 	else if (tagged)
 		was_in_tag = True;
-	
+
 	if ((stat = skip_space()) != PS_NORMAL)
 	{
 		if (stat == PS_ERROR)
@@ -725,12 +730,12 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		token.setstring((const char *)curptr);
 		return stat;
 	}
-	
+
     if (is_identifier(*curptr, true))
         type = ST_ID;
     else
         type = gettype(*curptr);
-    
+
 	if (type == ST_TAG)
 	{
 		if (tagged && curptr[1] == '>')
@@ -753,7 +758,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	if (type == ST_LIT)
 		curptr++;
 	token.setstring((const char *)curptr);
-    
+
 	switch (type)
 	{
         case ST_ID:
@@ -835,7 +840,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	else
 		token.setlength(curptr - tokenptr);
 	pos += curptr - startptr;
-    
+
 	m_type = type;
 	return PS_NORMAL;
 }
@@ -857,7 +862,7 @@ Parse_stat MCScriptPoint::skip_space()
 {
 	while (gettype(getcurrent()) == ST_SPC)
         advance();
-    
+
 	switch (gettype(getcurrent()))
 	{
         case ST_COM:
@@ -908,7 +913,7 @@ Parse_stat MCScriptPoint::skip_space()
                             //   then eat the LF.
                             if (curptr[0] == 13 && curptr[1] == 10)
                                 advance();
-                            
+
                             line++;
                             pos = 1;
                         }
@@ -971,14 +976,14 @@ Parse_stat MCScriptPoint::skip_eol()
 		if (in_tag && type == ST_TAG && getnext() == '>')
 		{
 			in_tag = False;
-			
+
 			// Make sure we eat a subsequence newline
 			if (getcodepointatindex(2) == 10)
 			{
 				// Take account of CR LF line ending
 				if (getcodepointatindex(3) == 13)
 					advance();
-				
+
 				pos = 1;
 				advance(3);
 				line += 1;
@@ -1014,18 +1019,18 @@ Parse_stat MCScriptPoint::backup()
 	{
 		pos -= curptr - backupptr;
 		setcurptr(backupptr);
-        
+
 	}
 	else
 	{
 		pos -= curptr - tokenptr;
 		setcurptr(tokenptr);
-		
+
 		// MW-2011-06-23: [[ SERVER ]] Restore the backup 'in tag' state.
 		if (tagged)
 			in_tag = was_in_tag;
 	}
-    
+
 	cleartoken();
 	return PS_NORMAL;
 }
@@ -1033,11 +1038,11 @@ Parse_stat MCScriptPoint::backup()
 Parse_stat MCScriptPoint::next(Symbol_type &type)
 {
 	Parse_stat stat;
-	
+
 	cleartoken();
 
 	const unichar_t *startptr = curptr;
-	
+
 	// MW-2011-06-23: [[ SERVER ]] If we are in tagged mode and not in a tag, we
     //   check to see if there is a ST_DATA to produce. This involves advancing
     //   through the input buffer until we encounter a '<?rev'
@@ -1063,13 +1068,13 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 			}
 			startptr = curptr;
 		}
-		
+
 		// Store the previous tag state for backup purposes.
 		was_in_tag = False;
-		
+
 		// We will be inside a tag after this (or at the end!)
 		in_tag = True;
-		
+
 		// Stores the length of the <? tag (if found)
 		uint32_t t_tag_length = 0;
 
@@ -1121,30 +1126,30 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 			}
 			else if (getcurrent() == 10)
 				pos = 1, line += 1;
-			
+
 			pos += 1;
 			advance();
 		}
-		
+
 		if (curptr != startptr)
 		{
 			// Type of symbol is ST_DATA
 			type = ST_DATA;
-			
+
 			// Set the previous token-pointer
 			backupptr = tokenptr;
-			
+
 			// Token starts at start (should be immediately after a ?> or beginning of file).
 			tokenptr = startptr;
-			
+
 			// Set the token string appropriately.
 			token.setstring((const char *)tokenptr);
 			token.setlength(curptr - tokenptr);
-			
+
 			// If we aren't looking at the end of the data, then advance by 5 to skip '<?rev'.
 			if (*curptr != '\0')
 				advance(t_tag_length);
-			
+
 			// Return our token.
 			return PS_NORMAL;
 		}
@@ -1157,7 +1162,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	}
 	else if (tagged)
 		was_in_tag = True;
-	
+
 	if ((stat = skip_space()) != PS_NORMAL)
 	{
 		if (stat == PS_ERROR)
@@ -1165,12 +1170,12 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		token.setstring((const char *)curptr);
 		return stat;
 	}
-	
+
     if (is_identifier(getcurrent(), true))
         type = ST_ID;
     else
         type = gettype(getcurrent());
-    
+
 	if (type == ST_TAG)
 	{
 		if (tagged && getnext() == '>')
@@ -1252,7 +1257,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 			{
                 if (getcurrent() > 127)
                     break;
-                
+
 				char c = MCS_tolower(*curptr);
 				if (c == 'e')
 				{
@@ -1299,7 +1304,7 @@ Parse_stat MCScriptPoint::lookup(Script_point t, const LT *&dlt)
 {
 	if (m_type == ST_LIT)
 		return PS_NO_MATCH;
-	
+
 	if (token.getlength())
 	{
 		const LT *table = table_pointers[t];
@@ -1309,7 +1314,7 @@ Parse_stat MCScriptPoint::lookup(Script_point t, const LT *&dlt)
         MCAutoStringRefAsCString t_token;
         t_token . Lock(gettoken_stringref());
         const char *token_cstring = *t_token;
-        
+
 		while (low < high)
 		{
 			// Both the table and the token are encoded in UTF-8
@@ -1337,7 +1342,7 @@ bool MCScriptPoint::lookupconstantintable(int& r_position)
     int high = constant_table_size;
     int low = 0;
     int cond;
-    
+
     MCAutoStringRefAsCString t_token;
     t_token . Lock(gettoken_stringref());
     const char *token_cstring = *t_token;
@@ -1349,7 +1354,7 @@ bool MCScriptPoint::lookupconstantintable(int& r_position)
         {
             cond -= constant_table[mid].token[token.getlength()];
         }
-        
+
         if (cond < 0)
         {
             high = mid;
@@ -1375,7 +1380,7 @@ bool MCScriptPoint::constantnameconvertstoconstantvalue()
     int t_position;
     if (!lookupconstantintable(t_position))
         return false;
-    
+
     switch (constant_table[t_position].type)
     {
         case kCValueTypeString:
@@ -1398,7 +1403,7 @@ Parse_stat MCScriptPoint::lookupconstant(MCExpression **dest)
 {
 	if (m_type == ST_LIT)
 		return PS_NO_MATCH;
-	
+
 	if (gethandler() != NULL
 	        && gethandler()->findconstant(gettoken_nameref(), dest) == PS_NORMAL)
 		return PS_NORMAL;
@@ -1406,7 +1411,7 @@ Parse_stat MCScriptPoint::lookupconstant(MCExpression **dest)
     int t_position;
     if (!lookupconstantintable(t_position))
         return PS_NO_MATCH;
-    
+
     MCValueRef t_constant_value = nullptr;
     switch (constant_table[t_position].type)
     {
@@ -1448,7 +1453,7 @@ Parse_stat MCScriptPoint::lookupconstant(MCExpression **dest)
     MCAutoValueRef t_unique_value;
     /* UNCHECKED */ MCValueInterAndRelease(t_constant_value, &t_unique_value);
     *dest = new (nothrow) MCLiteral(*t_unique_value);
-    
+
     return PS_NORMAL;
 }
 
@@ -1639,7 +1644,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 			{
 				extern bool lookup_property_override(const LT&p_lt, Properties &r_property);
 				Properties t_property;
-				
+
 				Token_type t_type;
 				t_type = te->type;
 				if (doingthe && lookup_property_override(*te, t_property))
@@ -1852,7 +1857,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 				}
 				else
 				{
-					if (type != ST_ID) 
+					if (type != ST_ID)
 					{
 						MCperror->add(PE_EXPRESSION_NOTFACT, *this);
 						return PS_ERROR;
@@ -1935,7 +1940,7 @@ Parse_stat MCScriptPoint::findvar(MCNameRef p_name, MCVarref** r_var)
 {
 	if (curhandler != NULL)
 		return curhandler -> findvar(p_name, r_var);
-	
+
 	// MW-2011-08-23: [[ UQL ]] We are only searching in hlist scope, so we
     //   do want to search UQLs.
 	if (curhlist != NULL)
@@ -1957,7 +1962,7 @@ Parse_stat MCScriptPoint::findnewvar(MCNameRef p_name, MCNameRef p_init, MCVarre
 
 	return PS_ERROR;
 }
-	
+
 Parse_stat MCScriptPoint::finduqlvar(MCNameRef p_name, MCVarref** r_var)
 {
 	if (findvar(p_name, r_var) == PS_NORMAL)

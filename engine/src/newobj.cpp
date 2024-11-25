@@ -661,7 +661,7 @@ MCExpression *MCN_new_function(int2 which)
 	case F_OPTION_KEY:
 		return new MCOptionKey;
 	// MW-2008-11-05: [[ Owner Reference ]] Create a new MCOwner function object for syntax of
-	//   the form 'the owner of ...'. 
+	//   the form 'the owner of ...'.
 	case F_OWNER:
 		return new MCOwner;
 	case F_PA:
@@ -883,67 +883,67 @@ MCExpression *MCN_new_operator(int2 which)
 {
 	switch (which)
 	{
-	case O_AND:
-		return new MCAnd;
-	case O_AND_BITS:
-		return new MCAndBits;
-	case O_CONCAT:
-		return new MCConcat;
-	case O_CONCAT_SPACE:
-		return new MCConcatSpace;
-	case O_CONTAINS:
-		return new MCContains;
-	case O_DIV:
-		return new MCDiv;
-	case O_EQ:
-		return new MCEqual;
-	case O_GE:
-		return new MCGreaterThanEqual;
-	case O_GROUPING:
-		return new MCGrouping;
-	case O_GT:
-		return new MCGreaterThan;
-	case O_IS:
-		return new MCIs;
-	case O_LE:
-		return new MCLessThanEqual;
-	case O_LT:
-		return new MCLessThan;
-	case O_MINUS:
-		return new MCMinus;
-	case O_MOD:
-		return new MCMod;
-	case O_WRAP:
-		return new MCWrap;
-	case O_NE:
-		return new MCNotEqual;
-	case O_NOT:
-		return new MCNot;
-	case O_NOT_BITS:
-		return new MCNotBits;
-	case O_OR:
-		return new MCOr;
-	case O_OR_BITS:
-		return new MCOrBits;
-	case O_OVER:
-		return new MCOver;
-	case O_PLUS:
-		return new MCPlus;
-	case O_POW:
-		return new MCPow;
-	case O_THERE:
-		return new MCThere;
-	case O_TIMES:
-		return new MCTimes;
-	case O_XOR_BITS:
-		return new MCXorBits;
-	case O_BEGINS_WITH:
-		return new MCBeginsWith;
-	case O_ENDS_WITH:
-		return new MCEndsWith;
-	case O_MATCHES:
-		return new MCMatches;
-	default:
-		return new MCExpression;
+		case O_AND:
+			return new MCAnd;
+		case O_AND_BITS:
+			return new MCAndBits;
+		case O_CONCAT:
+			return new MCConcat;
+		case O_CONCAT_SPACE:
+			return new MCConcatSpace;
+		case O_CONTAINS:
+			return new MCContains;
+		case O_DIV:
+			return new MCDiv;
+		case O_EQ:
+			return new MCEqual;
+		case O_GE:
+			return new MCGreaterThanEqual;
+		case O_GROUPING:
+			return new MCGrouping;
+		case O_GT:
+			return new MCGreaterThan;
+		case O_IS:
+			return new MCIs;
+		case O_LE:
+			return new MCLessThanEqual;
+		case O_LT:
+			return new MCLessThan;
+		case O_MINUS:
+			return new MCMinus;
+		case O_MOD:
+			return new MCMod;
+		case O_WRAP:
+			return new MCWrap;
+		case O_NE:
+			return new MCNotEqual;
+		case O_NOT:
+			return new MCNot;
+		case O_NOT_BITS:
+			return new MCNotBits;
+		case O_OR:
+			return new MCOr;
+		case O_OR_BITS:
+			return new MCOrBits;
+		case O_OVER:
+			return new MCOver;
+		case O_PLUS:
+			return new MCPlus;
+		case O_POW:
+			return new MCPow;
+		case O_THERE:
+			return new MCThere;
+		case O_TIMES:
+			return new MCTimes;
+		case O_XOR_BITS:
+			return new MCXorBits;
+		case O_BEGINS_WITH:
+			return new MCBeginsWith;
+		case O_ENDS_WITH:
+			return new MCEndsWith;
+		case O_MATCHES:
+			return new MCMatches;
+		default:
+			return new MCExpression;
 	}
 }

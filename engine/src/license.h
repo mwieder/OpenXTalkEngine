@@ -72,7 +72,7 @@ struct MCLicenseParameters
 	uint4 do_limit;
 	uint4 using_limit;
 	uint4 insert_limit;
-	
+
 	uint32_t deploy_targets;
 
 	MCArrayRef addons;
@@ -90,9 +90,9 @@ static const struct { MCLicenseClass license_class; const char *class_string; co
 {
     { kMCLicenseClassCommunity, "community", "community" },
     { kMCLicenseClassCommunityPlus, "communityplus", "communityplus" },
-    { kMCLicenseClassEvaluation, "evaluation", "indy evaluation" },
+//    { kMCLicenseClassEvaluation, "evaluation", "indy evaluation" },
     { kMCLicenseClassCommercial, "commercial", "indy" },
-    { kMCLicenseClassProfessionalEvaluation, "professional evaluation", "business evaluation" },
+//    { kMCLicenseClassProfessionalEvaluation, "professional evaluation", "business evaluation" },
     { kMCLicenseClassProfessional, "professional", "business" },
     { kMCLicenseClassNone, "", "" }
 };
@@ -107,7 +107,7 @@ inline bool MCStringToLicenseClass(MCStringRef p_class, MCLicenseClass &r_class)
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -121,7 +121,7 @@ inline bool MCStringFromLicenseClass(MCLicenseClass p_class, bool p_simplified, 
     {
         p_class = kMCLicenseClassProfessional;
     }
-    
+
     for(uindex_t t_index = 0; t_index < sizeof(s_class_map) / sizeof(s_class_map[0]); ++t_index)
     {
         if (s_class_map[t_index].license_class == p_class)
@@ -129,7 +129,7 @@ inline bool MCStringFromLicenseClass(MCLicenseClass p_class, bool p_simplified, 
             return MCStringCreateWithCString(s_class_map[t_index].class_string, r_class);
         }
     }
-    
+
     return false;
 }
 
@@ -147,7 +147,7 @@ inline bool MCEditionStringFromLicenseClass(MCLicenseClass p_class, MCStringRef 
     {
 		p_class = kMCLicenseClassCommunity;
 	}
-    
+
     for(uindex_t t_index = 0; t_index < sizeof(s_class_map) / sizeof(s_class_map[0]); ++t_index)
     {
         if (s_class_map[t_index].license_class == p_class)
@@ -155,7 +155,7 @@ inline bool MCEditionStringFromLicenseClass(MCLicenseClass p_class, MCStringRef 
             return MCStringCreateWithCString(s_class_map[t_index].edition_string, r_edition);
         }
     }
-    
+
     return false;
 }
 
@@ -169,7 +169,7 @@ inline bool MCEditionStringToLicenseClass(MCStringRef p_edition, MCLicenseClass 
             return true;
         }
     }
-    
+
     return false;
 }
 

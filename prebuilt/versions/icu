@@ -6,3 +6,7 @@
 
 # only the first line counts
 # change the variable in libicu.gyp if you change this value
+
+# the shasum check file is named differently in different versions.
+https://github.com/unicode-org/icu/releases/download/release-65-1/SHASUM512.txt
+https://github.com/unicode-org/icu/releases/download/release-63-2/icu4c-SHASUM512.txt.asc

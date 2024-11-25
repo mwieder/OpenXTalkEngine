@@ -151,7 +151,7 @@ enum Dest_type {
     DT_CLICK_STACK,
     DT_MOUSE_STACK,
     DT_FUNCTION,
-	
+
 	// MW-2008-11-05: [[ Owner Reference ]] This desttype is used for chunks of the form:
 	//   ... of the owner of ...
 	DT_OWNER,
@@ -204,6 +204,7 @@ enum Exec_stat {
 enum Exit_to {
     ET_UNDEFINED,
     ET_ALL,
+	ET_HANDLER,
     ET_REPEAT,
     ET_SWITCH,
     ET_TO
@@ -584,24 +585,24 @@ enum Functions {
 	F_RANDOM_BYTES,
 	F_SHA1_DIGEST,
     F_MESSAGE_DIGEST,
-	
+
 	// MW-2012-10-08: [[ HitTest ]] New functions for returning control at a point.
 	F_CONTROL_AT_LOC,
 	F_CONTROL_AT_SCREEN_LOC,
-	
+
 	// MW-2013-05-08: [[ Uuid ]] New function for generating uuids.
 	F_UUID,
-    
+
     // MERG-2013-08-14: [[ MeasureText ]] Measure text relative to the effective font on an object
     F_MEASURE_TEXT,
     F_MEASURE_UNICODE_TEXT,
-    
+
     F_NORMALIZE_TEXT,
-    
+
     F_CODEPOINT_PROPERTY,
-    
+
     F_VECTOR_DOT_PRODUCT,
-    
+
     F_EVENT_CAPSLOCK_KEY,
     F_EVENT_COMMAND_KEY,
     F_EVENT_CONTROL_KEY,
@@ -613,16 +614,16 @@ enum Functions {
  * arrays in MCHandlerlst so iteration over the type should be
  * HT_MIN <= i <= HT_MAX */
 enum Handler_type {
-    
+
     HT_UNDEFINED = 0,
 
     HT_MIN,
-    
+
     HT_MESSAGE = HT_MIN,
     HT_FUNCTION,
     HT_GETPROP,
     HT_SETPROP,
-	
+
 	// MW-2012-08-08: [[ BeforeAfter ]] New handler types - stored in separate
 	//   lists in MCHandlerArray.
 	HT_BEFORE,
@@ -697,7 +698,7 @@ enum Is_validation {
 	IV_ARRAY,
 	// MERG-2013-06-24: [[ IsAnAsciiString ]] Tag for 'ascii'.
     IV_ASCII,
-    
+
     IV_STRING,
     IV_BINARY_STRING,
     IV_REAL,
@@ -946,7 +947,7 @@ enum Properties {
     P_BEEP_LOUDNESS,
     P_BEEP_PITCH,
     P_BEEP_DURATION,
-	P_BEEP_SOUND, 
+	P_BEEP_SOUND,
     P_PLAY_LOUDNESS,
     P_PLAY_DESTINATION,
     P_DIRECTORY,
@@ -992,12 +993,12 @@ enum Properties {
     P_TRACE_STACK,
 	P_TRACE_UNTIL,
     P_SHELL_COMMAND,
-    
+
 	P_PRINTER_NAMES,
 
 	P_PRINT_COMMAND,
     P_PRINT_FONT_TABLE,
-    
+
 	P_PRINT_CARD_BORDERS,
     P_PRINT_GUTTERS,
     P_PRINT_MARGINS,
@@ -1005,17 +1006,17 @@ enum Properties {
     P_PRINT_ROWS_FIRST,
     P_PRINT_SCALE,
 
-	P_PRINT_DEVICE_NAME, 
+	P_PRINT_DEVICE_NAME,
 	P_PRINT_DEVICE_SETTINGS,
 	P_PRINT_DEVICE_OUTPUT,
 	P_PRINT_DEVICE_FEATURES,
 	P_PRINT_DEVICE_RECTANGLE,
-	
+
 	P_PRINT_PAGE_SIZE,
     P_PRINT_PAGE_ORIENTATION,
 	P_PRINT_PAGE_SCALE,
 	P_PRINT_PAGE_RECTANGLE,
-	
+
 	P_PRINT_JOB_NAME,
 	P_PRINT_JOB_COLOR,
 	P_PRINT_JOB_COPIES,
@@ -1023,13 +1024,13 @@ enum Properties {
 	P_PRINT_JOB_DUPLEX,
 	P_PRINT_JOB_RANGES,
 	P_PRINT_JOB_PAGE,
-	
+
 	P_PRINT_TEXT_ALIGN,
     P_PRINT_TEXT_FONT,
     P_PRINT_TEXT_HEIGHT,
     P_PRINT_TEXT_SIZE,
     P_PRINT_TEXT_STYLE,
-	
+
 	P_DIALOG_DATA,
 
     P_ACCEPT_DROP,
@@ -1039,7 +1040,7 @@ enum Properties {
     P_DRAG_ACTION,
 	P_DRAG_IMAGE,
 	P_DRAG_IMAGE_OFFSET,
-	
+
 	P_CLIPBOARD_DATA,
     P_HC_IMPORT_STAT,
     P_SCRIPT_TEXT_FONT,
@@ -1133,15 +1134,15 @@ enum Properties {
 	/* 2013-01-07-IM global property to control image cache limit */
 	P_IMAGE_CACHE_LIMIT,
 	P_IMAGE_CACHE_USAGE,
-	
+
     // read only globals
     P_ADDRESS,
     P_STACKS_IN_USE,
 	P_NETWORK_INTERFACES,
-    
+
   	// TD-2013-06-20: [[ DynamicFonts ]] global property for list of font files
     P_FONTFILES_IN_USE,
-	
+
     // window properties
     P_NAME,
     P_SHORT_NAME,
@@ -1237,7 +1238,7 @@ enum Properties {
     // stack properties
 	P_REMOTEABLE, // RUNTIME only
 	P_STACK_URL, // RUNTIME only
-	P_FULLSCREEN, 
+	P_FULLSCREEN,
 	// IM-2013-09-23: [[ FullscreenMode ]] Property tag for the fullscreenMode
 	P_FULLSCREENMODE,
 	// IM-2014-01-07: [[ StackScale ]] Property tag for the scalefactor
@@ -1581,7 +1582,7 @@ enum Properties {
 	P_REV_LICENSE_INFO,
 
 	P_REV_RUNTIME_BEHAVIOUR,
-	
+
 	P_URL_RESPONSE,
 	P_PARENT_SCRIPT,
 
@@ -1589,10 +1590,10 @@ enum Properties {
 	P_SECURITY_CATEGORIES, // RUNTIME only
 
 	P_STACK_LIMIT,
-	
+
 	// MW-2011-08-25: [[ TileCache ]] The 'layerMode' property index.
 	P_LAYER_MODE,
-	
+
 	// MW-2011-11-24: [[ Nice Folders ]] The (pseudo) properties for folder variants.
 	P_ENGINE_FOLDER,
 	P_TEMPORARY_FOLDER,
@@ -1607,10 +1608,10 @@ enum Properties {
 	// MM-2012-09-05: [[ Property Listener ]] Property listing all the currently active object property listeners.
 	P_REV_OBJECT_LISTENERS, // DEVELOPMENT only
 	P_REV_PROPERTY_LISTENER_THROTTLE_TIME, // DEVELOPMENT only
-	
+
 	// MW-2012-11-13: [[ Bug 10516 ]] Tag for allowDatagramBroadcasts property.
 	P_ALLOW_DATAGRAM_BROADCASTS,
-    
+
     P_CONTROL_IDS,
     P_CONTROL_NAMES,
 	P_CHILD_CONTROL_IDS,
@@ -1618,34 +1619,34 @@ enum Properties {
 
 	// MERG-2013-08-17: [[ ColorDialogColors ]] Custom color management for the windows color dialog
 	P_COLOR_DIALOG_COLORS,
-	
+
 	// IM-2013-12-04: [[ PixelScale ]] Tags for the pixelScale and systemPixelScale properties
 	P_PIXEL_SCALE,
 	P_SYSTEM_PIXEL_SCALE,
-	
+
 	// IM-2014-01-24: [[ HiDPI ]] Tags for the usePixelScaling, screenPixelScale, and screenPixelScales properties
 	P_USE_PIXEL_SCALING,
 	P_SCREEN_PIXEL_SCALE,
 	P_SCREEN_PIXEL_SCALES,
-	
+
     // RTL/Bidirectional properties
     P_CURSORMOVEMENT,
     P_TEXTDIRECTION,
-    
+
     // MW-2014-06-19: [[ ImageCenterRect ]] Tag for the centerRect property.
     P_CENTER_RECTANGLE,
     // MW-2014-06-19: [[ IconGravity ]] Tag for the button iconGravity property.
     P_ICON_GRAVITY,
-    
+
     // MERG-2013-08-12: [[ ClipsToRect ]] If true group clips to the set rect rather than the rect of children
     P_CLIPS_TO_RECT,
 
     // MW-2014-08-12: [[ EditionType ]] Returns whether the engine is commercial or community
     P_EDITION_TYPE,
-    
+
     // MERG-2015-10-11: [[ DocumentFilename ]] Property tag for documentFilename
     P_DOCUMENT_FILENAME,
-    
+
     // ARRAY STYLE PROPERTIES
 	P_FIRST_ARRAY_PROP,
     P_CUSTOM_KEYS = P_FIRST_ARRAY_PROP,
@@ -1659,7 +1660,7 @@ enum Properties {
 	P_BITMAP_EFFECT_INNER_GLOW,
 	P_BITMAP_EFFECT_COLOR_OVERLAY,
     P_TEXT_STYLE,
-    
+
     // NATIVE CONTROL PROPERTIES
     P_URL,
     P_CAN_BOUNCE,
@@ -1721,7 +1722,7 @@ enum Properties {
     P_PLAYBACK_STATE,
     // SN-2015-09-04: [[ Bug 9744 ]] readyForDisplay property added for players
     P_READY_FOR_DISPLAY,
-    
+
     // MOBILE STORE PROPERTIES
     P_PRODUCT_IDENTIFIER,
     P_PURCHASE_QUANTITY,
@@ -1741,27 +1742,27 @@ enum Properties {
 
     // MW-2014-12-10: [[ Extensions ]] 'loadedExtensions' global property
     P_LOADED_EXTENSIONS,
-    
+
     P_RAW_CLIPBOARD_DATA,
     P_RAW_DRAGBOARD_DATA,
     P_FULL_CLIPBOARD_DATA,
     P_FULL_DRAGBOARD_DATA,
-    
+
     P_THEME,
     P_THEME_CONTROL_TYPE,
-    
+
     P_SCRIPT_STATUS,
-    
+
     P_LONG_NAME_NO_FILENAME,
     P_REV_SCRIPT_DESCRIPTION,
     P_REV_BEHAVIOR_USES,
-    
+
     P_REV_LIBRARY_MAPPING,
-    
+
     P_LAYER_CLIP_RECT,
-	
+
 	P_SYSTEM_APPEARANCE,
-    
+
     __P_LAST,
 };
 
@@ -1935,10 +1936,10 @@ enum Sugar_constants {
 	SG_OPTIONS,
 	SG_ANCHOR,
 	SG_LINK,
-	
+
 	// MM-2012-09-05: [[ Property Listener ]] Used by cancel listener for object
 	SG_LISTENER,
-	
+
 	SG_ELEVATED,
 	SG_BOOKMARK,
 	SG_LEVEL,
@@ -1949,10 +1950,10 @@ enum Sugar_constants {
 	SG_OPEN,
 	SG_CLOSED,
 	SG_CALLER,
-	
+
 	// MERG-2013-06-24: [[ IsAnAsciiString ]] Tag for 'string'.
     SG_STRING,
-	
+
 	// JS-2013-07-01: [[ EnhancedFilter ]] Tag for 'pattern'.
     SG_PATTERN,
 	// JS-2013-07-01: [[ EnhancedFilter ]] Tag for 'regex'.
@@ -1961,41 +1962,41 @@ enum Sugar_constants {
     SG_WILDCARD,
 	// JS-2013-07-01: [[ EnhancedFilter ]] Tag for 'matching'.
 	SG_MATCHING,
-    
+
     // MERG-2013-08-26: [[ RecursiveArrayOp ]] Support nested arrays in union and intersect
     SG_RECURSIVELY,
-    
+
     // TD-2013-06-14: [[ DynamicFonts ]] start using font theFont [globally]
     SG_FONT,
     SG_GLOBALLY,
     SG_FILE,
-	
+
 	// MW-2013-11-14: [[ AssertCmd ]] Tags for sugar used in assert command.
 	SG_TRUE,
 	SG_FALSE,
 	SG_SUCCESS,
 	SG_FAILURE,
-    
+
     // MW-2014-09-30: [[ ScriptOnlyStack ]] Tag for 'only' keyword in create command.
     SG_ONLY,
-	
+
     // MM-2014-06-13: [[ Bug 12567 ]] Added host. Used in 'with verification for host <host>'
 	SG_HOST,
-    
+
     SG_EXTENSION,
 	SG_RESOURCE,
 	SG_PATH,
-    
+
     // AL-2015-06-11: [[ Load Extension From Var ]] Add 'data' syntactic sugar
     SG_DATA,
-    
+
     SG_STRICTLY,
     SG_REAL,
-	
+
 	SG_REPLACING,
 	SG_PRESERVING,
 	SG_STYLES,
-    
+
     SG_URL_RESULT,
     SG_ERROR,
     SG_VALUE,
@@ -2172,7 +2173,7 @@ enum {
     ST_LIT,
 	ST_LC,
     ST_RC,
-    
+
 	// MW-2009-03-03: The ST_DATA symbol type is a string that shoudl be treated
 	//   as an echoed literal - it represents the data between <?rev ?> blocks in
 	//   SERVER mode. ST_TAG is the type of '?' so we can identify '?>'.

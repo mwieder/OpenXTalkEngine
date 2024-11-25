@@ -3,7 +3,7 @@
 	[
 		'../common.gypi',
 	],
-	
+
 	'target_defaults':
 	{
 		'conditions':
@@ -65,15 +65,15 @@
 			],
 		],
 	},
-	
+
 	'targets':
 	[
 		{
 			'target_name': 'libicu',
 			'type': 'none',
-			
+
 			'toolsets': ['host', 'target'],
-			
+
 			'dependencies':
 			[
 				'fetch.gyp:fetch',
@@ -126,7 +126,7 @@
 			'toolsets': ['host','target'],
 
 			'link_settings':
-			{	
+			{
 				'target_conditions':
 				[
 					[
@@ -151,7 +151,7 @@
 										[
 											'lib/mac',
 										],
-										
+
 										'libraries':
 										[
 											'-licui18n',
@@ -185,7 +185,7 @@
 							[
 								'lib/linux/>(toolset_arch)',
 							],
-							
+
 							'libraries':
 							[
 								'-licui18n',
@@ -210,7 +210,7 @@
 										[
 											'lib/android/<(target_arch)/<(android_subplatform)',
 										],
-										
+
 										'libraries':
 										[
 											'-licui18n',
@@ -233,7 +233,7 @@
 							[
 								'unpacked/icu/<(uniform_arch)-win32-$(PlatformToolset)_static_$(ConfigurationName)/lib',
 							],
-							
+
 							'libraries':
 							[
 								'-lsicuin',
@@ -241,7 +241,7 @@
 								'-lsicutu',
 								'-lsicuuc',
 								'-lsicudt',
-								
+
 								# ICU dependencies
 								'-ladvapi32',
 							],
@@ -273,14 +273,14 @@
 		{
 			'target_name': 'minimal_icu_data',
 			'type': 'none',
-			
+
 			'toolsets': ['host', 'target'],
 
 			'dependencies':
 			[
 				'fetch.gyp:fetch#host',
 			],
-			
+
 			'actions':
 			[
 				{
@@ -303,7 +303,7 @@
 						'<(INTERMEDIATE_DIR)/data/icudata-full-list.txt',
 					],
 				},
-				
+
 				{
 					'action_name': 'gen_icu_data_remove_list',
 					'inputs':
@@ -326,7 +326,7 @@
 						'<(INTERMEDIATE_DIR)/data/icudata-remove-list.txt',
 					],
 				},
-				
+
 				{
 					'action_name': 'minimal_icu_data',
 					'inputs':
@@ -337,7 +337,7 @@
 					[
 						'<(SHARED_INTERMEDIATE_DIR)/data/icudata-minimal.dat',
 					],
-					
+
 					'action':
 					[
 						'>(prebuilt_icu_bin_dir)/icupkg',
@@ -354,14 +354,14 @@
 		{
 			'target_name': 'encode_minimal_icu_data',
 			'type': 'none',
-			
+
 			'toolsets': ['host', 'target'],
 
 			'dependencies':
 			[
 				'minimal_icu_data',
 			],
-			
+
 			'actions':
 			[
 				{
@@ -375,7 +375,7 @@
 					[
 						'<(SHARED_INTERMEDIATE_DIR)/src/icudata-minimal.cpp',
 					],
-					
+
 					'action':
 					[
 						'<@(perl)',
@@ -388,6 +388,6 @@
 				},
 			],
 		},
-		
+
 	],
 }

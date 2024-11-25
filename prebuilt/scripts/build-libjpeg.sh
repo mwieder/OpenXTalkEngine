@@ -27,7 +27,7 @@ mv ${SHORT_THIS}-${libjpeg_VERSION} ${ARCHIVE_DESTINATION}
 # sudo apt install dos2unix
 pushd ${BUILDDIR}/${ARCHIVE_DESTINATION}
 if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/configure" ] ; then
-	dos2unix configure
+#	dos2unix configure
 	echo "running configure"
 	./configure
 fi

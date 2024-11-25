@@ -46,40 +46,50 @@ if [ ! -d "$ICU_SRC" ] ; then
 		fetchUrl ${ICU_URL} "${ICU_TGZ}"
 		if [ $? != 0 ] ; then
 			echo "    failed"
-			if [ -e "${ICU_TGZ}" ] ; then 
-				rm ${ICU_TGZ} 
+			if [ -e "${ICU_TGZ}" ] ; then
+				rm ${ICU_TGZ}
 			fi
 			exit
 		fi
 	fi
 
+# the shasum check file is named differently in different versions.
+	if [ "${ICU_VERSION_MAJOR}" == "65" ] ; then
+		ICU_MD5_URL="SHASUM512.txt"
+	elif [ "${ICU_VERSION_MAJOR}" == "63" ] ; then
+		ICU_MD5_URL="icu4c-SHASUM512.txt.asc"
+	else
+		echo "bad shasum url for icu version ${ICU_VERSION}"
+	fi
+	ICU_SHASUM_URL="${ICU_ROOT}${ICU_VERSION_DASH}/${ICU_MD5_URL}"
+
 	# validate the checksum
-	ICU_SHASUM_URL="${ICU_ROOT}${ICU_VERSION_DASH}/icu4c-SHASUM512.txt.asc"
-	ICU_MD5_URL="icu4c-SHASUM512.txt.asc"
 	if [ 0 != "${ICU_CHECKSUM}" ] ; then
+		echo "Fetching checksum file ${ICU_CHECKSUM} "
 		fetchUrl ${ICU_CHECKSUM} "KEYS"
 		if [ $? != 0 ] ; then
 			echo "downloading checksum file failed"
-			if [ -e "${ICU_TGZ}" ] ; then 
-				rm ${ICU_TGZ} 
+			if [ -e "${ICU_TGZ}" ] ; then
+				rm ${ICU_TGZ}
 			fi
 			exit
 		fi
 		gpg --import KEYS
 
+		echo "Fetching shasum file ${ICU_SHASUM_URL}"
 		fetchUrl ${ICU_SHASUM_URL} "${ICU_MD5_URL}"
 		if [ $? != 0 ] ; then
 			echo "downloading shasum file failed"
-			if [ -e "${ICU_TGZ}" ] ; then 
-				rm ${ICU_TGZ} 
+			if [ -e "${ICU_TGZ}" ] ; then
+				rm ${ICU_TGZ}
 			fi
 			exit
 		fi
 
 #		if [ ! `gpg --verify KEYS` == ${ICU_TGZ} ] ; then
 #			echo "checksum verification failed"
-#			if [ -e "${ICU_TGZ}" ] ; then 
-#				rm ${ICU_TGZ} 
+#			if [ -e "${ICU_TGZ}" ] ; then
+#				rm ${ICU_TGZ}
 #			fi
 #			exit
 #		fi
@@ -87,8 +97,8 @@ if [ ! -d "$ICU_SRC" ] ; then
 		shasum -c -s --ignore-missing ${ICU_MD5_URL}
 		if [ $? != 0 ] ; then
 			echo "checksum verification failed"
-			if [ -e "${ICU_TGZ}" ] ; then 
-				rm ${ICU_TGZ} 
+			if [ -e "${ICU_TGZ}" ] ; then
+				rm ${ICU_TGZ}
 			fi
 			exit
 		fi
@@ -187,10 +197,10 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	if [ "${ICU_ARCH_CONFIG}" != "${ICU_ARCH_CURRENT_CONFIG}" ] ; then
 		cd "${ICU_ARCH_SRC}"
 		echo "Configuring ICU for ${NAME}"
-		
+
 		echo "*DEBUG* calling setCCForArch ${ARCH}"
 		setCCForTarget "${PLATFORM}" "${ARCH}" "${SUBPLATFORM}"
-		
+
 		# We need to pass the target triple for Android builds
 		if [ "${PLATFORM}" == "android" ] ; then
 			CONFIG_TYPE+=" --host=${ANDROID_TRIPLE}"
@@ -203,7 +213,7 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 		else
 			"../${ICU_SRC}/source/runConfigureICU" ${CONFIG_TYPE} ${ICU_CONFIG} ${CONFIG_FLAGS}
 		fi
-		
+
 		echo "*DEBUG* disabling c++11 support on incompatible platforms"
 		# Disable C++11 support on platforms where we can't guarantee a compatible runtime
 #			android|linux)
@@ -211,13 +221,13 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 			android)
 				sed -i -e "s/\(^CXXFLAGS.*\)--std=c++0x/\1/" icudefs.mk
 				;;
-		esac	
+		esac
 
 		# Make sure U_HAVE_STRTOD_L is 0 on android
  		if [ "android" == "${PLATFORM}" ] ; then
  			sed -i -e "s/U_HAVE_STRTOD_L=1/U_HAVE_STRTOD_L=0/" icudefs.mk
  		fi
- 		
+
 		echo "Building ICU for ${NAME}"
 		export VERBOSE=1
 		${EMMAKE} make clean && \
@@ -225,7 +235,7 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 			${EMMAKE} make DESTDIR="${INSTALL_DIR}/${NAME}" install
 		RESULT=$?
 		cd ..
-		
+
 		# Save the configuration for this build
 		if [ 0 == $RESULT  ] ; then
 			echo "${ICU_ARCH_CONFIG}" > "${ICU_ARCH_SRC}/config.cmd"
@@ -242,14 +252,14 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	else
 		HOST_ICU_BINDIR="${HOST_ICU_DIR}/bin"
 	fi
-	
+
 	# Copy data file, if not done yet
 	if [ ! -f "${OUTPUT_DIR}/share/icudt${ICU_VERSION_MAJOR}l.dat" ] ; then
 		echo "Copying icu data file"
 		mkdir -p "${OUTPUT_DIR}/share"
 		cp "${INSTALL_DIR}/${NAME}/share/icu/${ICU_VERSION}/icudt${ICU_VERSION_MAJOR}l.dat" "${OUTPUT_DIR}/share/icudt${ICU_VERSION_MAJOR}l.dat"
 	fi
-	
+
 	# Copy libraries
 	for L in ${ICU_LIBS} ; do
 		if [ -f "${INSTALL_DIR}/${NAME}/lib/libicu${L}.a" ] ; then
@@ -275,13 +285,13 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 			fi
 		fi
 	done
-	
+
 	# Copy over the headers, if it has not yet been done
 	if [ ! -e "${OUTPUT_DIR}/include/unicode" ] ; then
 		echo "Copying ICU headers from ${INSTALL_DIR}/${NAME}/include"
 		mkdir -p "${OUTPUT_DIR}/include/unicode"
 		cp -r "${INSTALL_DIR}/${NAME}/include"/* "${OUTPUT_DIR}/include/"
-		
+
 		# Some header massaging is required in order to avoid Win32 link errors
 		# NOTE - need to provide backup file extension for compatability with both MacOSX & Linux
 		sed -i.bak -e 's/define U_IMPORT __declspec(dllimport)/define U_IMPORT/g' "${OUTPUT_DIR}/include/unicode/platform.h"
@@ -299,19 +309,19 @@ if [ "${HOST_PLATFORM}" != "${PLATFORM}" ] ; then
 	TMP_CUSTOM_CXX="${CUSTOM_CXX}"
 	CUSTOM_CC=
 	CUSTOM_CXX=
-	
+
 	buildICU "${HOST_PLATFORM}" "${HOST_ARCH}"
-	
+
 	# Restore custom c/c++ vars
 	CUSTOM_CC="${TMP_CUSTOM_CC}"
 	CUSTOM_CXX="${TMP_CUSTOM_CXX}"
-	
+
 	# clear universal libs lists
 	for L in ${ICU_LIBS} ; do
 		VAR="ICU${L}_LIBS"
 		eval "$VAR="
 	done
-	
+
 	#clear universal binaries lists
 	for B in ${ICU_BINARIES} ; do
 		VAR="ICU${B}_BINARIES"
@@ -330,7 +340,7 @@ if [ "${ARCH}" == "universal" ] ; then
 	# Create the universal libraries
 	echo "Creating ICU ${PLATFORM_NAME} universal libraries"
 	mkdir -p "${OUTPUT_DIR}/lib/${PLATFORM}/${SUBPLATFORM}"
-	
+
 	for L in ${ICU_LIBS} ; do
 		VAR="ICU${L}_LIBS"
 		eval VALUE=\$$VAR
@@ -343,7 +353,7 @@ if [ "${ARCH}" == "universal" ] ; then
 	# Create the universal binaries
 	echo "Creating ICU ${PLATFORM_NAME} universal binaries"
 	mkdir -p "${OUTPUT_DIR}/bin/${PLATFORM}/${SUBPLATFORM}"
-	
+
 	for B in ${ICU_BINARIES} ; do
 		VAR="ICU${B}_BINARIES"
 		eval VALUE=\$$VAR
