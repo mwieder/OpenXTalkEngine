@@ -103,7 +103,7 @@ MCHandler::~MCHandler()
 		MCValueRelease(cinfo[i] . value);
 	}
 	delete[] cinfo; /* Allocated with new[] */
-	
+
 	// MW-2013-11-08: [[ RefactorIt ]] Delete the it varref.
 	delete m_it;
 
@@ -141,7 +141,7 @@ Parse_stat MCHandler::newparam(MCScriptPoint& sp)
 			return PS_ERROR;
 		}
 	}
-		
+
 	MCU_realloc((char **)&pinfo, npnames, npnames + 1, sizeof(MCHandlerParamInfo));
 	pinfo[npnames] . is_reference = t_is_reference;
 	pinfo[npnames] . name = t_name;
@@ -154,7 +154,7 @@ Parse_stat MCHandler::parse(MCScriptPoint &sp, Boolean isprop)
 {
 	Parse_stat stat;
 	Symbol_type t_type;
-	
+
 	firstline = sp.getline();
 	hlist = sp.gethlist();
 	prop = isprop;
@@ -166,7 +166,7 @@ Parse_stat MCHandler::parse(MCScriptPoint &sp, Boolean isprop)
 	}
 
     name = MCValueRetain(sp . gettoken_nameref());
-	
+
 	const LT *te;
 	// MW-2010-01-08: [[Bug 7792]] Check whether the handler name is a reserved function identifier
     // special case log command is a permitted handler name
@@ -204,16 +204,16 @@ Parse_stat MCHandler::parse(MCScriptPoint &sp, Boolean isprop)
 				sp.backup();
 		}
 	}
-    
+
     bool t_needs_it;
     t_needs_it = true;
-    
+
 	while (sp.next(t_type) == PS_NORMAL)
 	{
 		if (t_type == ST_SEP)
 			continue;
 		const LT *t_te;
-		
+
         MCExpression *newfact = NULL;
 		if (t_type != ST_ID
 		        || sp.lookup(SP_FACTOR, t_te) != PS_NO_MATCH
@@ -226,16 +226,16 @@ Parse_stat MCHandler::parse(MCScriptPoint &sp, Boolean isprop)
 
 		if (newparam(sp) != PS_NORMAL)
             return PS_ERROR;
-        
+
         // AL-2014-11-04: [[ Bug 13902 ]] Check if the param we just created was called 'it'.
         if (MCNameIsEqualToCaseless(pinfo[npnames - 1] . name, MCN_it))
             t_needs_it = false;
     }
-		
+
     // AL-2014-11-04: [[ Bug 13902 ]] Only define it as a var if it wasn't one of the parameter names.
     if (t_needs_it)
         /* UNCHECKED */ newvar(MCN_it, kMCEmptyName, &m_it);
-    
+
 	if (sp.skip_eol() != PS_NORMAL)
 	{
 		MCperror->add(PE_HANDLER_BADPARAMEOL, sp);
@@ -279,26 +279,30 @@ Parse_stat MCHandler::parse(MCScriptPoint &sp, Boolean isprop)
 		{
 			switch (te->type)
 			{
-			case TT_STATEMENT:
-				newstatement = MCN_new_statement(te->which);
-				break;
-			case TT_END:
-				if ((stat = sp.next(t_type)) != PS_NORMAL)
-				{
-					MCperror->add(PE_HANDLER_NOEND, sp);
+				case TT_STATEMENT:
+					newstatement = MCN_new_statement(te->which);
+					break;
+				case TT_END:
+					if ((stat = sp.next(t_type)) != PS_NORMAL)
+					{
+						MCperror->add(PE_HANDLER_NOEND, sp);
+						return PS_ERROR;
+					}
+					if (!MCNameIsEqualToCaseless(name, sp.gettoken_nameref()))
+					{
+						// TODO: if "handler" is not sp.gettoken_nameref() then error
+						if (!MCNameIsEqualToCaseless(MCN_handler, sp.gettoken_nameref()))
+						{
+							MCperror->add(PE_HANDLER_BADEND, sp);
+							return PS_ERROR;
+						}
+					}
+					lastline = sp.getline();
+					sp.skip_eol();
+					return PS_NORMAL;
+				default:
+					MCperror->add(PE_HANDLER_NOTCOMMAND, sp);
 					return PS_ERROR;
-				}
-				if (!MCNameIsEqualToCaseless(name, sp.gettoken_nameref()))
-				{
-					MCperror->add(PE_HANDLER_BADEND, sp);
-					return PS_ERROR;
-				}
-				lastline = sp.getline();
-				sp.skip_eol();
-				return PS_NORMAL;
-			default:
-				MCperror->add(PE_HANDLER_NOTCOMMAND, sp);
-				return PS_ERROR;
 			}
 		}
 		if (newstatement->parse(sp) != PS_NORMAL)
@@ -327,14 +331,14 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 	for (npassedparams = 0 ; tptr != NULL ; npassedparams++)
 		tptr = tptr->getnext();
 	uint2 newnparams = MCU_max(npassedparams, npnames);
-    
+
     // AL-2014-08-20: [[ ArrayElementRefParams ]] All handler params are now containers
 	MCContainer **newparams;
 	if (newnparams == 0)
 		newparams = NULL;
 	else
 		newparams = new (nothrow) MCContainer *[newnparams];
-    
+
 	Boolean err = False;
 	for (i = 0 ; i < newnparams ; i++)
 	{
@@ -356,19 +360,19 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 					err = True;
 					break;
 				}
-                
+
                 MCVariable *t_new_var;
                 /* UNCHECKED */ MCVariable::createwithname(i < npnames ? pinfo[i] . name : kMCEmptyName, t_new_var);
                 /* UNCHECKED */ newparams[i] = new(nothrow) MCContainer(t_new_var);
-                
+
 				newparams[i]->give_value(ctxt, t_value);
 			}
-            
+
             // AL-2014-11-04: [[ Bug 13902 ]] If 'it' was this parameter's name then create the MCVarref as a
             //  param type, with this handler and param index, so that use of the get command syncs up correctly.
             if (i < npnames && MCNameIsEqualToCaseless(pinfo[i] . name, MCN_it))
                 m_it = new (nothrow) MCVarref(this, i, True);
-            
+
 			plist = plist->getnext();
 		}
 		else
@@ -398,7 +402,7 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 		MCeerror->add(EE_HANDLER_BADPARAM, firstline - 1, 1, name);
 		return ES_ERROR;
 	}
-    
+
 	MCContainer **oldparams = params;
 	MCVariable **oldvars = vars;
 	uint2 oldnparams = nparams;
@@ -415,7 +419,7 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 		while (i--)
 		{
 			/* UNCHECKED */ MCVariable::createwithname(vinfo[i] . name, vars[i]);
-            
+
 			// A UQL is indicated by 'init' being nil.
 			if (vinfo[i] . init != nil)
 				vars[i] -> setvalueref(vinfo[i] . init);
@@ -429,16 +433,16 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 			}
 		}
 	}
-    
+
 	executing++;
 	ctxt . SetTheResultToEmpty();
 	Exec_stat stat = ES_NORMAL;
 	MCStatement *tspr = statements;
-    
+
 	if ((MCtrace || MCnbreakpoints) && tspr != NULL)
 	{
 		MCB_trace(ctxt, firstline, 0);
-        
+
 		// OK-2008-09-05: [[Bug 7115]] - Debugger doesn't stop if traceAbort is set following a breakpoint on the first line of a handler.
 		if (MCexitall)
 			tspr = NULL;
@@ -452,12 +456,12 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 				break;
 		}
 		ctxt.SetLineAndPos(tspr->getline(), tspr->getpos());
-        
+
         tspr->exec_ctxt(ctxt);
 		stat = ctxt . GetExecStat();
-        
+
         MCActionsRunAll();
-        
+
 		switch(stat)
 		{
             case ES_NORMAL:
@@ -502,17 +506,17 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
                 break;
 		}
 	}
-    
+
 	// MW-2007-07-03: [[ Bug 4570 ]] - Exiting a handler except via return should
 	//   clear the result.
 	// MW-2007-09-17: [[ Bug 4570 ]] - REVERTING due to backwards-compatibility
 	//   problems.
 	if (stat == ES_RETURN_HANDLER)
 		stat = ES_NORMAL;
-    
+
 	if (!MCexitall && (MCtrace || MCnbreakpoints))
 		MCB_trace(ctxt, lastline, 0);
-    
+
 	executing--;
 	if (params != NULL)
 	{
@@ -679,18 +683,18 @@ bool MCHandler::getconstantnames_as_properlist(MCProperListRef& r_list)
     MCAutoProperListRef t_list;
     if (!MCProperListCreateMutable(&t_list))
         return false;
-    
+
     for (uinteger_t i = 0; i < nconstants; i++)
         if (!MCProperListPushElementOntoBack(*t_list, cinfo[i].name))
             return false;
-    
+
     if (!t_list.MakeImmutable())
     {
         return false;
     }
-    
+
     r_list = t_list.Take();
-    
+
     return true;
 }
 
@@ -727,18 +731,18 @@ bool MCHandler::getparamnames_as_properlist(MCProperListRef& r_list)
 	MCAutoProperListRef t_list;
 	if (!MCProperListCreateMutable(&t_list))
 		return false;
-	
+
 	for (uinteger_t i = 0; i < npnames; i++)
 		if (!MCProperListPushElementOntoBack(*t_list, pinfo[i].name))
 			return false;
-	
+
 	if (!t_list.MakeImmutable())
 	{
 		return false;
 	}
-	
+
 	r_list = t_list.Take();
-	
+
 	return true;
 }
 
@@ -760,18 +764,18 @@ bool MCHandler::getvariablenames_as_properlist(MCProperListRef& r_list)
     MCAutoProperListRef t_list;
     if (!MCProperListCreateMutable(&t_list))
         return false;
-    
+
     for (uinteger_t i = 0; i < nvnames; i++)
         if (!MCProperListPushElementOntoBack(*t_list, vinfo[i].name))
             return false;
-    
+
     if (!t_list.MakeImmutable())
     {
         return false;
     }
-    
+
     r_list = t_list.Take();
-    
+
     return true;
 }
 
@@ -807,18 +811,18 @@ bool MCHandler::getglobalnames_as_properlist(MCProperListRef& r_list)
     MCAutoProperListRef t_list;
     if (!MCProperListCreateMutable(&t_list))
         return false;
-    
+
     for (uinteger_t i = 0; i < nglobals; i++)
         if (!MCProperListPushElementOntoBack(*t_list, globals[i]->getname()))
             return false;
-    
+
     if (!t_list.MakeImmutable())
     {
         return false;
     }
-    
+
     r_list = t_list.Take();
-    
+
     return true;
 }
 

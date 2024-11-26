@@ -204,7 +204,6 @@ enum Exec_stat {
 enum Exit_to {
     ET_UNDEFINED,
     ET_ALL,
-	ET_HANDLER,
     ET_REPEAT,
     ET_SWITCH,
     ET_TO

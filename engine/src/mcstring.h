@@ -137,6 +137,7 @@ extern const char * const MCtextalignstrings[];
 extern MCNameRef MCN_msg;
 extern MCNameRef MCN_each;
 extern MCNameRef MCN_it;
+extern MCNameRef MCN_handler;
 
 extern MCNameRef MCN_cancel;
 

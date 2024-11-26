@@ -187,6 +187,7 @@ const char * const MCtextalignstrings[] = { MCleftstring, MCcenterstring, MCrigh
 MCNameRef MCN_msg;
 MCNameRef MCN_each;
 MCNameRef MCN_it;
+MCNameRef MCN_handler;
 
 MCNameRef MCN_cancel;
 
@@ -639,7 +640,8 @@ const struct { const char *cstring; MCNameRef *name_var; } kInitialNames[] =
 	{ "msg", &MCN_msg },
 	{ "each", &MCN_each },
 	{ "it", &MCN_it },
-	
+	{ "handler", &MCN_handler },
+
 	{ "Cancel", &MCN_cancel },
 
 	{ DEFAULT_TEXT_FONT, &MCN_default_text_font },
@@ -757,7 +759,7 @@ const struct { const char *cstring; MCNameRef *name_var; } kInitialNames[] =
 	{ "Control", &MCN_control },
 	{ "Extension", &MCN_extension },
 	{ "Preferences", &MCN_preferences },
-	
+
 	{ "unhandled", &MCN_unhandled },
 	{ "handled", &MCN_handled },
 	{ "passed", &MCN_passed },
@@ -965,12 +967,12 @@ const struct { const char *cstring; MCNameRef *name_var; } kInitialNames[] =
 #ifdef FEATURE_PLATFORM_URL
 	{ "urlProgress", &MCM_url_progress },
 #endif
-    
+
     { "deleteAudioclip", &MCM_delete_audioclip },
     { "deleteVideoclip", &MCM_delete_videoclip },
     { "newAudioclip", &MCM_new_audioclip },
     { "newVideoclip", &MCM_new_videoclip },
-    
+
 #ifdef _MOBILE
 	{ "firstname", &MCN_firstname },
 	{ "lastname", &MCN_lastname },
@@ -998,15 +1000,15 @@ const struct { const char *cstring; MCNameRef *name_var; } kInitialNames[] =
 	{ "workfax", &MCN_workfax },
 	{ "otherfax", &MCN_otherfax },
 	{ "pager", &MCN_pager },
-	
+
 	{ "street", &MCN_street },
 	{ "city", &MCN_city },
 	{ "state", &MCN_state },
 	{ "zip", &MCN_zip },
 	{ "country", &MCN_country },
 	{ "countrycode", &MCN_countrycode },
-	
-	
+
+
 	{ "touchStart", &MCM_touch_start },
 	{ "touchMove", &MCM_touch_move },
 	{ "touchEnd", &MCM_touch_end },
@@ -1054,7 +1056,7 @@ const struct { const char *cstring; MCNameRef *name_var; } kInitialNames[] =
     { "productRequestError", &MCM_product_request_error },
 	{ "nfcTagReceived", &MCM_nfc_tag_received },
 #endif
-	
+
 #ifdef _IOS_MOBILE
 	{ "browserLoadRequest", &MCM_browser_load_request },
 	{ "browserLoadRequested", &MCM_browser_load_requested },
@@ -1072,7 +1074,7 @@ const struct { const char *cstring; MCNameRef *name_var; } kInitialNames[] =
     { "protectedDataWillBecomeUnavailable", &MCM_protected_data_unavailable },
 	{ "remoteControlReceived", &MCM_remote_control_received },
 #endif
-    
+
     { "(Default)", &MCN_font_default },
     { "(Styled Text)", &MCN_font_usertext },
     { "(Menu)", &MCN_font_menutext },

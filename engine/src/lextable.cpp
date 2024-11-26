@@ -492,7 +492,6 @@ const static LT encryption_table[] =
 
 const static LT exit_table[] =
     {
-        {"handler", TT_UNDEFINED, ET_HANDLER},
         {"hypercard", TT_UNDEFINED, ET_ALL},
         {"metacard", TT_UNDEFINED, ET_ALL},
         {"repeat", TT_UNDEFINED, ET_REPEAT},
