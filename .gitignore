@@ -71,8 +71,7 @@ util/perfect/perfect.linux-*
 .Spotlight-V100
 .Trashes
 Icon?
-ehthumbs.db
-Thumbs.db
+*.db
 
 # Versioning files #
 ####################
@@ -124,6 +123,7 @@ prebuilt/lib
 prebuilt/bin
 prebuilt/share
 prebuilt/build
+prebuilt/xxx*
 #prebuilt/docs
 #prebuilt/include
 #prebuilt/lib/mac

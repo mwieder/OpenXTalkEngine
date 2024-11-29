@@ -325,7 +325,7 @@ Symbol_type MCScriptPoint::gettype(codepoint_t p_codepoint)
     if (p_codepoint <= 0x00FF)
         type = unicode_type_table[p_codepoint];
 
-    if (type == ST_UNDEFINED)
+    if (ST_UNDEFINED == type)
     {
         // Otherwise check mac roman from 128 - 256
         uint2 high = ELEMENTS(remainder_table);
@@ -355,7 +355,7 @@ bool MCScriptPoint::is_identifier(codepoint_t p_codepoint, bool p_initial)
     t_type = gettype(p_codepoint);
     if (t_type != ST_UNDEFINED)
     {
-        if (t_type == ST_ID || (!p_initial && t_type == ST_NUM))
+        if (ST_ID == t_type || (!p_initial && ST_NUM == t_type))
             return true;
 
         return false;

@@ -67,10 +67,10 @@ IF NOT DEFINED TOOL (
 )
 
 REM Check variable values
-IF %ARCH%==x86 (
+IF x86==%ARCH% (
 	REM
 ) ELSE (
-	IF %ARCH%==x86_64 (
+	IF x86_64==%ARCH% (
 		REM
 	) ELSE (
 		ECHO ARCH variable must be x86 or x86_64
@@ -78,10 +78,10 @@ IF %ARCH%==x86 (
 	)
 )
 
-IF %MODE%==debug (
+IF debug==%MODE% (
 	REM
 ) ELSE (
-	IF %MODE%==release (
+	IF release==%MODE% (
 		REM
 	) ELSE (
 		ECHO MODE variable must be debug or release
@@ -91,14 +91,14 @@ IF %MODE%==debug (
 
 REM Compute the mode suffix - MD, MDd, MT, MTd - these correspond
 REM to the CRT options available: DLL, DLL debug, Static, Static debug.
-IF %MODE%==debug (
+IF debug==%MODE% (
 	SET CRT=static_debug
 ) ELSE (
 	SET CRT=static_release
 )
 
 REM If the TOOL version is 15, then the CRT version 141
-IF %TOOL%==15 (
+IF 15==%TOOL% (
 	SET TOOL_CRT=141
 ) ELSE (
 	SET TOOL_CRT=%TOOL%0
@@ -108,7 +108,7 @@ REM Set the suffix that should be used by all libraries
 SET BUILDTRIPLE=%ARCH%-win32-v%TOOL_CRT%_%CRT%
 
 REM Compute path to VS version
-IF %ARCH%==x86 (
+IF x86==%ARCH% (
 	SET ARCH_STRING=x86
 ) ELSE (
 	SET ARCH_STRING=amd64
@@ -135,10 +135,16 @@ IF %ERRORLEVEL% NEQ 0 (
 	EXIT /B 1
 )
 
+CALL :ENSURE_CYGWIN
+CALL :ENSURE_NASM
+CALL :BUILD_PREBUILT_LIBRARIES
+GOTO :EOF
+
 REM Ensure Cygwin and NASM are in the path
 
 REM Is Cygwin already in the path?
 REM If not, look in a couple of likely locations for it
+:ENSURE_CYGWIN
 WHERE /Q cygpath.exe 1>NUL 2>NUL
 IF %ERRORLEVEL% EQU 0 (
   SET cygwin_path=
@@ -162,7 +168,9 @@ IF %ERRORLEVEL% NEQ 0 (
 	ECHO Cannot find 'bash'. Make sure Cygwin64 is installed with root C:\Cygwin64 and bash is present.
 	EXIT /B 1
 )
+EXIT /B
 
+:ENSURE_NASM
 WHERE /Q nasm 1>NUL 2>NUL
 IF %ERRORLEVEL% EQU 0 (
     SET nasm_path=
@@ -184,7 +192,9 @@ IF %ERRORLEVEL% NEQ 0 (
 	ECHO Cannot find 'nasm'. Make sure nasm is installed in "%ProgramFiles%\NASM" or "%ProgramFiles(x86)%\NASM"
 	EXIT /B 1
 )
+EXIT /B
 
+:BUILD_PREBUILT_LIBRARIES
 IF %1=="" (
 	REM Build OpenSSL
 	CALL "scripts\build-openssl.bat"
@@ -205,3 +215,6 @@ IF %1=="" (
 	CALL "scripts\build-%1.bat" %2
 	IF %ERRORLEVEL% NEQ 0 EXIT /B %ERRORLEVEL%
 )
+EXIT /B
+
+:EOF

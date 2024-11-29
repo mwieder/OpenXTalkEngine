@@ -7,8 +7,12 @@ FOR %%L in (Thirdparty OpenSSL ICU CEF Curl CEFChromium CEFBuildversion libz lib
 	SET /P !PREBUILT_LIB!_VERSION=<versions\!PREBUILT_LIB!
 	IF EXIST "versions\!PREBUILT_LIB!_buildrevision" (
 		SET /P !PREBUILT_LIB!_BUILDREVISION=<versions\!PREBUILT_LIB!_buildrevision
+	)
 	IF EXIST "versions\!PREBUILT_LIB!_buildversion" (
 		SET /P !PREBUILT_LIB!_BUILDVERSION=<versions\!PREBUILT_LIB!_buildversion
+	)
+	IF EXIST "versions\!PREBUILT_LIB!_checksum" (
+		SET /P !PREBUILT_LIB!_CHECKSUM=<versions\!PREBUILT_LIB!_checksum
 	)
 )
 

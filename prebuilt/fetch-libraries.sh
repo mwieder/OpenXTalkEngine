@@ -6,15 +6,20 @@ ARCHS_android=( armv7 arm64 x86 x86_64 )
 ARCHS_mac=( Universal )
 ARCHS_ios=( Universal )
 ARCHS_win32=( x86 x86_64 )
-ARCHS_linux=( i386 x86_64 )
+ARCHS_linux=( i386 x86_64 armv7 )
 ARCHS_emscripten=( js )
-LIBS_android=( Thirdparty OpenSSL ICU )
-LIBS_mac=( Thirdparty OpenSSL ICU )
-LIBS_ios=( Thirdparty OpenSSL ICU )
-LIBS_win32=( Thirdparty OpenSSL Curl ICU CEF )
+#LIBS_android=( Thirdparty OpenSSL ICU )
+LIBS_android=( OpenSSL ICU )
+#LIBS_mac=( Thirdparty OpenSSL ICU )
+LIBS_mac=( OpenSSL ICU )
+#LIBS_ios=( Thirdparty OpenSSL ICU )
+LIBS_ios=( OpenSSL ICU )
+#LIBS_win32=( Thirdparty OpenSSL Curl ICU CEF )
+LIBS_win32=( OpenSSL Curl ICU CEF )
 #LIBS_linux=( Thirdparty OpenSSL Curl ICU CEF )
 LIBS_linux=( OpenSSL Curl ICU CEF )
-LIBS_emscripten=( Thirdparty ICU )
+#LIBS_emscripten=( Thirdparty ICU )
+LIBS_emscripten=( ICU )
 
 SUBPLATFORMS_ios=(iPhoneSimulator11.2 iPhoneSimulator12.1 iPhoneSimulator13.2 iPhoneSimulator14.4 iPhoneSimulator14.5 iPhoneOS11.2 iPhoneOS12.1 iPhoneOS13.2 iPhoneOS14.4 iPhoneOS14.5)
 SUBPLATFORMS_win32=(v141_static_debug v141_static_release)
@@ -25,7 +30,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 FETCH_DIR="${SCRIPT_DIR}/fetched"
 EXTRACT_DIR="${SCRIPT_DIR}"
 WIN32_EXTRACT_DIR="${SCRIPT_DIR}/unpacked"
-URL="https://downloads.livecode.com/prebuilts"
+#URL="https://downloads.livecode.com/prebuilts"
 URLCURL="https://github.com/curl/curl/archive/refs/heads/master.zip"
 URLOPENSSL="https://github.com/openssl/openssl/archive/refs/heads/master.zip"
 URLICU="https://github.com/unicode-org/icu/archive/refs/heads/main.zip"
@@ -74,7 +79,7 @@ function fetchLibrary {
 			NAME+="-${SUBPLATFORM}"
 		fi
 	fi
-	
+
 	if [ ! -z "${BUILDREVISION}" ] ; then
 		NAME+="-${BUILDREVISION}"
 	fi
@@ -86,7 +91,7 @@ function fetchLibrary {
 			cp "${LOCAL_DIR}/${NAME}.tar.bz2" "${FETCH_DIR}/${NAME}.tar.bz2"
 		else
 			echo "Fetching remote library: ${LIBURL}/${NAME}"
-		
+
 			# Download using an HTTP client of some variety : first choice is curl
 			if $(which curl 1>/dev/null 2>/dev/null) ; then
 				curl -k "${LIBURL}/${NAME}" -o "${FETCH_DIR}/${NAME}.tar.bz2" --fail
@@ -194,11 +199,12 @@ for PLATFORM in ${SELECTED_PLATFORMS} ; do
 	# but the prebuilt naming uniformly uses "i386".  Workaround
 	# this by renaming the "i386" output folder to "x86"
 	if [ -d "${EXTRACT_DIR}/lib/${PLATFORM}/i386" ] ; then
-		if [ ! -d "${EXTRACT_DIR}/lib/${PLATFORM}/x86" ] ; then
-			mkdir "${EXTRACT_DIR}/lib/${PLATFORM}/x86"
-		fi
-		cp -R "${EXTRACT_DIR}/lib/${PLATFORM}/i386/"* "${EXTRACT_DIR}/lib/${PLATFORM}/x86/"
-		rm -r "${EXTRACT_DIR}/lib/${PLATFORM}/i386"
+		#if [ ! -d "${EXTRACT_DIR}/lib/${PLATFORM}/x86" ] ; then
+			mkdir -p "${EXTRACT_DIR}/lib/${PLATFORM}/x86"
+		#fi
+		#cp -R "${EXTRACT_DIR}/lib/${PLATFORM}/i386/"* "${EXTRACT_DIR}/lib/${PLATFORM}/x86/"
+		#rm -r "${EXTRACT_DIR}/lib/${PLATFORM}/i386"
+		mv "${EXTRACT_DIR}/lib/${PLATFORM}/i386/"* "${EXTRACT_DIR}/lib/${PLATFORM}/x86/"
 	fi
 
         # Windows-only hacks
@@ -226,7 +232,7 @@ for PLATFORM in ${SELECTED_PLATFORMS} ; do
                         done
                 done
         done
-                        
+
         for ARCH in ${SELECTED_ARCHS} ; do
                 for LIB in "${LIBS[@]}" ; do
                         echo "Monkey patching toolset/arch for ${LIB} library"
