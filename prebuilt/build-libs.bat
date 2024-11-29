@@ -36,8 +36,13 @@ REM is installed as part of 64-bit cygwin at C:\Cygwin\bin
 REM This script checks for nasm in the path. If it is not present it assumes it
 REM is installed at %ProgramFiles(x86)%\NASM
 
+REM
+REM This file is called as a subroutine by build-all-libs.bat
+REM
+
 REM # get the drive & path of the folder this script lives in
 REM # (note: ends with \ path delimiter)
+
 FOR /F "delims=" %%A IN ("%0") DO SET _TOOLS_DIR=%%~dpA
 
 SET _ROOT_DIR=%_TOOLS_DIR%build
