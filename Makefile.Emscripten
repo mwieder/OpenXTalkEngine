@@ -1,0 +1,16 @@
+################################################################
+# Emscripten rules
+################################################################
+
+config-emscripten:
+	$(EMMAKE) ./config.sh --platform emscripten
+
+compile-emscripten:
+	$(EMMAKE) $(MAKE) -C build-emscripten/livecode default
+
+check-emscripten:
+	$(EMMAKE) $(MAKE) -C build-emscripten/livecode check
+
+all-emscripten:
+	$(MAKE) config-emscripten
+	$(MAKE) compile-emscripten

@@ -1,0 +1,42 @@
+################################################################
+# Linux rules
+################################################################
+
+LINUX_ARCHS = x86_64 x86 armv6hf armv7 armv7l
+
+config-linux-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:config"
+	@echo "CONFIGURE"
+endif
+	./config.sh --platform linux-$*
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:config"
+endif
+
+compile-linux-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:compile"
+	@echo "COMPILE"
+endif
+	$(MAKE) -C build-linux-$*/livecode default
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:compile"
+endif
+
+check-linux-%:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:testcpp"
+	@echo "TEST C++"
+endif
+	$(MAKE) -C build-linux-$*/livecode check
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testcpp"
+endif
+	$(MAKE) check-common-linux-$*
+
+all-linux-%:
+	$(MAKE) config-linux-$*
+	$(MAKE) compile-linux-$*
+
+$(addsuffix -linux,all config compile check): %: %-$(guess_linux_arch)

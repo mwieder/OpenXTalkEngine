@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with LiveCode.  If not see <http://www.gnu.org/licenses/>.
 
-# This file consists of some common functionality required by various 
+# This file consists of some common functionality required by various
 # Makefiles
 
 ifeq ($(V),)
@@ -30,7 +30,7 @@ else ifeq ($(MODE),release)
 else ifeq ($(MODE),fast)
   export BUILDTYPE ?= Fast
 else
-  $(error "Mode must be 'debug' or 'release'")
+  $(error "Mode must be 'Debug' or 'Release' or 'Fast'")
 endif
 
 ################################################################
@@ -45,7 +45,7 @@ guess_linux_arch_script := \
 	    x86|i*86) echo x86 ;; \
 	    unknown) case `uname -m` in \
 	        x86_64) echo x86_64 ;; \
-                x86|i*86) echo x86 ;; \
+            x86|i*86) echo x86 ;; \
 	    esac ;; \
 	esac
 guess_linux_arch := $(shell $(guess_linux_arch_script))
@@ -56,7 +56,7 @@ guess_platform_script := \
 	    Darwin) echo mac ;; \
 	esac
 guess_platform := $(shell $(guess_platform_script))
-	
+
 guess_engine_flags_script := \
 	if echo $(guess_platform) | grep "^linux" >/dev/null 2>&1 && \
 	        ! xset -q >/dev/null 2>&1 ; then \

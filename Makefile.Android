@@ -1,0 +1,20 @@
+################################################################
+# Android rules
+################################################################
+
+ANDROID_ARCHS = armv6 armv7 arm64 x86 x86_64
+
+config-android-%:
+	./config.sh --platform android-$*
+
+compile-android-%:
+	$(MAKE) -C build-android-$*/livecode default
+
+check-android-%:
+	$(MAKE) -C build-android-$*/livecode check
+
+all-android-%:
+	$(MAKE) config-android-$*
+	$(MAKE) compile-android-$*
+
+$(addsuffix -android,all config compile check): %: %-armv6

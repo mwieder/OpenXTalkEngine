@@ -1,0 +1,44 @@
+################################################################
+# Mac rules
+################################################################
+
+# Prettifying output for CI builds
+XCODEBUILD_FILTER ?=
+
+config-mac:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:config"
+	@echo "CONFIGURE"
+endif
+	./config.sh --platform mac
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:config"
+endif
+
+compile-mac:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:compile"
+	@echo "COMPILE"
+endif
+	$(XCODEBUILD) -project "build-mac$(BUILD_SUBDIR)/$(BUILD_PROJECT).xcodeproj" -configuration $(BUILDTYPE) -target default \
+	  $(XCODEBUILD_FILTER)
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:compile"
+endif
+
+check-mac:
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:start:testcpp"
+	@echo "TEST C++"
+endif
+	$(XCODEBUILD) -project "build-mac$(BUILD_SUBDIR)/$(BUILD_PROJECT).xcodeproj" -configuration $(BUILDTYPE) -target check \
+	  $(XCODEBUILD_FILTER)
+ifneq ($(TRAVIS),undefined)
+	@echo "travis_fold:end:testcpp"
+endif
+	$(MAKE) check-common-mac
+
+
+all-mac:
+	$(MAKE) config-mac
+	$(MAKE) compile-mac
