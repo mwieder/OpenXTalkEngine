@@ -3,7 +3,7 @@
 	{
 		# Sources shared between desktop and server builds
 		'engine_common_source_files':
-		[	
+		[
 			# Group "Core - Graphics"
 			'include/customprinter.h',
 			'src/bitmapeffect.h',
@@ -58,7 +58,7 @@
 			'src/tilecachegl.cpp',
 			'src/tilecachegl3.x.cpp',
 			'src/tilecachesw.cpp',
-			
+
 			# Group "Core - Language"
 			'src/ans.h',
 			'src/answer.h',
@@ -119,7 +119,7 @@
 			'src/statemnt.cpp',
 			'src/variable.cpp',
 			'src/visual.cpp',
-			
+
 			# Group "Core - Misc"
 			'<(SHARED_INTERMEDIATE_DIR)/include/revbuild.h',
 			'src/capsule.h',
@@ -176,7 +176,7 @@
 			'src/ports.cpp',
 			'src/regex.cpp',
 			'src/securemode.cpp',
-			'src/sha1.cpp',			
+			'src/sha1.cpp',
 			'src/shacommon.h',
 			'src/sha256.h',
 			'src/sha256.cpp',
@@ -184,7 +184,7 @@
 			'src/sha512.cpp',
 			'src/sha3.h',
 			'src/sha3.cpp',
-			'src/socket.h',			
+			'src/socket.h',
 			'src/text.cpp',
 			'src/uidc.cpp',
 			'src/unicode.cpp',
@@ -192,7 +192,7 @@
 			'src/uuid.cpp',
 			'src/patternmatcher.h',
 			'src/patternmatcher.cpp',
-			
+
 			# Group "Core - Objects"
 			'src/aclip.h',
 			'src/MCBlock.h',
@@ -326,12 +326,12 @@
             'src/widget-ref.cpp',
             'src/widget-syntax.cpp',
             'src/widget-popup.cpp',
-			
+
 			# Group "Desktop"
 			'src/dskmac.cpp',
 			'src/dsklnx.cpp',
 			'src/dskw32.cpp',
-			
+
 			# Group "Exec"
 			'src/exec.h',
 			'src/exec-interface.h',
@@ -396,11 +396,11 @@
 			'src/exec-strings-chunk.cpp',
 			'src/exec-text.cpp',
 			'src/exec-textmessaging.cpp',
-			
+
 			# Group "Foundation"
 			'src/foundation-legacy.h',
 			'src/foundation-legacy.cpp',
-			
+
 			# Group "Mobile"
 			'src/mblad.h',
 			'src/mblcalendar.h',
@@ -430,7 +430,7 @@
 			'src/mblstore.cpp',
 			'src/mblsound.cpp',
 			'src/mbltheme.cpp',
-			
+
 			# Group "Mobile - Android"
 			'src/mblandroid.h',
 			'src/mblandroidcontrol.h',
@@ -469,7 +469,7 @@
 			'src/mblandroidtextlayout.cpp',
 			'src/mblandroidtextmessaging.cpp',
 			'src/mblandroidurl.cpp',
-			
+
 			# Group "Mobile - iOS"
 			'src/mbliphone.h',
 			'src/mbliphoneapp.h',
@@ -515,7 +515,7 @@
 			'src/mbliphonetextmessaging.mm',
 			'src/mbliphoneurl.mm',
 			'src/mbliphonevideo.mm',
-			
+
 			# Group "System"
 			'src/globdefs.h',
 			'src/osspec.h',
@@ -535,7 +535,12 @@
 			'src/sysw32region.cpp',
 			'src/sysw32registry.cpp',
 			'src/mcmanagedpthread.h',
-			
+
+# support 'include' livecodescript
+			'src/srvscript.h',
+			'src/srvscript.cpp',
+
+
 			# Group "Text"
 			'src/text.h',
 			#'src/text-api.h',
@@ -565,36 +570,36 @@
 			#'src/text-run.cpp',
 			#'src/text-segment.cpp',
 			#'src/text-simplebreakingengine.cpp',
-			
+
 			# Group "Emscripten"
 			'src/jsobject.h',
 			'src/jsobject.cpp',
-			
+
 			# Group "Desktop"
 			'src/quicktime.cpp',
 			'src/quicktime.stubs',
 			'<(SHARED_INTERMEDIATE_DIR)/src/quicktimestubs.mac.cpp',
-			
+
 			# Group "Desktop - Mac"
 			'src/coretextfonts.mm',
 			'src/osxflst.cpp',
-			
+
 			# Group "Desktop - Linux"
 			'src/lnxelevate.cpp',
 			'src/lnxflst.cpp',
-			
+
             # Group "Desktop - Windows"
             'src/w32date.cpp',
             'src/w32flst.h',
             'src/w32flst.cpp',
-							
+
 			# Group "Theming"
 			'src/linux-theme.cpp',
 			'src/mac-theme.mm',
 			'src/mblandroid-theme.cpp',
 			'src/mbliphone-theme.mm',
 			'src/windows-theme.cpp',
-			
+
 			# Other files
 			'src/socket_resolve.cpp',
 
@@ -616,12 +621,12 @@
 			'src/w32-clipboard.cpp',
 
 			'src/mixin-refcounted.h',
-			
+
 			# Native layers
 			'src/native-layer.h',
 			'src/native-layer.cpp',
 		],
-		
+
 		# Sources that are only for desktop mode
 		'engine_desktop_source_files':
 		[
@@ -638,7 +643,7 @@
 			'src/desktop-image.cpp',
 			'src/desktop-ans.cpp',
 			'src/legacy_spec.cpp',
-			
+
 			# Group "Platform"
 			'src/platform.h',
 			'src/platform.cpp',
@@ -647,7 +652,7 @@
 			'src/platform-recorder.cpp',
 			'src/platform-surface.cpp',
 			'src/platform-window.cpp',
-			
+
 			# Group "Native Layer"
 			'src/native-layer.cpp',
 			'src/native-layer.h',
@@ -661,7 +666,7 @@
 			'src/native-layer-win32.h',
 			'src/native-layer-x11.cpp',
 			'src/native-layer-x11.h',
-			
+
 			# Group "Desktop - Linux"
 			'src/lnxans.h',
 			'src/lnxaudio.h',
@@ -693,7 +698,7 @@
 			'src/lnxspec.cpp',
 			'src/lnxstack.cpp',
 			'src/lnxtextlayout.cpp',
-			
+
 			# Group "Desktop - Mac"
 			'src/mac-internal.h',
 			'src/osxflst.h',
@@ -728,7 +733,7 @@
 			'src/osxstack.cpp',
 			'src/osxtheme.mm',
 			'src/visualeffect.h',
-			
+
 			# Group "Desktop - Windows"
 			'src/w32compat.h',
 			'src/w32dc.h',
@@ -814,7 +819,7 @@
 			'src/em-view.h',
 			'src/em-view.cpp',
 		],
-		
+
 		# Sources that need to be compiled separately for each mode
 		'engine_mode_dependent_files':
 		[
@@ -822,14 +827,14 @@
 			'<(INTERMEDIATE_DIR)/src/encodederrors.cpp',
 			#'<(INTERMEDIATE_DIR)/src/hashedstrings.cpp',
 		],
-		
+
 		# Sources for the Community security module
 		'engine_security_source_files':
 		[
 			'src/stacksecurity.h',
 			'src/stacksecurity.cpp',
 		],
-		
+
 		# Sources for the IDE engine
 		'engine_development_mode_source_files':
 		[
@@ -870,13 +875,13 @@
 			'src/mode_installer_osx.mm',
 			'src/mode_installer_w32.cpp',
 		],
-		
+
 		# Sources for the standalone engine
 		'engine_standalone_mode_source_files':
 		[
 			'src/mode_standalone.cpp',
 		],
-		
+
 		# Sources for the server builds only
 		'engine_server_source_files':
 		[
@@ -902,7 +907,7 @@
 			'src/native-layer-srv.cpp',
 			'src/player-srv-stubs.cpp',
 		],
-		
+
 		# Java sources for Android
 		'engine_java_source_files':
 		[
@@ -958,10 +963,10 @@
 			'src/java/com/runrev/android/nativecontrol/NativeControlModule.java',
 			'src/java/com/runrev/android/nativecontrol/ScrollerControl.java',
 			'src/java/com/runrev/android/nativecontrol/VideoControl.java',
-			
+
 			'src/java/com/runrev/android/libraries/LibBrowser.java',
 		],
-		
+
 		# AIDL sources for Android
 		'engine_aidl_source_files':
 		[
@@ -970,15 +975,15 @@
 			'src/java/com/sec/android/iap/IAPServiceCallback.aidl',
 			'src/java/com/sec/android/iap/IAPConnector.aidl',
 		],
-		
+
 		# Sources only used in Commercial Android builds
 		'engine_commercial_java_files':
 		[
 			'src/java/com/runrev/android/billing/amazon/AmazonBillingProvider.java',
 			'src/java/com/runrev/android/billing/amazon/MyPurchasingObserver.java',
 		],
-		
-		
+
+
 		# Files to be excluded from server builds
 		'engine_server_exclude_files':
 		[
@@ -986,7 +991,7 @@
 			'src/player-legacy.cpp',
 			'src/stacke.cpp',
 		],
-		
+
 		# Sources used to implement LCB modules in the engine
 		'engine_module_source_files':
 		[
@@ -994,15 +999,15 @@
 			'src/module-canvas-internal.h',
 			'src/module-engine.h',
 			'src/module-resources.h',
-			
+
 			'src/module-canvas.cpp',
 			'src/module-engine.cpp',
 			'src/module-resources.cpp',
-			
+
 			'src/module-browser.cpp',
 			'src/module-emscripten.cpp',
 		],
-		
+
 		# Engine LCB files containing syntax
 		'engine_syntax_lcb_files':
 		[
@@ -1010,14 +1015,14 @@
 			'src/engine.lcb',
 			'src/widget.lcb',
 		],
-        
+
         # Engine LCB files containing syntax which don't require compiling into
         # the engine.
         'engine_syntax_only_lcb_files':
         [
             'src/license.lcb',
         ],
-		
+
 		# Other engine LCB files
 		'engine_other_lcb_files':
 		[
@@ -1034,7 +1039,7 @@
             'test/test_path.cpp',
 		],
 	},
-	
+
 	'target_defaults':
 	{
 						'defines':
@@ -1050,7 +1055,7 @@
 			'>(SHARED_INTERMEDIATE_DIR)/src',
 			'>(SHARED_INTERMEDIATE_DIR)/include',
 		],
-		
+
 		# These files get included rather than compiled directly
 		'sources!':
 		[
@@ -1059,7 +1064,7 @@
 			'src/icondata.cpp',
 			'src/props.cpp',
 		],
-	
+
 		# Engine has some additional exclusion patterns that need to be applied
 		'conditions':
 		[
@@ -1073,7 +1078,7 @@
 						['exclude', '(^|/)mac-'],
 						['exclude', '-mac\.(mm|cpp)$'],
 					],
-					
+
 					'sources!':
 					[
 						'src/dskmac.cpp',
@@ -1091,7 +1096,7 @@
 						['exclude', '(^|/)linux-'],
 						['exclude', '-x11\.cpp$'],
 					],
-					
+
 					'sources!':
 					[
 						'src/native-layer-x11.cpp',
@@ -1108,7 +1113,7 @@
 						['exclude', '(^|/)win(dows|32)?-'],
 						['exclude', '-win32\.cpp$'],
 					],
-					
+
 					'sources!':
 					[
 						'src/srvwindows.cpp',
@@ -1160,7 +1165,7 @@
 					[
 						['exclude', '(^|/)sysunx.*\\.cpp$'],
 					],
-					
+
 					'sources!':
 					[
 						'src/fiber.cpp',
@@ -1168,7 +1173,7 @@
 						'src/tilecachegl3.x.cpp',
 						'src/glcontext.cpp',
 						'src/player-legacy.cpp',
-						
+
 						'src/desktop-ans.cpp',
 						'src/desktop-dc.cpp',
 						'src/desktop-image.cpp',
@@ -1180,7 +1185,7 @@
 					],
 				},
 			],
-			
+
 			[
 				'OS == "mac"',
 				{
@@ -1237,7 +1242,7 @@
 						'src/tilecachegl.cpp',
 						'src/tilecachegl3.x.cpp',
 						'src/glcontext.cpp',
-						
+
 						'src/desktop.cpp',
 						'src/desktop-ans.cpp',
 						'src/desktop-dc.cpp',
@@ -1283,7 +1288,7 @@
 						'src/sysunxdate.cpp',
 						'src/sysunxrandom.cpp',
 						'src/tilecachegl.cpp',
-						
+
 						'src/mbliphoneembedded.mm',
 						'src/mbliphoneembeddedtest.mm',
 
@@ -1319,7 +1324,7 @@
 						'src/tilecachegl.cpp',
 						'src/tilecachegl3.x.cpp',
 						'src/glcontext.cpp',
-						
+
 						'src/desktop.cpp',
 						'src/desktop-ans.cpp',
 						'src/desktop-dc.cpp',

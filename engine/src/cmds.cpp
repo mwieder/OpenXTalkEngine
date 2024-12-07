@@ -110,7 +110,7 @@ void MCChoose::exec_ctxt(MCExecContext &ctxt)
     MCAutoStringRef t_string;
     if (!ctxt . EvalOptionalExprAsStringRef(etool, kMCEmptyString, EE_CHOOSE_BADEXP, &t_string))
         return;
-    
+
     MCInterfaceExecChooseTool(ctxt, *t_string, littool);
 }
 
@@ -294,7 +294,7 @@ Parse_stat MCDo::parse(MCScriptPoint &sp)
 		MCperror->add(PE_DO_BADEXP, sp);
 		return PS_ERROR;
 	}
-	
+
 	if (sp.skip_token(SP_FACTOR, TT_IN, PT_IN) == PS_NORMAL)
 	{
 		if (sp.skip_token(SP_SUGAR, TT_UNDEFINED, SG_BROWSER) == PS_NORMAL)
@@ -310,10 +310,10 @@ Parse_stat MCDo::parse(MCScriptPoint &sp)
 				return PS_ERROR;
 			}
 		}
-		
+
 		return PS_NORMAL;
 	}
-	
+
 	if (sp.skip_token(SP_FACTOR, TT_PREP, PT_AS) == PS_NORMAL)
 	{
 		if (sp.parseexp(False, True, &alternatelang) != PS_NORMAL)
@@ -330,7 +330,7 @@ void MCDo::exec_ctxt(MCExecContext& ctxt)
     MCAutoStringRef t_script;
     if (!ctxt . EvalExprAsStringRef(source, EE_DO_BADEXP, &t_script))
         return;
-    
+
 	if (widget)
 	{
 		MCObject *t_object;
@@ -340,33 +340,33 @@ void MCDo::exec_ctxt(MCExecContext& ctxt)
 			ctxt.LegacyThrow(EE_DO_BADWIDGETEXP);
 			return;
 		}
-		
+
 		MCInterfaceExecDoInWidget(ctxt, *t_script, (MCWidget*)t_object);
 		return;
 	}
-	
+
     if (browser)
     {
         MCLegacyExecDoInBrowser(ctxt, *t_script);
-        return;        
+        return;
     }
-    
+
     if (alternatelang != NULL)
 	{
         MCAutoStringRef t_language;
         if (!ctxt . EvalExprAsStringRef(alternatelang, EE_DO_BADLANG, &t_language))
             return;
-        
+
         MCScriptingExecDoAsAlternateLanguage(ctxt, *t_script, *t_language);
         return;
 	}
-    
+
     if (debug)
 	{
 		MCDebuggingExecDebugDo(ctxt, *t_script, line, pos);
         return;
 	}
-    
+
     // AL-2014-11-17: [[ Bug 14044 ]] Do in caller not implemented
     if (caller)
     {
@@ -399,7 +399,7 @@ void MCDoMenu::exec_ctxt(MCExecContext& ctxt)
     MCAutoStringRef t_option;
     if (!ctxt . EvalExprAsStringRef(source, EE_DOMENU_BADEXP, &t_option))
         return;
-    
+
     MCLegacyExecDoMenu(ctxt, *t_option);
 }
 
@@ -508,7 +508,7 @@ void MCFind::exec_ctxt(MCExecContext& ctxt)
         return;
 
     MCInterfaceExecFind(ctxt, mode, *t_needle, field);
-    
+
     // SN-2014-03-21: [[ Bug 11949 ]] 'find' shouldn't throw an error on a failure
     // but MCInterfaceExecFind would cause the context to be set on error if finding fails
     ctxt . IgnoreLastError();
@@ -688,16 +688,16 @@ void MCMarking::exec_ctxt(MCExecContext &ctxt)
         else
         {
             MCAutoStringRef t_needle;
-            
+
             if (!ctxt . EvalExprAsStringRef(tofind, EE_MARK_BADSTRING, &t_needle))
                 return;
-            
+
             if (mark)
                 MCInterfaceExecMarkFind(ctxt, mode, *t_needle, field);
             else
                 MCInterfaceExecUnmarkFind(ctxt, mode, *t_needle, field);
         }
-        
+
         ctxt . IgnoreLastError();
     }
 }
@@ -706,14 +706,14 @@ MCPut::~MCPut()
 {
 	delete source;
 	delete dest;
-	
+
 	// cookie
 	delete name;
 	delete domain;
 	delete path;
 	delete expires;
 }
-		
+
 // put [ unicode | binary ] <expr>
 // put [ unicode ] ( content | markup ) <expr>
 // put [ new ] header <expr>
@@ -727,15 +727,15 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 	const LT *te;
 
 	initpoint(sp);
-	
+
 	// IM-2011-08-22: [[ SERVER ]] Add support for new put variant.
 	// Parse: put [ secure ] [ httponly ] cookie <name> [ for path ] [ on domain ] with <value> [ until expires ]
 	if (sp . skip_token(SP_SERVER, TT_SERVER, SK_SECURE) == PS_NORMAL)
 		is_secure = true;
-	
+
 	if (sp . skip_token(SP_SERVER, TT_SERVER, SK_HTTPONLY) == PS_NORMAL)
 		is_httponly = true;
-	
+
 	if (sp . skip_token(SP_SERVER, TT_PREP, PT_COOKIE) == PS_NORMAL)
 	{
 		prep = PT_COOKIE;
@@ -774,16 +774,16 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 				return PS_ERROR;
 			}
 		}
-		
+
 		return PS_NORMAL;
 	}
-	
+
 	if (is_secure || is_httponly)
 	{
 		MCperror->add(PE_PUT_BADPREP, sp);
 		return PS_ERROR;
 	}
-	
+
 	// MW-2011-06-22: [[ SERVER ]] Add support for new put variant.
 	// Parse: put new header <expr>
 	if (sp.skip_token(SP_SERVER, TT_SERVER, SK_NEW) == PS_NORMAL)
@@ -796,11 +796,11 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 				MCperror->add(PE_PUT_BADEXP, sp);
 				return PS_ERROR;
 			}
-			
+
 			return PS_NORMAL;
 		}
 		else
-			sp.backup();			
+			sp.backup();
 	}
 
 	// MW-2012-02-23: [[ UnicodePut ]] Store whether 'unicode' was present
@@ -809,7 +809,7 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 		is_unicode = true;
 
 	// MW-2011-06-22: [[ SERVER ]] Add support for new put variant.
-	// Parse: put [ unicode ] ( header | content | markup ) <expr>	
+	// Parse: put [ unicode ] ( header | content | markup ) <expr>
 	if (sp.next(type) == PS_NORMAL)
 	{
 		if (type == ST_ID && sp.lookup(SP_SERVER, te) == PS_NORMAL && te -> type == TT_PREP)
@@ -820,13 +820,13 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 				MCperror->add(PE_PUT_BADPREP, sp);
 				return PS_ERROR;
 			}
-			
+
 			if (sp . parseexp(False, True, &source) != PS_NORMAL)
 			{
 				MCperror->add(PE_PUT_BADEXP, sp);
 				return PS_ERROR;
 			}
-			
+
 			return PS_NORMAL;
 		}
 		else
@@ -838,10 +838,10 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 		MCperror->add(PE_PUT_BADEXP, sp);
 		return PS_ERROR;
 	}
-	
+
 	if (sp.next(type) != PS_NORMAL)
 		return PS_NORMAL;
-		
+
 	if (sp.lookup(SP_FACTOR, te) != PS_NORMAL || te->type != TT_PREP)
 	{
         MCperror->add(PE_PUT_BADPREP, sp);
@@ -870,11 +870,11 @@ Parse_stat MCPut::parse(MCScriptPoint &sp)
 
 void MCPut::exec_ctxt(MCExecContext& ctxt)
 {
-    
+
     MCExecValue t_value;
     if (!ctxt . EvaluateExpression(source, EE_PUT_BADEXP, t_value))
         return;
-	
+
     if (dest != nil)
     {
 //        MCAutoValueRef t_valueref;
@@ -883,10 +883,10 @@ void MCPut::exec_ctxt(MCExecContext& ctxt)
         dest -> set(ctxt, prep, t_value, is_unicode);
 	}
     else
-	{        
+	{
         if (ctxt . HasError())
             return;
-        
+
 		MCAutoValueRef t_val;
 		if (is_unicode && (prep == PT_UNDEFINED || prep == PT_CONTENT || prep == PT_MARKUP))
         {
@@ -906,29 +906,29 @@ void MCPut::exec_ctxt(MCExecContext& ctxt)
 				return;
 			}
         }
-		
+
 		// Defined for convenience
 		MCStringRef t_string = (MCStringRef)*t_val;
 		MCDataRef t_data = (MCDataRef)*t_val;
-		
+
 		if (prep == PT_COOKIE)
 		{
             MCAutoStringRef t_name;
             if (!ctxt . EvalOptionalExprAsStringRef(name, kMCEmptyString, EE_PUT_CANTSETINTO, &t_name))
                 return;
-						
+
 			uinteger_t t_expires;
             if (!ctxt . EvalOptionalExprAsUInt(expires, 0, EE_PUT_CANTSETINTO, t_expires))
                 return;
-						
-			MCAutoStringRef t_path;            
+
+			MCAutoStringRef t_path;
 			if (!ctxt . EvalOptionalExprAsStringRef(path, kMCEmptyString, EE_PUT_CANTSETINTO, &t_path))
-                return;			
-			
+                return;
+
 			MCAutoStringRef t_domain;
 			if (!ctxt . EvalOptionalExprAsStringRef(domain, kMCEmptyString, EE_PUT_CANTSETINTO, &t_domain))
                 return;
-			
+
 			MCServerExecPutCookie(ctxt, *t_name, t_string, t_expires, *t_path, *t_domain, is_secure, is_httponly);
 		}
 		else if (prep == PT_UNDEFINED)
@@ -980,7 +980,7 @@ void MCQuit::exec_ctxt(MCExecContext& ctxt)
     integer_t t_retcode;
     if (!ctxt . EvalOptionalExprAsInt(retcode, 0, EE_UNDEFINED, t_retcode))
         return;
-    
+
     MCEngineExecQuit(ctxt, t_retcode);
 }
 
@@ -1037,14 +1037,14 @@ MCReturn::~MCReturn()
 Parse_stat MCReturn::parse(MCScriptPoint &sp)
 {
 	initpoint(sp);
-    
+
     if (sp.parseexp(False, True, &source) != PS_NORMAL)
 	{
 		MCperror->add
 		(PE_RETURN_BADEXP, sp);
 		return PS_ERROR;
 	}
-    
+
     if (sp.skip_token(SP_REPEAT, TT_UNDEFINED, RF_FOR) == PS_NORMAL)
     {
         if (sp.skip_token(SP_SUGAR, TT_UNDEFINED, SG_VALUE) == PS_NORMAL)
@@ -1060,7 +1060,7 @@ Parse_stat MCReturn::parse(MCScriptPoint &sp)
             MCperror->add(PE_RETURN_BADFOR, sp);
             return PS_ERROR;
         }
-        
+
         Handler_type t_handler_type;
         t_handler_type = sp.gethandler()->gettype();
         if (t_handler_type != HT_MESSAGE &&
@@ -1080,7 +1080,7 @@ Parse_stat MCReturn::parse(MCScriptPoint &sp)
             return PS_ERROR;
         }
 	}
-        
+
 	return PS_NORMAL;
 }
 
@@ -1093,7 +1093,7 @@ void MCReturn::exec_ctxt(MCExecContext &ctxt)
 
     if (!ctxt . EvalExprAsValueRef(source, EE_RETURN_BADEXP, &t_result))
         return;
-	
+
     if (kind == kReturn)
     {
         MCEngineExecReturn(ctxt, *t_result);
@@ -1111,7 +1111,7 @@ void MCReturn::exec_ctxt(MCExecContext &ctxt)
         MCAutoValueRef t_extra_result;
         if (!ctxt . EvalExprAsValueRef(extra_source, EE_RETURN_BADEXP, &t_extra_result))
             return;
-        
+
         MCNetworkExecReturnValueAndUrlResult(ctxt, *t_result, *t_extra_result);
     }
 
@@ -1167,7 +1167,7 @@ void MCSet::exec_ctxt(MCExecContext& ctxt)
     MCAutoValueRef t_value;
     if (!ctxt . EvalExprAsValueRef(value, EE_SET_BADEXP, &t_value))
         return;
-    
+
     ctxt . SetTheResultToEmpty();
     MCEngineExecSet(ctxt, target, *t_value);
 }
@@ -1414,7 +1414,7 @@ void MCWait::exec_ctxt(MCExecContext& ctxt)
                 double t_delay;
                 if (!ctxt . EvalExprAsDouble(duration, EE_WAIT_BADEXP, t_delay))
                     return;
-                
+
                 MCEngineExecWaitFor(ctxt, t_delay, units, messages == True);
                 break;
             }
@@ -1438,23 +1438,26 @@ MCInclude::~MCInclude(void)
 Parse_stat MCInclude::parse(MCScriptPoint& sp)
 {
 	initpoint(sp);
-	
+
 	if (sp . parseexp(False, True, &filename) != PS_NORMAL)
 	{
 		MCperror -> add(PE_INCLUDE_BADFILENAME, sp);
 		return PS_ERROR;
 	}
-	
+
 	return PS_NORMAL;
 }
 
 void MCInclude::exec_ctxt(MCExecContext& ctxt)
-{	
+{
     MCAutoStringRef t_filename;
     if (!ctxt . EvalExprAsStringRef(filename, EE_INCLUDE_BADFILENAME, &t_filename))
         return;
-    
+
+#ifdef _SERVER
     MCServerExecInclude(ctxt, *t_filename, is_require);
+#else
+#endif
 }
 
 MCEcho::~MCEcho(void)
@@ -1486,31 +1489,31 @@ Parse_stat MCResolveImage::parse(MCScriptPoint &p_sp)
 {
     Parse_stat t_stat;
     t_stat = PS_NORMAL;
-    
+
     if (t_stat == PS_NORMAL)
         t_stat =  p_sp.skip_token(SP_FACTOR, TT_CHUNK, CT_IMAGE);
-	
+
 	// Parse the optional 'id' token
     m_is_id = (PS_NORMAL == p_sp . skip_token(SP_FACTOR, TT_PROPERTY, P_ID));
-    
+
     // Parse the id_or_name expression
     if (t_stat == PS_NORMAL)
         t_stat = p_sp . parseexp(False, True, &m_id_or_name);
-    
+
     if (t_stat != PS_NORMAL)
     {
         MCperror->add
         (PE_RESOLVE_BADIMAGE, p_sp);
         return PS_ERROR;
     }
-    
+
     // Parse the 'relative to' tokens
     if (t_stat == PS_NORMAL)
         t_stat = p_sp . skip_token(SP_FACTOR, TT_TO, PT_RELATIVE);
-    
+
     if (t_stat == PS_NORMAL)
         t_stat = p_sp . skip_token(SP_FACTOR, TT_TO, PT_TO);
-    
+
     // Parse the target object clause
     if (t_stat == PS_NORMAL)
     {
@@ -1528,7 +1531,7 @@ Parse_stat MCResolveImage::parse(MCScriptPoint &p_sp)
 
 void MCResolveImage::exec_ctxt(MCExecContext &ctxt)
 {
-    
+
     uint4 t_part_id;
     MCObject *t_relative_object;
 
@@ -1576,7 +1579,7 @@ MCAssertCmd::~MCAssertCmd(void)
 Parse_stat MCAssertCmd::parse(MCScriptPoint& sp)
 {
 	initpoint(sp);
-	
+
 	// See if there is a type token
 	MCScriptPoint temp_sp(sp);
 	if (sp . skip_token(SP_SUGAR, TT_UNDEFINED, SG_TRUE) == PS_NORMAL)
@@ -1589,7 +1592,7 @@ Parse_stat MCAssertCmd::parse(MCScriptPoint& sp)
 		m_type = ASSERT_TYPE_FAILURE;
 	else
 		m_type = ASSERT_TYPE_NONE;
-	
+
 	// Now try to parse an expression
 	if (sp.parseexp(False, True, &m_expr) == PS_NORMAL)
 		return PS_NORMAL;
@@ -1601,7 +1604,7 @@ Parse_stat MCAssertCmd::parse(MCScriptPoint& sp)
 		MCperror -> clear();
 		sp = temp_sp;
 	}
-	
+
 	// Parse the expression again (if not NONE, otherwise we already have
 	// a badexpr error to report).
 	if (m_type == ASSERT_TYPE_NONE ||
@@ -1610,21 +1613,21 @@ Parse_stat MCAssertCmd::parse(MCScriptPoint& sp)
 		MCperror -> add(PE_ASSERT_BADEXPR, sp);
 		return PS_ERROR;
 	}
-	
+
 	// We must be of type none.
 	m_type = ASSERT_TYPE_NONE;
-	
+
 	return PS_NORMAL;
 }
 
 void MCAssertCmd::exec_ctxt(MCExecContext& ctxt)
 {
-    
+
 	bool t_success, t_result;
     t_success = ctxt . EvalExprAsNonStrictBool(m_expr, EE_UNDEFINED, t_result);
-    
+
     if (!t_success)
         ctxt . IgnoreLastError();
-    
+
     MCDebuggingExecAssert(ctxt, m_type, t_success, t_result);
 }

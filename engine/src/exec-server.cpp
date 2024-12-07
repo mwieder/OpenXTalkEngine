@@ -24,9 +24,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "globals.h"
 #include "exec.h"
 
-#ifdef _SERVER
+//#ifdef _SERVER
 #include "srvscript.h"
-#endif
+//#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +131,7 @@ void MCServerExecStopSession(MCExecContext& ctxt)
 
 void MCServerExecInclude(MCExecContext& ctxt, MCStringRef p_filename, bool p_is_require)
 {
-#ifdef _SERVER
+//#ifdef _SERVER
 	MCServerScript *t_script;
 	t_script = static_cast<MCServerScript *>(ctxt . GetObject());
 
@@ -140,15 +140,15 @@ void MCServerExecInclude(MCExecContext& ctxt, MCStringRef p_filename, bool p_is_
 		ctxt . LegacyThrow(EE_INCLUDE_TOOMANY);
 		return;
 	}
-	
+
 	if (!t_script -> Include(ctxt, p_filename, p_is_require))
 	{
 		ctxt . LegacyThrow(EE_SCRIPT_ERRORPOS);
 		return;
 	}
-#else
-	ctxt . LegacyThrow(p_is_require ? EE_REQUIRE_BADCONTEXT : EE_INCLUDE_BADCONTEXT);
-#endif
+//#else
+//	ctxt . LegacyThrow(p_is_require ? EE_REQUIRE_BADCONTEXT : EE_INCLUDE_BADCONTEXT);
+//#endif
 }
 
 void MCServerExecEcho(MCExecContext& ctxt, MCStringRef p_data)

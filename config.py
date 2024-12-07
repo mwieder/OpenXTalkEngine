@@ -26,10 +26,13 @@ import shutil
 BUILDBOT_PLATFORM_TRIPLES = (
     'x86-linux-debian8',
     'x86_64-linux-debian8',
+    'armv7l-linux-debian8',
+
     'armv7-android-ndk16r15',
     'arm64-android-ndk16r15',
     'x86-android-ndk16r15',
     'x86_64-android-ndk16r15',
+
     'universal-mac-macosx10.9', # Minimum deployment target
     'universal-ios-iphoneos14.5',
     'universal-ios-iphoneos14.4',
@@ -41,16 +44,18 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'universal-ios-iphonesimulator13.2',
     'universal-ios-iphonesimulator12.1',
     'universal-ios-iphonesimulator11.2',
+
     'x86-win32', # TODO[2017-03-23] More specific ABI
     'x86_64-win32',
+
     'js-emscripten-sdk1.35',
 )
 
 KNOWN_PLATFORMS = (
-    'linux-x86', 'linux-x86_64', 'linux-armv6hf', 'linux-armv7',
+    'linux-x86', 'linux-x86_64', 'linux-armv6hf', 'linux-armv7', 'linux-armv7l',
     'android-armv6', 'android-armv7', 'android-arm64', 'android-x86', 'android-x86_64',
-    'mac', 'ios', 
-    'win-x86', 'win-x86_64', 
+    'mac', 'ios',
+    'win-x86', 'win-x86_64',
     'emscripten'
 )
 
@@ -274,6 +279,8 @@ def validate_os(opts):
 def host_platform(opts):
     opts['HOST_PLATFORM'] = guess_platform()
 
+# TODO : need to deal with M1, M2, etc chips
+# uname -p will give the processor type
 def guess_xcode_arch(target_sdk):
     sdk, ver = re.match('^([^\d]*)(\d*)', target_sdk).groups()
     if sdk == 'macosx':
@@ -488,7 +495,7 @@ def validate_windows_tools(opts):
         opts['QUICKTIME_SDK'] = guess_quicktime_sdk()
 
     if opts['WIN_MSVS_VERSION'] is None:
-        # TODO [2017-04-11]: This should be 2017, but it is not 
+        # TODO [2017-04-11]: This should be 2017, but it is not
         # compatible with our gyp as is.
         opts['WIN_MSVS_VERSION'] = '2015'
 
@@ -620,7 +627,7 @@ def validate_android_tools(opts):
 
     if opts['ANDROID_API_VERSION'] is None:
         opts['ANDROID_API_VERSION'] = '29'
-     
+
     api_ver = opts['ANDROID_API_VERSION']
 
     if opts['ANDROID_PLATFORM'] is None:
@@ -662,7 +669,7 @@ def validate_android_tools(opts):
         dir =guess_standalone_toolchain_dir_name(opts['TARGET_ARCH'])
         if dir is None:
             error('Android standalone toolchain not found for architecture {}'.format(opts['TARGET_ARCH']))
-        
+
         opts['ANDROID_LIB_PATH'] = os.path.join(dir,triple,'lib')
 
     # All Android builds use Clang and make a lot of noise about unused
@@ -715,10 +722,10 @@ def core_gyp_args(opts):
 
     if opts['BUILD_EDITION'] == 'commercial':
         args.append(os.path.join('..', 'livecode-commercial.gyp'))
-        
+
     if opts['CROSS'] is not None:
         args.append('-Dcross_compile=1')
-        
+
     args.append('-Dbuild_edition=' + opts['BUILD_EDITION'])
 
     args.append('-Duniform_arch=' + opts['UNIFORM_ARCH'])
@@ -743,13 +750,16 @@ def configure_linux(opts):
     host_platform(opts)
     validate_target_arch(opts)
     validate_java_tools(opts)
-    
+
     configure_toolchain(opts)
     export_opts(opts, ('CC', 'CXX', 'AR', 'LINK', 'OBJCOPY', 'OBJDUMP', 'STRIP', 'LD'))
-    
+
     args = core_gyp_args(opts) + ['-Dtarget_arch=' + opts['TARGET_ARCH'],
                                   '-Djavahome=' + opts['JAVA_SDK']]
     exec_gyp(args + opts['GYP_OPTIONS'])
+
+def configure_rpi(opts):
+	configure_linux(opts)
 
 def configure_emscripten(opts):
     host_platform(opts)

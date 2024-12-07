@@ -18,19 +18,19 @@
 # Makefiles
 
 ifeq ($(V),)
-_PRINT_RULE ?= > /dev/null
+	_PRINT_RULE ?= > /dev/null
 else
-_PRINT_RULE ?=
+	_PRINT_RULE ?=
 endif
 
 ifeq ($(MODE),debug)
-  export BUILDTYPE ?= Debug
+	export BUILDTYPE ?= Debug
 else ifeq ($(MODE),release)
-  export BUILDTYPE ?= Release
+	export BUILDTYPE ?= Release
 else ifeq ($(MODE),fast)
-  export BUILDTYPE ?= Fast
+	export BUILDTYPE ?= Fast
 else
-  $(error "Mode must be 'Debug' or 'Release' or 'Fast'")
+	$(error "Mode must be 'Debug' or 'Release' or 'Fast'")
 endif
 
 ################################################################
@@ -39,6 +39,7 @@ endif
 
 top_srcdir ?= .
 
+# guess 32-bit or 64-bit processor: default to 32-bit
 guess_linux_arch_script := \
 	case `uname -p` in \
 	    x86_64) echo x86_64 ;; \
@@ -46,10 +47,12 @@ guess_linux_arch_script := \
 	    unknown) case `uname -m` in \
 	        x86_64) echo x86_64 ;; \
             x86|i*86) echo x86 ;; \
+			arm*) echo armv6hf ;; \
 	    esac ;; \
 	esac
 guess_linux_arch := $(shell $(guess_linux_arch_script))
 
+# Linux or Darwin ?
 guess_platform_script := \
 	case `uname -s` in \
 	    Linux) echo linux-$(guess_linux_arch) ;; \
@@ -57,6 +60,7 @@ guess_platform_script := \
 	esac
 guess_platform := $(shell $(guess_platform_script))
 
+# -ui flag ?
 guess_engine_flags_script := \
 	if echo $(guess_platform) | grep "^linux" >/dev/null 2>&1 && \
 	        ! xset -q >/dev/null 2>&1 ; then \
