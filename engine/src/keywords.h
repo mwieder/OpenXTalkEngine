@@ -26,19 +26,6 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 class MCScriptPoint;
 class MCExpression;
 
-class MCGlobal : public MCStatement
-{
-public:
-	virtual Parse_stat parse(MCScriptPoint &);
-    virtual void exec_ctxt(MCExecContext &ctxt)
-    {
-	}
-	virtual uint4 linecount()
-	{
-		return 0;
-	}
-};
-
 class MCLocaltoken : public MCStatement
 {
 protected:
@@ -54,6 +41,16 @@ public:
 	}
 };
 
+class MCGlobal : public MCLocaltoken
+{
+public:
+	virtual Parse_stat parse(MCScriptPoint &sp);
+	MCGlobal()
+	{
+//		constant = True;
+	}
+};
+
 class MCLocalVariable : public MCLocaltoken
 {
 public:
@@ -65,8 +62,24 @@ public:
 
 class MCLocalConstant : public MCLocaltoken
 {
+	MCValueRef *value;
+	MCVarref **dest;
+	bool is_unicode : 1;
 public:
+    virtual void exec_ctxt(MCExecContext &ctxt);
 	MCLocalConstant()
+	{
+		value = NULL;
+		dest = NULL;
+		constant = True;
+	}
+};
+
+class MCGlobalConstant : public MCGlobal
+{
+public:
+    virtual void exec_ctxt(MCExecContext &ctxt);
+	MCGlobalConstant()
 	{
 		constant = True;
 	}
@@ -218,9 +231,9 @@ class MCHandref
 public:
     MCHandref(MCNameRef name);
     ~MCHandref(void);
-    
+
     MCParameter** getparams(void) { return &params; }
-    
+
     void parse(void);
     void exec(MCExecContext& ctxt, uint2 line, uint2 pos, bool is_function);
 };

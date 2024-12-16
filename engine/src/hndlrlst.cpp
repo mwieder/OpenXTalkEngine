@@ -375,7 +375,7 @@ bool MCHandlerlist::getconstantnames(MCListRef& r_list)
     for (uinteger_t i = 0 ; i < nconstants ; i++)
         if (!MCListAppend(*t_list, cinfo[i].name))
             return false;
-    
+
     return MCListCopy(*t_list, r_list);
 }
 
@@ -406,11 +406,27 @@ void MCHandlerlist::newglobal(MCNameRef p_name)
 	for(unsigned int i = 0; i < nglobals; ++i)
 		if (globals[i] -> hasname(p_name))
 			return;
-	
+
 	// Ensure a global exists with the given name
 	MCVariable *gptr;
 	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
-	
+
+	// Add the global to the list
+	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+	globals[nglobals++] = gptr;
+}
+
+void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef value)
+{
+	// Check to see if the global is already listed
+	for(unsigned int i = 0; i < nglobals; ++i)
+		if (globals[i] -> hasname(p_name))
+			return;
+
+	// Ensure a global exists with the given name
+	MCVariable *gptr;
+	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+
 	// Add the global to the list
 	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
 	globals[nglobals++] = gptr;
@@ -445,7 +461,7 @@ Parse_stat MCHandlerlist::parse(MCObject *objptr, MCDataRef script_utf8)
 		s_old_variable_count = nvars;
 		for(uint32_t i = 0; vars != NULL; vars = vars -> getnext(), i++)
 			s_old_variables[i] = vars;
-		
+
 		// MW-2008-10-28: [[ ParentScripts ]] Allocate an array for the var remapping
 		//   but only if this object is used as a parentscript.
 		if (t_is_parent_script)
@@ -522,6 +538,7 @@ Parse_stat MCHandlerlist::parse(MCObject *objptr, MCDataRef script_utf8)
 					sp.sethandler(NULL);
 					switch (te->which)
 					{
+// TODO: Maybe have separate error messages for the different types
 					case S_GLOBAL:
 						{
 							MCGlobal *gptr = new (nothrow) MCGlobal;
@@ -674,15 +691,15 @@ static bool enumerate_handlers(MCExecContext& ctxt, bool p_include_private, cons
 	{
 		MCHandler *t_handler;
 		t_handler = p_handlers . get()[j];
-        
+
         if (t_handler->isprivate() && !p_include_private)
         {
             continue;
         }
-        
+
 		MCStringRef t_string;
         const char *t_format;
-        
+
         // OK-2008-07-23 : Add the object long id to the first handler from each object. This will
 		// allow the script editor to look up handlers faster.
 		if (p_first && p_object != nil)
@@ -692,7 +709,7 @@ static bool enumerate_handlers(MCExecContext& ctxt, bool p_include_private, cons
         }
         else
             t_format = "%s%s %@ %d %d";
-        
+
         /* UNCHECKED */ MCStringFormat(t_string,
                                        t_format,
                                        t_handler->isprivate() ? "P" : "",
@@ -701,11 +718,11 @@ static bool enumerate_handlers(MCExecContext& ctxt, bool p_include_private, cons
                                        t_handler->getstartline(),
                                        t_handler->getendline(),
                                        *t_long_id);
-		
+
 		t_handlers . Push(t_string);
 		p_first = false;
 	}
-	
+
     t_handlers . Take(r_handlers, r_count);
 	return p_first;
 }
@@ -715,22 +732,22 @@ bool MCHandlerlist::enumerate(MCExecContext& ctxt, bool p_include_private, bool 
 	// OK-2008-07-23 : Added parent object reference for script editor.
 	MCObject *t_object;
 	t_object = getparent();
-    
+
     MCAutoArray<MCStringRef> t_handlers;
-    
+
     for (uindex_t i = 0; i < 6; i++)
     {
         MCStringRef *t_handler_array;
         t_handler_array = nil;
         uindex_t t_count;
-        
+
         p_first = enumerate_handlers(ctxt, p_include_private, s_handler_types[i], handlers[i], t_count, t_handler_array, p_first, t_object);
         for (uindex_t j = 0; j < t_count; j++)
             t_handlers . Push(t_handler_array[j]);
-        
+
         MCMemoryDeleteArray(t_handler_array);
     }
-    
+
     t_handlers . Take(r_handlers, r_count);
 	return p_first;
 }
@@ -745,13 +762,13 @@ bool MCHandlerlist::listconstants(MCHandlerlistListConstantsCallback p_callback,
 			return false;
 		}
 	}
-	
+
 	return true;
 }
 
 bool MCHandlerlist::listvariables(MCHandlerlistListVariablesCallback p_callback, void *p_context)
 {
-    
+
     for (MCVariable *t_var = vars; t_var != nil; t_var = t_var->getnext())
     {
         if (!p_callback(p_context,
@@ -760,13 +777,13 @@ bool MCHandlerlist::listvariables(MCHandlerlistListVariablesCallback p_callback,
             return false;
         }
     }
-    
+
     return true;
 }
 
 bool MCHandlerlist::listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context)
 {
-    
+
     for (uinteger_t i = 0 ; i < nglobals ; i++)
     {
         if (!p_callback(p_context,
@@ -775,7 +792,7 @@ bool MCHandlerlist::listglobals(MCHandlerlistListVariablesCallback p_callback, v
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -785,7 +802,7 @@ bool MCHandlerlist::listhandlers(MCHandlerlistListHandlersCallback p_callback, v
 	for(int t_htype = HT_MIN; t_htype < HT_MAX; t_htype++)
 	{
         int t_htype_index = static_cast<int>(t_htype - HT_MIN);
-        
+
 		for(uint2 i = 0; i < handlers[t_htype_index].count(); i++)
 		{
 			if (!p_callback(p_context,
@@ -797,7 +814,7 @@ bool MCHandlerlist::listhandlers(MCHandlerlistListHandlersCallback p_callback, v
 			}
 		}
 	}
-	
+
 	return true;
 }
 

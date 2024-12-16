@@ -141,14 +141,15 @@ void MCServerExecInclude(MCExecContext& ctxt, MCStringRef p_filename, bool p_is_
 		return;
 	}
 
+#ifdef _SERVER
 	if (!t_script -> Include(ctxt, p_filename, p_is_require))
 	{
 		ctxt . LegacyThrow(EE_SCRIPT_ERRORPOS);
 		return;
 	}
-//#else
-//	ctxt . LegacyThrow(p_is_require ? EE_REQUIRE_BADCONTEXT : EE_INCLUDE_BADCONTEXT);
-//#endif
+#else
+	ctxt . LegacyThrow(p_is_require ? EE_REQUIRE_BADCONTEXT : EE_INCLUDE_BADCONTEXT);
+#endif
 }
 
 void MCServerExecEcho(MCExecContext& ctxt, MCStringRef p_data)

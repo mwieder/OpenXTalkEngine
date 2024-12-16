@@ -42,15 +42,17 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// return false is can't create a new variable
+// else return true after assigning variable
 bool MCVariable::create(MCVariable*& r_var)
 {
 	MCVariable *self;
 	self = new (nothrow) MCVariable;
-	if (self == nil)
+	if (nil == self)
 		return false;
 
 	r_var = self;
-	
+
 	return true;
 }
 
@@ -152,7 +154,7 @@ bool MCVariable::encode(void *&r_buffer, uindex_t& r_size)
     }
     else
         MCS_close(t_stream);
-    
+
     return t_stat == IO_NORMAL;
 }
 
@@ -198,7 +200,7 @@ bool MCVariable::decode(void *p_buffer, uindex_t p_size)
             MCAutoArrayRef t_array;
 			if (!MCArrayCreateMutable(&t_array))
 				t_stat = IO_ERROR;
-				
+
 			if (t_stat == IO_NORMAL)
             	t_stat = MCArrayLoadFromHandleLegacy(*t_array, t_stream);
 
@@ -229,15 +231,15 @@ bool MCVariable::isuql(void) const
 }
 
 void MCVariable::clearuql(void)
-{    
+{
 	if (!is_uql)
 		return;
-    
+
     // SN-2014-04-09 [[ Bug 12160 ]] Put after/before on an uninitialised, by-reference parameter inserts the variable's name in it
     // The content of a UQL value was not cleared when needed
     if (value . type == kMCExecValueTypeNameRef && MCNameIsEqualToCaseless(value . nameref_value, *name))
         clear();
-    
+
 	is_uql = false;
 }
 
@@ -312,7 +314,7 @@ bool MCVariable::setvalueref(MCSpan<MCNameRef> p_path, bool p_case_sensitive, MC
 		MCValueRef t_new_value;
 		if (!MCValueCopy(p_value, t_new_value))
 			return false;
-        
+
 		MCExecTypeRelease(value);
 		MCExecTypeSetValueRef(value, t_new_value);
 		return true;
@@ -342,7 +344,7 @@ MCValueRef MCVariable::getvalueref(void)
             // SN-2014-07-28: [[ Bug 12937 ]] The value stored is now a valueRef
             value . type = kMCExecValueTypeValueRef;
         }
-        
+
         return value . valueref_value;
     }
 	return *name;
@@ -402,7 +404,7 @@ bool MCVariable::eval_ctxt(MCExecContext& ctxt, MCSpan<MCNameRef> p_path, MCExec
 {
     if (p_path.empty())
         return eval_ctxt(ctxt, r_value);
-    
+
     if (copyasvalueref(p_path, ctxt . GetCaseSensitive(), r_value . valueref_value))
     {
         r_value . type = kMCExecValueTypeValueRef;
@@ -420,13 +422,13 @@ bool MCVariable::set(MCExecContext& ctxt, MCValueRef p_value, MCSpan<MCNameRef> 
 {
     if (p_setting != kMCVariableSetInto)
         return modify(ctxt, p_value, p_path, p_setting);
-    
+
     if (setvalueref(p_path, ctxt . GetCaseSensitive(), p_value))
     {
         synchronize(ctxt, true);
         return true;
     }
-    
+
     return false;
 }
 
@@ -434,7 +436,7 @@ bool MCVariable::give_value(MCExecContext& ctxt, MCExecValue p_value, MCVariable
 {
     if (p_setting != kMCVariableSetInto)
         return modify_ctxt(ctxt, p_value, p_setting);
-    
+
     if (MCExecTypeIsValueRef(p_value . type))
     {
         setvalueref(p_value . valueref_value);
@@ -445,7 +447,7 @@ bool MCVariable::give_value(MCExecContext& ctxt, MCExecValue p_value, MCVariable
         MCExecTypeRelease(value);
         value = p_value;
     }
-    
+
     // SN-2014-09-18 [[ Bug 13453 ]] give_value should notify the debugger about it
     synchronize(ctxt, true);
     return true;
@@ -455,19 +457,19 @@ bool MCVariable::give_value(MCExecContext& ctxt, MCExecValue p_value, MCSpan<MCN
 {
     if (p_setting != kMCVariableSetInto)
         return modify_ctxt(ctxt, p_value, p_path, p_setting);
-    
+
     if (p_path.empty())
         return give_value(ctxt, p_value, p_setting);
-    
+
     MCAutoValueRef t_value;
     MCExecTypeConvertAndReleaseAlways(ctxt, p_value . type, &p_value, kMCExecValueTypeValueRef, &(&t_value));
-    
+
     if (!ctxt . HasError() && setvalueref(p_path, ctxt . GetCaseSensitive(), *t_value))
     {
         synchronize(ctxt, true);
         return true;
     }
-    
+
     return false;
 }
 
@@ -475,30 +477,30 @@ bool MCVariable::can_become_data(MCExecContext& ctxt, MCSpan<MCNameRef> p_path)
 {
     MCValueRef t_current_value;
     t_current_value = nil;
- 
+
     if (p_path.empty())
     {
         // If we are already data, then we can stay data
         if (value . type == kMCExecValueTypeDataRef)
             return true;
-        
+
         // If we are anything other than a value, we can always convert to data safely
         if (!MCExecTypeIsValueRef(value . type))
             return true;
-        
+
         // Otherwise, check the value ref
         t_current_value = value . valueref_value;
     }
     else
         t_current_value = getvalueref(p_path, ctxt . GetCaseSensitive());
-    
+
     // The only values that cannot convert losslessly to data are strings or names that contain non-native characters
     if (MCValueGetTypeCode(t_current_value) == kMCValueTypeCodeString)
         return MCStringIsNative((MCStringRef)t_current_value);
-    
+
     if (MCValueGetTypeCode(t_current_value) == kMCValueTypeCodeName)
         return MCStringIsNative(MCNameGetString((MCNameRef)t_current_value));
-    
+
     return true;
 }
 
@@ -508,27 +510,27 @@ bool MCVariable::modify(MCExecContext& ctxt, MCValueRef p_value, MCVariableSetti
 }
 
 bool MCVariable::modify_data(MCExecContext& ctxt, MCDataRef p_data, MCSpan<MCNameRef> p_path, MCVariableSettingStyle p_setting)
-{    
+{
 	if (p_path.empty())
 	{
         if (!converttomutabledata(ctxt))
             return false;
-        
+
         bool t_success = false;
         // SN-2014-04-11 [[ FasterVariable ]] now chose between appending or prepending
         if (p_setting == kMCVariableSetAfter)
             t_success = MCDataAppend(value . dataref_value, p_data);
         else if (p_setting == kMCVariableSetBefore)
             t_success = MCDataPrepend(value . dataref_value, p_data);
-        
+
         if (!t_success)
 			return false;
-        
+
         synchronize(ctxt, true);
-        
+
 		return true;
 	}
-    
+
 	MCValueRef t_current_value;
 	t_current_value = getvalueref(p_path, ctxt . GetCaseSensitive());
 
@@ -545,7 +547,7 @@ bool MCVariable::modify_data(MCExecContext& ctxt, MCDataRef p_data, MCSpan<MCNam
         synchronize(ctxt, true);
 		return true;
 	}
-    
+
 	MCValueRelease(t_value_as_data);
 	return false;
 }
@@ -556,7 +558,7 @@ bool MCVariable::modify_string(MCExecContext& ctxt, MCStringRef p_value, MCSpan<
     {
         if (!converttomutablestring(ctxt))
             return false;
-        
+
         bool t_success = false;
         // SN-2014-04-11 [[ FasterVariable ]] now chose between appending or prepending
         // The value is now a stringref
@@ -564,18 +566,18 @@ bool MCVariable::modify_string(MCExecContext& ctxt, MCStringRef p_value, MCSpan<
             t_success = MCStringAppend(value . stringref_value, p_value);
         else if (p_setting == kMCVariableSetBefore)
             t_success = MCStringPrepend(value . stringref_value, p_value);
-        
+
         if (!t_success)
             return false;
-        
+
         synchronize(ctxt, true);
-        
+
         return true;
     }
-    
+
     MCValueRef t_current_value;
     t_current_value = getvalueref(p_path, ctxt . GetCaseSensitive());
-    
+
     MCStringRef t_current_value_as_string;
     t_current_value_as_string = nil;
     // SN-2014-04-11 [[ FasterVariable ]] now chose between appending or prepending
@@ -589,7 +591,7 @@ bool MCVariable::modify_string(MCExecContext& ctxt, MCStringRef p_value, MCSpan<
         synchronize(ctxt, true);
         return true;
     }
-    
+
     MCValueRelease(t_current_value_as_string);
     return false;
 }
@@ -602,7 +604,7 @@ bool MCVariable::modify(MCExecContext& ctxt, MCValueRef p_value, MCSpan<MCNameRe
     MCAutoStringRef t_value;
     if (!ctxt . ConvertToString(p_value, &t_value))
         return false;
-    
+
     return modify_string(ctxt, *t_value, p_path, p_setting);
 }
 
@@ -624,13 +626,13 @@ bool MCVariable::modify_ctxt(MCExecContext& ctxt, MCExecValue p_value, MCSpan<MC
             return modify_data(ctxt, *t_value, p_path, p_setting);
         }
     }
-    
+
     MCAutoStringRef t_value;
     MCExecTypeConvertAndReleaseAlways(ctxt, p_value . type, &p_value, kMCExecValueTypeStringRef, &(&t_value));
-    
+
     if (ctxt . HasError())
         return ctxt . IgnoreLastError(), false;
-    
+
     return modify_string(ctxt, *t_value, p_path, p_setting);
 }
 
@@ -645,21 +647,21 @@ bool MCVariable::replace_data(MCExecContext& ctxt, MCDataRef p_replacement, MCRa
     {
         if (!converttomutabledata(ctxt))
             return false;
-            
+
         // We are now sure to have a dataref in our ExecValue
         MCDataReplace(value . dataref_value, p_range, (MCDataRef)p_replacement);
-        
+
         synchronize(ctxt, true);
-        
+
         return true;
     }
-    
+
     MCValueRef t_current_value;
     t_current_value = getvalueref(p_path, ctxt . GetCaseSensitive());
-    
+
     MCDataRef t_current_value_as_data;
     t_current_value_as_data = nil;
-        
+
     if (ctxt . ConvertToData(t_current_value, t_current_value_as_data) &&
         MCDataMutableCopyAndRelease(t_current_value_as_data, t_current_value_as_data) &&
         MCDataReplace(t_current_value_as_data, p_range, (MCDataRef)p_replacement) &&
@@ -669,7 +671,7 @@ bool MCVariable::replace_data(MCExecContext& ctxt, MCDataRef p_replacement, MCRa
         synchronize(ctxt, true);
         return true;
     }
-        
+
     MCValueRelease(t_current_value_as_data);
     return false;
 }
@@ -680,18 +682,18 @@ bool MCVariable::replace_string(MCExecContext& ctxt, MCStringRef p_replacement, 
     {
         if (!converttomutablestring(ctxt))
             return false;
-        
+
         // We are now sure to have a stringref in our ExecValue
         MCStringReplace(value . stringref_value, p_range, p_replacement);
-        
+
         synchronize(ctxt, true);
-        
+
         return true;
     }
-    
+
     MCValueRef t_current_value;
     t_current_value = getvalueref(p_path, ctxt . GetCaseSensitive());
-    
+
     MCStringRef t_current_value_as_string;
     t_current_value_as_string = nil;
     // SN-2014-04-11 [[ FasterVariable ]] now chose between appending or prepending
@@ -704,7 +706,7 @@ bool MCVariable::replace_string(MCExecContext& ctxt, MCStringRef p_replacement, 
         synchronize(ctxt, true);
         return true;
     }
-    
+
     MCValueRelease(t_current_value_as_string);
     return false;
 }
@@ -713,11 +715,11 @@ bool MCVariable::replace(MCExecContext& ctxt, MCValueRef p_replacement, MCRange 
 {
     if (MCValueGetTypeCode(p_replacement) == kMCValueTypeCodeData && can_become_data(ctxt, p_path))
         return replace_data(ctxt, (MCDataRef)p_replacement, p_range, p_path);
-    
+
     MCAutoStringRef t_replacement;
     if (!ctxt . ConvertToString(p_replacement, &t_replacement))
         return false;
-    
+
     return replace_string(ctxt, *t_replacement, p_range, p_path);
 }
 
@@ -725,7 +727,7 @@ bool MCVariable::deleterange(MCExecContext& ctxt, MCRange p_range)
 {
     if (value . type == kMCExecValueTypeDataRef)
         return replace_data(ctxt, kMCEmptyData, p_range, {});
-    
+
     return replace_string(ctxt, kMCEmptyString, p_range, {});
 }
 
@@ -733,7 +735,7 @@ bool MCVariable::deleterange(MCExecContext& ctxt, MCRange p_range, MCSpan<MCName
 {
     if (MCValueGetTypeCode(getvalueref(p_path, ctxt . GetCaseSensitive())) == kMCValueTypeCodeData)
         return replace_data(ctxt, kMCEmptyData, p_range, p_path);
-    
+
     return replace_string(ctxt, kMCEmptyString, p_range, p_path);
 }
 
@@ -747,7 +749,7 @@ bool MCVariable::remove(MCExecContext& ctxt, MCSpan<MCNameRef> p_path)
 	if (p_path.empty())
 	{
 		clear();
-		
+
 		if (is_env)
 		{
             MCStringRef t_name_string = MCNameGetString(*name);
@@ -759,17 +761,17 @@ bool MCVariable::remove(MCExecContext& ctxt, MCSpan<MCNameRef> p_path)
 			}
 		}
 	}
-    
+
 	if (value . type != kMCExecValueTypeArrayRef)
 		return true;
-    
+
 	if (!converttomutablearray())
 		return false;
-    
+
 	MCArrayRemoveValueOnPath(value . arrayref_value, ctxt . GetCaseSensitive(), p_path);
-    
+
 	return true;
-    
+
 }
 
 
@@ -807,13 +809,13 @@ bool MCVariable::converttomutablestring(MCExecContext& ctxt)
 	if (value . type != kMCExecValueTypeStringRef)
 	{
 		MCStringRef t_string = nil;
-        
+
         // If we have nothing stored, we don't try to convert - but we may need to release kMCNull in case it has been stored
         if (value . type != kMCExecValueTypeNone)
             MCExecTypeConvertAndReleaseAlways(ctxt, value . type, &value, kMCExecValueTypeStringRef, &t_string);
         else
             MCExecTypeRelease(value);
-        
+
         if (t_string == nil || ctxt . HasError())
         {
             MCStringRef t_mutable_string;
@@ -824,7 +826,7 @@ bool MCVariable::converttomutablestring(MCExecContext& ctxt)
                 MCExecTypeSetValueRef(value, t_mutable_string);
                 return true;
             }
-            
+
             return false;
         }
         else
@@ -832,7 +834,7 @@ bool MCVariable::converttomutablestring(MCExecContext& ctxt)
             MCExecTypeSetValueRef(value, t_string);
         }
 	}
-    
+
     if (!MCStringIsMutable(value . stringref_value))
     {
         MCStringRef t_mutable_string;
@@ -851,13 +853,13 @@ bool MCVariable::converttomutabledata(MCExecContext& ctxt)
 	if (value . type != kMCExecValueTypeDataRef)
 	{
 		MCAutoStringRef t_string;
-        
+
         // If we have nothing stored, we don't try to convert - but we may need to release kMCNull in case it has been stored
         if (value . type != kMCExecValueTypeNone)
             MCExecTypeConvertAndReleaseAlways(ctxt, value . type, &value, kMCExecValueTypeStringRef, &(&t_string));
         else
             MCExecTypeRelease(value);
-        
+
         if (*t_string == nil || ctxt . HasError())
         {
             MCDataRef t_mutable_data;
@@ -868,7 +870,7 @@ bool MCVariable::converttomutabledata(MCExecContext& ctxt)
                 MCExecTypeSetValueRef(value, t_mutable_data);
                 return true;
             }
-            
+
             return false;
         }
         else
@@ -876,11 +878,11 @@ bool MCVariable::converttomutabledata(MCExecContext& ctxt)
             MCDataRef t_data;
             if (!ctxt . ConvertToData(*t_string, t_data))
                 return false;
-            
+
             MCExecTypeSetValueRef(value, t_data);
         }
 	}
-    
+
     if (!MCDataIsMutable(value . dataref_value))
     {
         MCDataRef t_mutable_data;
@@ -905,7 +907,7 @@ MCVariable *MCVariable::lookupglobal_cstring(const char *p_name)
 	// name 'p_name'.
 	MCNameRef t_name;
 	t_name = MCNameLookupCaseless(*t_string);
-	if (t_name == nil)
+	if (nil == t_name)
 		return nil;
 
 	// The name is in use, so check to see if there is a global using it.
@@ -922,12 +924,14 @@ MCVariable *MCVariable::lookupglobal(MCNameRef p_name)
 	return nil;
 }
 
+// return true if found existing global
+// return false if created a new global variable
 bool MCVariable::ensureglobal(MCNameRef p_name, MCVariable*& r_var)
 {
 	// First check to see if the global variable already exists
 	MCVariable *t_var;
 	t_var = lookupglobal(p_name);
-	if (t_var != nil)
+	if (nil != t_var)
 	{
 		r_var = t_var;
 		return true;
@@ -938,13 +942,13 @@ bool MCVariable::ensureglobal(MCNameRef p_name, MCVariable*& r_var)
 	if (!createwithname(p_name, t_new_global))
 		return false;
 
-	if (MCStringGetNativeCharAtIndex(MCNameGetString(p_name), 0) == '$')
+	if ('$' == MCStringGetNativeCharAtIndex(MCNameGetString(p_name), 0))
     {
         MCAutoStringRef t_env;
         /* UNCHECKED */ MCStringCopySubstring(MCNameGetString(p_name),
                                               MCRangeMake(1, MCStringGetLength(MCNameGetString(p_name))),
                                               &t_env);
-            
+
         MCAutoStringRef t_value;
         if (MCS_getenv(*t_env, &t_value))
             t_new_global -> setvalueref(*t_value);
@@ -990,14 +994,14 @@ void MCVariable::synchronize(MCExecContext& ctxt, bool p_notify)
         if (!ctxt . HasError())
             MCB_setmsg(ctxt, *t_stringref_value);
 	}
-    
+
 	if (p_notify && MCnwatchedvars)
 	{
 		uint2 i;
 		for (i = 0 ; i < MCnwatchedvars ; i++)
 		{
 			if ((!MCwatchedvars[i].object.IsValid() || MCwatchedvars[i].object == ctxt.GetObject())
-				&& (!MCwatchedvars[i].handlername.IsSet() 
+				&& (!MCwatchedvars[i].handlername.IsSet()
 					|| (ctxt.GetHandler() != nil && ctxt.GetHandler()->hasname(*MCwatchedvars[i].handlername)))
 				&& hasname(*MCwatchedvars[i].varname))
 			{
@@ -1012,7 +1016,7 @@ void MCVariable::synchronize(MCExecContext& ctxt, bool p_notify)
 				{
                     MCAutoValueRef t_val;
                     ctxt.eval(ctxt, *MCwatchedvars[i].expression, &t_val);
-                    
+
 					MCAutoBooleanRef t_bool;
 					if (!ctxt.HasError() && ctxt.ConvertToBoolean(*t_val, &t_bool) && *t_bool == kMCTrue)
 						MCB_setvalue(ctxt, value, *name);
@@ -1021,7 +1025,7 @@ void MCVariable::synchronize(MCExecContext& ctxt, bool p_notify)
                 {
                     MCB_setvalue(ctxt, value, *name);
                 }
-                
+
 				break;
 			}
 		}
@@ -1125,7 +1129,7 @@ bool MCContainer::set_real(double p_real)
         m_variable -> setnvalue(p_real);
         return true;
     }
-    
+
 	MCAutoNumberRef t_number;
 	if (!MCNumberCreateWithReal(p_real, &t_number))
 		return false;
@@ -1167,10 +1171,10 @@ MCVariable *MCVarref::fetchvar(MCExecContext& ctxt)
 	{
 		if (ref != NULL)
 			return ref;
-        
+
 		return handler -> getvar(index, isparam);
 	}
-	
+
 	return t_parentscript -> GetVariable(index);
 }
 
@@ -1183,7 +1187,7 @@ MCContainer *MCVarref::fetchcontainer(MCExecContext& ctxt)
 	t_parentscript = ctxt . GetParentScript();
 	if (!isscriptlocal || t_parentscript == NULL)
 		return handler -> getcontainer(index, isparam);
-    
+
     return nil;
 }
 
@@ -1193,7 +1197,7 @@ void MCVarref::eval_ctxt(MCExecContext &ctxt, MCExecValue &r_value)
     if (evalcontainer(ctxt, t_container)
             && t_container.eval_ctxt(ctxt, r_value))
         return;
-    
+
     ctxt . Throw();
 }
 
@@ -1212,7 +1216,7 @@ bool MCVarref::set(MCExecContext& ctxt, MCValueRef p_value, MCVariableSettingSty
 	MCContainer t_container;
     if (!evalcontainer(ctxt, t_container))
 		return false;
-	
+
 	return t_container.set(ctxt, p_value, p_setting);
 }
 
@@ -1221,7 +1225,7 @@ bool MCVarref::give_value(MCExecContext& ctxt, MCExecValue p_value, MCVariableSe
     MCContainer t_container;
     if (!evalcontainer(ctxt, t_container))
 		return false;
-	
+
     return t_container.give_value(ctxt, p_value, p_setting);
 }
 
@@ -1230,7 +1234,7 @@ bool MCVarref::replace(MCExecContext &ctxt, MCValueRef p_replacement, MCRange p_
     MCContainer t_container;
     if (!evalcontainer(ctxt, t_container))
         return false;
-    
+
     return t_container.replace(ctxt, p_replacement, p_range);
 }
 
@@ -1239,7 +1243,7 @@ bool MCVarref::deleterange(MCExecContext &ctxt, MCRange p_range)
     MCContainer t_container;
     if (!evalcontainer(ctxt, t_container))
         return false;
-    
+
     return t_container.deleterange(ctxt, p_range);
 }
 
@@ -1332,7 +1336,7 @@ bool MCVarref::dofree(MCExecContext& ctxt)
 	MCContainer t_container;
     if (!resolve(ctxt, t_container))
         return false;
-    
+
 	return t_container.remove(ctxt);
 }
 
@@ -1343,7 +1347,7 @@ public:
         : m_container(p_target)
     {
     }
-    
+
     /* Append a value-ref to the path. If the value-ref is a sequence array then
      * each element of the sequence will be added (as a value-ref); otherwise
      * value is converted to a name and appended. */
@@ -1358,7 +1362,7 @@ public:
         else
             return AppendArrayRef(ctxt, (MCArrayRef)p_value);
     }
-    
+
     bool AppendNameSpan(MCSpan<MCNameRef> p_path)
     {
         for (MCNameRef t_name : p_path)
@@ -1366,7 +1370,7 @@ public:
                 return false;
         return true;
     }
-    
+
 private:
     bool AppendNonArrayRef(MCExecContext& ctxt, MCValueRef p_value)
     {
@@ -1378,7 +1382,7 @@ private:
         }
         return AppendNameRef(*t_name);
     }
-    
+
     bool AppendArrayRef(MCExecContext& ctxt, MCArrayRef p_value)
     {
         if (!MCArrayIsSequence(p_value))
@@ -1386,7 +1390,7 @@ private:
             ctxt . LegacyThrow(EE_VARIABLE_BADINDEX);
             return false;
         }
-        
+
         uindex_t t_length = MCArrayGetCount(p_value);
         for(uindex_t t_index = 1; t_index <= t_length; t_index += 1)
         {
@@ -1419,19 +1423,19 @@ private:
             if (!Switch())
                 return false;
         }
-        
+
         m_container.m_long_path[m_container.m_path_length++] = MCValueRetain(p_name);
-        
+
         return true;
     }
-    
+
     bool Extend(void)
     {
-        return MCMemoryResizeArray(m_container.m_long_path_capacity + MCContainer::kLongPathSegmentLength, 
+        return MCMemoryResizeArray(m_container.m_long_path_capacity + MCContainer::kLongPathSegmentLength,
                                    m_container.m_long_path,
                                    m_container.m_long_path_capacity);
     }
-    
+
     bool Switch(void)
     {
         MCNameRef *t_long_path;
@@ -1442,7 +1446,7 @@ private:
         m_container.m_long_path_capacity = MCContainer::kLongPathSegmentLength;
         return true;
     }
-    
+
     MCContainer& m_container;
 };
 
@@ -1450,7 +1454,7 @@ private:
 bool MCVarref::resolve(MCExecContext& ctxt, MCContainer& r_container)
 {
     MCAssert(r_container.m_variable == nullptr && r_container.m_path_length == 0);
-    
+
     if (dimensions == 0 && !isparam)
     {
         r_container.m_variable = fetchvar(ctxt);
@@ -1462,22 +1466,22 @@ bool MCVarref::resolve(MCExecContext& ctxt, MCContainer& r_container)
 		t_dimensions = &exp;
 	else
 		t_dimensions = exps;
-    
+
     MCContainerBuilder t_builder(r_container);
-    
+
     // AL-2014-08-20: [[ ArrayElementRefParams ]] If the Varref refers to a container then
     //  resolving the path requires appending the new dimensions to the old path
     MCSpan<MCNameRef> t_old_path = getpath(ctxt);
     if (t_old_path.length() > 0)
         if (!t_builder.AppendNameSpan(t_old_path))
             return false;
-            
+
     for(uindex_t i = 0; i < dimensions; i++)
 	{
         MCAutoValueRef t_value;
         if (!ctxt . EvalExprAsValueRef(t_dimensions[i], EE_VARIABLE_BADINDEX, &t_value))
             return false;
-        
+
         if (!t_builder.AppendValueRef(ctxt, *t_value))
             return false;
     }
@@ -1486,7 +1490,7 @@ bool MCVarref::resolve(MCExecContext& ctxt, MCContainer& r_container)
         r_container.m_variable = fetchvar(ctxt);
     else
         r_container.m_variable = fetchcontainer(ctxt)->getvar();
-    
+
     return true;
 }
 
@@ -1504,7 +1508,7 @@ bool MCDeferredVariable::createwithname(MCNameRef p_name, MCDeferredVariableComp
 {
 	MCDeferredVariable *self;
 	self = new (nothrow) MCDeferredVariable;
-	if (self == nil)
+	if (nil == self)
 		return false;
 
 	self -> next = nil;

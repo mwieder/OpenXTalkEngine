@@ -182,22 +182,22 @@ Parse_stat MCStatement::getparams(MCScriptPoint &sp, MCParameter **params)
 		Symbol_type type;
 		switch (sp.next(type))
 		{
-		case PS_NORMAL:
-			sp.backup();
-			break;
-		case PS_ERROR:
-			return PS_ERROR;
-		case PS_EOL:
-		case PS_EOF:
-			if (needparam)
-			{
-				MCperror->add(PE_STATEMENT_BADPARAM, sp);
+			case PS_NORMAL:
+				sp.backup();
+				break;
+			case PS_ERROR:
 				return PS_ERROR;
-			}
-			return PS_NORMAL;
-		default:
-			sp.backup();
-			return PS_NORMAL;
+			case PS_EOL:
+			case PS_EOF:
+				if (needparam)
+				{
+					MCperror->add(PE_STATEMENT_BADPARAM, sp);
+					return PS_ERROR;
+				}
+				return PS_NORMAL;
+			default:
+				sp.backup();
+				return PS_NORMAL;
 		}
 		MCParameter *newptr = new (nothrow) MCParameter;
 		if (newptr->parse(sp) != PS_NORMAL)
@@ -220,14 +220,14 @@ Parse_stat MCStatement::getparams(MCScriptPoint &sp, MCParameter **params)
 		}
 		switch (sp.next(type))
 		{
-		case PS_NORMAL:
-			break;
-		case PS_EOL:
-		case PS_EOF:
-			return PS_NORMAL;
-		default:
-			MCperror->add(PE_STATEMENT_NOTSEP, sp);
-			return PS_ERROR;
+			case PS_NORMAL:
+				break;
+			case PS_EOL:
+			case PS_EOF:
+				return PS_NORMAL;
+			default:
+				MCperror->add(PE_STATEMENT_NOTSEP, sp);
+				return PS_ERROR;
 		}
 		if (type != ST_SEP)
 		{
@@ -258,21 +258,21 @@ Parse_stat MCStatement::getmods(MCScriptPoint &sp, uint2 &mstate)
 		}
 		switch (te->which)
 		{
-		case F_COMMAND_KEY:
-			mstate |= MS_CONTROL;
-			break;
-		case F_CONTROL_KEY:
-			mstate |= MS_MAC_CONTROL;
-			break;
-		case F_OPTION_KEY:
-			mstate |= MS_MOD1;
-			break;
-		case F_SHIFT_KEY:
-			mstate |= MS_SHIFT;
-			break;
-		default:
-			MCperror->add(PE_STATEMENT_BADKEY, sp);
-			return PS_ERROR;
+			case F_COMMAND_KEY:
+				mstate |= MS_CONTROL;
+				break;
+			case F_CONTROL_KEY:
+				mstate |= MS_MAC_CONTROL;
+				break;
+			case F_OPTION_KEY:
+				mstate |= MS_MOD1;
+				break;
+			case F_SHIFT_KEY:
+				mstate |= MS_SHIFT;
+				break;
+			default:
+				MCperror->add(PE_STATEMENT_BADKEY, sp);
+				return PS_ERROR;
 		}
 		if (sp.skip_token(SP_COMMAND, TT_ELSE, S_UNDEFINED) == PS_NORMAL)
 		{
@@ -281,14 +281,14 @@ Parse_stat MCStatement::getmods(MCScriptPoint &sp, uint2 &mstate)
 		}
 		switch (sp.next(type))
 		{
-		case PS_NORMAL:
-			break;
-		case PS_EOL:
-		case PS_EOF:
-			return PS_NORMAL;
-		default:
-			MCperror->add(PE_STATEMENT_BADSEP, sp);
-			return PS_ERROR;
+			case PS_NORMAL:
+				break;
+			case PS_EOL:
+			case PS_EOF:
+				return PS_NORMAL;
+			default:
+				MCperror->add(PE_STATEMENT_BADSEP, sp);
+				return PS_ERROR;
 		}
 		if (type != ST_SEP)
 		{

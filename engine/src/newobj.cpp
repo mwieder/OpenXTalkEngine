@@ -145,7 +145,11 @@ MCStatement *MCN_new_statement(int2 which)
 	case S_IF:
 		return new MCIf;
 	case S_INCLUDE:
+#ifdef _SERVER
 		return new MCInclude(false);
+#else
+		return new MCLibrary;
+#endif
 	case S_IMPORT:
 		return new MCImport;
 	case S_INSERT:
@@ -231,7 +235,11 @@ MCStatement *MCN_new_statement(int2 which)
 	case S_REQUEST:
 		return new MCRequest;
 	case S_REQUIRE:
+#ifdef _SERVER
 		return new MCInclude(true);
+#else
+		return new MCLoad;
+#endif
 	case S_RESET:
 		return new MCReset;
     case S_RESOLVE:

@@ -46,13 +46,19 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
 	{
 		Symbol_type type;
 		Parse_stat stat = sp.next(type);
-		if (stat == PS_EOL)
+		if (PS_EOL == stat)
 			return PS_NORMAL;
+
+		// MDW 2025.12.10 allow 'global constant'
+//		if (ST_LIT == type)
+//			stat = sp.next(type);
+
 		const LT *te;
 		MCExpression *newfact = NULL;
 		if (stat != PS_NORMAL || type != ST_ID
 		        || sp.lookup(SP_FACTOR, te) != PS_NO_MATCH
-		        || sp.lookupconstant(&newfact) == PS_NORMAL)
+		        )
+//		        || sp.lookupconstant(&newfact) == PS_NORMAL)
 		{
 			delete newfact;
 			MCperror->add
@@ -67,10 +73,18 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
 
         MCVarref* t_var;
         t_var = NULL;
-		if (sp.gethandler() == NULL)
+
+//MCExpression *dptr = NULL;
+//if (sp.gethlist() -> findconstant(sp.gettoken_nameref(), &dptr))
+//{
+//	sp.gethlist()->newglobal(sp.gettoken_nameref());
+//	constant = true;
+//}
+
+		if (NULL == sp.gethandler())
         {
             sp.gethlist() -> findvar(sp.gettoken_nameref(), false, &t_var);
-            if (t_var == NULL || !MCexplicitvariables)
+            if (NULL == t_var || !MCexplicitvariables)
                 sp.gethlist()->newglobal(sp.gettoken_nameref());
             else
                 t_shadowing = true;
@@ -78,12 +92,11 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
 		else
         {
             sp.gethandler()->findvar(sp.gettoken_nameref(), &t_var);
-            if (t_var == NULL || !MCexplicitvariables)
+            if (NULL == t_var || !MCexplicitvariables)
                 sp.gethandler()->newglobal(sp.gettoken_nameref());
             else
                 t_shadowing = true;
         }
-
         // Clearup fetched var
         delete t_var;
 
@@ -96,21 +109,21 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
 
 		switch (sp.next(type))
 		{
-		case PS_NORMAL:
-			if (type != ST_SEP)
-			{
+			case PS_NORMAL:
+				if (type != ST_SEP)
+				{
+					MCperror->add
+					(PE_STATEMENT_NOTSEP, sp);
+					return PS_ERROR;
+				}
+				break;
+			case PS_EOL:
+			case PS_EOF:
+				return PS_NORMAL;
+			default:
 				MCperror->add
 				(PE_STATEMENT_NOTSEP, sp);
 				return PS_ERROR;
-			}
-			break;
-		case PS_EOL:
-		case PS_EOF:
-			return PS_NORMAL;
-		default:
-			MCperror->add
-			(PE_STATEMENT_NOTSEP, sp);
-			return PS_ERROR;
 		}
 	}
 	return PS_NORMAL;
@@ -123,10 +136,11 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 	{
 		Symbol_type type;
 		Parse_stat stat = sp.next(type);
-		if (stat == PS_EOL)
+		if (PS_EOL == stat)
 			return PS_NORMAL;
 		const LT *te;
 		MCExpression *newfact = NULL;
+
 		if (stat != PS_NORMAL || type != ST_ID
 		        || sp.lookup(SP_FACTOR, te) != PS_NO_MATCH
 		        || sp.lookupconstant(&newfact) == PS_NORMAL)
@@ -164,13 +178,14 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 			}
 		}
 
+		// MDW 2024.12.10 allow the form local tVar=value
 		MCVarref *tvar = NULL;
 		MCAutoValueRef init;
 		bool initialised = false;
-		if (sp.skip_token(SP_FACTOR, TT_BINOP, O_EQ) == PS_NORMAL)
+		if (PS_NORMAL == sp.skip_token(SP_FACTOR, TT_BINOP, O_EQ))
 		{
             // MW-2014-11-06: [[ Bug 3680 ]] If there is nothing after '=' it's an error.
-			if (sp.next(type) != PS_NORMAL)
+			if (PS_NORMAL != sp.next(type))
 			{
 				if (constant)
 					MCperror->add(PE_CONSTANT_BADINIT, sp);
@@ -178,14 +193,14 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 					MCperror->add(PE_LOCAL_BADINIT, sp);
 				return PS_ERROR;
 			}
-            
+
             // MW-2014-11-06: [[ Bug 3680 ]] We allow either - or + next, but only if the
             //   next token is a number.
 			if (type == ST_MIN || (type == ST_OP && sp.token_is_cstring("+")))
 			{
                 bool t_is_minus = type == ST_MIN;
                 // negative or positive initializer
-				if (sp.next(type) != PS_NORMAL || type != ST_NUM)
+				if (PS_NORMAL != sp.next(type) || ST_NUM != type)
 				{
 					if (constant)
 						MCperror->add(PE_CONSTANT_BADINIT, sp);
@@ -208,17 +223,17 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
                 // MW-2014-11-06: [[ Bug 3680 ]] If we are in explicit var mode, and the token
                 //   is not a string literal or a number, then it must be a constant in the constant
                 //   table that is the same as its token.
-                if (MCexplicitvariables && type == ST_ID)
+                if (MCexplicitvariables && ST_ID == type)
                 {
                     // If the unquoted literal is a recognised constant and the constant's value
                     // is identical (case-sensitively) to the value, it is fine to make it a literal.
                     if (sp . constantnameconvertstoconstantvalue())
                         type = ST_LIT;
                 }
-                
+
                 // MW-2014-11-06: [[ Bug 3680 ]] If now, explicitvariables is on and we don't have a literal or
                 //   a number, its an error.
-                if (MCexplicitvariables && type != ST_LIT && type != ST_NUM)
+                if (MCexplicitvariables && ST_LIT != type && ST_NUM != type)
                 {
 					if (constant)
 						MCperror->add(PE_CONSTANT_BADINIT, sp);
@@ -226,7 +241,7 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 						MCperror->add(PE_LOCAL_BADINIT, sp);
 					return PS_ERROR;
                 }
-                
+
                 /* Use the name form of the token to ensure initializers are
                  * always unique. */
                 init = sp.gettoken_nameref();
@@ -234,11 +249,11 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 
 			initialised = true;
 		}
-		else if (constant)
-			{
-				MCperror->add(PE_CONSTANT_NOINIT, sp);
-				return PS_ERROR;
-			}
+		else if (constant)	// constname without following "="
+		{
+			MCperror->add(PE_CONSTANT_NOINIT, sp);
+			return PS_ERROR;
+		}
 
 		MCAutoValueRef t_init_value;
 		if (initialised)
@@ -249,21 +264,30 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 		if (sp.gethandler() == NULL)
 		{
 			if (constant)
+			{
 				sp.gethlist()->newconstant(*t_token_name, *t_init_value);
+				sp.gethlist()->newglobal(*t_token_name);
+				// TODO: assign t_init_value to the global var
+			}
 			else if (sp.gethlist()->newvar(*t_token_name, *t_init_value, &tvar, initialised) != PS_NORMAL)
 				{
-					MCperror->add(PE_LOCAL_BADNAME, sp);
+					MCperror->add(PE_CONSTANT_BADINIT, sp);
 					return PS_ERROR;
 				}
 
 		}
 		else if (constant)
+		{
 			sp.gethandler()->newconstant(*t_token_name, *t_init_value);
+			sp.gethandler()->newglobal(*t_token_name);
+			// TODO: assign t_init_value to the global var
+		}
 		else if (sp.gethandler()->newvar(*t_token_name, *t_init_value, &tvar) != PS_NORMAL)
-				{
-					MCperror->add(PE_LOCAL_BADNAME, sp);
-					return PS_ERROR;
-				}
+		{
+//			MCperror->add(PE_LOCAL_BADNAME, sp);
+			MCperror->add(PE_CONSTANT_BADINIT, sp);
+			return PS_ERROR;
+		}
 
 		delete tvar;
 
@@ -285,6 +309,15 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 		}
 	}
 	return PS_NORMAL;
+}
+
+
+void MCLocalConstant::exec_ctxt(MCExecContext& ctxt)
+{
+    MCExecValue t_value;
+//    if (!ctxt . EvaluateExpression(dest, EE_PUT_BADEXP, t_value))
+//        return;
+//	dest -> ref -> set(ctxt, value, PT_INTO);
 }
 
 MCIf::~MCIf()
@@ -591,10 +624,10 @@ Parse_stat MCRepeat::parse(MCScriptPoint &sp)
 							MCperror->add(PE_REPEAT_NOOF, sp);
 							return PS_ERROR;
                         }
-                        
+
                         t_is_for_each = true;
 					}
-                    
+
                     // SN-2015-06-18: [[ Bug 15509 ]] Both 'repeat for each' and
                     //  'repeat for <expr> times' need an expression
                     if (sp.parseexp(False, True, &endcond) != PS_NORMAL)
@@ -603,7 +636,7 @@ Parse_stat MCRepeat::parse(MCScriptPoint &sp)
                         (PE_REPEAT_BADCOND, sp);
                         return PS_ERROR;
                     }
-                    
+
                     //  SN-2015-06-18: [[ Bug 15509 ]] In case we have not
                     //  reached the end of the line after parsing the expression
                     //  we have two possibilies:
@@ -1152,7 +1185,7 @@ void MCThrowKeyword::exec_ctxt(MCExecContext& ctxt)
 	MCAutoStringRef t_error;
 	if (!ctxt . EvalExprAsStringRef(error, EE_THROW_BADERROR, &t_error))
 		return;
-	
+
 	MCKeywordsExecThrow(ctxt, *t_error);
 }
 
@@ -1273,15 +1306,15 @@ Parse_stat MCTry::parse(MCScriptPoint &sp)
 		else
 			switch (state)
 			{
-			case TS_TRY:
-				trystatements = curstatement = newstatement;
-				break;
-			case TS_CATCH:
-				catchstatements = curstatement = newstatement;
-				break;
-			case TS_FINALLY:
-				finallystatements = curstatement = newstatement;
-				break;
+				case TS_TRY:
+					trystatements = curstatement = newstatement;
+					break;
+				case TS_CATCH:
+					catchstatements = curstatement = newstatement;
+					break;
+				case TS_FINALLY:
+					finallystatements = curstatement = newstatement;
+					break;
 			}
 	}
 	return PS_NORMAL;
@@ -1326,7 +1359,7 @@ void MCHandref::parse(void)
     {
         container_count = params->count_containers();
     }
-    
+
     if (MCIsGlobalHandler(*name))
     {
         global_handler = true;
@@ -1344,7 +1377,7 @@ void MCHandref::exec(MCExecContext& ctxt, uint2 line, uint2 pos, bool is_functio
                                                handler);
         resolved = true;
     }
-    
+
     /* Attempt to allocate the number of containers needed for the call. */
     MCAutoPointer<MCContainer[]> t_containers = new MCContainer[container_count];
     if (!t_containers)
@@ -1352,7 +1385,7 @@ void MCHandref::exec(MCExecContext& ctxt, uint2 line, uint2 pos, bool is_functio
         ctxt.LegacyThrow(EE_NO_MEMORY);
         return;
     }
-    
+
     /* If the argument list is successfully evaluated, then do the function
      * execution. */
     if (MCKeywordsExecSetupCommandOrFunction(ctxt,
@@ -1371,7 +1404,7 @@ void MCHandref::exec(MCExecContext& ctxt, uint2 line, uint2 pos, bool is_functio
                                         global_handler,
                                         is_function);
     }
-    
+
     /* Clean up the evaluated argument list */
     MCKeywordsExecTeardownCommandOrFunction(params);
 }
@@ -1393,27 +1426,27 @@ Parse_stat MCComref::parse(MCScriptPoint &sp)
         MCperror->add(PE_STATEMENT_BADPARAMS, sp);
         return PS_ERROR;
     }
-    
+
     command.parse();
-    
+
     return PS_NORMAL;
 }
 
 void MCComref::exec_ctxt(MCExecContext& ctxt)
 {
     /* Execute the command */
-    
+
     command.exec(ctxt, line, pos, false);
-    
+
     /* If an error occurred, then we are done */
-    
+
     if (ctxt.HasError())
     {
         return;
     }
-    
+
     /* Process the result according to the result mode */
-    
+
     if (MCresultmode == kMCExecResultModeReturn)
     {
         // Do nothing!
@@ -1427,7 +1460,7 @@ void MCComref::exec_ctxt(MCExecContext& ctxt)
             ctxt.Throw();
             return;
         }
-        
+
         ctxt.SetItToValue(*t_value);
         ctxt.SetTheResultToEmpty();
     }
@@ -1457,27 +1490,27 @@ Parse_stat MCFuncref::parse(MCScriptPoint &sp, Boolean the)
         MCperror->add(PE_FUNCTION_BADPARAMS, sp);
         return PS_ERROR;
     }
-    
+
     function.parse();
-    
+
     return PS_NORMAL;
 }
 
 void MCFuncref::eval_ctxt(MCExecContext& ctxt, MCExecValue& r_value)
 {
     /* Execute the function */
-    
+
     function.exec(ctxt, line, pos, true);
-    
+
     /* If an error occurred, then we are done */
 
     if (ctxt.HasError())
     {
         return;
     }
-    
+
     /* Process the result according to the result mode */
-    
+
     if (MCresultmode == kMCExecResultModeReturn)
     {
         if (MCresult->eval(ctxt, r_value . valueref_value))
@@ -1500,12 +1533,12 @@ void MCFuncref::eval_ctxt(MCExecContext& ctxt, MCExecValue& r_value)
     {
         // Our return value is empty, and 'the result' remains as it is.
         MCExecTypeSetValueRef(r_value, MCValueRetain(kMCEmptyString));
-        
+
         // Make sure we reset the 'return mode' to default.
         MCresultmode = kMCExecResultModeReturn;
         return;
     }
-    
+
     ctxt . Throw();
 }
 

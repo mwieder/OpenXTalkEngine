@@ -97,7 +97,7 @@ static MCExecSetTypeElementInfo _kMCEngineSecurityCategoriesElementInfo[] =
 	{ "process", kMCSecureModeTypeProcessBit },
 	{ "registryRead", kMCSecureModeTypeRegistryReadBit },
 	{ "registryWrite", kMCSecureModeTypeRegistryWriteBit },
-	{ "printing", kMCSecureModeTypePrintBit },	
+	{ "printing", kMCSecureModeTypePrintBit },
 	{ "privacy", kMCSecureModeTypePrivacyBit },
 	{ "applescript", kMCSecureModeTypeApplescriptBit },
 	{ "doalternate", kMCSecureModeTypeDoalternateBit },
@@ -162,7 +162,7 @@ void MCEngineEvalProcessor(MCExecContext& ctxt, MCStringRef& r_string)
 {
     if (MCS_getprocessor(r_string))
         return;
-    
+
     ctxt.Throw();
 }
 
@@ -293,7 +293,7 @@ void MCEngineEvalLocalNames(MCExecContext& ctxt, MCStringRef& r_string)
 		if (ctxt.GetHandlerList()->getlocalnames(&t_list) && MCListCopyAsString(*t_list, r_string))
 			return;
 	}
-	
+
 	ctxt.Throw();
 }
 
@@ -318,7 +318,7 @@ void MCEngineEvalVariableNames(MCExecContext& ctxt, MCStringRef& r_string)
 			MCListCopyAsString(*t_list, r_string))
 			return;
 	}
-	
+
 	ctxt.Throw();
 }
 
@@ -328,7 +328,7 @@ void MCEngineEvalParam(MCExecContext& ctxt, integer_t p_index, MCValueRef& r_val
 {
     if (MCValueCopy(ctxt.GetHandler()->getparam(p_index), r_value))
         return;
-    
+
     ctxt.Throw();
 }
 
@@ -345,9 +345,9 @@ void MCEngineEvalParamCount(MCExecContext& ctxt, integer_t& r_count)
 void MCEngineEvalParams(MCExecContext& ctxt, MCStringRef& r_string)
 {
     MCAutoStringRef t_string;
-    
+
     MCHandler* t_handler = ctxt.GetHandler();
-    
+
 	// MW-2013-11-15: [[ Bug 11277 ]] If we don't have a handler then 'the params'
 	//   makes no sense so just return empty.
 	if (t_handler == nil)
@@ -355,46 +355,46 @@ void MCEngineEvalParams(MCExecContext& ctxt, MCStringRef& r_string)
 		r_string = MCValueRetain(kMCEmptyString);
 		return;
 	}
-	
+
     unichar_t t_space_char, t_quote_char, t_comma_char, t_open_bracket_char, t_close_bracket_char;
     t_space_char = ' ';
     t_quote_char = '\"';
     t_comma_char = ',';
     t_open_bracket_char = '(';
     t_close_bracket_char = ')';
-    
+
     bool t_success = true;
-    
+
     t_success = MCStringCreateMutable(0, &t_string);
 
     if (t_success)
         t_success = MCStringAppend(*t_string, MCNameGetString(t_handler->getname())) &&
             MCStringAppendChars(*t_string, (t_handler->gettype() == HT_FUNCTION) ? &t_open_bracket_char : &t_space_char, 1);
-    
+
     uindex_t t_count = t_handler->getnparams();
-    
+
     for (uinteger_t i = 1; t_success && i <= t_count; i++)
     {
         MCAutoStringRef t_param_string;
-        
+
         t_success = ctxt.ForceToString(t_handler->getparam(i), &t_param_string) &&
             MCStringAppendChars(*t_string, &t_quote_char, 1) &&
             MCStringAppend(*t_string, *t_param_string) &&
             MCStringAppendChars(*t_string, &t_quote_char, 1);
-        
+
         if (t_success && i < t_count)
             t_success = MCStringAppendChars(*t_string, &t_comma_char, 1);
     }
-    
+
     if (t_success && t_handler->gettype() == HT_FUNCTION)
         t_success = MCStringAppendChars(*t_string, &t_close_bracket_char, 1);
-    
+
     if (t_success)
         t_success = MCStringCopy(*t_string, r_string);
-    
+
     if (t_success)
         return;
-    
+
     ctxt.Throw();
 }
 
@@ -404,7 +404,7 @@ void MCEngineEvalResult(MCExecContext& ctxt, MCValueRef& r_value)
 {
     if (MCValueCopy(MCresult->getvalueref(), r_value))
         return;
-    
+
     ctxt.Throw();
 }
 
@@ -572,7 +572,7 @@ void MCEngineExecSet(MCExecContext& ctxt, MCProperty *p_target, MCValueRef p_val
     MCExecValue t_value;
     t_value . valueref_value = MCValueRetain(p_value);
     t_value . type = kMCExecValueTypeValueRef;
-	
+
     p_target -> set(ctxt, t_value);
     if (ctxt . HasError())
 	{
@@ -601,9 +601,9 @@ void MCEngineExecPutOutputUnicode(MCExecContext& ctxt, MCDataRef p_value)
 }
 
 void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_where, MCVariableChunkPtr p_var)
-{	
+{
 	p_var . variable -> clearuql();
-	
+
 	if (p_var . chunk == CT_UNDEFINED)
 	{
         // SN-2014-04-11 [[ FasterVariables ]] Now chosing from here the position where to add a string on a variable
@@ -611,7 +611,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
 			p_var . variable -> set(ctxt, p_value, kMCVariableSetInto);
 		else if (p_where == PT_AFTER)
 			p_var . variable -> set(ctxt, p_value, kMCVariableSetAfter);
-		else
+		else	//BEFORE
 			p_var . variable -> set(ctxt, p_value, kMCVariableSetBefore);
 	}
 	else
@@ -620,7 +620,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
             p_var . mark . finish = p_var . mark . start;
         else if (p_where == PT_AFTER)
             p_var . mark . start = p_var . mark . finish;
-        
+
         // AL-2014-06-12: [[ Bug 12195 ]] If either the mark or the value is non-data, then convert to string.
         //  Otherwise we get data loss for 'put <unicode string> after byte <n> of tVar'
         if (MCValueGetTypeCode(p_var . mark . text) == kMCValueTypeCodeData &&
@@ -632,7 +632,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
                 MCAutoDataRef t_data;
                 if (!MCDataMutableCopyAndRelease((MCDataRef)p_var . mark . text, &t_data))
                     return;
-                
+
                 /* UNCHECKED */ MCDataReplace(*t_data, MCRangeMakeMinMax(p_var . mark . start, p_var . mark . finish), (MCDataRef)p_value);
                 p_var . variable -> set(ctxt, *t_data, kMCVariableSetInto);
             }
@@ -641,7 +641,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
                 // AL-2014-11-12: [[ Bug 13987 ]] Release the mark here, so that eg 'put x into byte y of z'
                 //  can take advantage of the fact that z has only one reference. Otherwise it requires a copy
                 MCValueRelease(p_var . mark . text);
-                
+
                 p_var . variable -> replace(ctxt, (MCDataRef)p_value, MCRangeMakeMinMax(p_var . mark . start, p_var . mark . finish));
             }
         }
@@ -653,7 +653,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
                 ctxt . Throw();
                 return;
             }
-            
+
             // AL-2015-04-01: [[ Bug 15139 ]] Make sure the mark text is the correct value type.
             MCValueRef t_mark_text;
             if (!ctxt . ConvertToString(p_var . mark . text, (MCStringRef &)t_mark_text))
@@ -668,14 +668,14 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
             //  must become t_mark_text, not get a copy of it.
             MCValueRelease(p_var . mark . text);
             p_var . mark . text = t_mark_text;
-            
+
             // SN-2014-09-03: [[ Bug 13314 ]] MCMarkedText::changed updated to store the number of chars appended
             if (p_var . mark . changed != 0)
             {
                 MCAutoStringRef t_string;
                 if (!MCStringMutableCopyAndRelease((MCStringRef)p_var . mark . text, &t_string))
                     return;
-            
+
                 /* UNCHECKED */ MCStringReplace(*t_string, MCRangeMakeMinMax(p_var . mark . start, p_var . mark . finish), *t_value_string);
                 p_var . variable -> set(ctxt, *t_string, kMCVariableSetInto);
             }
@@ -684,7 +684,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
                 // AL-2014-11-12: [[ Bug 13987 ]] Release the mark here, so that eg 'put x into char y of z'
                 //  can take advantage of the fact that z has only one reference. Otherwise it requires a copy
                 MCValueRelease(p_var . mark . text);
-                
+
                 p_var . variable -> replace(ctxt, *t_value_string, MCRangeMakeMinMax(p_var . mark . start, p_var . mark . finish));
             }
         }
@@ -694,7 +694,7 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCValueRef p_value, int p_
 void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCExecValue p_value, int p_where, MCVariableChunkPtr p_var)
 {
 	p_var . variable -> clearuql();
-	
+
 	if (p_var . chunk == CT_UNDEFINED)
 	{
         // SN-2014-04-11 [[ FasterVariables ]] Now chosing from here the position where to add a string on a variable
@@ -716,16 +716,16 @@ void MCEngineExecPutIntoVariable(MCExecContext& ctxt, MCExecValue p_value, int p
             MCExecTypeConvertAndReleaseAlways(ctxt, p_value . type, &p_value, kMCExecValueTypeDataRef, &(&t_value_data));
             if (ctxt . HasError())
                 return;
-            
+
             MCEngineExecPutIntoVariable(ctxt, *t_value_data, p_where, p_var);
             return;
         }
-        
+
         MCAutoStringRef t_value_string;
         MCExecTypeConvertAndReleaseAlways(ctxt, p_value . type, &p_value, kMCExecValueTypeStringRef, &(&t_value_string));
         if (ctxt . HasError())
             return;
-        
+
         MCEngineExecPutIntoVariable(ctxt, *t_value_string, p_where, p_var);
     }
 }
@@ -773,7 +773,7 @@ void MCEngineExecDoInCaller(MCExecContext& ctxt, MCStringRef p_script, int p_lin
         MCexecutioncontexts[MCnexecutioncontexts++] = &ctxt;
         added = True;
     }
-    
+
     if (MCnexecutioncontexts < 2)
     {
         if (added)
@@ -781,12 +781,12 @@ void MCEngineExecDoInCaller(MCExecContext& ctxt, MCStringRef p_script, int p_lin
         ctxt . LegacyThrow(EE_DO_NOCALLER);
         return;
     }
-    
+
     MCExecContext *caller = MCexecutioncontexts[MCnexecutioncontexts - 2];
-    
+
     // SN-2015-06-03: [[ Bug 11277 ]] MCHandler::doscript refactored
     caller -> doscript(*caller, p_script, p_line, p_pos);
-    
+
     if (added)
         MCnexecutioncontexts--;
 }
@@ -916,7 +916,7 @@ void MCEngineExecWaitUntil(MCExecContext& ctxt, MCExpression *p_condition, bool 
 	while(True)
 	{
         bool t_stop;
-		
+
 		MCU_play();
 
         if (!ctxt . EvalExprAsBool(p_condition, EE_WAIT_BADEXP, t_stop))
@@ -938,9 +938,9 @@ void MCEngineExecWaitWhile(MCExecContext& ctxt, MCExpression *p_condition, bool 
 	while(True)
 	{
         bool t_continue;
-		
+
 		MCU_play();
-		
+
         if (!ctxt . EvalExprAsBool(p_condition, EE_WAIT_BADEXP, t_continue))
             return;
 
@@ -1020,14 +1020,14 @@ void MCEngineExecStartUsingStackByName(MCExecContext& ctxt, MCStringRef p_name)
         ctxt . LegacyThrow(EE_START_BADTARGET);
         return;
     }
-    
+
     // MW-2014-10-23: Throw a different error if the script won't compile.
     if (!sptr->parsescript(True))
     {
         ctxt . LegacyThrow(EE_START_WONTCOMPILE);
         return;
     }
-    
+
 	MCEngineExecStartUsingStack(ctxt, sptr);
 }
 
@@ -1060,7 +1060,7 @@ void MCEngineExecStopUsingStackByName(MCExecContext& ctxt, MCStringRef p_name)
 		}
 	MCEngineExecStopUsingStack(ctxt, sptr);
 }
-			        
+
 ///////////////////////////////////////////////////////////////////////////////
 
 Exec_stat _MCEngineExecDoDispatch(MCExecContext &ctxt, int p_handler_type, MCNameRef p_message, MCObjectPtr *p_target, MCParameter *p_parameters)
@@ -1070,32 +1070,32 @@ Exec_stat _MCEngineExecDoDispatch(MCExecContext &ctxt, int p_handler_type, MCNam
 		ctxt . LegacyThrow(EE_HANDLER_ABORT);
 		return ES_ERROR;
 	}
-	
+
 	// Work out the target object
 	MCObjectPartHandle t_object;
 	if (p_target != nil)
 		t_object = *p_target;
 	else
 		t_object = ctxt . GetObjectPtr();
-		
+
 	// Fetch current default stack and target settings
 	MCStackHandle t_old_stack = MCdefaultstackptr;
-	
+
 	// Cache the current 'this stack' (used to see if we should switch back
 	// the default stack).
 	MCStack *t_this_stack;
 	t_this_stack = t_object -> getstack();
-	
+
 	// Retarget this stack and the target to be relative to the target object
 	MCdefaultstackptr = t_this_stack;
     MCObjectPartHandle t_old_target(t_object);
     swap(t_old_target, MCtargetptr);
-    
+
 	// MW-2012-10-30: [[ Bug 10478 ]] Turn off lockMessages before dispatch.
 	Boolean t_old_lock;
 	t_old_lock = MClockmessages;
 	MClockmessages = False;
-	
+
 	// Add a new entry in the execution contexts
 	MCExecContext *oldctxt = MCECptr;
 	MCECptr = &ctxt;
@@ -1123,7 +1123,7 @@ Exec_stat _MCEngineExecDoDispatch(MCExecContext &ctxt, int p_handler_type, MCNam
             break;
         }
     }
-	
+
 	// Reset the default stack pointer and target - note that we use 'send'esque
 	// semantics here. i.e. If the default stack has been changed, the change sticks.
 	if (t_old_stack.IsValid() &&
@@ -1133,15 +1133,15 @@ Exec_stat _MCEngineExecDoDispatch(MCExecContext &ctxt, int p_handler_type, MCNam
 	// Reset target pointer
     swap(MCtargetptr, t_old_target);
 	MCdynamicpath = olddynamic;
-	
+
 	// MW-2012-10-30: [[ Bug 10478 ]] Restore lockMessages.
 	MClockmessages = t_old_lock;
-	
+
 	// Remove our entry from the contexts list
 	MCECptr = oldctxt;
 	if (added)
 		MCnexecutioncontexts--;
-	
+
 	return t_stat;
 }
 
@@ -1149,7 +1149,7 @@ void MCEngineExecDispatch(MCExecContext& ctxt, int p_handler_type, MCNameRef p_m
 {
 	Exec_stat t_stat;
 	t_stat = _MCEngineExecDoDispatch(ctxt, p_handler_type, p_message, p_target, p_parameters);
-	
+
 	// Set 'it' appropriately
 	switch(t_stat)
 	{
@@ -1158,18 +1158,18 @@ void MCEngineExecDispatch(MCExecContext& ctxt, int p_handler_type, MCNameRef p_m
 		ctxt . SetItToValue(MCN_unhandled);
 		t_stat = ES_NORMAL;
 		break;
-		
+
 	case ES_PASS:
 		ctxt . SetItToValue(MCN_passed);
 		t_stat = ES_NORMAL;
 		break;
-	
+
 	case ES_EXIT_HANDLER:
 	case ES_NORMAL:
 		ctxt . SetItToValue(MCN_handled);
 		t_stat = ES_NORMAL;
 	break;
-	
+
 	default:
 		ctxt . SetItToValue(kMCEmptyString);
 	break;
@@ -1182,41 +1182,41 @@ static void MCEngineSplitScriptIntoMessageAndParameters(MCExecContext& ctxt, MCS
 {
 	MCParameter *params = NULL;
 	MCParameter *tparam = NULL;
-	
+
     uindex_t t_offset;
     t_offset = 0;
-    
+
     uindex_t t_length;
     t_length = MCStringGetLength(p_script);
-    
+
 	while (t_offset < t_length && !isspace(MCStringGetCharAtIndex(p_script, t_offset)))
 		t_offset++;
-		
+
     MCRange t_msg_range;
     t_msg_range = MCRangeMake(0, t_offset);
     t_offset++;
-    
+
 	MCerrorlock++;
     unichar_t t_char = '\0';
     uindex_t t_start_offset;
     t_start_offset = t_offset;
-    
+
     MCRange t_exp_range;
-    
+
 	while (t_offset <= t_length)
 	{
         if (t_offset < t_length)
             t_char = MCStringGetCharAtIndex(p_script, t_offset);
-        
+
         if (t_offset == t_length || t_char == ',')
         {
             t_exp_range = MCRangeMakeMinMax(t_start_offset, t_offset);
 
             MCAutoStringRef t_expression;
             /* UNCHECKED */ MCStringCopySubstring(p_script, t_exp_range, &t_expression);
-            
+
             MCParameter *newparam = new (nothrow) MCParameter;
-            
+
             // MW-2011-08-11: [[ Bug 9668 ]] Make sure we copy 'pdata' if we use it, since
             //   mptr (into which it points) only lasts as long as this method call.
             // SN-2015-06-03: [[ Bug 11277 ]] MCHandler::eval_ctxt refactored
@@ -1226,10 +1226,10 @@ static void MCEngineSplitScriptIntoMessageAndParameters(MCExecContext& ctxt, MCS
                 newparam->give_exec_argument(t_value);
             else
                 newparam->setvalueref_argument(*t_expression);
-            
+
             // Not being able to evaluate the parameter doesn't cause an error at this stage
             ctxt.IgnoreLastError();
-            
+
             if (tparam == NULL)
                 params = tparam = newparam;
             else
@@ -1250,7 +1250,7 @@ static void MCEngineSplitScriptIntoMessageAndParameters(MCExecContext& ctxt, MCS
             t_offset++;
 	}
 	MCerrorlock--;
-	
+
     MCAutoStringRef t_msg;
     /* UNCHECKED */ MCStringCopySubstring(p_script, t_msg_range, &t_msg);
 	/* UNCHECKED */ MCNameCreate(*t_msg, r_message);
@@ -1262,13 +1262,13 @@ static void MCEngineSendOrCall(MCExecContext& ctxt, MCStringRef p_script, MCObje
 	MCNewAutoNameRef t_message;
 	MCParameter *t_params;
 	MCEngineSplitScriptIntoMessageAndParameters(ctxt, p_script, &t_message, t_params);
-	
+
 	MCObject *optr;
 	if (p_target == nil)
 		optr = ctxt . GetObject();
 	else
 		optr = p_target -> object;
-	
+
 	Boolean oldlock = MClockmessages;
 	MClockmessages = False;
 	Exec_stat stat;
@@ -1283,7 +1283,7 @@ static void MCEngineSendOrCall(MCExecContext& ctxt, MCStringRef p_script, MCObje
         // The message was not handled by the target object, so this is
         // just a bunch of script to be executed as if it were in a handler
         // in the target object (using domess).
-        
+
 		MCHandler *t_handler;
 		t_handler = optr -> findhandler(HT_MESSAGE, *t_message);
 		if (t_handler != NULL && t_handler -> isprivate())
@@ -1299,19 +1299,19 @@ static void MCEngineSendOrCall(MCExecContext& ctxt, MCStringRef p_script, MCObje
         // having been evaluated. This means in particular that variables
         // containing arrays will not work here - they will be converted to
         // the empty string.
-        
+
         MCAutoListRef t_param_list;
         MCListCreateMutable(',', &t_param_list);
         MCParameter *t_param_ptr;
         t_param_ptr = t_params;
-        
+
         bool t_has_params;
         t_has_params = t_params != nil;
         while (t_param_ptr != NULL)
         {
             MCAutoValueRef t_value;
             MCAutoStringRef t_value_string;
-            
+
             if (!t_param_ptr->eval_argument(ctxt, &t_value) ||
                 !ctxt . ConvertToString(*t_value, &t_value_string) ||
                 !MCListAppend(*t_param_list, *t_value_string))
@@ -1319,7 +1319,7 @@ static void MCEngineSendOrCall(MCExecContext& ctxt, MCStringRef p_script, MCObje
 
             t_param_ptr = t_param_ptr -> getnext();
         }
-        
+
         MCAutoStringRef tptr;
         if (t_has_params)
         {
@@ -1332,7 +1332,7 @@ static void MCEngineSendOrCall(MCExecContext& ctxt, MCStringRef p_script, MCObje
         }
         else
             tptr = MCNameGetString(*t_message);
-        
+
         if (optr->domess(*tptr, nil, false) == ES_ERROR)
             ctxt . Throw();
 	}
@@ -1348,7 +1348,7 @@ cleanup:
 		t_params = t_params->getnext();
 		delete tmp;
 	}
-    
+
 	if (added)
 		MCnexecutioncontexts--;
 	MClockmessages = oldlock;
@@ -1371,7 +1371,7 @@ void MCEngineExecSendScript(MCExecContext& ctxt, MCStringRef p_script, MCObjectP
         optr = ctxt . GetObject();
     else
         optr = p_target -> object;
-    
+
     Boolean oldlock = MClockmessages;
     MClockmessages = False;
 
@@ -1381,10 +1381,10 @@ void MCEngineExecSendScript(MCExecContext& ctxt, MCStringRef p_script, MCObjectP
         MCexecutioncontexts[MCnexecutioncontexts++] = &ctxt;
         added = True;
     }
-    
+
     if (ES_ERROR == optr->domess(p_script, nil, false))
 		ctxt . Throw();
-    
+
 	if (added)
 		MCnexecutioncontexts--;
 	MClockmessages = oldlock;
@@ -1407,13 +1407,13 @@ void MCEngineExecSendInTime(MCExecContext& ctxt, MCStringRef p_script, MCObjectP
 	default:
 		break;
 	}
-    
+
     // AL-2014-07-22: [[ Bug 12846 ]] Copy bugfix to refactored code
     // MW-2014-05-28: [[ Bug 12463 ]] If we cannot add the pending message, then throw an
     //   error.
 	if (MCscreen->addusermessage(p_target . object, *t_message, MCS_time() + p_delay, t_params))
         return;
-    
+
     ctxt . LegacyThrow(EE_SEND_TOOMANYPENDING, *t_message);
 }
 
@@ -1695,7 +1695,7 @@ void MCEngineGetStacksInUse(MCExecContext& ctxt, MCStringRef &r_value)
 {
 	bool t_success;
 	t_success = true;
-	
+
 	MCAutoListRef t_list;
 	t_success = MCListCreateMutable('\n', &t_list);
 
@@ -1710,7 +1710,7 @@ void MCEngineGetStacksInUse(MCExecContext& ctxt, MCStringRef &r_value)
 			t_success = MCListAppend(*t_list, *t_stack_name);
 		}
 	}
-	
+
 	if (t_success && MCListCopyAsString(*t_list, r_value))
 		return;
 
@@ -1729,7 +1729,7 @@ bool MCEngineEvalValueAsObject(MCValueRef p_value, bool p_strict, MCObjectPtr& r
     MCChunk *tchunk = new (nothrow) MCChunk(False);
     MCerrorlock++;
     Symbol_type type;
-    
+
     bool t_parse_error;
     bool t_success;
     t_parse_error = tchunk->parse(sp, False) == PS_NORMAL;
@@ -1739,7 +1739,7 @@ bool MCEngineEvalValueAsObject(MCValueRef p_value, bool p_strict, MCObjectPtr& r
     if (t_success)
         t_success = tchunk->getobj(ctxt, r_object, False);
     delete tchunk;
-    
+
     r_parse_error = t_parse_error;
     return t_success;
 }
@@ -1760,7 +1760,7 @@ void MCEngineEvalOwnerAsObject(MCExecContext& ctxt, MCObjectPtr p_object, MCObje
         r_owner . part_id  = p_object . part_id;
         return;
     }
-    
+
     ctxt . LegacyThrow(EE_CHUNK_NOTARGET);
 }
 
@@ -1768,7 +1768,7 @@ void MCEngineEvalTemplateAsObject(MCExecContext& ctxt, uinteger_t p_template_typ
 {
     MCObject *t_object;
     t_object = nil;
-    
+
     switch ((Dest_type) p_template_type)
     {
         case DT_STACK:
@@ -1810,14 +1810,14 @@ void MCEngineEvalTemplateAsObject(MCExecContext& ctxt, uinteger_t p_template_typ
         default:
             break;
     }
-    
+
     if (t_object != nil)
     {
         r_object . object = t_object;
         r_object . part_id  = 0;
         return;
     }
-    
+
     ctxt . LegacyThrow(EE_CHUNK_NOTARGET);
 }
 
@@ -1828,7 +1828,7 @@ void MCEngineEvalMeAsObject(MCExecContext& ctxt, MCObjectPtr& r_object)
     // (indicated by getparentscript() of the EP being non-NULL) 'me'
     // refers to the derived object context, otherwise it is the object
     // we were compiled in.
-    
+
     if (ctxt . GetParentScript() == NULL)
         r_object . object = nil; // destobj!
     else
@@ -1843,7 +1843,7 @@ void MCEngineEvalMenuObjectAsObject(MCExecContext& ctxt, MCObjectPtr& r_object)
         r_object . part_id = 0;
         return;
     }
-    
+
     ctxt . LegacyThrow(EE_CHUNK_NOTARGET);
 }
 
@@ -1854,7 +1854,7 @@ void MCEngineEvalTargetAsObject(MCExecContext& ctxt, MCObjectPtr& r_object)
         r_object = MCtargetptr.getObjectPtr();
         return;
     }
-    
+
     ctxt . LegacyThrow(EE_CHUNK_NOTARGET);
 }
 
@@ -1866,7 +1866,7 @@ void MCEngineEvalErrorObjectAsObject(MCExecContext& ctxt, MCObjectPtr& r_object)
         r_object . part_id = 0;
         return;
     }
-    
+
     ctxt . LegacyThrow(EE_CHUNK_NOTARGET);
 }
 
@@ -1901,7 +1901,7 @@ static bool MCEngineUuidToStringRef(MCUuid p_uuid, MCStringRef& r_string)
     // Convert the uuid to a string.
 	char t_uuid_buffer[kMCUuidCStringLength];
 	MCUuidToCString(p_uuid, t_uuid_buffer);
-    
+
     return MCStringCreateWithNativeChars((const char_t *)t_uuid_buffer, kMCUuidCStringLength - 1, r_string);
 }
 
@@ -1913,10 +1913,10 @@ void MCEngineEvalRandomUuid(MCExecContext& ctxt, MCStringRef& r_uuid)
         ctxt . LegacyThrow(EE_UUID_NORANDOMNESS);
         return;
     }
-    
+
     if (MCEngineUuidToStringRef(t_uuid, r_uuid))
         return;
-    
+
     ctxt . Throw();
 }
 
@@ -1926,21 +1926,21 @@ void MCEngineDoEvalUuid(MCExecContext& ctxt, MCStringRef p_namespace_id, MCStrin
     // Attempt to convert it to a uuid.
     MCAutoPointer<char> t_namespace_id;
     /* UNCHECKED */ MCStringConvertToCString(p_namespace_id, &t_namespace_id);
-    
+
     if (!MCUuidFromCString(*t_namespace_id, t_namespace))
     {
         ctxt . LegacyThrow(EE_UUID_NAMESPACENOTAUUID);
         return;
     }
-    
+
     if (p_is_md5)
         MCUuidGenerateMD5(t_namespace, p_name, t_uuid);
     else
         MCUuidGenerateSHA1(t_namespace, p_name, t_uuid);
-    
+
     if (MCEngineUuidToStringRef(t_uuid, r_uuid))
         return;
-    
+
     ctxt . Throw();
 }
 
@@ -2064,7 +2064,7 @@ void MCEngineEvalCommandArgumentAtIndex(MCExecContext& ctxt, uinteger_t t_index,
         ctxt . LegacyThrow(EE_COMMANDARGUMENTS_BADPARAM);
         return;
     }
-    
+
     MCStringRef t_result = nullptr;
     // If the index > argument count then we return empty
     if (!MCArrayFetchValueAtIndex(MCcommandarguments, t_index, (MCValueRef&)t_result))
@@ -2078,7 +2078,7 @@ void MCEngineEvalCommandArgumentAtIndex(MCExecContext& ctxt, uinteger_t t_index,
 void MCEngineGetRevLibraryMappingByKey(MCExecContext& ctxt, MCNameRef p_library, MCStringRef& r_mapping)
 {
     MCArrayRef t_mappings = MCdispatcher->getlibrarymappings();
-    
+
     MCStringRef t_value = nullptr;
     // m_library_mapping only stores strings (function above)
     if (!MCArrayFetchValue(t_mappings, false, p_library, (MCValueRef&)t_value) ||
@@ -2087,7 +2087,7 @@ void MCEngineGetRevLibraryMappingByKey(MCExecContext& ctxt, MCNameRef p_library,
         ctxt . LegacyThrow(EE_BAD_LIBRARY_MAPPING);
         return;
     }
-    
+
     r_mapping = MCValueRetain(t_value);
 }
 
@@ -2100,4 +2100,3 @@ void MCEngineSetRevLibraryMappingByKey(MCExecContext& ctxt, MCNameRef p_library,
         return;
     }
 }
-

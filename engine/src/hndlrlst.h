@@ -126,10 +126,11 @@ public:
     bool getconstantnames(MCListRef& r_list);
     void appendglobalnames(MCStringRef& r_string, bool first);
 	void newglobal(MCNameRef name);
-	
+	void newglobal(MCNameRef name, MCValueRef value);
+
     Parse_stat parse(MCObject *, MCDataRef);
     Parse_stat parse(MCObject *, MCStringRef);
-	
+
 	Exec_stat findhandler(Handler_type, MCNameRef name, MCHandler *&);
 	bool hashandler(Handler_type type, MCNameRef name);
 	void addhandler(Handler_type type, MCHandler *handler);
@@ -137,12 +138,12 @@ public:
 	uint2 getnglobals(void);
 	MCVariable *getglobal(uint2 p_index);
     bool enumerate(MCExecContext& ctxt, bool p_include_private, bool p_first, uindex_t& r_count, MCStringRef*& r_handlers);
-	
+
 	bool listconstants(MCHandlerlistListConstantsCallback p_callback, void *p_context);
 	bool listhandlers(MCHandlerlistListHandlersCallback p_callback, void *p_context, bool p_include_all);
     bool listvariables(MCHandlerlistListVariablesCallback p_callback, void *p_context);
     bool listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context);
-    
+
 	uint2 getnvars(void)
 	{
 		return nvars;
