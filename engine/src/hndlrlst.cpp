@@ -399,7 +399,6 @@ MCVariable *MCHandlerlist::getglobal(uint2 p_index)
 }
 
 
-
 void MCHandlerlist::newglobal(MCNameRef p_name)
 {
 	// Check to see if the global is already listed
@@ -416,7 +415,7 @@ void MCHandlerlist::newglobal(MCNameRef p_name)
 	globals[nglobals++] = gptr;
 }
 
-void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef value)
+void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
 	// Check to see if the global is already listed
 	for(unsigned int i = 0; i < nglobals; ++i)
@@ -430,6 +429,9 @@ void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef value)
 	// Add the global to the list
 	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
 	globals[nglobals++] = gptr;
+
+	if (nil != p_value)
+		gptr->setvalueref(p_value);
 }
 
 Parse_stat MCHandlerlist::parse(MCObject *objptr, MCDataRef script_utf8)

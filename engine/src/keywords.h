@@ -47,7 +47,6 @@ public:
 	virtual Parse_stat parse(MCScriptPoint &sp);
 	MCGlobal()
 	{
-//		constant = True;
 	}
 };
 
@@ -62,15 +61,11 @@ public:
 
 class MCLocalConstant : public MCLocaltoken
 {
-	MCValueRef *value;
-	MCVarref **dest;
 	bool is_unicode : 1;
 public:
     virtual void exec_ctxt(MCExecContext &ctxt);
 	MCLocalConstant()
 	{
-		value = NULL;
-		dest = NULL;
 		constant = True;
 	}
 };

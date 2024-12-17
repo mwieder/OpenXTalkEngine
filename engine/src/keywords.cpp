@@ -266,7 +266,7 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 			if (constant)
 			{
 				sp.gethlist()->newconstant(*t_token_name, *t_init_value);
-				sp.gethlist()->newglobal(*t_token_name);
+				sp.gethlist()->newglobal(*t_token_name, *t_init_value);
 				// TODO: assign t_init_value to the global var
 			}
 			else if (sp.gethlist()->newvar(*t_token_name, *t_init_value, &tvar, initialised) != PS_NORMAL)
@@ -279,7 +279,7 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 		else if (constant)
 		{
 			sp.gethandler()->newconstant(*t_token_name, *t_init_value);
-			sp.gethandler()->newglobal(*t_token_name);
+			sp.gethandler()->newglobal(*t_token_name, *t_init_value);
 			// TODO: assign t_init_value to the global var
 		}
 		else if (sp.gethandler()->newvar(*t_token_name, *t_init_value, &tvar) != PS_NORMAL)

@@ -66,11 +66,11 @@ class MCHandler
 	Boolean array;
 	Boolean is_private;
 	uint1 type;
-	
+
 	// MW-2013-11-08: [[ RefactorIt ]] The 'it' variable is now always defined
 	//   and this varref is used by things that want to set it.
 	MCVarref *m_it;
-	
+
 	static Boolean gotpass;
 public:
 	MCHandler(uint1 htype, bool p_is_private = false);
@@ -80,7 +80,7 @@ public:
 	{
 		return name;
 	}
-	
+
 	bool hasname(MCNameRef other_name)
 	{
 		return MCNameIsEqualToCaseless(name, other_name);
@@ -88,10 +88,10 @@ public:
 
 	Parse_stat parse(MCScriptPoint &sp, Boolean isprop);
     Exec_stat exec(MCExecContext &, MCParameter *);
-	
+
     MCVariable *getvar(uint2 index, Boolean isparam);
     MCContainer *getcontainer(uint2 index, Boolean isparam);
-    
+
 	integer_t getnparams(void);
     MCValueRef getparam(uindex_t p_index);
 	Parse_stat findvar(MCNameRef name, MCVarref **);
@@ -99,6 +99,7 @@ public:
 	Parse_stat findconstant(MCNameRef name, MCExpression **);
 	Parse_stat newconstant(MCNameRef name, MCValueRef value);
 	void newglobal(MCNameRef name);
+	void newglobal(MCNameRef name, MCValueRef value);
 	bool getparamnames(MCListRef& r_list);
 	bool getparamnames_as_properlist(MCProperListRef& r_list);
 	bool getvariablenames(MCListRef& r_list);
@@ -152,13 +153,13 @@ public:
 		r_vars = vars;
 		r_var_count = nvnames;
 	}
-	
+
 	void getgloballist(MCVariable**& r_vars, uint32_t& r_var_count)
 	{
 		r_vars = globals;
 		r_var_count = nglobals;
 	}
-	
+
 	void sethlist(MCHandlerlist *p_list)
 	{
 		hlist = p_list;

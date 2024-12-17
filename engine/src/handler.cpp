@@ -713,6 +713,23 @@ void MCHandler::newglobal(MCNameRef p_name)
 	globals[nglobals++] = gptr;
 }
 
+void MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
+{
+	uint2 i;
+	for (i = 0 ; i < nglobals ; i++)
+		if (globals[i]->hasname(p_name))
+			return;
+
+	MCVariable *gptr;
+	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+
+	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+	globals[nglobals++] = gptr;
+
+	if (nil != p_value)
+		gptr->setvalueref(p_value);
+}
+
 bool MCHandler::getparamnames(MCListRef& r_list)
 {
 	MCAutoListRef t_list;
