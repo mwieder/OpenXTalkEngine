@@ -701,33 +701,37 @@ bool MCHandler::getconstantnames_as_properlist(MCProperListRef& r_list)
 
 void MCHandler::newglobal(MCNameRef p_name)
 {
-	uint2 i;
-	for (i = 0 ; i < nglobals ; i++)
-		if (globals[i]->hasname(p_name))
-			return;
+	hlist -> newglobal(p_name);
 
-	MCVariable *gptr;
-	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+//	uint2 i;
+//	for (i = 0 ; i < nglobals ; i++)
+//		if (globals[i]->hasname(p_name))
+//			return;
 
-	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-	globals[nglobals++] = gptr;
+//	MCVariable *gptr;
+//	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+
+//	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+//	globals[nglobals++] = gptr;
 }
 
 void MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
-	uint2 i;
-	for (i = 0 ; i < nglobals ; i++)
-		if (globals[i]->hasname(p_name))
-			return;
+	hlist -> newglobal(p_name, p_value);
 
-	MCVariable *gptr;
-	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+//	uint2 i;
+//	for (i = 0 ; i < nglobals ; i++)
+//		if (globals[i]->hasname(p_name))
+//			return;
 
-	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-	globals[nglobals++] = gptr;
+//	MCVariable *gptr;
+//	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
 
-	if (nil != p_value)
-		gptr->setvalueref(p_value);
+//	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+//	globals[nglobals++] = gptr;
+
+//	if (nil != p_value)
+//		gptr->setvalueref(p_value);
 }
 
 bool MCHandler::getparamnames(MCListRef& r_list)
@@ -798,7 +802,9 @@ bool MCHandler::getvariablenames_as_properlist(MCProperListRef& r_list)
 
 bool MCHandler::getglobalnames(MCListRef& r_list)
 {
-	MCAutoListRef t_list;
+	return (hlist -> getglobalnames(r_list));
+
+/*	MCAutoListRef t_list;
 	if (!MCListCreateMutable(',', &t_list))
 		return false;
 
@@ -821,10 +827,13 @@ bool MCHandler::getglobalnames(MCListRef& r_list)
 	}
 
 	return MCListCopy(*t_list, r_list);
+*/
 }
 
 bool MCHandler::getglobalnames_as_properlist(MCProperListRef& r_list)
 {
+//	return (hlist -> getglobalnames_as_properlist(r_list));
+
     MCAutoProperListRef t_list;
     if (!MCProperListCreateMutable(&t_list))
         return false;
@@ -841,6 +850,7 @@ bool MCHandler::getglobalnames_as_properlist(MCProperListRef& r_list)
     r_list = t_list.Take();
 
     return true;
+
 }
 
 

@@ -44,9 +44,20 @@ public:
 class MCGlobal : public MCLocaltoken
 {
 public:
-	virtual Parse_stat parse(MCScriptPoint &sp);
+//	virtual Parse_stat parse(MCScriptPoint &sp);
 	MCGlobal()
 	{
+		constant = False;
+	}
+};
+
+class MCGlobalX : public MCLocaltoken
+{
+public:
+	virtual Parse_stat parse(MCScriptPoint &sp);
+	MCGlobalX()
+	{
+		constant = False;
 	}
 };
 
@@ -63,18 +74,7 @@ class MCLocalConstant : public MCLocaltoken
 {
 	bool is_unicode : 1;
 public:
-    virtual void exec_ctxt(MCExecContext &ctxt);
 	MCLocalConstant()
-	{
-		constant = True;
-	}
-};
-
-class MCGlobalConstant : public MCGlobal
-{
-public:
-    virtual void exec_ctxt(MCExecContext &ctxt);
-	MCGlobalConstant()
 	{
 		constant = True;
 	}

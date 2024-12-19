@@ -115,34 +115,41 @@ public:
 	~MCHandlerlist();
 	void reset(void);
 	MCObject *getparent();
+
+// script-local variables
 	// MW-2011-08-23: [[ UQL ]] 'ignore_uql' ignores UQL vars when searching.
     //   This is used when going from handler to script scope for var searches.
 	Parse_stat findvar(MCNameRef name, bool ignore_uql, MCVarref **);
 	Parse_stat newvar(MCNameRef name, MCValueRef init, MCVarref **, Boolean initialised);
+	bool getlocalnames(MCListRef& r_list);
+    bool listvariables(MCHandlerlistListVariablesCallback p_callback, void *p_context);
+
+// constants
 	Parse_stat findconstant(MCNameRef name, MCExpression **);
 	Parse_stat newconstant(MCNameRef name, MCValueRef value);
-	bool getlocalnames(MCListRef& r_list);
-	bool getglobalnames(MCListRef& r_list);
     bool getconstantnames(MCListRef& r_list);
-    void appendglobalnames(MCStringRef& r_string, bool first);
+	bool listconstants(MCHandlerlistListConstantsCallback p_callback, void *p_context);
+
+// globals
+ 	bool getglobalnames(MCListRef& r_list);
+	void appendglobalnames(MCStringRef& r_string, bool first);
 	void newglobal(MCNameRef name);
 	void newglobal(MCNameRef name, MCValueRef value);
+	bool isglobal(MCNameRef name);
+    bool listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context);
+	uint2 getnglobals(void);
+	MCVariable *getglobal(uint2 p_index);
 
     Parse_stat parse(MCObject *, MCDataRef);
     Parse_stat parse(MCObject *, MCStringRef);
 
+// handlers
 	Exec_stat findhandler(Handler_type, MCNameRef name, MCHandler *&);
 	bool hashandler(Handler_type type, MCNameRef name);
 	void addhandler(Handler_type type, MCHandler *handler);
-
-	uint2 getnglobals(void);
-	MCVariable *getglobal(uint2 p_index);
+	bool listhandlers(MCHandlerlistListHandlersCallback p_callback, void *p_context, bool p_include_all);
     bool enumerate(MCExecContext& ctxt, bool p_include_private, bool p_first, uindex_t& r_count, MCStringRef*& r_handlers);
 
-	bool listconstants(MCHandlerlistListConstantsCallback p_callback, void *p_context);
-	bool listhandlers(MCHandlerlistListHandlersCallback p_callback, void *p_context, bool p_include_all);
-    bool listvariables(MCHandlerlistListVariablesCallback p_callback, void *p_context);
-    bool listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context);
 
 	uint2 getnvars(void)
 	{

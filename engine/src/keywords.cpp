@@ -39,7 +39,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "globals.h"
 
-Parse_stat MCGlobal::parse(MCScriptPoint &sp)
+Parse_stat MCGlobalX::parse(MCScriptPoint &sp)
 {
 	initpoint(sp);
 	while (True)
@@ -49,20 +49,15 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
 		if (PS_EOL == stat)
 			return PS_NORMAL;
 
-		// MDW 2025.12.10 allow 'global constant'
-//		if (ST_LIT == type)
-//			stat = sp.next(type);
-
 		const LT *te;
 		MCExpression *newfact = NULL;
 		if (stat != PS_NORMAL || type != ST_ID
 		        || sp.lookup(SP_FACTOR, te) != PS_NO_MATCH
-		        )
-//		        || sp.lookupconstant(&newfact) == PS_NORMAL)
+//		        )
+		        || sp.lookupconstant(&newfact) == PS_NORMAL)
 		{
 			delete newfact;
-			MCperror->add
-			(PE_GLOBAL_BADNAME, sp);
+			MCperror->add (PE_GLOBAL_BADNAME, sp);
 			return PS_ERROR;
 		}
 
@@ -74,31 +69,113 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
         MCVarref* t_var;
         t_var = NULL;
 
-//MCExpression *dptr = NULL;
-//if (sp.gethlist() -> findconstant(sp.gettoken_nameref(), &dptr))
-//{
-//	sp.gethlist()->newglobal(sp.gettoken_nameref());
-//	constant = true;
-//}
+		// MDW 2024.12.10 allow the form global gVar=value
+		MCAutoValueRef init;
+		bool initialised = false;
+		if (PS_NORMAL == sp.skip_token(SP_FACTOR, TT_BINOP, O_EQ))
+		{
+            // MW-2014-11-06: [[ Bug 3680 ]] If there is nothing after '=' it's an error.
+			if (PS_NORMAL != sp.next(type))
+			{
+				MCperror->add(PE_LOCAL_BADINIT, sp);
+				return PS_ERROR;
+			}
 
-		if (NULL == sp.gethandler())
-        {
-            sp.gethlist() -> findvar(sp.gettoken_nameref(), false, &t_var);
-            if (NULL == t_var || !MCexplicitvariables)
-                sp.gethlist()->newglobal(sp.gettoken_nameref());
-            else
-                t_shadowing = true;
-        }
+            // MW-2014-11-06: [[ Bug 3680 ]] We allow either - or + next, but only if the
+            //   next token is a number.
+			if (ST_MIN == type || (ST_OP == type && sp.token_is_cstring("+")))
+			{
+                bool t_is_minus = type == ST_MIN;
+                // negative or positive initializer
+				if (PS_NORMAL != sp.next(type) || ST_NUM != type)
+				{
+					MCperror->add(PE_LOCAL_BADINIT, sp);
+					return PS_ERROR;
+				}
+                // PM-2015-01-30: [[ Bug 14439 ]] Make sure minus sign is not ignored when assigning value to var at declaration
+                if (t_is_minus)
+                    /* UNCHECKED */ MCStringFormat((MCStringRef&)&init, "-%@", sp.gettoken_stringref());
+                else
+                {
+                    /* Use the name form of the token to ensure initializers are
+                     * always unique. */
+                    init = sp.gettoken_nameref();
+                }
+			}
+			else	// not expression of x + y
+            {
+                // MW-2014-11-06: [[ Bug 3680 ]] If we are in explicit var mode, and the token
+                //   is not a string literal or a number, then it must be a constant in the constant
+                //   table that is the same as its token.
+                if (MCexplicitvariables && ST_ID == type)
+                {
+                    // If the unquoted literal is a recognised constant and the constant's value
+                    // is identical (case-sensitively) to the value, it is fine to make it a literal.
+                    if (sp . constantnameconvertstoconstantvalue())
+                        type = ST_LIT;
+                }
+
+                // MW-2014-11-06: [[ Bug 3680 ]] If now, explicitvariables is on and we don't have a literal or
+                //   a number, its an error.
+                if (MCexplicitvariables && ST_LIT != type && ST_NUM != type)
+                {
+					if (constant)
+						MCperror->add(PE_CONSTANT_BADINIT, sp);
+					else
+						MCperror->add(PE_LOCAL_BADINIT, sp);
+					return PS_ERROR;
+                }
+
+                /* Use the name form of the token to ensure initializers are
+                 * always unique. */
+                init = sp.gettoken_nameref();
+            }
+
+			initialised = true;
+		}
+
+		// allow global x=xyzzy if initialised
+		MCAutoValueRef t_init_value;
+		if (initialised)
+			/* UNCHECKED */ t_init_value = *init;
 		else
-        {
-            sp.gethandler()->findvar(sp.gettoken_nameref(), &t_var);
-            if (NULL == t_var || !MCexplicitvariables)
-                sp.gethandler()->newglobal(sp.gettoken_nameref());
-            else
-                t_shadowing = true;
-        }
+			t_init_value = kMCNull;
+
+//		if (! sp.gethlist() -> isglobal(sp.gettoken_nameref()))
+//		{
+//			if (initialised)
+				sp.gethlist()->newglobal(sp.gettoken_nameref(), *t_init_value);
+//			else
+//			{
+//				sp.gethlist() -> findvar(sp.gettoken_nameref(), false, &t_var);
+				// is there already a local variable by this name?
+//				if (NULL != t_var || !MCexplicitvariables)
+//					t_shadowing = true;
+//				else
+					// just create the global without a value if it doesn't already exist
+//				if (sp.gethlist()->newvar(sp.gettoken_nameref(), *t_init_value, &t_var, false) != PS_NORMAL)
+//				{
+//					MCperror->add(PE_GLOBAL_BADNAME, sp);
+//					if (NULL != t_var)
+//						delete t_var;
+//					return PS_ERROR;
+//				}
+//				sp.gethlist()->newglobal(sp.gettoken_nameref());
+//				sp.gethlist()->newglobal(sp.gettoken_nameref(), *t_init_value);
+//			}
+
+//			if (sp.gethlist()->newvar(sp.gettoken_nameref(), *t_init_value, &t_var, initialised) != PS_NORMAL)
+//			{
+//				MCperror->add(PE_GLOBAL_BADNAME, sp);
+//				if (NULL != t_var)
+//					delete t_var;
+//				return PS_ERROR;
+//			}
+//		}
+
         // Clearup fetched var
-        delete t_var;
+		if (NULL != t_var)
+			delete t_var;
 
         // In case we are shadowing a local variable, then we raise an error
         if (t_shadowing)
@@ -107,22 +184,19 @@ Parse_stat MCGlobal::parse(MCScriptPoint &sp)
             return PS_ERROR;
         }
 
+		// return error if not end of line
 		switch (sp.next(type))
 		{
-			case PS_NORMAL:
-				if (type != ST_SEP)
-				{
-					MCperror->add
-					(PE_STATEMENT_NOTSEP, sp);
-					return PS_ERROR;
-				}
-				break;
 			case PS_EOL:
 			case PS_EOF:
 				return PS_NORMAL;
+			case PS_NORMAL:
+				if (ST_SEP == type)
+				{
+					break;
+				}
 			default:
-				MCperror->add
-				(PE_STATEMENT_NOTSEP, sp);
+				MCperror->add (PE_STATEMENT_NOTSEP, sp);
 				return PS_ERROR;
 		}
 	}
@@ -196,7 +270,7 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 
             // MW-2014-11-06: [[ Bug 3680 ]] We allow either - or + next, but only if the
             //   next token is a number.
-			if (type == ST_MIN || (type == ST_OP && sp.token_is_cstring("+")))
+			if (ST_MIN == type || (ST_OP == type && sp.token_is_cstring("+")))
 			{
                 bool t_is_minus = type == ST_MIN;
                 // negative or positive initializer
@@ -263,29 +337,27 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 
 		if (sp.gethandler() == NULL)
 		{
-			if (constant)
+			if (constant)	// constant defined outside handlers
 			{
 				sp.gethlist()->newconstant(*t_token_name, *t_init_value);
 				sp.gethlist()->newglobal(*t_token_name, *t_init_value);
-				// TODO: assign t_init_value to the global var
 			}
-			else if (sp.gethlist()->newvar(*t_token_name, *t_init_value, &tvar, initialised) != PS_NORMAL)
-				{
-					MCperror->add(PE_CONSTANT_BADINIT, sp);
-					return PS_ERROR;
-				}
+			else if (PS_NORMAL != sp.gethlist()->newvar(*t_token_name, *t_init_value, &tvar, initialised))
+			{
+				MCperror->add(PE_LOCAL_BADNAME, sp);
+				return PS_ERROR;
+			}
 
 		}
-		else if (constant)
+		else if (constant)	// constant defined within a handler
 		{
-			sp.gethandler()->newconstant(*t_token_name, *t_init_value);
-			sp.gethandler()->newglobal(*t_token_name, *t_init_value);
-			// TODO: assign t_init_value to the global var
+			sp.gethlist()->newconstant(*t_token_name, *t_init_value);
+			sp.gethlist()->newglobal(*t_token_name, *t_init_value);
 		}
+		// else it's a local- or script-local variable declaration
 		else if (sp.gethandler()->newvar(*t_token_name, *t_init_value, &tvar) != PS_NORMAL)
 		{
-//			MCperror->add(PE_LOCAL_BADNAME, sp);
-			MCperror->add(PE_CONSTANT_BADINIT, sp);
+			MCperror->add(PE_LOCAL_BADNAME, sp);
 			return PS_ERROR;
 		}
 
@@ -293,32 +365,22 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 
 		switch (sp.next(type))
 		{
-		case PS_NORMAL:
-			if (type != ST_SEP)
-			{
-				MCperror->add(PE_STATEMENT_NOTSEP, sp);
+			case PS_EOL:
+			case PS_EOF:
+				return PS_NORMAL;
+			case PS_NORMAL:
+				if (ST_SEP == type)
+				{
+					break;
+				}
+			default:
+				MCperror->add (PE_STATEMENT_NOTSEP, sp);
 				return PS_ERROR;
-			}
-			break;
-		case PS_EOL:
-		case PS_EOF:
-			return PS_NORMAL;
-		default:
-			MCperror->add(PE_STATEMENT_NOTSEP, sp);
-			return PS_ERROR;
 		}
 	}
 	return PS_NORMAL;
 }
 
-
-void MCLocalConstant::exec_ctxt(MCExecContext& ctxt)
-{
-    MCExecValue t_value;
-//    if (!ctxt . EvaluateExpression(dest, EE_PUT_BADEXP, t_value))
-//        return;
-//	dest -> ref -> set(ctxt, value, PT_INTO);
-}
 
 MCIf::~MCIf()
 {

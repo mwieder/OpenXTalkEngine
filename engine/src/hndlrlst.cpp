@@ -399,12 +399,24 @@ MCVariable *MCHandlerlist::getglobal(uint2 p_index)
 }
 
 
-void MCHandlerlist::newglobal(MCNameRef p_name)
+bool MCHandlerlist::isglobal(MCNameRef p_name)
 {
 	// Check to see if the global is already listed
 	for(unsigned int i = 0; i < nglobals; ++i)
 		if (globals[i] -> hasname(p_name))
-			return;
+			return true;
+	return false;
+}
+
+void MCHandlerlist::newglobal(MCNameRef p_name)
+{
+	// Check to see if the global is already listed
+//	for(unsigned int i = 0; i < nglobals; ++i)
+//		if (globals[i] -> hasname(p_name))
+//			return;
+
+	if (isglobal(p_name))
+		return;
 
 	// Ensure a global exists with the given name
 	MCVariable *gptr;
@@ -418,9 +430,12 @@ void MCHandlerlist::newglobal(MCNameRef p_name)
 void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
 	// Check to see if the global is already listed
-	for(unsigned int i = 0; i < nglobals; ++i)
-		if (globals[i] -> hasname(p_name))
-			return;
+//	for(unsigned int i = 0; i < nglobals; ++i)
+//		if (globals[i] -> hasname(p_name))
+//			return;
+
+	if (isglobal(p_name))
+		return;
 
 	// Ensure a global exists with the given name
 	MCVariable *gptr;
@@ -430,7 +445,7 @@ void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
 	globals[nglobals++] = gptr;
 
-	if (nil != p_value)
+//	if (nil != p_value)
 		gptr->setvalueref(p_value);
 }
 
