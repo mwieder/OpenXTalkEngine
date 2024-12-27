@@ -164,9 +164,9 @@ void MCHandlerlist::reset(void)
 	vinits = NULL;
 	nvars = 0;
 
-	delete[] globals; /* Allocated with new[] */
-	globals = NULL;
-	nglobals = 0;
+//	delete[] globals; /* Allocated with new[] */
+//	globals = NULL;
+//	nglobals = 0;
 
 	for(uint32_t i = 0; i < nconstants; i++)
 	{
@@ -387,12 +387,6 @@ void MCHandlerlist::appendglobalnames(MCStringRef& r_string, bool first)
 
 }
 
-// OK-2008-06-25: <Bug where the variableNames property would return duplicate global names>
-uint2 MCHandlerlist::getnglobals(void)
-{
-	return nglobals;
-}
-
 MCVariable *MCHandlerlist::getglobal(uint2 p_index)
 {
 	return globals[p_index];
@@ -411,29 +405,24 @@ bool MCHandlerlist::isglobal(MCNameRef p_name)
 void MCHandlerlist::newglobal(MCNameRef p_name)
 {
 	// Check to see if the global is already listed
-//	for(unsigned int i = 0; i < nglobals; ++i)
-//		if (globals[i] -> hasname(p_name))
-//			return;
-
 	if (isglobal(p_name))
 		return;
 
 	// Ensure a global exists with the given name
 	MCVariable *gptr;
-	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+//	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
 
-	// Add the global to the list
-	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-	globals[nglobals++] = gptr;
+	if (MCVariable::ensureglobal(p_name, gptr))
+	{
+		// Add the global to the list
+		MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+		globals[nglobals++] = gptr;
+	}
 }
 
 void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
 	// Check to see if the global is already listed
-//	for(unsigned int i = 0; i < nglobals; ++i)
-//		if (globals[i] -> hasname(p_name))
-//			return;
-
 	if (isglobal(p_name))
 		return;
 
@@ -441,12 +430,18 @@ void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 	MCVariable *gptr;
 	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
 
-	// Add the global to the list
-	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-	globals[nglobals++] = gptr;
+	if (MCVariable::ensureglobal(p_name, gptr))
+	{
+//		*dptr = gptr -> newvarref();
+//		return PS_NORMAL;
 
-//	if (nil != p_value)
+		// Add the global to the list
+		MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+		globals[nglobals++] = gptr;
+
+	//	if (nil != p_value)
 		gptr->setvalueref(p_value);
+	}
 }
 
 Parse_stat MCHandlerlist::parse(MCObject *objptr, MCDataRef script_utf8)

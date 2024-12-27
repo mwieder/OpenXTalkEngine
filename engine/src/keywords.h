@@ -39,6 +39,7 @@ public:
 	{
 		return 0;
 	}
+	Boolean is_global;
 };
 
 class MCGlobal : public MCLocaltoken
@@ -47,16 +48,7 @@ public:
 //	virtual Parse_stat parse(MCScriptPoint &sp);
 	MCGlobal()
 	{
-		constant = False;
-	}
-};
-
-class MCGlobalX : public MCLocaltoken
-{
-public:
-	virtual Parse_stat parse(MCScriptPoint &sp);
-	MCGlobalX()
-	{
+		is_global = true;
 		constant = False;
 	}
 };

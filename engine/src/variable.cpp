@@ -897,6 +897,8 @@ bool MCVariable::converttomutabledata(MCExecContext& ctxt)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// GLOBAL VARIABLES
+////////////////////////////////////////////////////////////////////////////////
 
 MCVariable *MCVariable::lookupglobal_cstring(const char *p_name)
 {
@@ -911,6 +913,7 @@ MCVariable *MCVariable::lookupglobal_cstring(const char *p_name)
 		return nil;
 
 	// The name is in use, so check to see if there is a global using it.
+	// return nil if it's not a global variable.
 	return lookupglobal(t_name);
 }
 
@@ -924,8 +927,8 @@ MCVariable *MCVariable::lookupglobal(MCNameRef p_name)
 	return nil;
 }
 
-// return true if found existing global
-// return false if created a new global variable
+// return true if found existing globalor created a new global variable
+// return false if variable creation failed.
 bool MCVariable::ensureglobal(MCNameRef p_name, MCVariable*& r_var)
 {
 	// First check to see if the global variable already exists
@@ -933,6 +936,7 @@ bool MCVariable::ensureglobal(MCNameRef p_name, MCVariable*& r_var)
 	t_var = lookupglobal(p_name);
 	if (nil != t_var)
 	{
+		// found an existing global var, return success
 		r_var = t_var;
 		return true;
 	}
@@ -942,6 +946,7 @@ bool MCVariable::ensureglobal(MCNameRef p_name, MCVariable*& r_var)
 	if (!createwithname(p_name, t_new_global))
 		return false;
 
+	// handle environment global values
 	if ('$' == MCStringGetNativeCharAtIndex(MCNameGetString(p_name), 0))
     {
         MCAutoStringRef t_env;
@@ -1034,10 +1039,15 @@ void MCVariable::synchronize(MCExecContext& ctxt, bool p_notify)
 
 MCVarref *MCVariable::newvarref(void)
 {
-	if (!is_deferred)
-		return new MCVarref(this);
+//	if (!is_deferred)
+//		return new MCVarref(this);
 
-	return new MCDeferredVarref(this);
+//	return new MCDeferredVarref(this);
+
+	if (is_deferred)
+		return new MCDeferredVarref(this);
+	else
+		return new MCVarref(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1050,17 +1060,18 @@ MCContainer::~MCContainer(void)
     switch(m_path_length)
     {
     case 6:
-        MCValueRelease(m_short_path[5]);
+//        MCValueRelease(m_short_path[5]);
     case 5:
-        MCValueRelease(m_short_path[4]);
+//        MCValueRelease(m_short_path[4]);
     case 4:
-        MCValueRelease(m_short_path[3]);
+//        MCValueRelease(m_short_path[3]);
     case 3:
-        MCValueRelease(m_short_path[2]);
+//        MCValueRelease(m_short_path[2]);
     case 2:
-        MCValueRelease(m_short_path[1]);
+//        MCValueRelease(m_short_path[1]);
     case 1:
-        MCValueRelease(m_short_path[0]);
+//        MCValueRelease(m_short_path[0]);
+		MCValueRelease(m_short_path[m_path_length-1]);
     case 0:
         break;
     default:

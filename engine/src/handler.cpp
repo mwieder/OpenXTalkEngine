@@ -701,37 +701,37 @@ bool MCHandler::getconstantnames_as_properlist(MCProperListRef& r_list)
 
 void MCHandler::newglobal(MCNameRef p_name)
 {
-	hlist -> newglobal(p_name);
+//	hlist -> newglobal(p_name);
 
-//	uint2 i;
-//	for (i = 0 ; i < nglobals ; i++)
-//		if (globals[i]->hasname(p_name))
-//			return;
+	uint2 i;
+	for (i = 0 ; i < nglobals ; i++)
+		if (globals[i]->hasname(p_name))
+			return;
 
-//	MCVariable *gptr;
-//	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+	MCVariable *gptr;
+	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
 
-//	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-//	globals[nglobals++] = gptr;
+	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+	globals[nglobals++] = gptr;
 }
 
 void MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
-	hlist -> newglobal(p_name, p_value);
+//	hlist -> newglobal(p_name, p_value);
 
-//	uint2 i;
-//	for (i = 0 ; i < nglobals ; i++)
-//		if (globals[i]->hasname(p_name))
-//			return;
+	uint2 i;
+	for (i = 0 ; i < nglobals ; i++)
+		if (globals[i]->hasname(p_name))
+			return;
 
-//	MCVariable *gptr;
-//	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
+	MCVariable *gptr;
+	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
 
-//	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-//	globals[nglobals++] = gptr;
+	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
+	globals[nglobals++] = gptr;
 
-//	if (nil != p_value)
-//		gptr->setvalueref(p_value);
+	if (nil != p_value)
+		gptr->setvalueref(p_value);
 }
 
 bool MCHandler::getparamnames(MCListRef& r_list)
@@ -802,9 +802,9 @@ bool MCHandler::getvariablenames_as_properlist(MCProperListRef& r_list)
 
 bool MCHandler::getglobalnames(MCListRef& r_list)
 {
-	return (hlist -> getglobalnames(r_list));
+//	return (hlist -> getglobalnames(r_list));
 
-/*	MCAutoListRef t_list;
+	MCAutoListRef t_list;
 	if (!MCListCreateMutable(',', &t_list))
 		return false;
 
@@ -827,7 +827,7 @@ bool MCHandler::getglobalnames(MCListRef& r_list)
 	}
 
 	return MCListCopy(*t_list, r_list);
-*/
+
 }
 
 bool MCHandler::getglobalnames_as_properlist(MCProperListRef& r_list)

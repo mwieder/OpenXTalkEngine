@@ -44,40 +44,40 @@ struct Cvalue
     /* Each constructor is labelled constexpr so that it should be
      * evaluated at compile time. Overloading is used to infer the
      * type to use, based on the second argument. */
-    
+
     constexpr Cvalue(const char *p_token, integer_t p_integer)
         : token(p_token),
           type(kCValueTypeInteger),
           integer(p_integer)
     {
     }
-    
+
     constexpr Cvalue(const char *p_token, double p_real)
         : token(p_token),
           type(kCValueTypeReal),
           real(p_real)
     {
     }
-    
+
     constexpr Cvalue(const char *p_token, const char *p_string)
         : token(p_token),
           type(kCValueTypeString),
           string(p_string)
     {
     }
-    
+
     /* As CvalueType is an explicit enum type distinct from the other
      * value types, we can use that to construct a Cvalue with explicit
      * type. Note: As this is a constexpr constructor *all* fields must be
      * initialized, we choose integer = 0 for the union in this case. */
-    
+
     constexpr Cvalue(const char *p_token, CvalueType p_type)
         : token(p_token),
           type(p_type),
           integer(0)
     {
     }
-    
+
     const char *token;
     CvalueType type;
     union
@@ -106,10 +106,10 @@ class MCScriptPoint
 	uint2 pos;
 	Boolean escapes;
 	Symbol_type m_type;
-	
+
     codepoint_t codepoint;
     uint1 curlength;
-    
+
 	// MW-2011-06-23: If this is true, then we parse the script in 'tag' mode.
 	Boolean tagged;
 	// MW-2011-06-23: This is true if we are currently consuming tokens inside
@@ -128,12 +128,12 @@ public:
 
 	~MCScriptPoint();
 	MCScriptPoint& operator=(const MCScriptPoint& sp);
-	
+
 	void allowescapes(Boolean which)
 	{
 		escapes = which;
 	}
-	
+
 	// MW-2009-03-03: If allowtags is true then we use PHP style tagged parsing,
 	//   producing a ST_DATA token in between valid tags.
 	void allowtags(Boolean which)
@@ -180,17 +180,17 @@ public:
 	{
 		return curptr;
 	}
-    
+
     uindex_t getindex(void)
     {
         // Warning: explicitly truncated to a uindex_t
         // This imposes a limit of 4GB on scripts
         size_t index = (const unichar_t *)token . getstring() + length - endptr;
         MCAssert(uindex_t(index) == index);
-        
+
         return uindex_t(index);
     }
-    
+
     bool is_eol()
     {
         Symbol_type t_dummy;
@@ -214,7 +214,7 @@ public:
 	MCExpression *insertbinop(MCExpression *nfact, MCExpression *&cfact,
 	                          MCExpression **top);
 	Parse_stat parseexp(Boolean single, Boolean items, MCExpression **);
-	
+
 	// Search for an existing variable in scope, returning an error if it
 	// doesn't exist.
 	Parse_stat findvar(MCNameRef name, MCVarref** r_var);
@@ -227,9 +227,9 @@ public:
 	// doesn't exist. A uql-var starts off with the same content as its
 	// name, but as soon as its used as a container becomes empty.
 	Parse_stat finduqlvar(MCNameRef name, MCVarref** r_var);
-    
+
     Symbol_type gettype(codepoint_t p_codepoint);
-    
+
     // A codepoint can be an initial character of an identifier if it
     // - has type ST_ID
     // - is a Unicode letter
@@ -239,18 +239,18 @@ public:
     // - is a Unicode combining mark
     // - is a Unicode connector punctuation mark
     bool is_identifier(codepoint_t p_codepoint, bool p_initial);
-    
+
     // Increment the index
     void advance(uindex_t number = 1);
-    
-    codepoint_t getcurrent();
+
+    codepoint_t getCurrent();
+	Symbol_type currentType();
     codepoint_t getnext();
     codepoint_t getcodepointatindex(uindex_t index);
-    
+
     void setcurptr(const unichar_t *ptr);
-    
+
 private:
     bool lookupconstantintable(int& r_position);
 };
 #endif
-

@@ -137,8 +137,11 @@ public:
 	void newglobal(MCNameRef name, MCValueRef value);
 	bool isglobal(MCNameRef name);
     bool listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context);
-	uint2 getnglobals(void);
 	MCVariable *getglobal(uint2 p_index);
+	uint2 getnglobals(void)
+	{
+		return nglobals;
+	}
 
     Parse_stat parse(MCObject *, MCDataRef);
     Parse_stat parse(MCObject *, MCStringRef);

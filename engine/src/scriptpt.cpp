@@ -321,6 +321,11 @@ Symbol_type MCScriptPoint::gettype(codepoint_t p_codepoint)
     Symbol_type type;
     type = ST_UNDEFINED;
 
+	// TODO: check for not-equal codepoint before masking to 0xFF
+	// this doesn't seem to do the job
+	if (0x2260 == p_codepoint)
+		return ST_OP;
+
     // Check type table for first 256 Unicode codepoints
     if (p_codepoint <= 0x00FF)
         type = unicode_type_table[p_codepoint];
@@ -353,7 +358,7 @@ bool MCScriptPoint::is_identifier(codepoint_t p_codepoint, bool p_initial)
 {
     Symbol_type t_type;
     t_type = gettype(p_codepoint);
-    if (t_type != ST_UNDEFINED)
+    if (ST_UNDEFINED != t_type)
     {
         if (ST_ID == t_type || (!p_initial && ST_NUM == t_type))
             return true;
@@ -382,9 +387,14 @@ void MCScriptPoint::advance(uindex_t number)
     curlength = t_index;
 }
 
-codepoint_t MCScriptPoint::getcurrent()
+codepoint_t MCScriptPoint::getCurrent()
 {
     return codepoint;
+}
+
+Symbol_type MCScriptPoint::currentType()
+{
+	return gettype(getCurrent());
 }
 
 codepoint_t MCScriptPoint::getnext()
@@ -529,21 +539,21 @@ Parse_stat MCScriptPoint::skip_eol()
 	do
 	{
 		type = gettype(*curptr);
-		if (type == ST_EOF)
+		if (ST_EOF == type)
 			return PS_EOF;
-		if (type == ST_LIT)
+		if (ST_LIT == type)
 			lit = !lit;
 		// MW-2011-06-23: [[ SERVER ]] When we are asked to skip past a ?>
-		//   we must eat the following newling - PHP-semantics.
+		//   we must eat the following newline - PHP-semantics.
 		if (in_tag && type == ST_TAG && curptr[1] == '>')
 		{
 			in_tag = False;
 
 			// Make sure we eat a subsequence newline
-			if (curptr[2] == 10)
+			if (10 == curptr[2])
 			{
 				// Take account of CR LF line ending
-				if (curptr[3] == 13)
+				if (13 == curptr[3])
 					curptr += 1;
 
 				pos = 1;
@@ -561,12 +571,12 @@ Parse_stat MCScriptPoint::skip_eol()
 		}
 		curptr++;
 	}
-	while (type != ST_EOL && (type != ST_SEMI || lit));
-	if (type == ST_EOL)
+	while (ST_EOL != type && (ST_SEMI != type || lit));
+	if (ST_EOL == type)
 	{
 		// MW-2011-06-23: [[ SERVER ]] If the line ends with CR LF
 		//   then eat the LF.
-		if (curptr[-1] == 13 && curptr[0] == 10)
+		if (13 == curptr[-1] && 10 == curptr[0])
 			curptr++;
 		line++;
 		pos = 1;
@@ -610,12 +620,12 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	{
 		// We were previously not in a tag, so we need to potentially skip '?>' and subsequent
 		// newline. (Indeed, this will be case if we are not at the start)
-		if ((line != 1 || pos != 1) && curptr[0] == '?' && curptr[1] == '>')
+		if ((1 != line || 1 != pos) && '?' == curptr[0] && '>' == curptr[1])
 		{
-			if (curptr[2] == 10)
+			if (10 == curptr[2])
 			{
 				// Take account of CR LF line ending
-				if (curptr[3] == 13)
+				if (13 == curptr[3])
 					curptr += 1;
 				pos = 1;
 				curptr += 3;
@@ -641,7 +651,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		// Loop until a NUL char, or we find '<?rev'
 		bool t_in_comment;
 		t_in_comment = false;
-		while(*curptr != '\0')
+		while('\0' != *curptr)
 		{
 			if (!t_in_comment && curptr[0] == '<' && curptr[1] == '!' && curptr[2] == '-' && curptr[3] == '-')
 			{
@@ -860,13 +870,13 @@ Parse_stat MCScriptPoint::nexttoken()
 
 Parse_stat MCScriptPoint::skip_space()
 {
-	while (gettype(getcurrent()) == ST_SPC)
+	while (currentType() == ST_SPC)
         advance();
 
-	switch (gettype(getcurrent()))
+	switch (currentType())
 	{
         case ST_COM:
-            while (*curptr && gettype(getcurrent()) != ST_EOL)
+            while (*curptr && ST_EOL != currentType())
                 advance();
             if (!*curptr)
                 return PS_EOF;
@@ -874,7 +884,7 @@ Parse_stat MCScriptPoint::skip_space()
         case ST_MIN:
             if (gettype(getnext()) == ST_MIN)
             {
-                while (*curptr && gettype(getcurrent()) != ST_EOL)
+                while (*curptr && ST_EOL != currentType())
                     advance();
                 if (*curptr)
                     return PS_EOL;
@@ -884,9 +894,10 @@ Parse_stat MCScriptPoint::skip_space()
             else
                 return PS_NORMAL;
         case ST_OP:
-            if (getcurrent() == '/' && getnext() == '/')
+			// handle single-line comments
+            if ('/' == getCurrent() && '/' == getnext())
             {
-                while (*curptr && gettype(getcurrent()) != ST_EOL)
+                while (*curptr && currentType() != ST_EOL)
                     advance();
                 if (*curptr)
                     return PS_EOL;
@@ -894,7 +905,8 @@ Parse_stat MCScriptPoint::skip_space()
                     return PS_EOF;
             }
             else
-                if (getcurrent() == '/' && getnext() == '*')
+				// handle block comments
+                if ('/' == getCurrent() && '*' == getnext())
                 {
                     const unichar_t *startptr = curptr;
                     const uint2 startline = line;
@@ -902,12 +914,12 @@ Parse_stat MCScriptPoint::skip_space()
                     do
                     {
                         advance();
-                        if (getcurrent() == '*' && getnext() == '/')
+                        if ('*' == getCurrent() && '/' == getnext())
                         {
                             advance(2);
                             return skip_space();
                         }
-                        if (gettype(getcurrent()) == ST_EOL)
+                        if (currentType() == ST_EOL)
                         {
                             // MW-2011-06-23: [[ SERVER ]] If the line ends with CR LF
                             //   then eat the LF.
@@ -926,17 +938,17 @@ Parse_stat MCScriptPoint::skip_space()
                     line = startline;
                     pos = startpos;
                     return PS_ERROR;
-                }
+                }	// end of block comment processing
                 else
                     return PS_NORMAL;
         case ST_ESC:
-            while (*curptr && gettype(getcurrent()) != ST_EOL)
+            while (*curptr && ST_EOL != currentType())
                 advance();
             if (!*curptr)
                 return PS_EOF;
             // MW-2011-06-23: [[ SERVER ]] If the line ends with CR LF
             //   then eat the LF.
-            if (getcurrent() == 13 && getnext() == 10)
+            if (13 == getCurrent() && 10 == getnext())
                 advance();
             advance();
             line++;
@@ -966,22 +978,22 @@ Parse_stat MCScriptPoint::skip_eol()
 	Boolean lit = False;
 	do
 	{
-		type = gettype(getcurrent());
-		if (type == ST_EOF)
+		type = currentType();
+		if (ST_EOF == type)
 			return PS_EOF;
-		if (type == ST_LIT)
+		if (ST_LIT == type)
 			lit = !lit;
 		// MW-2011-06-23: [[ SERVER ]] When we are asked to skip past a ?>
-		//   we must eat the following newling - PHP-semantics.
-		if (in_tag && type == ST_TAG && getnext() == '>')
+		//   we must eat the following newline - PHP-semantics.
+		if (in_tag && ST_TAG == type && '>' == getnext())
 		{
 			in_tag = False;
 
 			// Make sure we eat a subsequence newline
-			if (getcodepointatindex(2) == 10)
+			if (10 == getcodepointatindex(2))
 			{
 				// Take account of CR LF line ending
-				if (getcodepointatindex(3) == 13)
+				if (13 == getcodepointatindex(3))
 					advance();
 
 				pos = 1;
@@ -1004,7 +1016,7 @@ Parse_stat MCScriptPoint::skip_eol()
 	{
 		// MW-2011-06-23: [[ SERVER ]] If the line ends with CR LF
 		//   then eat the LF.
-		if (curptr[-1] == 13 && curptr[0] == 10)
+		if (13 == curptr[-1] && 10 == curptr[0])
 			advance();
 		line++;
 		pos = 1;
@@ -1050,7 +1062,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	{
 		// We were previously not in a tag, so we need to potentially skip '?>' and subsequent
 		// newline. (Indeed, this will be case if we are not at the start)
-		if ((line != 1 || pos != 1) && getcurrent() == '?' && getnext() == '>')
+		if ((line != 1 || pos != 1) && getCurrent() == '?' && getnext() == '>')
 		{
 			if (getcodepointatindex(2) == 10)
 			{
@@ -1097,7 +1109,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 				t_in_comment = false;
 				continue;
 			}
-			else if (!t_in_comment && getcurrent() == '<' && getnext() == '?')
+			else if (!t_in_comment && getCurrent() == '<' && getnext() == '?')
 			{
 				if (MCMemoryCompare(curptr + 2, rev_tag, sizeof(rev_tag)) == 0)
 				{
@@ -1117,14 +1129,14 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 			}
 
 			// Check for and advance past any newlines
-			if (getcurrent() == 13)
+			if (13 == getCurrent())
 			{
-				if (getnext() == 10)
+				if (10 == getnext())
 					advance();
 
 				pos = 1, line += 1;
 			}
-			else if (getcurrent() == 10)
+			else if (10 == getCurrent())
 				pos = 1, line += 1;
 
 			pos += 1;
@@ -1163,46 +1175,46 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	else if (tagged)
 		was_in_tag = True;
 
-	if ((stat = skip_space()) != PS_NORMAL)
+	if (PS_NORMAL != (stat = skip_space()))
 	{
-		if (stat == PS_ERROR)
+		if (PS_ERROR == stat)
 			MCperror->add(PE_PARSE_BADCHAR, *this);
 		token.setstring((const char *)curptr);
 		return stat;
 	}
 
-    if (is_identifier(getcurrent(), true))
+    if (is_identifier(getCurrent(), true))
         type = ST_ID;
     else
-        type = gettype(getcurrent());
+        type = currentType();
 
-	if (type == ST_TAG)
+	if (ST_TAG == type)
 	{
-		if (tagged && getnext() == '>')
+		if (tagged && '>' == getnext())
 			return PS_EOL;
 		else
 			type = ST_ID;
 	}
-	if (type == ST_EOF)
+	if (ST_EOF == type)
 	{
 		token.setstring((const char *)curptr);
 		return PS_EOF;
 	}
-	if (type == ST_EOL || type == ST_SEMI)
+	if (ST_EOL == type || ST_SEMI == type)
 		return PS_EOL;
 	if (curptr != tokenptr)
 	{
 		backupptr = tokenptr;
 		tokenptr = curptr;
 	}
-	if (type == ST_LIT)
+	if (ST_LIT == type)
 		advance();
 	token.setstring((const char *)curptr);
 
 	switch (type)
 	{
 	case ST_ID:
-		if (getcurrent() == '$' && getnext() == '#')
+		if ('$' == getCurrent() && '#' == getnext())
 		{
 			advance(2);
 		}
@@ -1210,10 +1222,10 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		{
 			while (True)
 			{
-				if (!is_identifier(getcurrent(), false))
+				if (!is_identifier(getCurrent(), false))
 				{
 					// Anything other than TAG or TAG> causes the token to finish.
-					if (gettype(getcurrent()) != ST_TAG || (tagged && getnext() == '>'))
+					if (currentType() != ST_TAG || (tagged && getnext() == '>'))
 						break;
 				}
 				advance();
@@ -1223,18 +1235,18 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	case ST_LIT:
 		while (True)
 		{
-			Symbol_type newtype = gettype(getcurrent());
-			if (escapes && newtype == ST_ESC && getnext())
+			Symbol_type newtype = currentType();
+			if (escapes && ST_ESC == newtype && getnext())
                 advance(2);
 			else
 			{
-				if (newtype == ST_EOL || newtype == ST_EOF)
+				if (ST_EOL == newtype || ST_EOF == newtype)
 				{
 					MCperror->add(PE_PARSE_BADLIT, *this);
 					return PS_ERROR;
 				}
 				else
-					if (newtype == ST_LIT)
+					if (ST_LIT == newtype)
 						break;
 				advance();
 			}
@@ -1243,7 +1255,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	case ST_OP:
 		while (True)
 		{
-			Symbol_type newtype = gettype(getcurrent());
+			Symbol_type newtype = currentType();
 			if (newtype != type)
 				break;
 			advance();
@@ -1252,10 +1264,10 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	case ST_NUM:
 		while (True)
 		{
-			Symbol_type newtype = gettype(getcurrent());
+			Symbol_type newtype = currentType();
 			if (newtype != type)
 			{
-                if (getcurrent() > 127)
+                if (getCurrent() > 127)
                     break;
 
 				char c = MCS_tolower(*curptr);
@@ -1275,7 +1287,7 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 		advance();
 		break;
 	}
-	if (type == ST_LIT && gettype(getcurrent()) == ST_LIT)
+	if (ST_LIT == type && ST_LIT == currentType())
 	{
 		token.setlength(curptr - tokenptr - 1);
 		advance();
@@ -1292,7 +1304,7 @@ Parse_stat MCScriptPoint::nexttoken()
 {
 	Symbol_type type;
 	Parse_stat ps = next(type);
-	while (ps == PS_EOL)
+	while (PS_EOL == ps)
 	{
 		skip_eol();
 		ps = next(type);
@@ -1302,7 +1314,7 @@ Parse_stat MCScriptPoint::nexttoken()
 
 Parse_stat MCScriptPoint::lookup(Script_point t, const LT *&dlt)
 {
-	if (m_type == ST_LIT)
+	if (ST_LIT == m_type)
 		return PS_NO_MATCH;
 
 	if (token.getlength())
@@ -1401,11 +1413,11 @@ bool MCScriptPoint::constantnameconvertstoconstantvalue()
 
 Parse_stat MCScriptPoint::lookupconstant(MCExpression **dest)
 {
-	if (m_type == ST_LIT)
+	if (ST_LIT == m_type)
 		return PS_NO_MATCH;
 
-	if (gethandler() != NULL
-	        && gethandler()->findconstant(gettoken_nameref(), dest) == PS_NORMAL)
+	if (NULL != gethandler()
+	        && PS_NORMAL == gethandler()->findconstant(gettoken_nameref(), dest))
 		return PS_NORMAL;
 
     int t_position;
@@ -1464,7 +1476,7 @@ Parse_stat MCScriptPoint::skip_token(Script_point table,
 	Symbol_type type;
 	const LT *te;
 
-	if ((stat = next(type)) != PS_NORMAL)
+	if (PS_NORMAL != (stat = next(type)))
 		return stat;
 	switch (type)
 	{
@@ -1473,8 +1485,8 @@ Parse_stat MCScriptPoint::skip_token(Script_point table,
 	case ST_LP:
 	case ST_RP:
 	case ST_ID:
-		if (lookup(table, te) != PS_NORMAL
-		        || te->type != ttype || (which != 0 && te->which != which))
+		if (PS_NORMAL != lookup(table, te)
+		        || te->type != ttype || (0 != which && te->which != which))
 		{
 			backup();
 			return PS_NO_MATCH;
@@ -1626,7 +1638,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 					MCperror->add(PE_EXPRESSION_DOUBLEBINOP, *this);
 					return PS_ERROR;
 				}
-				if ((newfact = insertbinop(new MCItem, curfact, top)) == NULL)
+				if (NULL == (newfact = insertbinop(new MCItem, curfact, top)))
 					return PS_ERROR;
 				newfact->parse(*this, doingthe);
 				needfact = True;
@@ -1657,7 +1669,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 					doingthe = True;
 					break;
 				case TT_RPAREN:
-					if (depth == 0)
+					if (0 == depth)
 					{
 						if (needfact)
 						{
@@ -1667,18 +1679,18 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 						backup();
 						return PS_NORMAL;
 					}
-					if (curfact->getright() == NULL)
+					if (NULL == curfact->getright())
 					{
 						MCperror->add(PE_EXPRESSION_NOFACT, *this);
 						return PS_ERROR;
 					}
-					while (curfact->getroot() != NULL
+					while (NULL != curfact->getroot()
 					        && curfact->getrank() != FR_GROUPING)
 						curfact = curfact->getroot();
 					curfact->setrank(FR_VALUE);
 					if (--depth == 0)
 						litems = items;
-					if (curfact->getroot() != NULL)
+					if (NULL != curfact->getroot())
 						curfact = curfact->getroot();
 					break;
 				case TT_LPAREN:
@@ -1692,10 +1704,10 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 						return PS_ERROR;
 					}
 					needfact = pstat != PS_BREAK;
-					if (curfact == NULL)
+					if (NULL == curfact)
 						*top = newfact;
 					else
-						if (curfact->getright() == NULL)
+						if (NULL == curfact->getright())
 						{
 							curfact->setright(newfact);
 							newfact->setroot(curfact);
@@ -1709,18 +1721,18 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 					curfact = newfact;
 					break;
 				case TT_BIN_OR_UNOP:
-					if (curfact == NULL
+					if (NULL == curfact
 					    || (curfact->getrank() == FR_GROUPING
-					        && curfact->getright() == NULL)
-					    || (curfact->getright() == NULL && curfact->getleft() != NULL))
+					        && NULL == curfact->getright())
+					    || (NULL == curfact->getright() && NULL != curfact->getleft() ))
 					{
 						newfact = MCN_new_operator(te->which);
 						newfact->parse(*this, doingthe);
 						newfact->setrank(FR_UNARY);
-						if (curfact == NULL)
+						if (NULL == curfact)
 							*top = newfact;
 						else
-							if (curfact->getright() == NULL)
+							if (NULL == curfact->getright())
 							{
 								curfact->setright(newfact);
 								newfact->setroot(curfact);
@@ -1742,7 +1754,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 						return PS_ERROR;
 					}
 					needfact = pstat != PS_BREAK;
-					if (insertbinop(newfact, curfact, top) == NULL)
+					if (NULL == insertbinop(newfact, curfact, top))
 						return PS_ERROR;
 					if (!needfact)
 					{ // switch sides for validation operators
@@ -1807,7 +1819,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 					backup();
 					newfact = new (nothrow) MCProperty;
 					MCerrorlock++;
-					if (newfact->parse(*this, doingthe) != PS_NORMAL)
+					if (PS_NORMAL != newfact->parse(*this, doingthe))
 					{
 						delete newfact;
 						*this = thesp;
@@ -1837,7 +1849,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 					thesp = *this;
 					newfact = new (nothrow) MCProperty;
 					MCerrorlock++;
-					if (newfact->parse(*this, doingthe) != PS_NORMAL)
+					if (PS_NORMAL != newfact->parse(*this, doingthe))
 					{
 						delete newfact;
 						*this = thesp;
@@ -1857,35 +1869,35 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 				}
 				else
 				{
-					if (type != ST_ID)
+					if (ST_ID != type)
 					{
 						MCperror->add(PE_EXPRESSION_NOTFACT, *this);
 						return PS_ERROR;
 					}
 
-					if (lookupconstant(&newfact) != PS_NORMAL)
+					if (PS_NORMAL != lookupconstant(&newfact))
 					{
 						MCVarref *newvar;
 						newfact = NULL;
 
 						MCNewAutoNameRef t_name = gettoken_nameref();
 
-						if (next(type) == PS_NORMAL)
+						if (PS_NORMAL == next(type))
 							backup();
 						else
 							type = ST_ERR;
 						// MW-2011-06-22: [[ SERVER ]] Update to use SP findvar method to take into account
 						//   execution outwith a handler.
-						if (type != ST_LP && findvar(*t_name, &newvar) == PS_NORMAL)
+						if (ST_LP != type && PS_NORMAL == findvar(*t_name, &newvar))
 						{
 							newvar->parsearray(*this);
 							newfact = newvar;
 						}
-						else if (type == ST_LB && !MCexplicitvariables)
+						else if (ST_LB == type && !MCexplicitvariables)
 							{
 								// MW-2011-06-22: [[ SERVER ]] Update to use SP findvar method to take into account
 								//   execution outwith a handler.
-							if (findnewvar(*t_name, kMCEmptyName, &newvar) != PS_NORMAL)
+							if (PS_NORMAL != findnewvar(*t_name, kMCEmptyName, &newvar))
 								{
 									MCperror->add(PE_EXPRESSION_NOTFACT, *this);
 									return PS_ERROR;
@@ -1893,9 +1905,9 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 								newvar->parsearray(*this);
 								newfact = newvar;
 							}
-						else if (type == ST_LP)
+						else if (ST_LP == type)
 								newfact = new (nothrow) MCFuncref(*t_name);
-						if (newfact == NULL)
+						if (NULL == newfact)
 						{
 							if (MCexplicitvariables)
 							{
@@ -1906,7 +1918,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 							{
 								// MW-2011-06-22: [[ SERVER ]] Update to use SP findvar method to take into account
 								//   execution outwith a handler.
-								if (finduqlvar(*t_name, &newvar) != PS_NORMAL)
+								if (PS_NORMAL != finduqlvar(*t_name, &newvar))
 								{
 									MCperror->add(PE_EXPRESSION_NOTFACT, *this);
 									return PS_ERROR;
@@ -1918,7 +1930,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 					}
 					// MW-2007-08-30: [[ Bug 2633 ]] Things such as sum2(1, 2+) don't flag a parse error this is
 					//   because this parse method could fail - we now produce an error in this case.
-					if (newfact->parse(*this, doingthe) != PS_NORMAL)
+					if (PS_NORMAL != newfact->parse(*this, doingthe))
 					{
 						delete newfact;
 						MCperror->add(PE_EXPRESSION_NOTFACT, *this);
@@ -1930,7 +1942,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 			}
 			break;
 		}
-		if (single && !needfact && depth == 0)
+		if (single && !needfact && 0 == depth)
 			break;
 	}
 	return PS_NORMAL;
@@ -1938,7 +1950,7 @@ Parse_stat MCScriptPoint::parseexp(Boolean single, Boolean items,
 
 Parse_stat MCScriptPoint::findvar(MCNameRef p_name, MCVarref** r_var)
 {
-	if (curhandler != NULL)
+	if (NULL != curhandler)
 		return curhandler -> findvar(p_name, r_var);
 
 	// MW-2011-08-23: [[ UQL ]] We are only searching in hlist scope, so we
@@ -1951,13 +1963,13 @@ Parse_stat MCScriptPoint::findvar(MCNameRef p_name, MCVarref** r_var)
 
 Parse_stat MCScriptPoint::findnewvar(MCNameRef p_name, MCNameRef p_init, MCVarref** r_var)
 {
-	if (findvar(p_name, r_var) == PS_NORMAL)
+	if (PS_NORMAL == findvar(p_name, r_var))
 		return PS_NORMAL;
 
-	if (curhandler != NULL)
+	if (NULL != curhandler)
 		return curhandler -> newvar(p_name, p_init, r_var);
 
-	if (curhlist != NULL)
+	if (NULL != curhlist)
 		return curhlist -> newvar(p_name, p_init, r_var, True);
 
 	return PS_ERROR;
@@ -1965,7 +1977,7 @@ Parse_stat MCScriptPoint::findnewvar(MCNameRef p_name, MCNameRef p_init, MCVarre
 
 Parse_stat MCScriptPoint::finduqlvar(MCNameRef p_name, MCVarref** r_var)
 {
-	if (findvar(p_name, r_var) == PS_NORMAL)
+	if (PS_NORMAL == findvar(p_name, r_var))
 		return PS_NORMAL;
 
 	if (curhandler != NULL)
