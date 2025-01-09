@@ -129,13 +129,15 @@ public:
 	Parse_stat newconstant(MCNameRef name, MCValueRef value);
     bool getconstantnames(MCListRef& r_list);
 	bool listconstants(MCHandlerlistListConstantsCallback p_callback, void *p_context);
+	bool getconstantnames_as_properlist(MCProperListRef& r_list);
+	int isAlreadyConstant(MCNameRef p_name);
 
 // globals
  	bool getglobalnames(MCListRef& r_list);
 	void appendglobalnames(MCStringRef& r_string, bool first);
-	void newglobal(MCNameRef name);
-	void newglobal(MCNameRef name, MCValueRef value);
-	bool isglobal(MCNameRef name);
+	bool newglobal(MCNameRef name);
+	bool newglobal(MCNameRef name, MCValueRef value);
+	int isAlreadyGlobal(MCNameRef name);
     bool listglobals(MCHandlerlistListVariablesCallback p_callback, void *p_context);
 	MCVariable *getglobal(uint2 p_index);
 	uint2 getnglobals(void)

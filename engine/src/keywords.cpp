@@ -184,7 +184,15 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 		{
 			if (constant)	// constant defined outside handlers
 			{
-				sp.gethlist()->newconstant(*t_token_name, *t_init_value);
+				if (PS_NORMAL != sp.gethlist()->newconstant(*t_token_name, *t_init_value))
+				{
+					MCperror->add(PE_LOCAL_BADNAME, sp);
+					return PS_ERROR;
+				}
+//				sp.gethlist()->newglobal(*t_token_name, *t_init_value);
+			}
+			else if (is_global)
+			{
 				sp.gethlist()->newglobal(*t_token_name, *t_init_value);
 			}
 			else if (PS_NORMAL != sp.gethlist()->newvar(*t_token_name, *t_init_value, &tvar, initialised))
@@ -196,9 +204,17 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 		}
 		else if (constant)	// constant defined within a handler
 		{
-			sp.gethlist()->newconstant(*t_token_name, *t_init_value);
-			sp.gethlist()->newglobal(*t_token_name, *t_init_value);
+//			sp.gethlist()->newconstant(*t_token_name, *t_init_value);
+			if (PS_NORMAL != sp.gethlist()->newconstant(*t_token_name, *t_init_value))
+			{
+				MCperror->add(PE_LOCAL_BADNAME, sp);
+				return PS_ERROR;
+			}
 		}
+//		else if (is_global)
+//		{
+//			sp.gethandler()->newglobal(*t_token_name, *t_init_value);
+//		}
 		// else it's a local- or script-local variable declaration
 		else if (sp.gethandler()->newvar(*t_token_name, *t_init_value, &tvar) != PS_NORMAL)
 		{

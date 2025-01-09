@@ -52,10 +52,10 @@ extern const Cvalue *constant_table;
 extern const uint4 constant_table_size;
 extern const LT * const table_pointers[];
 extern const uint2 table_sizes[];
-extern const LT command_table[];
-extern const uint4 command_table_size;
-extern const LT factor_table[];
-extern const uint4 factor_table_size;
+//extern const LT command_table[];
+//extern const uint4 command_table_size;
+//extern const LT factor_table[];
+//extern const uint4 factor_table_size;
 
 static struct { codepoint_t codepoint; Symbol_type type; } remainder_table[] =
 {
@@ -964,7 +964,7 @@ Parse_stat MCScriptPoint::skip_space()
         case ST_TAG:
             // MW-2011-06-23: [[ SERVER ]] Make sure we return EOL when we
             //   encounter '?>' (?> is a command separator, essentially)
-            if (in_tag && getnext() == '>')
+            if (in_tag && '>' == getnext() )
                 return PS_EOL;
             return PS_NORMAL;
         default:
@@ -1011,8 +1011,8 @@ Parse_stat MCScriptPoint::skip_eol()
 		}
 		advance();
 	}
-	while (type != ST_EOL && (type != ST_SEMI || lit));
-	if (type == ST_EOL)
+	while (ST_EOL != type && (ST_SEMI != type || lit));
+	if (ST_EOL == type)
 	{
 		// MW-2011-06-23: [[ SERVER ]] If the line ends with CR LF
 		//   then eat the LF.
@@ -1062,12 +1062,12 @@ Parse_stat MCScriptPoint::next(Symbol_type &type)
 	{
 		// We were previously not in a tag, so we need to potentially skip '?>' and subsequent
 		// newline. (Indeed, this will be case if we are not at the start)
-		if ((line != 1 || pos != 1) && getCurrent() == '?' && getnext() == '>')
+		if ((1 != line || 1 != pos) && '?' == getCurrent() && '>' == getnext())
 		{
-			if (getcodepointatindex(2) == 10)
+			if (10 == getcodepointatindex(2))
 			{
 				// Take account of CR LF line ending
-				if (getcodepointatindex(3) == 13)
+				if (13 == getcodepointatindex(3))
 					advance();
 				pos = 1;
 				advance(3);

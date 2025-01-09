@@ -48,13 +48,11 @@ class MCHandler
 	MCContainer **params;
 	MCHandlerVarInfo *vinfo;
 	MCHandlerParamInfo *pinfo;
-	MCHandlerConstantInfo *cinfo;
 	uint2 nglobals;
 	uint2 npassedparams;
 	uint2 nparams;
 	uint2 nvnames;
 	uint2 npnames;
-	uint2 nconstants;
 	uint2 executing;
 	uint2 firstline;
 	uint2 lastline;
@@ -98,8 +96,8 @@ public:
 	Parse_stat newvar(MCNameRef name, MCValueRef init, MCVarref **);
 	Parse_stat findconstant(MCNameRef name, MCExpression **);
 	Parse_stat newconstant(MCNameRef name, MCValueRef value);
-	void newglobal(MCNameRef name);
-	void newglobal(MCNameRef name, MCValueRef value);
+	bool newglobal(MCNameRef name);
+	bool newglobal(MCNameRef name, MCValueRef value);
 	bool getparamnames(MCListRef& r_list);
 	bool getparamnames_as_properlist(MCProperListRef& r_list);
 	bool getvariablenames(MCListRef& r_list);

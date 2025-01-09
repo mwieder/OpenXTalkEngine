@@ -335,14 +335,53 @@ Parse_stat MCHandlerlist::findconstant(MCNameRef p_name, MCExpression **dptr)
 	return PS_NO_MATCH;
 }
 
+int MCHandlerlist::isAlreadyConstant(MCNameRef p_name)
+{
+	// if constant already exists, just return the error
+	uint2 i;
+	for (i = 0 ; i < nconstants ; i++)
+	{
+		if (MCNameIsEqualToCaseless(p_name, cinfo[i].name))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 Parse_stat MCHandlerlist::newconstant(MCNameRef p_name, MCValueRef p_value)
 {
+	// if constant already exists, just return the error
+	if (isAlreadyConstant(p_name))
+		return PS_NO_MATCH;
 	MCU_realloc((char **)&cinfo, nconstants, nconstants + 1, sizeof(MCHandlerConstantInfo));
     cinfo[nconstants].name = MCValueRetain(p_name);
 	cinfo[nconstants++].value = MCValueRetain(p_value);
+	// make constants global
+	if (newglobal(p_name, p_value))
+		return PS_NO_MATCH;
 	return PS_NORMAL;
 }
 
+bool MCHandlerlist::getconstantnames_as_properlist(MCProperListRef& r_list)
+{
+    MCAutoProperListRef t_list;
+    if (!MCProperListCreateMutable(&t_list))
+        return false;
+
+    for (uinteger_t i = 0; i < nconstants; i++)
+        if (!MCProperListPushElementOntoBack(*t_list, cinfo[i].name))
+            return false;
+
+    if (!t_list.MakeImmutable())
+    {
+        return false;
+    }
+
+    r_list = t_list.Take();
+
+    return true;
+}
 bool MCHandlerlist::getlocalnames(MCListRef& r_list)
 {
 	MCAutoListRef t_list;
@@ -393,42 +432,29 @@ MCVariable *MCHandlerlist::getglobal(uint2 p_index)
 }
 
 
-bool MCHandlerlist::isglobal(MCNameRef p_name)
+int MCHandlerlist::isAlreadyGlobal(MCNameRef p_name)
 {
 	// Check to see if the global is already listed
 	for(unsigned int i = 0; i < nglobals; ++i)
 		if (globals[i] -> hasname(p_name))
-			return true;
-	return false;
+			return i;
+	return -1;
 }
 
-void MCHandlerlist::newglobal(MCNameRef p_name)
+bool MCHandlerlist::newglobal(MCNameRef p_name)
+{
+	return newglobal(p_name, nil);
+}
+
+// return true if already exists or error
+bool MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
 	// Check to see if the global is already listed
-	if (isglobal(p_name))
-		return;
+	if (-1 != isAlreadyGlobal(p_name))
+		return true;
 
 	// Ensure a global exists with the given name
 	MCVariable *gptr;
-//	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
-
-	if (MCVariable::ensureglobal(p_name, gptr))
-	{
-		// Add the global to the list
-		MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-		globals[nglobals++] = gptr;
-	}
-}
-
-void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
-{
-	// Check to see if the global is already listed
-	if (isglobal(p_name))
-		return;
-
-	// Ensure a global exists with the given name
-	MCVariable *gptr;
-	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
 
 	if (MCVariable::ensureglobal(p_name, gptr))
 	{
@@ -439,9 +465,10 @@ void MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 		MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
 		globals[nglobals++] = gptr;
 
-	//	if (nil != p_value)
 		gptr->setvalueref(p_value);
+		return false;
 	}
+	return true;
 }
 
 Parse_stat MCHandlerlist::parse(MCObject *objptr, MCDataRef script_utf8)

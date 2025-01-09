@@ -59,8 +59,7 @@ MCHandler::MCHandler(uint1 htype, bool p_is_private)
 	params = NULL;
 	pinfo = NULL;
 	vinfo = NULL;
-	cinfo = NULL;
-	nglobals = nparams = nvnames = npnames = nconstants = executing = 0;
+	nparams = nvnames = npnames = executing = 0;
 	globals = NULL;
 	nglobals = 0;
 	prop = False;
@@ -96,13 +95,6 @@ MCHandler::~MCHandler()
 	delete[] pinfo; /* Allocated with new[] */
 
 	delete[] globals; /* Allocated with new[] */
-
-	for(uint32_t i = 0; i < nconstants; i++)
-	{
-		MCValueRelease(cinfo[i] . name);
-		MCValueRelease(cinfo[i] . value);
-	}
-	delete[] cinfo; /* Allocated with new[] */
 
 	// MW-2013-11-08: [[ RefactorIt ]] Delete the it varref.
 	delete m_it;
@@ -407,7 +399,7 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 	MCVariable **oldvars = vars;
 	uint2 oldnparams = nparams;
 	uint2 oldnvnames = nvnames;
-	uint2 oldnconstants = nconstants;
+//	uint2 oldnconstants = nconstants;
 	params = newparams;
 	nparams = newnparams;
 	if (nvnames == 0)
@@ -551,7 +543,7 @@ Exec_stat MCHandler::exec(MCExecContext& ctxt, MCParameter *plist)
 	nparams = oldnparams;
 	vars = oldvars;
 	nvnames = oldnvnames;
-	nconstants = oldnconstants;
+//	nconstants = oldnconstants;
 	if (stat == ES_PASS)
 		gotpass = True;  // so MCObject::timer can distinguish pass from not handled
 	return stat;
@@ -660,69 +652,33 @@ Parse_stat MCHandler::newvar(MCNameRef p_name, MCValueRef p_init, MCVarref **r_r
 
 Parse_stat MCHandler::findconstant(MCNameRef p_name, MCExpression **dptr)
 {
-	uint2 i;
-	for (i = 0 ; i < nconstants ; i++)
-		if (MCNameIsEqualToCaseless(p_name, cinfo[i].name))
-		{
-			*dptr = new (nothrow) MCLiteral(cinfo[i].value);
-			return PS_NORMAL;
-		}
-	return hlist->findconstant(p_name, dptr);
+	return hlist -> findconstant(p_name, dptr);
 }
 
 Parse_stat MCHandler::newconstant(MCNameRef p_name, MCValueRef p_value)
 {
-	MCU_realloc((char **)&cinfo, nconstants, nconstants + 1, sizeof(MCHandlerConstantInfo));
-    cinfo[nconstants].name = MCValueRetain(p_name);
-	cinfo[nconstants++].value = MCValueRetain(p_value);
-	return PS_NORMAL;
+	return hlist -> newconstant(p_name, p_value);
 }
 
 bool MCHandler::getconstantnames_as_properlist(MCProperListRef& r_list)
 {
-    MCAutoProperListRef t_list;
-    if (!MCProperListCreateMutable(&t_list))
-        return false;
-
-    for (uinteger_t i = 0; i < nconstants; i++)
-        if (!MCProperListPushElementOntoBack(*t_list, cinfo[i].name))
-            return false;
-
-    if (!t_list.MakeImmutable())
-    {
-        return false;
-    }
-
-    r_list = t_list.Take();
-
-    return true;
+	return hlist -> getconstantnames_as_properlist(r_list);
 }
 
 
-void MCHandler::newglobal(MCNameRef p_name)
+bool MCHandler::newglobal(MCNameRef p_name)
 {
-//	hlist -> newglobal(p_name);
-
-	uint2 i;
-	for (i = 0 ; i < nglobals ; i++)
-		if (globals[i]->hasname(p_name))
-			return;
-
-	MCVariable *gptr;
-	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
-
-	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
-	globals[nglobals++] = gptr;
+	return newglobal(p_name, nil);
 }
 
-void MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
+bool MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
 //	hlist -> newglobal(p_name, p_value);
 
 	uint2 i;
 	for (i = 0 ; i < nglobals ; i++)
 		if (globals[i]->hasname(p_name))
-			return;
+			return true;
 
 	MCVariable *gptr;
 	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
@@ -732,6 +688,7 @@ void MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
 
 	if (nil != p_value)
 		gptr->setvalueref(p_value);
+	return true;
 }
 
 bool MCHandler::getparamnames(MCListRef& r_list)
