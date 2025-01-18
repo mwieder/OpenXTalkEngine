@@ -343,24 +343,27 @@ int MCHandlerlist::isAlreadyConstant(MCNameRef p_name)
 	{
 		if (MCNameIsEqualToCaseless(p_name, cinfo[i].name))
 		{
-			return true;
+			return i;
 		}
 	}
-	return false;
+	return -1;
 }
 
 Parse_stat MCHandlerlist::newconstant(MCNameRef p_name, MCValueRef p_value)
 {
 	// if constant already exists, just return the error
-	if (isAlreadyConstant(p_name))
+	if (-1 != isAlreadyConstant(p_name))
+		return PS_NO_MATCH;
+	// See if there's a conflict with a global name
+	if (-1 != isAlreadyGlobal(p_name))
 		return PS_NO_MATCH;
 	MCU_realloc((char **)&cinfo, nconstants, nconstants + 1, sizeof(MCHandlerConstantInfo));
     cinfo[nconstants].name = MCValueRetain(p_name);
 	cinfo[nconstants++].value = MCValueRetain(p_value);
 	// make constants global
 	if (newglobal(p_name, p_value))
-		return PS_NO_MATCH;
-	return PS_NORMAL;
+		return PS_NORMAL;
+	return PS_NO_MATCH;
 }
 
 bool MCHandlerlist::getconstantnames_as_properlist(MCProperListRef& r_list)
@@ -466,7 +469,7 @@ bool MCHandlerlist::newglobal(MCNameRef p_name, MCValueRef p_value)
 		globals[nglobals++] = gptr;
 
 		gptr->setvalueref(p_value);
-		return false;
+		return true;
 	}
 	return true;
 }

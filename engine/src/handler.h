@@ -92,20 +92,25 @@ public:
 
 	integer_t getnparams(void);
     MCValueRef getparam(uindex_t p_index);
-	Parse_stat findvar(MCNameRef name, MCVarref **);
-	Parse_stat newvar(MCNameRef name, MCValueRef init, MCVarref **);
-	Parse_stat findconstant(MCNameRef name, MCExpression **);
-	Parse_stat newconstant(MCNameRef name, MCValueRef value);
-	bool newglobal(MCNameRef name);
-	bool newglobal(MCNameRef name, MCValueRef value);
 	bool getparamnames(MCListRef& r_list);
 	bool getparamnames_as_properlist(MCProperListRef& r_list);
+
+	Parse_stat findvar(MCNameRef name, MCVarref **);
+	Parse_stat newvar(MCNameRef name, MCValueRef init, MCVarref **);
 	bool getvariablenames(MCListRef& r_list);
     bool getvariablenames_as_properlist(MCProperListRef& r_list);
+    bool getvarnames(bool p_all, MCListRef& r_list);
+
+	Parse_stat findconstant(MCNameRef name, MCExpression **);
+	Parse_stat newconstant(MCNameRef name, MCValueRef value);
+    bool getconstantnames_as_properlist(MCProperListRef& r_list);
+
+	int isAlreadyGlobal(MCNameRef p_name);
+	bool newglobal(MCNameRef name);
+	bool newglobal(MCNameRef name, MCValueRef value);
     bool getglobalnames(MCListRef& r_list);
     bool getglobalnames_as_properlist(MCProperListRef& r_list);
-    bool getvarnames(bool p_all, MCListRef& r_list);
-    bool getconstantnames_as_properlist(MCProperListRef& r_list);
+
     //Exec_stat eval(MCExecPoint &);
     uint4 linecount();
 

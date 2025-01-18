@@ -191,11 +191,16 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 		else
 		{
 			if (sp.gethandler() == NULL)
+			// script-level scope
 			{
 				// scope is entire script
 				if (is_global)
 				{
-					sp.gethlist()->newglobal(*t_token_name, *t_init_value);
+					if (!sp.gethlist()->newglobal(*t_token_name, *t_init_value))
+					{
+						MCperror->add(PE_LOCAL_BADNAME, sp);
+						return PS_ERROR;
+					}
 				}
 				else if (PS_NORMAL != sp.gethlist()->newvar(*t_token_name, *t_init_value, &tvar, initialised))
 				{
@@ -203,10 +208,23 @@ Parse_stat MCLocaltoken::parse(MCScriptPoint &sp)
 					return PS_ERROR;
 				}
 			}
-			else if (sp.gethandler()->newvar(*t_token_name, *t_init_value, &tvar) != PS_NORMAL)
+			else
+			// handler-level scope
 			{
-				MCperror->add(PE_LOCAL_BADNAME, sp);
-				return PS_ERROR;
+				if (is_global)
+				{
+// TODO: neither gethlist nor gethandler work here. Dunno why not.
+//					if (! sp.gethlist()->newglobal(*t_token_name, *t_init_value))
+//					{
+	//					MCperror->add(PE_LOCAL_BADNAME, sp);
+	//					return PS_ERROR;
+//					}
+				}
+				if (sp.gethandler()->newvar(*t_token_name, *t_init_value, &tvar) != PS_NORMAL)
+				{
+					MCperror->add(PE_LOCAL_BADNAME, sp);
+					return PS_ERROR;
+				}
 			}
 		}
 

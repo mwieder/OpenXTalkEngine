@@ -666,6 +666,16 @@ bool MCHandler::getconstantnames_as_properlist(MCProperListRef& r_list)
 }
 
 
+int MCHandler::isAlreadyGlobal(MCNameRef p_name)
+{
+	// Check to see if the global is already listed
+	// return index if so, return -1 if not
+	for(unsigned int i = 0; i < nglobals; ++i)
+		if (globals[i] -> hasname(p_name))
+			return i;
+	return -1;
+}
+
 bool MCHandler::newglobal(MCNameRef p_name)
 {
 	return newglobal(p_name, nil);
@@ -674,11 +684,14 @@ bool MCHandler::newglobal(MCNameRef p_name)
 bool MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
 {
 //	hlist -> newglobal(p_name, p_value);
+	if (-1 != isAlreadyGlobal(p_name))
+		return true;
 
-	uint2 i;
-	for (i = 0 ; i < nglobals ; i++)
-		if (globals[i]->hasname(p_name))
-			return true;
+	if (-1 != hlist->isAlreadyGlobal(p_name))
+		return true;
+
+	if (-1 != hlist->isAlreadyConstant(p_name))
+		return false;
 
 	MCVariable *gptr;
 	/* UNCHECKED */ MCVariable::ensureglobal(p_name, gptr);
@@ -686,8 +699,7 @@ bool MCHandler::newglobal(MCNameRef p_name, MCValueRef p_value)
 	MCU_realloc((char **)&globals, nglobals, nglobals + 1, sizeof(MCVariable *));
 	globals[nglobals++] = gptr;
 
-	if (nil != p_value)
-		gptr->setvalueref(p_value);
+	gptr->setvalueref(p_value);
 	return true;
 }
 
@@ -817,19 +829,23 @@ bool MCHandler::getvarnames(bool p_all, MCListRef& r_list)
 	if (!MCListCreateMutable('\n', &t_list))
 		return false;
 
+	// start with the parameter names
 	MCAutoListRef t_param_list, t_variable_list, t_script_variable_list;
 	if (!(getparamnames(&t_param_list) &&
 		MCListAppend(*t_list, *t_param_list)))
 		return false;
 
+	// append the locals with handler scope
 	if (!(getvariablenames(&t_variable_list) &&
 		MCListAppend(*t_list, *t_variable_list)))
 		return false;
 
+	// append the script locals
 	if (!(hlist->getlocalnames(&t_script_variable_list) &&
 		MCListAppend(*t_list, *t_script_variable_list)))
 		return false;
 
+	// append the global names?
 	if (p_all)
 	{
 		MCAutoListRef t_global_list;
