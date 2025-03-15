@@ -356,7 +356,7 @@ def WriteOnDiff(filename):
         same = False
         try:
           same = filecmp.cmp(self.tmp_path, filename, False)
-        except OSError, e:
+        except (OSError, e):
           if e.errno != errno.ENOENT:
             raise
 
