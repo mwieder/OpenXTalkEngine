@@ -88,7 +88,7 @@ def Define(d, flavor):
   if flavor == 'win':
     # cl.exe replaces literal # characters with = in preprocesor definitions for
     # some reason. Octal-encode to work around that.
-    d = d.replace('#', '\\%03o' % ord('#'))
+    d = d.replace('#', '\\%0o3o' % ord('#'))
   return QuoteShellArgument(ninja_syntax.escape('-D' + d), flavor)
 
 
