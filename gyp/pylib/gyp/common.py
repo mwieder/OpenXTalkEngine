@@ -5,6 +5,7 @@
 from __future__ import with_statement
 
 import collections
+
 import errno
 import filecmp
 import os.path
@@ -12,6 +13,10 @@ import re
 import tempfile
 import sys
 
+try:
+  from collections.abc import Callable
+except ImportError:
+  from collections import Callable
 
 # A minimal memoizing decorator. It'll blow up if the args aren't immutable,
 # among other "problems".
@@ -472,6 +477,15 @@ def uniquer(seq, idfun=None):
         result.append(item)
     return result
 
+def newOrderedSet(aList):
+  mmap = {} # implements hashed lookup
+  oset = [] # storage for set
+  for item in aList:
+    #Save unique items in input order
+    if item not in mmap:
+      mmap[item] = 1
+      oset.append(item)
+  return oset
 
 # Based on http://code.activestate.com/recipes/576694/.
 class OrderedSet(collections.MutableSet):
