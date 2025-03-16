@@ -28,9 +28,9 @@ _deepcopy_dispatch = d = {}
 def _deepcopy_atomic(x):
   return x
 
-# mdw 2025.03.17 removed long for python3 compatibility
+# mdw 2025.03.17 removed long and unicode for python3 compatibility
 for x in (type(None), int, float,
-          bool, str, unicode, type):
+          bool, str, type):
   d[x] = _deepcopy_atomic
 
 def _deepcopy_list(x):
