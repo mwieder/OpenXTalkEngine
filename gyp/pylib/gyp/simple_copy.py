@@ -28,7 +28,8 @@ _deepcopy_dispatch = d = {}
 def _deepcopy_atomic(x):
   return x
 
-for x in (type(None), int, long, float,
+# mdw 2025.03.17 removed long for python3 compatibility
+for x in (type(None), int, float,
           bool, str, unicode, type):
   d[x] = _deepcopy_atomic
 
