@@ -18,7 +18,11 @@ from gyp.common import OrderedSet
 import gyp.msvs_emulation
 import gyp.MSVSUtil as MSVSUtil
 import gyp.xcode_emulation
-from cStringIO import StringIO
+
+try:
+  from StringIO import StringIO
+except:
+  from io import StringIO
 
 from gyp.common import GetEnvironFallback
 import gyp.ninja_syntax as ninja_syntax
