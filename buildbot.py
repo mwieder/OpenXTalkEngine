@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2017 LiveCode Ltd.
 #
 # This file is part of LiveCode.

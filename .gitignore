@@ -41,6 +41,7 @@ util/perfect/perfect.linux-*
 *.pyc
 *.d
 *.stamp
+gyp_old/
 
 # Packages #
 ############

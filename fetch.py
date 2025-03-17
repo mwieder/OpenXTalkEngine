@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright (C) 2017 LiveCode Ltd.
 #
 # This file is part of LiveCode.
@@ -127,7 +127,7 @@ def fetch(args):
     process_arg_options(opts, args)
 
     validate_target(opts)
-    
+
     host_components = guess_target().split('-')
     target_components = opts['TARGET'].split('-')
 
