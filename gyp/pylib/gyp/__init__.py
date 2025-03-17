@@ -206,7 +206,8 @@ def RegenerateFlags(options):
   # We always want to ignore the environment when regenerating, to avoid
   # duplicate or changed flags in the environment at the time of regeneration.
   flags = ['--ignore-environment']
-  for name, metadata in options._regeneration_metadata.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+  for name, metadata in options._regeneration_metadata.items():
     opt = metadata['opt']
     value = getattr(options, name)
     value_predicate = metadata['type'] == 'path' and FixPath or Noop

@@ -161,7 +161,8 @@ def CreateWrapper(target_list, target_dicts, data, params):
     params: Dict of global options for gyp.
   """
   orig_gyp = params['build_files'][0]
-  for gyp_name, gyp_dict in data.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+  for gyp_name, gyp_dict in data.items():
     if gyp_name == orig_gyp:
       depth = gyp_dict['_DEPTH']
 
@@ -228,7 +229,8 @@ def CreateWrapper(target_list, target_dicts, data, params):
   sources_target['configurations'] = {'Default': { 'include_dirs': [ depth ] } }
 
   sources = []
-  for target, target_dict in target_dicts.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+  for target, target_dict in target_dicts.items():
     base = os.path.dirname(target)
     files = target_dict.get('sources', []) + \
             target_dict.get('mac_bundle_resources', [])

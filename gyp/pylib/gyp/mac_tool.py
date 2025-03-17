@@ -324,7 +324,8 @@ class MacTool(object):
       ])
     if keys:
       keys = json.loads(keys)
-      for key, value in keys.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+      for key, value in keys.items():
         arg_name = '--' + key
         if isinstance(value, bool):
           if value:
@@ -487,7 +488,8 @@ class MacTool(object):
 
   def _MergePlist(self, merged_plist, plist):
     """Merge |plist| into |merged_plist|."""
-    for key, value in plist.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for key, value in plist.items():
       if isinstance(value, dict):
         merged_value = merged_plist.get(key, {})
         if isinstance(merged_value, dict):
@@ -597,7 +599,8 @@ class MacTool(object):
       the key was not found.
     """
     if isinstance(data, str):
-      for key, value in substitutions.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+      for key, value in substitutions.items():
         data = data.replace('$(%s)' % key, value)
       return data
     if isinstance(data, list):

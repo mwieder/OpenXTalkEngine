@@ -290,7 +290,8 @@ class WinTool(object):
     env = self._GetEnv(arch)
     # TODO(scottmg): This is a temporary hack to get some specific variables
     # through to actions that are set after gyp-time. http://crbug.com/333738.
-    for k, v in os.environ.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for k, v in os.environ.items():
       if k not in env:
         env[k] = v
     args = open(rspfile).read()

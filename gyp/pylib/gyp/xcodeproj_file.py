@@ -314,7 +314,8 @@ class XCObject(object):
     """
 
     that = self.__class__(id=self.id, parent=self.parent)
-    for key, value in self._properties.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for key, value in self._properties.items():
       is_strong = self._schema[key][2]
 
       if isinstance(value, XCObject):
@@ -475,7 +476,8 @@ class XCObject(object):
     """Returns a list of all of this object's owned (strong) children."""
 
     children = []
-    for property, attributes in self._schema.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for property, attributes in self._schema.items():
       (is_list, property_type, is_strong) = attributes[0:3]
       if is_strong and property in self._properties:
         if not is_list:
@@ -622,7 +624,8 @@ class XCObject(object):
         printable += end_tabs + ')'
     elif isinstance(value, dict):
       printable = '{' + sep
-      for item_key, item_value in sorted(value.iteritems()):
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+      for item_key, item_value in sorted(value.items()):
         printable += element_tabs + \
             self._XCPrintableValue(tabs + 1, item_key, flatten_list) + ' = ' + \
             self._XCPrintableValue(tabs + 1, item_value, flatten_list) + ';' + \
@@ -730,7 +733,8 @@ class XCObject(object):
     self._XCKVPrint(file, 3, 'isa', self.__class__.__name__)
 
     # The remaining elements of an object dictionary are sorted alphabetically.
-    for property, value in sorted(self._properties.iteritems()):
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for property, value in sorted(self._properties.items()):
       self._XCKVPrint(file, 3, property, value)
 
     # End the object.
@@ -752,7 +756,8 @@ class XCObject(object):
     if properties is None:
       return
 
-    for property, value in properties.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for property, value in properties.items():
       # Make sure the property is in the schema.
       if not property in self._schema:
         raise KeyError(property + ' not in ' + self.__class__.__name__)
@@ -865,7 +870,8 @@ class XCObject(object):
 
     # TODO(mark): A stronger verification mechanism is needed.  Some
     # subclasses need to perform validation beyond what the schema can enforce.
-    for property, attributes in self._schema.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for property, attributes in self._schema.items():
       (is_list, property_type, is_strong, is_required) = attributes[0:4]
       if is_required and not property in self._properties:
         raise KeyError(self.__class__.__name__ + ' requires ' + property)
@@ -875,7 +881,8 @@ class XCObject(object):
     overwrite properties that have already been set."""
 
     defaults = {}
-    for property, attributes in self._schema.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 support
+    for property, attributes in self._schema.items():
       (is_list, property_type, is_strong, is_required) = attributes[0:4]
       if is_required and len(attributes) >= 5 and \
           not property in self._properties:
@@ -2840,7 +2847,8 @@ class PBXProject(XCContainerPortal):
       # determine the sort order.
       return cmp(x_index, y_index)
 
-    for other_pbxproject, ref_dict in self._other_pbxprojects.iteritems():
+	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+    for other_pbxproject, ref_dict in self._other_pbxprojects.items():
       # Build up a list of products in the remote project file, ordered the
       # same as the targets that produce them.
       remote_products = []
@@ -2885,7 +2893,8 @@ class XCProjectFile(XCObject):
       self._XCPrint(file, 0, '{ ')
     else:
       self._XCPrint(file, 0, '{\n')
-    for property, value in sorted(self._properties.iteritems(),
+ 	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
+   for property, value in sorted(self._properties.items(),
                                   cmp=lambda x, y: cmp(x, y)):
       if property == 'objects':
         self._PrintObjects(file)
