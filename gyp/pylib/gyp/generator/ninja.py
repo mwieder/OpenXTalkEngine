@@ -466,8 +466,8 @@ class NinjaWriter(object):
         if self.flavor != 'mac' or len(self.archs) == 1:
           link_deps += [self.GypPathToNinja(o) for o in obj_outputs]
         else:
-          print "Warning: Actions/rules writing object files don't work with " \
-                "multiarch targets, dropping. (target %s)" % spec['target_name']
+          print ("Warning: Actions/rules writing object files don't work with " \
+                "multiarch targets, dropping. (target %s)" % spec['target_name'])
     elif self.flavor == 'mac' and len(self.archs) > 1:
       link_deps = collections.defaultdict(list)
 
@@ -2342,7 +2342,7 @@ def PerformBuild(data, configurations, params):
   for config in configurations:
     builddir = os.path.join(options.toplevel_dir, 'out', config)
     arguments = ['ninja', '-C', builddir]
-    print 'Building [%s]: %s' % (config, arguments)
+    print ('Building [%s]: %s' % (config, arguments))
     subprocess.check_call(arguments)
 
 
@@ -2379,7 +2379,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
           arglists.append(
               (target_list, target_dicts, data, params, config_name))
         pool.map(CallGenerateOutputForConfig, arglists)
-      except KeyboardInterrupt, e:
+      except KeyboardInterrupt as e:
         pool.terminate()
         raise e
     else:

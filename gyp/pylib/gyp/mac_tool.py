@@ -243,7 +243,7 @@ class MacTool(object):
     _, err = libtoolout.communicate()
     for line in err.splitlines():
       if not libtool_re.match(line) and not libtool_re5.match(line):
-        print >>sys.stderr, line
+        print >>sys.stderr, (line)
     # Unconditionally touch the output .a file on the command line if present
     # and the command succeeded. A bit hacky.
     if not libtoolout.returncode:
