@@ -245,10 +245,10 @@ def LoadOneBuildFile(build_file_path, data, aux_data, includes,
     else:
       build_file_data = eval(build_file_contents, {'__builtins__': None},
                              None)
-  except (SyntaxError, e):
+  except SyntaxError as e:
     e.filename = build_file_path
     raise
-  except (Exception, e):
+  except Exception as e:
     gyp.common.ExceptionAppend(e, 'while reading ' + build_file_path)
     raise
 
@@ -268,7 +268,7 @@ def LoadOneBuildFile(build_file_path, data, aux_data, includes,
       else:
         LoadBuildFileIncludesIntoDict(build_file_data, build_file_path, data,
                                       aux_data, None, check)
-    except (Exception, e):
+    except Exception as e:
       gyp.common.ExceptionAppend(e,
                                  'while reading includes of ' + build_file_path)
       raise
@@ -471,7 +471,7 @@ def LoadTargetBuildFile(build_file_path, data, aux_data, variables, includes,
       try:
         LoadTargetBuildFile(dependency, data, aux_data, variables,
                             includes, depth, check, load_dependencies)
-      except (Exception, e):
+      except Exception as e:
         gyp.common.ExceptionAppend(
           e, 'while loading dependencies of %s' % build_file_path)
         raise
@@ -515,10 +515,10 @@ def CallLoadTargetBuildFile(global_flags,
     return (build_file_path,
             build_file_data,
             dependencies)
-  except (GypError, e):
+  except GypError as e:
     sys.stderr.write("gyp: %s\n" % e)
     return None
-  except (Exception, e):
+  except Exception as e:
     print >>sys.stderr, 'Exception:', e
     print >>sys.stderr, traceback.format_exc()
     return None
@@ -610,7 +610,7 @@ def LoadTargetBuildFilesParallel(build_files, data, variables, includes, depth,
           args = (global_flags, dependency,
                   variables, includes, depth, check, generator_input_info),
           callback = parallel_state.LoadTargetBuildFileCallback)
-  except (KeyboardInterrupt, e):
+  except KeyboardInterrupt as e:
     parallel_state.pool.terminate()
     raise e
 
@@ -1091,13 +1091,13 @@ def EvalSingleCondition(
     if eval(ast_code, {'__builtins__': None}, variables):
       return true_dict
     return false_dict
-  except (SyntaxError, e):
+  except SyntaxError as e:
     syntax_error = SyntaxError('%s while evaluating condition \'%s\' in %s '
                                'at character %d.' %
                                (str(e.args[0]), e.text, build_file, e.offset),
                                e.filename, e.lineno, e.offset, e.text)
     raise syntax_error
-  except (NameError, e):
+  except NameError as e:
     gyp.common.ExceptionAppend(e, 'while evaluating condition \'%s\' in %s' %
                                (cond_expr_expanded, build_file))
     raise GypError(e)
@@ -1864,7 +1864,7 @@ def VerifyNoGYPFileCircularDependencies(targets):
     for dependency in target_dependencies:
       try:
         dependency_build_file = gyp.common.BuildFile(dependency)
-      except (GypError, e):
+      except GypError as e:
         gyp.common.ExceptionAppend(
             e, 'while computing dependencies of .gyp file %s' % build_file)
         raise
@@ -2764,7 +2764,7 @@ def Load(build_files, variables, includes, depth, generator_input_info, check,
       try:
         LoadTargetBuildFile(build_file, data, aux_data,
                             variables, includes, depth, check, True)
-      except (Exception, e):
+      except Exception as e:
         gyp.common.ExceptionAppend(e, 'while trying to load %s' % build_file)
         raise
 
