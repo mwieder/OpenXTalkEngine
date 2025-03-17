@@ -2894,7 +2894,7 @@ class XCProjectFile(XCObject):
     else:
       self._XCPrint(file, 0, '{\n')
  	# mdw 2025.03.17 changed iteritems to items for python3 compatibility
-   for property, value in sorted(self._properties.items(),
+    for property, value in sorted(self._properties.items(),
                                   cmp=lambda x, y: cmp(x, y)):
       if property == 'objects':
         self._PrintObjects(file)
