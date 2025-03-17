@@ -325,7 +325,8 @@ class XCObject(object):
           that._properties[key] = new_value
         else:
           that._properties[key] = value
-      elif isinstance(value, str) or isinstance(value, unicode) or \
+		# mdw 2025.03.17 removed unicode check for python3
+      elif isinstance(value, str) or \
            isinstance(value, int):
         that._properties[key] = value
       elif isinstance(value, list):
@@ -605,8 +606,9 @@ class XCObject(object):
       comment = value.Comment()
     elif isinstance(value, str):
       printable += self._EncodeString(value)
-    elif isinstance(value, unicode):
-      printable += self._EncodeString(value.encode('utf-8'))
+		# mdw 2025.03.17 removed unicode check for python3
+#    elif isinstance(value, unicode):
+#      printable += self._EncodeString(value.encode('utf-8'))
     elif isinstance(value, int):
       printable += str(value)
     elif isinstance(value, list):
@@ -793,7 +795,8 @@ class XCObject(object):
             self._properties[property] = value.Copy()
           else:
             self._properties[property] = value
-        elif isinstance(value, str) or isinstance(value, unicode) or \
+		# mdw 2025.03.17 removed unicode check for python3
+        elif isinstance(value, str) or \
              isinstance(value, int):
           self._properties[property] = value
         elif isinstance(value, list):
