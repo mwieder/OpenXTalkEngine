@@ -1,3 +1,3 @@
 #!/bin/bash
 
-exec python ${0%.sh}.py $@
+exec python3 ${0%.sh}.py $@

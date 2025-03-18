@@ -1,9 +1,10 @@
-#!/bin/python
+#!/bin/python3
 
 # Update these lists if you need different SDK versions!
-iphoneos_versions = ["14.5", "14.4", "13.2", "12.1", "11.2"]
-iphonesimulator_versions = ["14.5", "14.4", "13.2", "12.1", "11.2"]
-macosx_versions = ["10.9"]
+iphoneos_versions = ["16.2", "15.5", "14.5"]
+iphonesimulator_versions = ["16.2", "15.5", "14.5"]
+#macosx_versions = ["13.1", "10.9"]
+macosx_versions = ["13.1"]
 
 
 # This tool creates the symlinks required for Xcode builds of LiveCode.
@@ -41,7 +42,10 @@ import os.path
 import re
 import subprocess
 import sys
-from distutils.version import LooseVersion
+# note that setuptools is missing in python3.12
+# and needs to be loaded externally:
+#  pip install setuptools
+from setuptools import LooseVersion
 
 def min_sdk(versions):
     if len(versions) == 0:
