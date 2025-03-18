@@ -24,8 +24,7 @@ DEBUG_GENERAL = "general"
 DEBUG_VARIABLES = "variables"
 DEBUG_INCLUDES = "includes"
 
-#def EscapeForCString(string: bytes | str) -> str:
-def EscapeForCString(string):
+def EscapeForCString(string: bytes | str) -> str:
     if isinstance(string, str):
         string = string.encode(encoding='utf8')
 
@@ -214,7 +213,7 @@ def ShlexEnv(env_name):
 
 def FormatOpt(opt, value):
     if opt.startswith("--"):
-        return "{opt}={value}"
+        return f"{opt}={value}"
     return opt + value
 
 
@@ -285,13 +284,15 @@ def RegenerateFlags(options):
             ):
                 flags.append(opt)
             elif options.use_environment and env_name:
-                sys.stderr.write(
+                print(
                     "Warning: environment regeneration unimplemented "
-                    "for %s flag %r env_name %r" % (action, opt, env_name))
+                    "for %s flag %r env_name %r" % (action, opt, env_name),
+                    file=sys.stderr,)
         else:
-            sys.stderr.write(
+            print(
                 "Warning: regeneration unimplemented for action %r "
-                "flag %r" % (action, opt))
+                "flag %r" % (action, opt),
+                file=sys.stderr)
 
     return flags
 
@@ -487,7 +488,7 @@ def gyp_main(args):
     options, build_files_arg = parser.parse_args(args)
     if options.version:
         import pkg_resources
-        print("v{pkg_resources.get_distribution('gyp-next').version}")
+        print(f"v{pkg_resources.get_distribution('gyp-next').version}")
         return 0
     build_files = build_files_arg
 

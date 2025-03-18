@@ -227,7 +227,7 @@ def LoadOneBuildFile(build_file_path, data, aux_data, includes, is_target, check
     if os.path.exists(build_file_path):
         build_file_contents = open(build_file_path, encoding="utf-8").read()
     else:
-        raise GypError("{build_file_path} not found (cwd: {os.getcwd()})")
+        raise GypError(f"{build_file_path} not found (cwd: {os.getcwd()})")
 
     build_file_data = None
     try:
@@ -547,8 +547,8 @@ def CallLoadTargetBuildFile(
         sys.stderr.write("gyp: %s\n" % e)
         return None
     except Exception as e:
-        sys.stderr.write("Exception:", e)
-        sys.stderr.write(traceback.format_exc())
+        print("Exception:", e, file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
         return None
 
 
@@ -1136,16 +1136,16 @@ def EvalCondition(condition, conditions_key, phase, variables, build_file):
         true_dict = condition[i + 1]
         if not isinstance(true_dict, dict):
             raise GypError(
-                "{conditions_key} {cond_expr} must be followed by a dictionary, "
-                "not {type(true_dict)}"
+                f"{conditions_key} {cond_expr} must be followed by a dictionary, "
+                f"not {type(true_dict)}"
             )
         if len(condition) > i + 2 and isinstance(condition[i + 2], dict):
             false_dict = condition[i + 2]
             i = i + 3
             if i != len(condition):
                 raise GypError(
-                    "{conditions_key} {cond_expr} has "
-                    "{len(condition) - i} unexpected trailing items"
+                    f"{conditions_key} {cond_expr} has "
+                    f"{len(condition) - i} unexpected trailing items"
                 )
         else:
             false_dict = None
@@ -1196,7 +1196,7 @@ def EvalSingleCondition(cond_expr, true_dict, false_dict, phase, variables, buil
     except NameError as e:
         gyp.common.ExceptionAppend(
             e,
-            "while evaluating condition '{cond_expr_expanded}' in {build_file}",
+            f"while evaluating condition '{cond_expr_expanded}' in {build_file}",
         )
         raise GypError(e)
 
@@ -2736,7 +2736,7 @@ def ValidateRulesInTarget(target, target_dict, extra_sources_for_rules):
         rule_name = rule["rule_name"]
         if rule_name in rule_names:
             raise GypError(
-                "rule {rule_name} exists in duplicate, target {target}"
+                f"rule {rule_name} exists in duplicate, target {target}"
             )
         rule_names[rule_name] = rule
 
