@@ -44,13 +44,18 @@ import subprocess
 import sys
 # note that setuptools is missing in python3.12
 # and needs to be loaded externally:
-#  pip install setuptools
-from setuptools import LooseVersion
+#  brew install setuptools
+# if that doesn't work, incorporate this or
+#  brew install looseversion
+# https://github.com/effigies/looseversion/blob/main/src/looseversion/__init__.py
+#from setuptools import LooseVersion
 
 def min_sdk(versions):
     if len(versions) == 0:
         return None
-    return sorted(versions, key=LooseVersion)[0]
+#    return sorted(versions, key=LooseVersion)[0]
+#    osx Monterey supports version 13 as a minimum
+    return 13
 
 def sdk_path(xcode_app, platform, version):
     tmpl = "{0}/Contents/Developer/Platforms/{1}.platform/Developer/SDKs/{1}{2}.sdk"
