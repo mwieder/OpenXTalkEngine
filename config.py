@@ -157,7 +157,7 @@ def process_env_options(opts):
         'ANDROID_SDK', 'ANDROID_NDK', 'ANDROID_BUILD_TOOLS', 'LTO',
         'ANDROID_TOOLCHAIN_DIR', 'ANDROID_TOOLCHAIN', 'ANDROID_API_VERSION',
         'AR', 'CC', 'CXX', 'LINK', 'OBJCOPY', 'OBJDUMP',
-        'STRIP', 'JAVA_SDK', 'NODE_JS', 'BUILD_EDITION', 'CC_PREFIX', 'CROSS',
+        'STRIP', 'JAVA_SDK', 'JAVA_HOME', 'NODE_JS', 'BUILD_EDITION', 'CC_PREFIX', 'CROSS',
         'SYSROOT', 'AUX_SYSROOT', 'TRIPLE', 'MS_SPEECH_SDK5', 'QUICKTIME_SDK',
         'BUILD_THIRDPARTY',
         )
@@ -282,7 +282,7 @@ def host_platform(opts):
 # TODO : need to deal with M1, M2, etc chips
 # uname -p will give the processor type
 def guess_xcode_arch(target_sdk):
-    sdk, ver = re.match('^([^\d]*)(\d*)', target_sdk).groups()
+    sdk, ver = re.match(r'^([^\\d]*)(\\d*)', target_sdk).groups()
     if sdk == 'macosx':
         return 'x86_64'
     if sdk == 'iphoneos':
@@ -821,7 +821,7 @@ def configure_mac(opts):
     args = core_gyp_args(opts) + ['-Dtarget_sdk=' + opts['XCODE_TARGET_SDK'],
                                   '-Dhost_sdk=' + opts['XCODE_HOST_SDK'],
                                   '-Dtarget_arch=' + opts['TARGET_ARCH'],
-                                  '-Djavahome=' + opts['JAVA_SDK']]
+                                  '-Djavahome=' + opts['JAVA_HOME']]
     exec_gyp(args + opts['GYP_OPTIONS'])
 
 def configure_ios(opts):

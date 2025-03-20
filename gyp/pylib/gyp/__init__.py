@@ -34,8 +34,8 @@ def DebugOutput(mode, message, *args):
       pass
     if args:
       message %= args
-    print '%s:%s:%d:%s %s' % (mode.upper(), os.path.basename(ctx[0]),
-                              ctx[1], ctx[2], message)
+    print ('%s:%s:%d:%s %s' % (mode.upper(), os.path.basename(ctx[0]),
+                              ctx[1], ctx[2], message))
 
 def FindBuildFiles():
   extension = '.gyp'
@@ -464,7 +464,7 @@ def gyp_main(args):
   if home_dot_gyp != None:
     default_include = os.path.join(home_dot_gyp, 'include.gypi')
     if os.path.exists(default_include):
-      print 'Using overrides found in ' + default_include
+      print ('Using overrides found in ' + default_include)
       includes.append(default_include)
 
   # Command-line --include files come after the default include.
@@ -524,7 +524,7 @@ def gyp_main(args):
 def main(args):
   try:
     return gyp_main(args)
-  except GypError, e:
+  except GypError as e:
     sys.stderr.write("gyp: %s\n" % e)
     return 1
 
