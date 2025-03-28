@@ -13,7 +13,11 @@ echo "Thirdparty_LIBS_linux=${Thirdparty_LIBS_linux}"
 source "${BASEDIR}/scripts/util.inc"
 
 # Grab the source for the library
-OPENSSL_ROOT="https://www.openssl.org/source/openssl-"
+# https://github.com/openssl/openssl/releases/download/openssl-3.4.1/openssl-3.4.1.tar.gz
+OLDV="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1v/openssl-1.1.1v.tar.gz"
+
+OPENSSL_ROOT="https://github.com/openssl/openssl/releases/download/OpenSSL"
+#OPENSSL_ROOT="https://www.openssl.org/source/openssl-"
 OPENSSL_TGZ="openssl-${OpenSSL_VERSION}.tar.gz"
 OPENSSL_SRC="openssl-${OpenSSL_VERSION}"
 
@@ -24,16 +28,18 @@ if [ ! -d "$OPENSSL_SRC" ] ; then
 	if [ ! -e "$OPENSSL_TGZ" ] ; then
 		echo "no openssl .gz file found"
 		echo "Fetching OpenSSL source"
-		fetchUrl "${OPENSSL_ROOT}${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+		fetchUrl "${OLDV}" "${OPENSSL_TGZ}"
+#		fetchUrl "${OPENSSL_ROOT}-${OpenSSL_VERSION}/openssl-${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+#		fetchUrl "${OPENSSL_ROOT}${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
 		if [ $? != 0 ] ; then
 			echo "    failed"
-			if [ -e "${OPENSSL_TGZ}" ] ; then 
-				rm ${OPENSSL_TGZ} 
+			if [ -e "${OPENSSL_TGZ}" ] ; then
+				rm ${OPENSSL_TGZ}
 			fi
 			exit
 		fi
 	fi
-	
+
 	echo "Unpacking OpenSSL source"
 	tar -xf "${OPENSSL_TGZ}"
 fi
@@ -44,7 +50,7 @@ function buildOpenSSL {
 	local PLATFORM=$1
 	local ARCH=$2
 	local SUBPLATFORM=$3
-	
+
 	# Boolean flag: if non-zero then configure CC/LD/CFLAGS/LDFLAGS etc.
 	local CONFIGURE_CC_FOR_TARGET=1
 
@@ -117,7 +123,7 @@ function buildOpenSSL {
 		local NAME="${PLATFORM}/${ARCH}"
 		local PLATFORM_NAME=${PLATFORM}
 	fi
-	
+
 	# The android-* targets derive the arch from the last portion of the target name
 	# so this needs to be a prefix instead of suffix.
 	CUSTOM_SPEC="livecode_${SPEC}"
@@ -158,12 +164,12 @@ EOF
 
 		echo "Configuring OpenSSL for ${NAME}"
 		./Configure ${OPENSSL_ARCH_CONFIG}
-		
+
 		# iOS requires some tweaks to the source when building for devices
 		if [ "${PLATFORM}" == "ios" -a "${ARCH}" != "i386 " ] ; then
 			sed -i "" -e "s!static volatile sig_atomic_t intr_signal;!static volatile intr_signal;!" "crypto/ui/ui_openssl.c"
 		fi
-		
+
 		# iOS SDKs don't work with makedepend
 		if [ "${PLATFORM}" == "ios" ] ; then
 			sed -i "" -e "s/MAKEDEPPROG=makedepend/MAKEDEPPROG=$\(CC\) -M/" Makefile
@@ -173,7 +179,7 @@ EOF
 		make clean && make depend && make ${MAKEFLAGS} && make install_sw
 		RESULT=$?
 		cd ..
-		
+
 		# Save the configuration for this build
 		if [ $RESULT == 0 ] ; then
 			echo "${OPENSSL_ARCH_CONFIG}" > "${OPENSSL_ARCH_SRC}/config.cmd"
