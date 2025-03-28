@@ -58,14 +58,14 @@ function setCCForTarget {
 	local PLATFORM=$1
 	local ARCH=$2
 	local SUBPLATFORM=$3
-	
+
 	# Use the custom CC and CXX, if set
 	if [ ! -z "${CUSTOM_CC}" -a "${PLATFORM}" != "android" ] ; then
 		export CC="${CUSTOM_CC}"
 		export CXX="${CUSTOM_CXX}"
 		return
 	fi
-	
+
 	# Unset environment variables that may interfere cross-platform
 	CFLAGS=
 	CXXFLAGS=
@@ -82,7 +82,7 @@ function setCCForTarget {
 	CROSS_SDK=
 	EMMAKE=
 	EMCONFIGURE=
-	
+
 	case "${PLATFORM}" in
 		win32)
 			CFLAGS="/MT"
@@ -91,9 +91,9 @@ function setCCForTarget {
 		mac)
 			# OSX options
 			PLATFORM_DEVELOPER="${XCODE_DEVELOPER}/Platforms/MacOSX.platform/Developer"
-			SDK="MacOSX10.9.sdk"
+			SDK="MacOSX13.1.sdk"
 			OSXGCCVERSION=4.2
-			OSXMIN="10.6"
+			OSXMIN="13.1"
 
 			CC_BASE="${XCODE_DEVELOPER}/usr/bin/gcc --sysroot=${PLATFORM_DEVELOPER}/SDKs/${SDK} -isysroot ${PLATFORM_DEVELOPER}/SDKs/${SDK} -mmacosx-version-min=${OSXMIN}"
 			CXX_BASE="${XCODE_DEVELOPER}/usr/bin/g++ --sysroot=${PLATFORM_DEVELOPER}/SDKs/${SDK} -isysroot ${PLATFORM_DEVELOPER}/SDKs/${SDK} -mmacosx-version-min=${OSXMIN}"
@@ -115,11 +115,11 @@ function setCCForTarget {
 			else
 				CC_FLAGS_X86_NORELAX=
 			fi
-			
+
 			CC_FLAGS="-fPIC ${CC_FLAGS_X86_NORELAX}"
-			
+
 			echo "*DEBUG* CC_FLAGS: ${CC_FLAGS}"
-			
+
 			if [ "${ARCH}" == "x86_64" ] ; then
 				CC="${CC_BASE} -m64 ${CC_FLAGS}"
 				CXX="${CXX_BASE} -m64 ${CC_FLAGS}"
@@ -149,22 +149,22 @@ function setCCForTarget {
 			;;
 		ios)
 			queryiOS "${SUBPLATFORM}"
-			
+
 			CROSS_TOP="${XCODE}/Platforms/${SUBPLATFORM_NAME}.platform/Developer"
 			CROSS_SDK="${SUBPLATFORM_NAME}${VERSION}.sdk"
-			
+
 			if [ "${ARCH}" == "armv7" -o "${ARCH}" == "armv7s" ] ; then
 				ARCH_FLAGS="-mthumb"
 			else
 				ARCH_FLAGS=
 			fi
-			
+
 			if [ -x "${CROSS_TOP}/usr/bin/gcc" ] ; then
 				CCPATH="${CROSS_TOP}/usr/bin"
 			else
 				CCPATH="${XCODE}/usr/bin"
 			fi
-			
+
 			CC="${CCPATH}/gcc -arch ${ARCH} ${ARCH_FLAGS} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=7.0"
 			CXX="${CCPATH}/g++ -arch ${ARCH} ${ARCH_FLAGS} -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -miphoneos-version-min=7.0"
 			LDFLAGS="-L${CROSS_TOP}/SDKs/${CROSS_SDK}/usr/lib -isysroot ${CROSS_TOP}/SDKs/${CROSS_SDK} -Wl,-dead_strip"
@@ -184,7 +184,7 @@ function setCCForTarget {
 				EMMAKE="emmake"
 				EMCONFIGURE="emconfigure"
 			fi
-			
+
 			echo "EMMAKE: ${EMMAKE}"
 			echo "EMCONFIGURE: ${EMCONFIGURE}"
 			;;
