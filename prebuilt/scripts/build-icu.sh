@@ -74,7 +74,11 @@ if [ ! -d "$ICU_SRC" ] ; then
 			fi
 			exit
 		fi
-		gpg --import KEYS
+
+		# validate using gpg if gpg is installed
+		if [ `gpg --help` ] ; then
+			gpg --import KEYS
+		fi
 
 		echo "Fetching shasum file ${ICU_SHASUM_URL}"
 		fetchUrl ${ICU_SHASUM_URL} "${ICU_MD5_URL}"
