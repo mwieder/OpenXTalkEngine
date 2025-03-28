@@ -85,7 +85,7 @@
 				'include/openssl/x509_vfy.h',
 				'include/openssl/x509_v3.h',
 			],
-			
+
 			'icu_headers':
 			[
 				'include/layout/LayoutEngine.h',
@@ -103,7 +103,7 @@
 				'include/layout/playout.h',
 				'include/layout/plruns.h',
 				'include/layout/RunArrays.h',
-				
+
 				'include/unicode/alphaindex.h',
 				'include/unicode/appendable.h',
 				'include/unicode/basictz.h',
@@ -203,7 +203,7 @@
 		{
 			'target_name': 'build-all',
 			'type': 'none',
-			
+
 			'dependencies':
 			[
 				'fetch-android',
@@ -217,7 +217,7 @@
 		{
 			'target_name': 'fetch-all',
 			'type': 'none',
-			
+
 			'dependencies':
 			[
 				'fetch-android',
@@ -231,9 +231,9 @@
 		{
 			'target_name': 'fetch',
 			'type': 'none',
-			
+
 			'toolsets': ['host','target'],
-			
+
 			'variables':
 			{
 				'conditions':
@@ -249,7 +249,7 @@
 					],
 				],
 			},
-			
+
 			'conditions':
 			[
 				[
@@ -311,23 +311,23 @@
 		{
 			'target_name': 'fetch-android',
 			'type': 'none',
-			
+
 			'actions':
 			[
 				{
 					'action_name': 'fetch',
 					'message': 'Fetching prebuilt libraries for Android',
-					
+
 					'inputs':
 					[
 						'fetch-libraries.sh',
 					],
-					
+
 					'outputs':
 					[
 						'lib/android/>(target_arch)',
 					],
-					
+
 					'action':
 					[
 						'./fetch-libraries.sh',
@@ -340,24 +340,24 @@
 		{
 			'target_name': 'fetch-linux',
 			'type': 'none',
-			
+
 			'actions':
 			[
 				{
 					'action_name': 'fetch',
-					'message': 'Fetching prebuilt libraries for Linux',
-					
+					'message': 'Building libraries for Linux',
+
 					'inputs':
 					[
 						'build-libraries.sh',
 					],
-					
+
 					'outputs':
 					[
 						'bin/linux',
 						'lib/linux',
 					],
-					
+
 					'action':
 					[
 						'./build-libraries.sh',
@@ -370,28 +370,29 @@
 		{
 			'target_name': 'fetch-mac',
 			'type': 'none',
-			
+
 			'actions':
 			[
 				{
 					'action_name': 'fetch',
-					'message': 'Fetching prebuilt libraries for OSX',
-					
+					'message': 'Building prebuilt libraries for OSX',
+
 					'inputs':
 					[
-						'fetch-libraries.sh',
+						'build-libraries.sh',
 					],
-					
+
 					'outputs':
 					[
 						'bin/mac',
 						'lib/mac',
 					],
-					
+
 					'action':
 					[
-						'./fetch-libraries.sh',
+						'./build-libraries.sh',
 						'mac',
+						'<(host_arch)',
 					],
 				},
 			],
@@ -420,20 +421,20 @@
 			[
 				{
 					'action_name': 'fetch',
-					'message': 'Fetching prebuilt libraries for Windows',
-					
+					'message': 'Building prebuilt libraries for Windows',
+
 					'inputs':
 					[
 						'fetch-libraries.sh',
 					],
-					
+
 					'outputs':
 					[
 						'bin/win32/>(fetch_arch)',
 						'lib/win32/>(fetch_arch)',
                         'unpacked',
 					],
-					
+
 					'action':
 					[
 						'call',
@@ -454,22 +455,23 @@
 			[
 				{
 					'action_name': 'fetch',
-					'message': 'Fetching prebuilt libraries for iOS',
-					
+					'message': 'Building prebuilt libraries for iOS',
+
 					'inputs':
 					[
-						'fetch-libraries.sh',
+						'build-libraries.sh',
 					],
-					
+
 					'outputs':
 					[
 						'lib/ios',
 					],
-					
+
 					'action':
 					[
-						'./fetch-libraries.sh',
+						'./build-libraries.sh',
 						'ios',
+						'<(host_arch)',
 					],
 				},
 			],
@@ -482,11 +484,11 @@
 			[
 				{
 					'action_name': 'fetch',
-					'message': 'Fetching prebuilt libraries for Emscripten',
+					'message': 'Building prebuilt libraries for Emscripten',
 
 					'inputs':
 					[
-						'fetch-libraries.sh',
+						'build-libraries.sh',
 					],
 
 					'outputs':
@@ -496,8 +498,9 @@
 
 					'action':
 					[
-						'./fetch-libraries.sh',
+						'./build-libraries.sh',
 						'emscripten',
+						'<(host_arch)',
 					],
 				},
 			],
