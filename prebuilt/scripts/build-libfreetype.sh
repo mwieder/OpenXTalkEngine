@@ -8,6 +8,7 @@ source "${BASEDIR}/scripts/util.inc"
 #https://sourceforge.net/projects/freetype/files/latest/download
 
 THIS="libfreetype"
+# the version downloaded is 2.13.2 but in the tar file is 2.13.3
 ACTUAL_VERSION="2.13.3"
 # should do this with sed
 UNTARRED="freetype-${ACTUAL_VERSION}"
@@ -27,24 +28,13 @@ function unxzBinary
 }
 
 function buildFTSrcLibrary {
-#	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/CMakeLists.txt" ] ; then
-#		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-#		cmake .
-#		popd
-#	fi
-#	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/meson.build" ] ; then
-#		mkdir ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
-#		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
-#		meson setup build
-#		popd
-#	fi
 	cmakeBinary
 	mesonBinary
-	cp -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/include ${INCLUDE_DIRECTORY}
-	cp -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/src ${FILE_DIRECTORY}
+	# MDW 2025.03.28 use rsync instead of cp because osx doesn't support "cp -u"
+	rsync -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/include ${INCLUDE_DIRECTORY}
+	rsync -ur ${BUILDDIR}/${ARCHIVE_DESTINATION}/src ${FILE_DIRECTORY}
 }
 
 fetchBinary
 unxzBinary
 buildFTSrcLibrary
-

@@ -130,7 +130,7 @@ public:
     /* ---------- Traversal ops */
     /* TODO[C++14] Make these operators constexpr */
 #if NEEDS_CPP_14
-    constexpr 
+    constexpr
 #endif
 	MCSpanIterator& operator++()
 	{
@@ -142,7 +142,7 @@ public:
 	}
 
 #if NEEDS_CPP_14
-    constexpr 
+    constexpr
 #endif
 	MCSpanIterator operator++(int)
 	{
@@ -151,7 +151,7 @@ public:
 		return t_iter;
 	}
 
-    constexpr MCSpanIterator& operator--()
+    constexpr MCSpanIterator& operator--() const
     {
         return
             MCAssert(m_span != nullptr &&
@@ -160,7 +160,7 @@ public:
             *this;
     }
 
-    constexpr MCSpanIterator operator--(int)
+    constexpr MCSpanIterator operator--(int) const
     {
         auto t_iter = *this;
         --(*this);
@@ -189,7 +189,7 @@ public:
         return t_iter -= p_offset;
     }
 
-    constexpr MCSpanIterator& operator-=(difference_type p_offset)
+    constexpr MCSpanIterator& operator-=(difference_type p_offset) const
     {
         return *this += -p_offset;
     }

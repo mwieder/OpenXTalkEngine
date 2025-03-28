@@ -2,7 +2,6 @@
 *.tgz
 *.gz
 lib/*
-bin/*
 share/*
 build/*
 xxx*
