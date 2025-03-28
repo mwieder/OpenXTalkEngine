@@ -33,7 +33,7 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'x86-android-ndk16r15',
     'x86_64-android-ndk16r15',
 
-    'universal-mac-macosx10.9', # Minimum deployment target
+    'universal-mac-macosx13.1', # Minimum deployment target
     'universal-ios-iphoneos14.5',
     'universal-ios-iphoneos14.4',
     'universal-ios-iphoneos13.2',
@@ -282,7 +282,7 @@ def host_platform(opts):
 # TODO : need to deal with M1, M2, etc chips
 # uname -p will give the processor type
 def guess_xcode_arch(target_sdk):
-    sdk, ver = re.match(r'^([^\\d]*)(\\d*)', target_sdk).groups()
+    sdk, ver = re.match('^([^\\d]*)(\\d*)', target_sdk).groups()
     if sdk == 'macosx':
         return 'x86_64'
     if sdk == 'iphoneos':
@@ -507,7 +507,7 @@ def validate_xcode_sdks(opts):
     if opts['XCODE_TARGET_SDK'] is None:
         validate_os(opts)
         if opts['OS'] == 'mac':
-            opts['XCODE_TARGET_SDK'] = 'macosx10.9'
+            opts['XCODE_TARGET_SDK'] = 'macosx13.1'
         elif opts['OS'] == 'ios':
             opts['XCODE_TARGET_SDK'] = 'iphoneos'
 

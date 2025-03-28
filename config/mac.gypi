@@ -1,7 +1,7 @@
 {
 	'variables':
 	{
-		'target_sdk%': 'macosx10.8',
+		'target_sdk%': 'macosx13.1',
 		'host_sdk%': 'macosx',
 		
 		'output_dir': '../mac-bin',
@@ -24,7 +24,7 @@
 		'SHARED_PRECOMPS_DIR': '$(OBJROOT)/Precompiled/$(CURRENT_ARCH)',
 		'GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS': 'NO',
 		'ALWAYS_SEARCH_USER_PATHS': 'NO',
-		'MACOSX_DEPLOYMENT_TARGET': '10.9',
+		'MACOSX_DEPLOYMENT_TARGET': '13.1',
 		'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
 		'COPY_PHASE_STRIP': 'NO',
 		'STRIP_INSTALLED_PRODUCT': 'NO',
@@ -80,8 +80,8 @@
 						[
 							'-Wl,-platform_version',
 							'-Wl,macos',
-							'-Wl,10.9',
-							'-Wl,10.9',
+							'-Wl,13.1',
+							'-Wl,13.1',
 						],
 					},
 				},

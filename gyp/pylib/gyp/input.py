@@ -2400,7 +2400,10 @@ def ProcessListFiltersInDict(name, the_dict):
     regex_key = list_key + '/'
     if regex_key in the_dict:
       for regex_item in the_dict[regex_key]:
-        [action, pattern] = regex_item
+        try:
+          [action, pattern] = regex_item
+        except Exception as e :
+          print >>sys.stderr, action, pattern, regex_item
         pattern_re = re.compile(pattern)
 
         if action == 'exclude':
