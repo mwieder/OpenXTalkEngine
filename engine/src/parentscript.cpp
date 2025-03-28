@@ -155,7 +155,7 @@ void MCParentScriptUse::ClearVars(void)
 
 	// Finally delete the locals array
 	delete[] m_locals; /* Allocated with new[] */
-	
+
 	m_locals = NULL;
 	m_local_count = 0;
 }
@@ -170,7 +170,7 @@ void MCParentScriptUse::PreserveVars(uint32_t *p_map, MCValueRef *p_new_var_init
 	// We have some vars so we need to do some remapping. First allocate a new array
 	MCVariable **t_new_locals;
 	t_new_locals = new (nothrow) MCVariable *[p_new_var_count];
-	
+
 	// Initialize it to NULL
 	memset((void *)t_new_locals, 0, sizeof(MCVariable *) * p_new_var_count);
 
@@ -403,7 +403,7 @@ bool MCParentScript::CopyUses(MCArrayRef& r_use)
     MCAutoArrayRef t_use_list;
     if (!MCArrayCreateMutable(&t_use_list))
         return false;
-    
+
     index_t t_index = 1;
     for(MCParentScriptUse *t_use = m_first_use; t_use != NULL; t_use = t_use -> m_next_use)
     {
@@ -412,14 +412,14 @@ bool MCParentScript::CopyUses(MCArrayRef& r_use)
             !MCArrayStoreValueAtIndex(*t_use_list, t_index++, *t_object_id))
             return false;
     }
-    
+
     if (!t_use_list.MakeImmutable())
     {
         return false;
     }
-    
+
     r_use = t_use_list.Take();
-    
+
     return true;
 }
 
@@ -432,7 +432,7 @@ bool MCParentScript::Reinherit(void)
 	for(MCParentScriptUse *t_use = m_first_use; t_use != NULL; t_use = t_use -> m_next_use)
 		if (!t_use -> Inherit())
 			return false;
-			
+
 	return true;
 }
 
@@ -551,7 +551,7 @@ MCParentScript *MCParentScript::Lookup(MCObject *p_object)
 			if (t_script -> m_object == p_object)
 				return t_script;
 	}
-	
+
 	return nil;
 }
 
@@ -612,7 +612,7 @@ void MCParentScript::Attach(MCParentScriptUse *p_use)
 		m_first_use -> m_previous_use = p_use;
 	else
 		m_last_use = p_use;
-	
+
 	m_first_use = p_use;
 }
 
@@ -685,7 +685,7 @@ uint32_t MCParentScript::Hash(uint32_t p_value, MCNameRef p_stack)
 {
 	uint32_t t_hash;
 	t_hash = mchash(0, &p_value, sizeof(uint32_t));
-	
+
 	uintptr_t t_stack_key;
 	t_stack_key = MCNameGetCaselessSearchKey(p_stack);
 	t_hash = mchash(t_hash, &t_stack_key, sizeof(uintptr_t));
@@ -709,7 +709,8 @@ void MCParentScript::Grow(void)
 		return;
 
 	// Now zero out the new half of the table.
-	memset((void *)t_new_table + s_table_capacity, 0, s_table_capacity * sizeof(MCParentScript *));
+	memset((MCParentScript *)t_new_table + s_table_capacity, 0, s_table_capacity * sizeof(MCParentScript *));
+//	memset((void *)t_new_table + s_table_capacity, 0, s_table_capacity * sizeof(MCParentScript *));
 
 	// Update the table variables.
 	s_table = t_new_table;

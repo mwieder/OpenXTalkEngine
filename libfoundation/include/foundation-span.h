@@ -151,7 +151,10 @@ public:
 		return t_iter;
 	}
 
-    constexpr MCSpanIterator& operator--() const
+#if NEEDS_CPP_14
+    constexpr
+#endif
+    MCSpanIterator& operator--() const
     {
         return
             MCAssert(m_span != nullptr &&
@@ -160,14 +163,20 @@ public:
             *this;
     }
 
-    constexpr MCSpanIterator operator--(int) const
+#if NEEDS_CPP_14
+    constexpr
+#endif
+    MCSpanIterator operator--(int) const
     {
         auto t_iter = *this;
         --(*this);
         return t_iter;
     }
 
-    constexpr MCSpanIterator operator+(difference_type p_offset) const
+#if NEEDS_CPP_14
+    constexpr
+#endif
+    MCSpanIterator operator+(difference_type p_offset) const
     {
         auto t_iter = *this;
         return t_iter += p_offset;
@@ -183,7 +192,10 @@ public:
             *this;
     }
 
-    constexpr MCSpanIterator operator-(difference_type p_offset) const
+#if NEEDS_CPP_14
+    constexpr
+#endif
+    MCSpanIterator operator-(difference_type p_offset) const
     {
         auto t_iter = *this;
         return t_iter -= p_offset;

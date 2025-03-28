@@ -71,7 +71,8 @@ static uint32_t compute_paragraph_number(paragraph_numbering_t& ctxt, uint32_t p
 	// Terminate any lists whose depth is greater than the current paragraph.
 	if (ctxt . seen_list_style)
 	{
-		memset((void *)ctxt . list_styles + p_list_depth + 1, 0, sizeof(ctxt . list_styles) - p_list_depth + 1);
+		memset((paragraph_numbering_t *)ctxt . list_styles + p_list_depth + 1, 0, sizeof(ctxt . list_styles) - p_list_depth + 1);
+//		memset((void *)ctxt . list_styles + p_list_depth + 1, 0, sizeof(ctxt . list_styles) - p_list_depth + 1);
 		ctxt . seen_list_style = false;
 	}
 
@@ -149,7 +150,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 		t_first_paragraph = indextoparagraph(t_paragraphs, t_first_offset, t_last_offset);
 	else
 		t_first_paragraph = t_paragraphs;
-	
+
 	// Make sure the indices are rounded to the nearest char.
 	verifyindex(t_first_paragraph, t_first_offset, false);
 
@@ -211,7 +212,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
     // Abort if this is the empty range and there are no paragraph attributes
     if (t_empty_range && !(t_first_paragraph->hasattrs()))
         return true;
-    
+
 	// Now loop through the paragraphs, starting at the one that has been
 	// identified as the first.
 	MCParagraph *t_paragraph;
@@ -245,13 +246,13 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 					t_paragraph -> exportattrs(t_data . paragraph_style);
 				}
 			}
-			
+
 			// Reset the character styles to defaults so we know the inherited
 			// char attrs at the begin paragraph event.
 			if ((p_flags & kMCFieldExportCharacterStyles) != 0)
 			{
 				t_data . has_character_style = false;
-				
+
 				if ((p_flags & kMCFieldExportFlattenStyles) != 0)
 					t_data . character_style = t_inherited_character_style;
 				else
@@ -262,7 +263,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 			if (!p_callback(p_context, kMCFieldExportEventBeginParagraph, t_data))
 				return false;
 		}
-		
+
 		// Setup line processing (if possible).
 		MCLine *t_line;
 		t_line = nil;
@@ -275,7 +276,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 			{
 				// The line we start off with is the first one.
 				t_line = t_lines;
-				
+
 				// Unless first offset is not 0, in which case we have to loop through
 				// to find the line containing it.
 				if (t_first_offset != 0)
@@ -288,7 +289,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 						// must be the line.
 						if (t_last -> GetOffset() + t_last -> GetLength() > t_first_offset)
 							break;
-							
+
 						// MW-2013-09-02: [[ Bug 11144 ]] Make sure we advance to the next line,
 						//   otherwise we just get an infinite loop.
 						t_line = t_line -> next();
@@ -309,7 +310,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 				t_paragraph -> inittext();
 				t_blocks = t_paragraph -> getblocks();
 			}
-			
+
 			// Find the block containing the first index.
 			MCBlock *t_block;
 			t_block = t_blocks;
@@ -331,7 +332,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 				int32_t t_start, t_count;
 				t_start = MCMax(t_first_offset, t_block -> GetOffset());
 				t_count = t_block -> GetOffset() + t_block -> GetLength() - t_start;
-	
+
 				// If we want run styles, then update the array.
 				if (t_block -> GetLength() != 0 && (p_flags & kMCFieldExportCharacterStyles) != 0)
 				{
@@ -347,7 +348,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 						else
 							memset((void *)&t_data . character_style, 0, sizeof(MCFieldCharacterStyle));
 					}
-					
+
 					// If the block has attrs to apply, do so.
 					if (t_block -> hasatts())
 					{
@@ -355,7 +356,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 						t_block -> exportattrs(t_data . character_style);
 					}
 				}
-			
+
 				// Notionally merge together blocks with the same attrs depending
 				// on the export type.
 				for(;;)
@@ -391,7 +392,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 							break;
 						}
 					}
-						
+
 					// If we are the last block, there isn't a 'next block' to
 					// compare with so we are done.
 					if (t_last_block)
@@ -418,22 +419,22 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 							else if (!t_block -> sameatts(t_next_block, true))
 								break;
 						}
-						
+
 						// The length of the run goes up to the end of the next block.
 						t_count += t_next_block -> GetLength();
 					}
-					
+
 					// Advance to the next (non-empty) block.
 					t_block = t_next_block;
 				}
-			
+
 				// Make sure we don't emit more than last offset allows.
 				t_count = MCMin(t_last_offset - t_start, t_count);
-			
+
 				// Emit the block.
 				t_data . m_text = t_paragraph->GetInternalStringRef();
 				t_data . m_range = MCRangeMake(t_start, t_count);
-				
+
 				// If we are the last block on the line, trim any VTAB
 				bool t_explicit_line_break;
 				t_explicit_line_break = false;
@@ -444,13 +445,13 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 					if (t_paragraph -> GetCodepointAtIndex(t_start + t_count - 1) == '\v')
 						t_explicit_line_break = true, t_data . m_range . length -= 1;
 				}
-				
+
                 MCFieldExportEventType t_export_type;
                 if (MCStringIsNative(t_data . m_text))
                     t_export_type = kMCFieldExportEventNativeRun;
                 else
                     t_export_type = kMCFieldExportEventUnicodeRun;
-                
+
 				if (!p_callback(p_context, t_export_type, t_data))
 					return false;
 
@@ -461,22 +462,22 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 				{
 					if (!p_callback(p_context, kMCFieldExportEventLineBreak, t_data))
 						return false;
-					
+
 					// We are no longer the last block on the line.
 					t_last_block_on_line = false;
 				}
-				
+
 				// If we just processed the last block, we are done.
 				if (t_last_block)
 					break;
-				
+
 				// Advance to the next block.
 				t_block = t_block -> next();
 			}
 		}
 		else
 			t_last_block = false;
-		
+
 		// Generate a paragraph end event.
 		if ((p_flags & kMCFieldExportParagraphs) != 0)
 			if (!p_callback(p_context, kMCFieldExportEventEndParagraph, t_data))
@@ -484,7 +485,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 
 		if (t_data . is_last_paragraph)
 			break;
-		
+
 		// We are no longer the first paragraph.
 		t_data . is_first_paragraph = false;
 
@@ -495,7 +496,7 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 		// Advance to the next paragraph.
 		t_paragraph = t_paragraph -> next();
 	}
-	
+
 	return true;
 }
 
@@ -506,13 +507,13 @@ bool MCField::doexport(MCFieldExportFlags p_flags, MCParagraph *p_paragraphs, in
 static bool estimate_char_count(void *p_context, MCFieldExportEventType p_event_type, const MCFieldExportEventData& p_event_data)
 {
 	uint32_t& t_count = *(uint32_t *)p_context;
-	
+
 	// TODO: the kMCFieldExportEvent{Unicode,Native}Run constants should be merged
 	if (p_event_type == kMCFieldExportEventUnicodeRun || p_event_type == kMCFieldExportEventNativeRun)
 		t_count += p_event_data . m_range . length;
 	else if (p_event_type == kMCFieldExportEventEndParagraph && !p_event_data . is_last_paragraph)
 		t_count += 1;
-		
+
 	return true;
 }
 
@@ -520,7 +521,7 @@ static bool estimate_char_count(void *p_context, MCFieldExportEventType p_event_
 static bool export_text(void *p_context, MCFieldExportEventType p_event_type, const MCFieldExportEventData& p_event_data)
 {
 	MCStringRef t_buffer = (MCStringRef)p_context;
-	
+
 	if (p_event_type == kMCFieldExportEventUnicodeRun || p_event_type == kMCFieldExportEventNativeRun)
 		/* UNCHECKED */ MCStringAppendSubstring(t_buffer, p_event_data.m_text, p_event_data.m_range);
 	else if (p_event_type == kMCFieldExportEventEndParagraph && !p_event_data . is_last_paragraph)
@@ -619,7 +620,7 @@ static bool export_formatted_text(void *p_context, MCFieldExportEventType p_even
 	/* UNCHECKED */ MCStringCreateMutable(0, t_buffer);
 
 	doexport(kMCFieldExportParagraphs | kMCFieldExportRuns, p_part_id, p_start_index, p_finish_index, export_text, t_buffer);
-	
+
 	/* UNCHECKED */ MCStringCopyAndRelease(t_buffer, r_string);
 	return true;
 }
@@ -673,15 +674,15 @@ bool MCField::importparagraph(MCParagraph*& x_paragraphs, const MCFieldParagraph
 {
 	MCParagraph *t_new_paragraph;
 	t_new_paragraph = new (nothrow) MCParagraph;
-    
+
     // SN-2014-04-25 [[ Bug 12177 ]] Importing HTML was creating parent-less paragraphs,
     // thus sometimes causing crashing when the parent was accessed - mainly when getfontattrs() was needed
     t_new_paragraph -> setparent(this);
-    
+
     // AL-2014-05-28: [[ Bug 12515 ]] If inittext() is not called, the new paragraph
     //  can have nil blocks when it contains an image.
     t_new_paragraph -> inittext();
-    
+
 	if (p_style != nil)
 		t_new_paragraph->importattrs(*p_style);
 
@@ -689,7 +690,7 @@ bool MCField::importparagraph(MCParagraph*& x_paragraphs, const MCFieldParagraph
 		x_paragraphs -> prev() -> append(t_new_paragraph);
 	else
 		x_paragraphs = t_new_paragraph;
-	
+
 	return true;
 }
 
@@ -700,15 +701,15 @@ bool MCField::importblock(MCParagraph *p_paragraph, const MCFieldCharacterStyle&
 	// Do nothing if there is nothing to import
 	if (p_byte_count == 0)
 		return true;
-	
+
 	// Give the text to the paragraph to create a new block
 	MCAutoStringRef t_text;
 	/* UNCHECKED */ MCStringCreateWithBytes((const char_t*)p_bytes, p_byte_count, p_is_unicode?kMCStringEncodingUTF16:kMCStringEncodingNative, false, &t_text);
 	MCBlock *t_block = p_paragraph->AppendText(*t_text);
-	
+
 	// Import the block attributes.
 	t_block -> importattrs(p_style);
-	
+
 	return true;
 }
 
@@ -772,13 +773,13 @@ MCParagraph *MCField::texttoparagraphs(MCStringRef p_text)
 
     uindex_t t_text_length;
     t_text_length = MCStringGetLength(p_text);
-	
+
 	MCTextBlock t_block;
 	memset((void *)&t_block, 0, sizeof(MCTextBlock));
     t_block . string_native = false;
 	t_block . foreground_color = 0xffffffff;
 	t_block . background_color = 0xffffffff;
-    
+
 	while(t_text_length > 0)
 	{
 		uindex_t t_next;
@@ -792,7 +793,7 @@ MCParagraph *MCField::texttoparagraphs(MCStringRef p_text)
 		{
             t_block . string_buffer = (const uint2*)t_unicode_text;
 			t_block . string_length = t_next;
-            
+
 			converttoparagraphs(t_paragraphs, NULL, &t_block);
 		}
 
@@ -876,7 +877,7 @@ bool MCField::converttoparagraphs(void *p_context, const MCTextParagraph *p_para
 				t_style . has_list_style = true;
 				t_count += 1;
 			}
-			
+
 			if (t_count > 0)
 				t_new_paragraph -> importattrs(t_style);
 		}
@@ -887,12 +888,12 @@ bool MCField::converttoparagraphs(void *p_context, const MCTextParagraph *p_para
 	{
 		// Append the block to the current paragraph
 		MCAutoStringRef t_text;
-        
+
         if (p_block -> string_native)
             /* UNCHECKED */ MCStringCreateWithNativeChars((const char_t*)p_block->string_buffer, p_block->string_length, &t_text);
         else
             /* UNCHECKED */ MCStringCreateWithChars((const unichar_t*)p_block->string_buffer, p_block->string_length, &t_text);
-        
+
 		MCBlock *t_block = t_paragraph->AppendText(*t_text);
 
 		// MW-2008-06-12: [[ Bug 6397 ]] Pasting styled text munges the color.
@@ -927,9 +928,9 @@ bool MCField::converttoparagraphs(void *p_context, const MCTextParagraph *p_para
 
 		const char *t_font_name;
 		t_font_name = p_block -> font_name == NULL ? "" : p_block -> font_name;
-        
+
 #if defined _MAC_DESKTOP
-        
+
 		// MW-2011-03-13: [[ Bug ]] Try different variants of font searching to ensure we don't
 		//   get strange choices. (e.g. Helvetica -> Helvetica Light Oblique).
 		char t_derived_font_name[256];
@@ -938,20 +939,20 @@ bool MCField::converttoparagraphs(void *p_context, const MCTextParagraph *p_para
         {
 			t_font_name = t_derived_font_name;
         }
-        
+
 #endif
-        
+
         MCAutoStringRef t_font_name_ref;
         MCStringCreateWithCString(t_font_name, &t_font_name_ref);
         t_block -> SetTextFont(ctxt, *t_font_name_ref);
-		
+
 		if (p_block -> font_size != 0)
         {
             uinteger_t t_size;
             t_size = p_block -> font_size;
             t_block -> SetTextSize(ctxt, &t_size);
         }
-		
+
 		if (p_block -> font_style != 0)
         {
             MCInterfaceTextStyle t_style;
@@ -976,7 +977,7 @@ MCParagraph *MCField::rtftoparagraphs(MCStringRef p_data)
     MCAutoPointer<char> t_data;
     /* UNCHECKED */ MCStringConvertToCString(p_data, &t_data);
 	RTFRead(*t_data, MCStringGetLength(p_data), converttoparagraphs, t_paragraphs);
-	
+
 	// MW-2012-03-13: [[ RtfParaStyles ]] Delete the first paragraph which is only
 	//   needed as an initial starting point.
 	// MW-2012-03-29: [[ Bug 10134 ]] But only if it isn't the only paragraph!

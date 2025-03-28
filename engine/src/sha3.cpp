@@ -314,8 +314,9 @@ void rhash_sha3_final(sha3_ctx *ctx, unsigned char* result)
 	if (!(ctx->rest & SHA3_FINALIZED))
 	{
 		/* clear the rest of the data queue */
+		memset((uint64_t*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
 //		memset((char*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
-		memset((void*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
+//		memset((void*)ctx->message + ctx->rest, 0, block_size - ctx->rest);
 		((char*)ctx->message)[ctx->rest] |= 0x06;
 		((char*)ctx->message)[block_size - 1] |= 0x80;
 

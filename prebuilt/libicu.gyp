@@ -23,7 +23,7 @@
 				{
 					'variables':
 					{
-						'prebuilt_icu_bin_dir': 'bin/mac',
+						'prebuilt_icu_bin_dir': 'bin/mac/<(target_arch)',
 						'prebuilt_icu_share_dir': 'share',
 					},
 				},
@@ -139,17 +139,17 @@
 									{
 										'libraries':
 										[
-											'lib/mac/libicui18n.a',
-											'lib/mac/libicuio.a',
-											'lib/mac/libicutu.a',
-											'lib/mac/libicuuc.a',
-											'lib/mac/libicudata.a',
+											'lib/mac/>(toolset_arch)/libicui18n.a',
+											'lib/mac/>(toolset_arch)/libicuio.a',
+											'lib/mac/>(toolset_arch)/libicutu.a',
+											'lib/mac/>(toolset_arch)/libicuuc.a',
+											'lib/mac/>(toolset_arch)/libicudata.a',
 										],
 									},
 									{
 										'library_dirs':
 										[
-											'lib/mac',
+											'lib/mac/>(toolset_arch)',
 										],
 
 										'libraries':

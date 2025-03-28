@@ -10,18 +10,18 @@
 		{
 			'target_name': 'kernel',
 			'type': 'static_library',
-			
+
 			'dependencies':
 			[
 				'../libfoundation/libfoundation.gyp:libFoundation',
 				'../libgraphics/libgraphics.gyp:libGraphics',
 				'../libscript/libscript.gyp:libScript',
 				'../libscript/libscript.gyp:stdscript',
-				
+
 				'../libbrowser/libbrowser.gyp:libbrowser',
 
 				'../thirdparty/libopenssl/libopenssl.gyp:libopenssl_stubs',
-				
+
 				'../prebuilt/libopenssl.gyp:libopenssl_headers',
 
 				'../thirdparty/libpcre/libpcre.gyp:libpcre',
@@ -34,13 +34,15 @@
 				'engine-common.gyp:encode_version',
 				'engine-common.gyp:quicktime_stubs',
 			],
-			
+
 			'include_dirs':
 			[
 				'include',
 				'src',
+				'../thirdparty/libpng/src',
+				'../thirdparty/libjpeg/src',
 			],
-			
+
 			'sources':
 			[
 				'<@(engine_common_source_files)',
@@ -48,7 +50,7 @@
 				'<@(engine_module_source_files)',
 				'<@(engine_java_source_files)',
 			],
-			
+
 			'conditions':
 			[
 				[
@@ -58,7 +60,7 @@
 						[
 							'../thirdparty/headers/linux/include/cairo',
 						],
-						
+
 						'defines':
                         [
                             # We use some features that are behind config macros in old versions of Pango
@@ -76,7 +78,7 @@
 							'src/mblactivityindicator.cpp',
 							'src/mblcamera.cpp',
 						],
-										
+
 						'dependencies':
 						[
 #							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_skia',
@@ -94,8 +96,8 @@
 							[
 								# Force the entry point to be included in the output
 								'-Wl,--undefined,Java_com_runrev_android_Engine_doCreate',
-								
-								# mblandroidlcb.cpp contains nothing other than the LCB Invocation Handler 
+
+								# mblandroidlcb.cpp contains nothing other than the LCB Invocation Handler
 								# native callback function, so force the symbol to be included as otherwise it
 								# will be discarded by the linker because nothing in the file is used statically
 								'-Wl,--undefined,Java_com_runrev_android_LCBInvocationHandler_doNativeListenerCallback',
@@ -134,7 +136,7 @@
 					},
 				],
 			],
-			
+
 			'link_settings':
 			{
 				'conditions':
@@ -225,7 +227,7 @@
 								'$(SDKROOT)/System/Library/Frameworks/QuartzCore.framework',
 								'$(SDKROOT)/System/Library/Frameworks/StoreKit.framework',
 								'$(SDKROOT)/System/Library/Frameworks/UIKit.framework',
-							],	
+							],
 						},
 					],
 					[
@@ -235,12 +237,12 @@
 							[
 								#'engine.gyp:create_linux_stubs',
 							],
-							
+
 							'sources':
 							[
 								'<(SHARED_INTERMEDIATE_DIR)/src/linux.stubs.cpp',
 							],
-							
+
 							'libraries':
 							[
 								'-ldl',
@@ -295,11 +297,11 @@
 				],
 			},
 		},
-		
+
 		{
 			'target_name': 'kernel-java',
 			'type': 'none',
-			
+
 			'conditions':
 			[
 				[
@@ -309,24 +311,24 @@
 						{
 							'java_classes_dir_name': 'classes_livecode_community',
 						},
-						
+
 						# Include the rules for compiling Java
 						'includes':
 						[
 							'../config/java.gypi',
 						],
-						
+
 						# A little indirection needed to get INTERMEDIATE_DIR escaped properly
 						'intermediate_dir_escaped': '<!(["sh", "-c", "echo $1 | sed -e $2", "echo", "<(INTERMEDIATE_DIR)", "s/\\\\$/\\\\\\$/g"])',
-	
+
 						'sources':
 						[
 							'<@(engine_aidl_source_files)',
-		
+
 							# Outputs from a rule don't get considered as
 							# inputs to another rule in Gyp, unfortunately
 							'<!@((for x in <@(engine_aidl_source_files); do echo "<(_intermediate_dir_escaped)/${x}"; done) | sed -e "s/\\.aidl$/\\.java/g")',
-		
+
 							# Some of the Java sources depend on the output
 							# from AIDL so they come last
 							'<@(engine_java_source_files)',

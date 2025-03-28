@@ -100,7 +100,7 @@ static void MCPNGSetNativePixelFormat(png_structp p_png)
 #if NATIVE_ORDER_BGR
 	png_set_bgr(p_png);
 #endif
-	
+
 #if NATIVE_ALPHA_BEFORE
 	png_set_swap_alpha(p_png);
 #endif
@@ -111,18 +111,18 @@ class MCPNGImageLoader : public MCImageLoader
 public:
 	MCPNGImageLoader(IO_handle p_stream);
 	virtual ~MCPNGImageLoader();
-	
+
 	virtual MCImageLoaderFormat GetFormat() { return kMCImageFormatPNG; }
-	
+
 protected:
 	virtual bool LoadHeader(uint32_t &r_width, uint32_t &r_height, uint32_t &r_xhot, uint32_t &r_yhot, MCStringRef &r_name, uint32_t &r_frame_count, MCImageMetadata &r_metadata);
 	virtual bool LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count);
-	
+
 private:
 	png_structp m_png;
 	png_infop m_info;
 	png_infop m_end_info;
-	
+
 	int m_bit_depth;
 	int m_color_type;
 };
@@ -143,7 +143,7 @@ MCPNGImageLoader::~MCPNGImageLoader()
 bool MCPNGImageLoader::LoadHeader(uint32_t &r_width, uint32_t &r_height, uint32_t &r_xhot, uint32_t &r_yhot, MCStringRef &r_name, uint32_t &r_frame_count, MCImageMetadata &r_metadata)
 {
 	bool t_success = true;
-	
+
 	t_success = nil != (m_png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL));
 
 	if (t_success)
@@ -175,31 +175,31 @@ bool MCPNGImageLoader::LoadHeader(uint32_t &r_width, uint32_t &r_height, uint32_
 			&m_bit_depth, &m_color_type,
 			&t_interlace_method, &t_compression_method, &t_filter_method);
 	}
-    
+
     // MERG-2014-09-12: [[ ImageMetadata ]] load image metatadata
     if (t_success)
     {
         uint32_t t_X;
         uint32_t t_Y;
         int t_units;
-        
+
         if (png_get_pHYs(m_png, m_info, &t_X, &t_Y, &t_units) && t_units != PNG_RESOLUTION_UNKNOWN)
         {
             MCImageMetadata t_metadata;
             MCMemoryClear(&t_metadata, sizeof(t_metadata));
             t_metadata.has_density = true;
             t_metadata.density = floor(t_X * 0.0254 + 0.5);
-            
+
             r_metadata = t_metadata;
         }
-        
+
     }
 
 	if (t_success)
 	{
 		r_width = t_width;
 		r_height = t_height;
-		
+
 		r_xhot = r_yhot = 0;
 		r_name = MCValueRetain(kMCEmptyString);
 		r_frame_count = 1;
@@ -211,13 +211,13 @@ bool MCPNGImageLoader::LoadHeader(uint32_t &r_width, uint32_t &r_height, uint32_
 bool MCPNGImageLoader::LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count)
 {
 	bool t_success = true;
-	
+
 	MCBitmapFrame *t_frame;
 	t_frame = nil;
-	
+
 	MCColorTransformRef t_color_xform;
 	t_color_xform = nil;
-	
+
 	if (setjmp(png_jmpbuf(m_png)))
 	{
 		t_success = false;
@@ -229,7 +229,7 @@ bool MCPNGImageLoader::LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count)
 
 	if (t_success)
 		t_success = GetGeometry(t_width, t_height);
-	
+
 	if (t_success)
 		t_success = MCMemoryNew(t_frame);
 
@@ -279,7 +279,7 @@ bool MCPNGImageLoader::LoadFrames(MCBitmapFrame *&r_frames, uint32_t &r_count)
 		int t_ccp_compression_type;
 		png_uint_32 t_ccp_profile_length;
 		png_get_iCCP(m_png, m_info, &t_ccp_name, &t_ccp_compression_type, &t_ccp_profile, &t_ccp_profile_length);
-		
+
 		MCColorSpaceInfo t_csinfo;
 		t_csinfo . type = kMCColorSpaceEmbedded;
 		t_csinfo . embedded . data = t_ccp_profile;
@@ -362,12 +362,12 @@ bool MCImageLoaderCreateForPNGStream(IO_handle p_stream, MCImageLoader *&r_loade
 {
 	MCPNGImageLoader *t_loader;
 	t_loader = new (nothrow) MCPNGImageLoader(p_stream);
-	
+
 	if (t_loader == nil)
 		return false;
-	
+
 	r_loader = t_loader;
-	
+
 	return true;
 }
 
@@ -394,7 +394,7 @@ static void parsemetadata(png_structp png_ptr, png_infop info_ptr, MCImageMetada
 {
     if (p_metadata == nil)
         return;
-    
+
     if (p_metadata -> has_density)
     {
         real64_t t_ppi = p_metadata -> density;
@@ -474,7 +474,8 @@ bool MCImageEncodePNG(MCImageIndexedBitmap *p_indexed, MCImageMetadata *p_metada
 			t_success = MCMemoryAllocate(p_indexed->palette_size, t_png_transparency);
 		if (t_success)
 		{
-			memset((void *)t_png_transparency, 0xFF, p_indexed->palette_size);
+			memset((png_byte *)t_png_transparency, 0xFF, p_indexed->palette_size);
+//			memset((void *)t_png_transparency, 0xFF, p_indexed->palette_size);
 			t_png_transparency[p_indexed->transparent_index] = 0x00;
 			png_set_tRNS(t_png_ptr, t_info_ptr, t_png_transparency, p_indexed->palette_size, NULL);
 		}
@@ -576,7 +577,7 @@ bool MCImageEncodePNG(MCImageBitmap *p_bitmap, MCImageMetadata *p_metadata, IO_h
 
 		if (t_fully_opaque)
 			png_set_filler(t_png_ptr, 0, MCPNG_FILLER_POSITION);
-		
+
 		MCPNGSetNativePixelFormat(t_png_ptr);
 	}
 

@@ -81,7 +81,6 @@
 							'-Wl,-platform_version',
 							'-Wl,macos',
 							'-Wl,13.1',
-							'-Wl,13.1',
 						],
 					},
 				},
@@ -139,6 +138,7 @@
 
 							'-Wno-conversion',
 							'-Wno-shorten-64-to-32',
+                            '-Wno-c++14-extensions',
 
 							'-Werror=declaration-after-statement',
 							'-Werror=delete-non-virtual-dtor',

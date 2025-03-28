@@ -1,16 +1,16 @@
 /* Copyright (C) 2003-2015 LiveCode Ltd.
- 
+
  This file is part of LiveCode.
- 
+
  LiveCode is free software; you can redistribute it and/or modify it under
  the terms of the GNU General Public License v3 as published by the Free
  Software Foundation.
- 
+
  LiveCode is distributed in the hope that it will be useful, but WITHOUT ANY
  WARRANTY; without even the implied warranty of MERCHANTABILITY or
  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  for more details.
- 
+
  You should have received a copy of the GNU General Public License
  along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
@@ -70,10 +70,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalNumberToPowerOfNumber(MCNumberRef p_l
     double t_left, t_right;
     t_left = MCNumberFetchAsReal(p_left);
     t_right = MCNumberFetchAsReal(p_right);
-    
+
     double t_result;
     MCMathEvalRealToPowerOfReal(t_left, t_right, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -92,10 +92,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalBase10LogNumber(MCNumberRef p_operand
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalBase10LogReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -114,10 +114,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalNaturalLogNumber(MCNumberRef p_operan
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalNaturalLogReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -131,10 +131,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalExpNumber(MCNumberRef p_operand, MCNu
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalExpReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -148,10 +148,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalSinNumber(MCNumberRef p_operand, MCNu
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalSinReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -165,10 +165,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalCosNumber(MCNumberRef p_operand, MCNu
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalCosReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -182,10 +182,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalTanNumber(MCNumberRef p_operand, MCNu
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalTanReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -204,10 +204,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalAsinNumber(MCNumberRef p_operand, MCN
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalAsinReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -226,10 +226,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalAcosNumber(MCNumberRef p_operand, MCN
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalAcosReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -243,10 +243,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalAtanNumber(MCNumberRef p_operand, MCN
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalAtanReal(t_operand, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -261,10 +261,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalAtan2Number(MCNumberRef p_first, MCNu
     double t_first, t_second;
     t_first = MCNumberFetchAsReal(p_first);
     t_second = MCNumberFetchAsReal(p_second);
-    
+
     double t_result;
     MCMathEvalAtan2Real(t_first, t_second, t_result);
-    
+
     // if (!ctxt . HasError())
     MCNumberCreateWithReal(t_result, r_output);
 }
@@ -288,7 +288,7 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalAbsNumber(MCNumberRef p_operand, MCNu
         MCNumberCreateWithInteger(t_abs, r_output);
         return;
     }
-    
+
     double t_abs_real;
     MCMathEvalAbsReal(MCNumberFetchAsReal(p_operand), t_abs_real);
     MCNumberCreateWithReal(t_abs_real, r_output);
@@ -313,7 +313,7 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalTruncNumber(MCNumberRef p_operand, MC
         MCNumberCreateWithInteger(t_abs, r_output);
         return;
     }
-    
+
     double t_abs_real;
     MCMathEvalTruncReal(MCNumberFetchAsReal(p_operand), t_abs_real);
     MCNumberCreateWithReal(t_abs_real, r_output);
@@ -334,9 +334,9 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalMinNumber(MCNumberRef p_left, MCNumbe
     double t_left, t_right, t_result;
     t_left = MCNumberFetchAsReal(p_left);
     t_right = MCNumberFetchAsReal(p_right);
-    
+
     MCMathEvalMinReal(t_left, t_right, t_result);
-    
+
     MCNumberCreateWithReal(t_result, r_output);
 }
 
@@ -347,7 +347,7 @@ static void MCMathEvalMinMaxList(MCProperListRef p_list, bool p_is_min, MCNumber
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("list must be non-empty"), nil);
         return;
     }
-    
+
     if (!MCProperListIsListOfType(p_list, kMCValueTypeCodeNumber))
     {
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("list must be numeric"), nil);
@@ -357,7 +357,7 @@ static void MCMathEvalMinMaxList(MCProperListRef p_list, bool p_is_min, MCNumber
     double t_minmax, t_cur_real;
     t_cur_real = MCNumberFetchAsReal((MCNumberRef)MCProperListFetchElementAtIndex(p_list, 0));
     t_minmax = t_cur_real;
-    
+
     bool t_replace;
     for (uindex_t i = 1; i < MCProperListGetLength(p_list); i++)
     {
@@ -367,7 +367,7 @@ static void MCMathEvalMinMaxList(MCProperListRef p_list, bool p_is_min, MCNumber
         if (t_replace)
             t_minmax = t_cur_real;
     }
-    
+
     MCNumberCreateWithReal(t_minmax, r_output);
 }
 
@@ -396,9 +396,9 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalMaxNumber(MCNumberRef p_left, MCNumbe
     double t_left, t_right, t_result;
     t_left = MCNumberFetchAsReal(p_left);
     t_right = MCNumberFetchAsReal(p_right);
-    
+
     MCMathEvalMaxReal(t_left, t_right, t_result);
-    
+
     MCNumberCreateWithReal(t_result, r_output);
 }
 
@@ -416,10 +416,10 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalSqrtNumber(MCNumberRef p_operand, MCN
 {
     double t_operand;
     t_operand = MCNumberFetchAsReal(p_operand);
-    
+
     double t_result;
     MCMathEvalSqrtReal(t_operand, t_result);
-    
+
     MCNumberCreateWithReal(t_result, r_output);
 }
 
@@ -429,7 +429,7 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalConvertToBase10(MCStringRef p_operand
 {
     if (p_source_base < 2 || p_source_base > 32)
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("source base must be between 2 and 32"), nil);
-    
+
     bool t_negative;
     uinteger_t t_result;
     bool t_error = false;
@@ -450,7 +450,7 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalConvertFromBase10(integer_t p_operand
 {
     if (p_dest_base < 2 || p_dest_base > 32)
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("destination base must be between 2 and 32"), nil);
-    
+
     if (p_operand < 0)
     {
         if (MCMathConvertFromBase10(-p_operand, true, p_dest_base, r_output))
@@ -461,19 +461,19 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalConvertFromBase10(integer_t p_operand
         if (MCMathConvertFromBase10(p_operand, false, p_dest_base, r_output))
             return;
     }
-    
+
 //    ctxt . Throw();
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCMathEvalConvertBase(MCStringRef p_operand, integer_t p_source_base, integer_t p_dest_base, MCStringRef& r_output)
 {
-    
+
     if (p_source_base < 2 || p_source_base > 32)
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("source base must be between 2 and 32"), nil);
-    
+
     if (p_dest_base < 2 || p_dest_base > 32)
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("destination base must be between 2 and 32"), nil);
-    
+
     bool t_negative;
     uinteger_t t_result;
     bool t_error;
@@ -482,7 +482,7 @@ extern "C" MC_DLLEXPORT_DEF void MCMathEvalConvertBase(MCStringRef p_operand, in
         if (MCMathConvertFromBase10(t_result, t_negative, p_dest_base, r_output))
             return;
     }
-    
+
     // If t_error is false then we failed because of a memory error, so no need to throw
     if (t_error)
         MCErrorCreateAndThrow(kMCGenericErrorTypeInfo, "reason", MCSTR("integer overflow, or invalid character in source"), nil);

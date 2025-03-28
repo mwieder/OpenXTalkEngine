@@ -132,20 +132,20 @@ struct MCTileCache
 	// If false, an error has occurred while processing an operation on the
 	// tilecache. It must be flushed before it can be used again.
 	bool valid : 1;
-	
+
 	// If true, the tilecache has just been flushed and thus any id's passed in
 	// to it should be considered invalid.
 	bool clean : 1;
-	
+
 	// The size of a single tile in pixels (tiles are square).
 	// MDW-2013-04-16: [[ x64 ]] no need for this to be a signed int, messed up comparisons
 	uint32_t tile_size;
-	
+
 	// The number of bytes currently in use by cached images.
 	uint32_t cache_size;
 	// The maximum number of bytes to use for caching tile images.
 	uint32_t cache_limit;
-	
+
 	// The type of compositor.
 	MCTileCacheCompositorType compositor_type;
 	// The compositor callbacks to use.
@@ -154,18 +154,18 @@ struct MCTileCache
 	// The viewport of the tilecache. The top-left of this rect is the tiling
 	// origin.
 	MCRectangle viewport;
-	
+
 	// The size of the viewport of the the tilecache in tiles.
 	int32_t tiles_across, tiles_down;
-	
+
 	// A 2d array of cells, listing the tiles for scenery layers at that location
 	// which are currently in the cache.
 	MCTileCacheCell *cells;
-	
+
 	// The array of currently active sprites.
 	MCTileCacheSprite *sprites;
 	uint32_t sprite_count;
-	
+
 	// The array of tiles.
 	MCTileCacheTile *tiles;
 	// The number of touched tiles - the size of empty + used lists.
@@ -184,33 +184,33 @@ struct MCTileCache
 	MCTileCacheTileList empty_tiles;
 	// The first tile in the used list which is not used in the current frame.
 	uint32_t inactive_tile_index;
-	
+
 	// The display list for the current frame.
 	uint16_t *display_list;
 	uint32_t display_list_frontier;
 	uint32_t display_list_capacity;
-	
+
 	// The scenery id mapping from the last frame to the new frame.
 	uint16_t *scenery_map;
 	// The total capacity of the scenery map array.
 	uint32_t scenery_map_capacity;
-	
+
 	// The list of renderers mapped by scenery layer id.
 	MCTileCacheRenderer *scenery_renderers;
 	// The id of the last new scenery layer that was rendered.
 	uint32_t scenery_renderers_frontier;
 	// The total capacity of the scenery renderer array.
 	uint32_t scenery_renderers_capacity;
-	
+
 	// The list of scenery tiles to render for the current frame.
 	MCTileCacheRenderList scenery_render_list;
-	
+
 	// The list of sprite tiles to render for the current frame.
 	MCTileCacheRenderList sprite_render_list;
-	
+
 	// The 2d array of tile frontiers, used to calculate which tiles to render.
 	MCTileCacheFrontier *frontiers;
-	
+
 	// The temporary tile (used during tiling).
 	void *temporary_tile;
 };
@@ -390,11 +390,11 @@ void MCTileCacheDestroy(MCTileCacheRef self)
 	// Flush everything. This deletes all cached image data as well as freeing
 	// any ancilliary arrays used by sprites.
 	MCTileCacheFlush(self);
-	
+
 	// Cleanup the compositor (if any)
 	if (self -> compositor . cleanup != nil)
 		self -> compositor . cleanup(self -> compositor . context);
-	
+
 	// Now delete the arrays themselves.
 	MCMemoryDeleteArray(self -> cells);
 	MCMemoryDeleteArray(self -> sprites);
@@ -404,24 +404,24 @@ void MCTileCacheDestroy(MCTileCacheRef self)
 	MCMemoryDeleteArray(self -> display_list);
 	MCTileCacheRenderListDestroy(self, self -> scenery_render_list);
 	MCTileCacheRenderListDestroy(self, self -> sprite_render_list);
-	
+
 	// Finally the state structure.
 	MCMemoryDelete(self);
 }
 
 void MCTileCacheActivate(MCTileCacheRef self)
-{	
+{
 	MCTileCacheConfigureCompositor(self, self -> compositor_type);
-	
+
 	self -> valid = true;
 }
 
 void MCTileCacheDeactivate(MCTileCacheRef self)
 {
 	MCTileCacheFlush(self);
-	
+
 	MCTileCacheConfigureCompositor(self, kMCTileCacheCompositorNone);
-	
+
 	self -> valid = false;
 }
 
@@ -445,7 +445,7 @@ void MCTileCacheSetCacheLimit(MCTileCacheRef self, uint32_t p_new_cache_limit)
 	// If the new cache limit is less than the current usage, we need to flush.
 	if (self -> cache_size > p_new_cache_limit)
 		MCTileCacheFlush(self);
-	
+
 	// Set the new cache limit.
 	self -> cache_limit = p_new_cache_limit;
 }
@@ -460,10 +460,10 @@ void MCTileCacheSetTileSize(MCTileCacheRef self, uint32_t p_new_tile_size)
 	// If the new tile size is different from the old, we need to flush.
 	if (self -> tile_size != p_new_tile_size)
 		MCTileCacheFlush(self);
-		
+
 	// Set the new tile size.
 	self -> tile_size = p_new_tile_size;
-	
+
 	// Update the viewport - need to do this to recompute across/down (this
 	// is a little messy...)
 	MCRectangle t_old_viewport;
@@ -481,10 +481,10 @@ void MCTileCacheSetCompositor(MCTileCacheRef self, MCTileCacheCompositorType p_t
 {
 	// Changing compositor always requires a flush.
 	MCTileCacheFlush(self);
-	
+
 	// Store the type of compositor we are using.
 	self -> compositor_type = p_type;
-	
+
 	// Configure it.
 	MCTileCacheConfigureCompositor(self, self -> compositor_type);
 }
@@ -499,17 +499,17 @@ bool MCTileCacheSupportsCompositor(MCTileCacheCompositorType p_type)
 	if (p_type == kMCTileCacheCompositorNone ||
 		p_type == kMCTileCacheCompositorSoftware)
 		return true;
-	
+
 #if defined(_IOS_MOBILE) || defined(_MAC_DESKTOP)
 	if (p_type == kMCTileCacheCompositorCoreGraphics)
 		return true;
 #endif
-	
+
 #if defined(_IOS_MOBILE) || defined(TARGET_SUBPLATFORM_ANDROID)
 	if (p_type == kMCTileCacheCompositorStaticOpenGL)
 		return true;
 #endif
-	
+
 	return false;
 }
 
@@ -518,10 +518,10 @@ static void MCTileCacheConfigureCompositor(MCTileCacheRef self, MCTileCacheCompo
 	// Cleanup the old compositor, if any.
 	if (self -> compositor . cleanup != nil)
 		self -> compositor . cleanup(self -> compositor . context);
-	
+
 	// Empty the hooks.
 	MCMemoryClear(&self -> compositor, sizeof(MCTileCacheCompositor));
-	
+
 	// Now call the compositor config function.
 	switch(p_type)
 	{
@@ -567,7 +567,7 @@ void MCTileCacheSetViewport(MCTileCacheRef self, const MCRectangle& p_new_viewpo
 		MCTileCacheInvalidate(self);
 		return;
 	}
-		
+
 	// If the top-left of the bounds is the same, we can move over any old cells
 	// (this could be improved, if the top-left has moved by a mulitple of the
 	// tile size).
@@ -578,7 +578,7 @@ void MCTileCacheSetViewport(MCTileCacheRef self, const MCRectangle& p_new_viewpo
 		int32_t t_old_tiles_across, t_old_tiles_down;
 		t_old_tiles_across = MCTileCacheTileFloor(self, self -> viewport . width);
 		t_old_tiles_down = MCTileCacheTileFloor(self, self -> viewport . height);
-		
+
 		// Now copy across the intesecting cells, clearing out the old ones.
 		for(int32_t y = 0; y < MCMin(t_old_tiles_down, t_new_tiles_down); y++)
 			for(int32_t x = 0; x < MCMin(t_old_tiles_across, t_new_tiles_across); x++)
@@ -586,16 +586,16 @@ void MCTileCacheSetViewport(MCTileCacheRef self, const MCRectangle& p_new_viewpo
 				// Get a ptr to the current scenery cell.
 				MCTileCacheCell *t_cell;
 				t_cell = MCTileCacheGetSceneryCell(self, x, y);
-				
+
 				// Copy across the old cell.
 				t_new_cells[y * t_new_tiles_across + x] = *t_cell;
-				
+
 				// Clear out the old cell.
 				t_cell -> tile_count = 0;
 				t_cell -> tiles = nil;
 			}
 	}
-	
+
 	// We've cleared out the cells we've utilized, so now flush all the remaining
 	// cells in the old array.
 	for(int32_t y = 0; y < self -> tiles_down; y++)
@@ -603,19 +603,19 @@ void MCTileCacheSetViewport(MCTileCacheRef self, const MCRectangle& p_new_viewpo
 		{
 			MCTileCacheCell *t_cell;
 			t_cell = MCTileCacheGetSceneryCell(self, x, y);
-			
+
 			// Dirty any tiles that are in the cells list - these get destroyed
 			// at next start of frame.
 			for(uint32_t i = 0; i < t_cell -> tile_count; i++)
 				MCTileCacheDirtyTile(self, t_cell -> tiles[i]);
-			
+
 			// Delete the tiles array.
 			MCMemoryDeleteArray(t_cell -> tiles);
 		}
-		
+
 	// Delete the old cells array.
 	MCMemoryDeleteArray(self -> cells);
-	
+
 	// Update the viewport and new cells array.
 	self -> viewport = p_new_viewport;
 	self -> cells = t_new_cells;
@@ -636,11 +636,11 @@ void MCTileCacheFlush(MCTileCacheRef self)
 	for(int32_t y = 0; y < self -> tiles_down; y++)
 		for(int32_t x = 0; x < self -> tiles_across; x++)
 			MCMemoryDeleteArray(MCTileCacheGetSceneryCell(self, x, y) -> tiles);
-			
+
 	// Now free all the sprite tile arrays and reset them.
 	for(uint32_t i = 0; i < self -> sprite_count; i++)
 		MCMemoryDeleteArray(self -> sprites[i] . tiles);
-		
+
 	// Now destroy all the tiles (if a tile is unused, DestroyTile is just a
 	// no-op).
 	for(uint32_t i = 0; i < self -> tile_count; i++)
@@ -649,12 +649,12 @@ void MCTileCacheFlush(MCTileCacheRef self)
 	// If the compositor has a flush method, use it.
 	if (self -> compositor . flush != nil)
 		self -> compositor . flush(self -> compositor . context);
-	
+
 	// Clear the cells and sprites.
 	memset((void*)self -> cells, 0, self -> tiles_across * self -> tiles_down * sizeof(MCTileCacheCell));
 	memset((void*)self -> sprites, 0, self -> sprite_count * sizeof(MCTileCacheSprite));
 	memset((void*)self -> tiles, 0, self -> tile_count * sizeof(MCTileCacheTile));
-	
+
 	// Make sure the tile lists are empty.
 	self -> empty_tiles . first = 0;
 	self -> empty_tiles . last = 0;
@@ -663,17 +663,17 @@ void MCTileCacheFlush(MCTileCacheRef self)
 	self -> used_tiles . first = 0;
 	self -> used_tiles . last = 0;
 	self -> inactive_tile_index = 0;
-	
+
 	// Reset the display list frontier.
 	self -> display_list_frontier = 0;
-	
+
 	// The tile count always starts off at 1 since 0 is the unused tile index.
 	if (self -> tile_capacity > 0)
 		self -> tile_count = 1;
-		
+
 	// After flushing, the tilecache becomes valid again.
 	self -> valid = true;
-	
+
 	// Mark the tilecache as being clean, this causes ids to be reallocated.
 	self -> clean = true;
 }
@@ -683,7 +683,7 @@ void MCTileCacheCompact(MCTileCacheRef self)
 	// Flush all inactive tiles.
 	while(self -> inactive_tile_index != 0)
 		MCTileCacheFlushTile(self, self -> used_tiles . last, true);
-	
+
 	// If the compositor has a flush method, use it.
 	if (self -> compositor . flush != nil)
 		self -> compositor . flush(self -> compositor . context);
@@ -778,7 +778,7 @@ static void MCTileCacheDirtyTile(MCTileCacheRef self, uint32_t p_index)
 
 	MCTileCacheTile *t_tile;
 	t_tile = &self -> tiles[p_index];
-	
+
 	if (p_index == self -> inactive_tile_index)
 		self -> inactive_tile_index = t_tile -> next;
 	MCTileCacheTileListRemove(self, self -> used_tiles, p_index);
@@ -793,7 +793,7 @@ static void MCTileCacheFlushTile(MCTileCacheRef self, uint32_t p_index, bool p_p
 	// Get the tile pointer.
 	MCTileCacheTile *t_tile;
 	t_tile = MCTileCacheGetTile(self, p_index);
-	
+
 	// We must remove the reference to the tile from the cache - how we do this
 	// depends on the type of layer.
 	if (t_tile -> last_layer == 0)
@@ -854,10 +854,10 @@ static void MCTileCacheCopyTileBits(int32_t p_size, uint32_t *p_dst_ptr, const u
 			t_or_mask |= t_pixel;
 			t_and_mask &= t_pixel;
 		}
-		
+
 		p_src_ptr += p_src_advance;
 	}
-	
+
 	r_or_mask = t_or_mask;
 	r_and_mask = t_and_mask;
 }
@@ -876,17 +876,17 @@ static bool MCTileCacheEnsureTile(MCTileCacheRef self)
 			MCTileCacheInvalidate(self);
 			return false;
 		}
-		
+
 		// Flush the tile, hopefully making some room for ourselves.
 		MCTileCacheFlushTile(self, self -> used_tiles . last, true);
 	}
-	
+
 	// There's room for at least one tile!
 	return true;
 }
 
 static void MCTileCacheFillTile(MCTileCacheRef self, uint32_t p_index, MCImageBitmap *p_bitmap, int32_t p_x, int32_t p_y)
-{	
+{
 	// Get the tile ptr.
 	MCTileCacheTile *t_tile;
 	t_tile = MCTileCacheGetTile(self, p_index);
@@ -912,12 +912,12 @@ static void MCTileCacheFillTile(MCTileCacheRef self, uint32_t p_index, MCImageBi
 			MCTileCacheInvalidate(self);
 			return;
 		}
-		
+
 		// Copy the tile from the context into the temporary buffer,
 		// accumulating a running total of the alpha byte as we go.
 		// (might be quicker to a running and/or instead...)
-		MCTileCacheCopyTileBits(self -> tile_size, (uint32_t *)self -> temporary_tile, t_src_bits, t_src_stride - self -> tile_size, t_or_bits, t_and_bits); 
-			
+		MCTileCacheCopyTileBits(self -> tile_size, (uint32_t *)self -> temporary_tile, t_src_bits, t_src_stride - self -> tile_size, t_or_bits, t_and_bits);
+
 		// Make sure we use the temporary copy (faster path in compositor as
 		// stride is tile size).
 		t_tile_ptr = self -> temporary_tile;
@@ -930,12 +930,12 @@ static void MCTileCacheFillTile(MCTileCacheRef self, uint32_t p_index, MCImageBi
 		t_or_bits = 0;
 		for(uint32_t i = 0; i < t_src_stride * self -> tile_size; i++)
 			t_and_bits &= t_src_bits[i], t_or_bits |= t_src_bits[i];
-	
+
 		// Use direct access to context back-buffer.
 		t_tile_ptr = (void *)t_src_bits;
 		t_tile_stride = p_bitmap -> stride;
 	}
-	
+
 	// The tile is constant if the or bits are the same as the and bits.
 	// The tile is opaque if the top byte of the and bits is 255.
 	// The tile is transparent if the top byte of the or bits is 0.
@@ -953,7 +953,7 @@ static void MCTileCacheFillTile(MCTileCacheRef self, uint32_t p_index, MCImageBi
 	{
 		t_tile -> constant = 0;
 		t_tile -> alpha = (t_and_bits >> 24) == 255 ? 255 : 127;
-		
+
 		// Ask the compositor to allocate the tile.
 		if (self -> compositor . allocate_tile != nil &&
 			self -> compositor . allocate_tile(self -> compositor . context, self -> tile_size, t_tile_ptr, t_tile_stride, t_tile -> data))
@@ -976,7 +976,7 @@ static void MCTileCacheEmptyTile(MCTileCacheRef self, uint32_t p_index)
 
 	if (t_tile -> data == nil || t_tile -> constant != 0)
 		return;
-		
+
 	// Reduce the image bytes used.
 	self -> cache_size -= self -> tile_size * self -> tile_size * sizeof(uint32_t);
 
@@ -1030,7 +1030,7 @@ static void MCTileCacheFlushCellsContainingLayers(MCTileCacheRef self, uint32_t 
 			// Fetch the cell pointer.
 			MCTileCacheCell *t_cell;
 			t_cell = MCTileCacheGetSceneryCell(self, x, y);
-			
+
 			// Loop through each tile, destroying any that have become invalid.
 			// MDW-2013-04-16: [[ x64 ]] was comparing signed and unsigned values
 			uint32_t t_new_tile_count;
@@ -1040,11 +1040,11 @@ static void MCTileCacheFlushCellsContainingLayers(MCTileCacheRef self, uint32_t 
 				// Get the index of the tile we are considering.
 				uint32_t t_tile_index;
 				t_tile_index = t_cell -> tiles[i];
-				
+
 				// Fetch the tile pointer.
 				MCTileCacheTile *t_tile;
 				t_tile = MCTileCacheGetTile(self, t_tile_index);
-				
+
 				// If the tile is in the affected range, dirty the tile and
 				// remove from the list. It will get destroyed at next frame.
 				if (p_first_layer >= t_tile -> first_layer && p_last_layer <= t_tile -> last_layer)
@@ -1052,7 +1052,7 @@ static void MCTileCacheFlushCellsContainingLayers(MCTileCacheRef self, uint32_t 
 				else
 					t_cell -> tiles[t_new_tile_count++] = t_tile_index;
 			}
-			
+
 			// Update the tile count, and resize.
 			if (t_new_tile_count != t_cell -> tile_count)
 			{
@@ -1107,7 +1107,7 @@ static bool MCTileCacheExpandSprite(MCTileCacheRef self, uint32_t p_sprite_id, M
 {
 	MCTileCacheSprite *t_sprite;
 	t_sprite = MCTileCacheGetSprite(self, p_sprite_id);
-	
+
 	// The new rect we require starts off the same as the req rect.
 	MCTileCacheRectangle t_new_rect;
 	t_new_rect = x_req_rect;
@@ -1256,7 +1256,7 @@ static bool MCTileCacheInsertSprite(MCTileCacheRef self, MCTileCacheRenderCallba
 		if (self -> sprites[t_id] . renderer . callback == nil)
 			break;
 	}
-	
+
 	// If there are no unused sprites, then extend the array.
 	if (t_id == self -> sprite_count)
 	{
@@ -1264,22 +1264,22 @@ static bool MCTileCacheInsertSprite(MCTileCacheRef self, MCTileCacheRenderCallba
 		// then invalidate.
 		if (self -> sprite_count == 65536 ||
 			!MCMemoryResizeArray(self -> sprite_count != 0 ? self -> sprite_count * 2 : 4, self -> sprites, self -> sprite_count))
-		
+
 		{
 			MCTileCacheInvalidate(self);
 			return false;
 		}
-		
+
 		t_id = self -> sprite_count / 2;
 	}
-	
+
 	// Sprite id's are one more than the index (index 0 means no sprite).
 	t_id += 1;
-	
+
 	// Compute the sprite ref.
 	MCTileCacheSprite *t_sprite;
 	t_sprite = MCTileCacheGetSprite(self, t_id);
-	
+
 	// Now initialize the renderer.
 	t_sprite -> renderer . callback = p_callback;
 	t_sprite -> renderer . context = p_context;
@@ -1301,13 +1301,13 @@ static bool MCTileCacheInsertSprite(MCTileCacheRef self, MCTileCacheRenderCallba
 	t_sprite -> right = 0;
 	t_sprite -> top = 0;
 	t_sprite -> bottom = 0;
-	
+
 	// There are no cached tiles to begin with.
 	t_sprite -> tiles = nil;
-	
+
 	// Return the id and success.
 	r_id = t_id;
-	
+
 	return true;
 }
 
@@ -1316,11 +1316,11 @@ void MCTileCacheRemoveSprite(MCTileCacheRef self, uint32_t p_id)
 	// Do nothing if the tilecache is invalid.
 	if (!self -> valid)
 		return;
-	
+
 	// If the tilecache is clean, there is nothing to do.
 	if (self -> clean)
 		return;
-		
+
 	// If the id is zero, then there is no sprite yet.
 	if (p_id == 0)
 		return;
@@ -1341,11 +1341,11 @@ void MCTileCacheScrollSprite(MCTileCacheRef self, uint32_t p_id, int32_t p_dx, i
 	// Do nothing if the tilecache is invalid.
 	if (!self -> valid)
 		return;
-		
+
 	// If the tilecache is clean, there is nothing to do.
 	if (self -> clean)
 		return;
-		
+
 	// If the id is zero, then there is no sprite yet.
 	if (p_id == 0)
 		return;
@@ -1364,19 +1364,19 @@ void MCTileCacheUpdateSprite(MCTileCacheRef self, uint32_t p_id, const MCRectang
 	// Do nothing if the tilecache is invalid.
 	if (!self -> valid)
 		return;
-		
+
 	// If the tilecache is clean, there is nothing to do.
 	if (self -> clean)
 		return;
-		
+
 	// If the id is zero, then there is no sprite yet.
 	if (p_id == 0)
 		return;
-	
+
 	// Get the sprite pointer.
 	MCTileCacheSprite *t_sprite;
 	t_sprite = MCTileCacheGetSprite(self, p_id);
-	
+
 	// The region passed in is in sprite layer co-ords, so first compute it
 	// in tile-coords.
 	MCRectangle32 t_tile_rect;
@@ -1390,7 +1390,7 @@ void MCTileCacheUpdateSprite(MCTileCacheRef self, uint32_t p_id, const MCRectang
 	t_top = MCMax((int32_t)t_sprite -> top, MCTileCacheTileFloor(self, t_tile_rect . y));
 	t_right = MCMin((int32_t)t_sprite -> right, MCTileCacheTileCeiling(self, t_tile_rect . x + t_tile_rect . width));
 	t_bottom = MCMin((int32_t)t_sprite -> bottom, MCTileCacheTileCeiling(self, t_tile_rect . y + t_tile_rect . height));
-	
+
 	// Now iterate over the tiles, dirtying those that are in the region.
 	for(int32_t y = t_top; y < t_bottom; y++)
 		for(int32_t x = t_left; x < t_right; x++)
@@ -1412,7 +1412,7 @@ void MCTileCacheBeginFrame(MCTileCacheRef self)
 	// If the tilecache is invalid, do nothing.
 	if (!self -> valid)
 		return;
-	
+
 	// If the tilecache isn't clean, then allocate the scenery map array.
 	if (!self -> clean &&
 		!MCMemoryResizeArray(self -> scenery_renderers_frontier + 1, self -> scenery_map, self -> scenery_map_capacity))
@@ -1420,14 +1420,14 @@ void MCTileCacheBeginFrame(MCTileCacheRef self)
 		MCTileCacheInvalidate(self);
 		return;
 	}
-	
+
 	// Allocate the frontiers array.
 	if (!MCMemoryNewArray(self -> tiles_across * self -> tiles_down, self -> frontiers))
 	{
 		MCTileCacheInvalidate(self);
 		return;
 	}
-	
+
 	// Flush all the dirty tiles.
 	while(self -> dirty_tiles . first != 0)
 	{
@@ -1439,17 +1439,17 @@ void MCTileCacheBeginFrame(MCTileCacheRef self)
 
 	// Reset the display list.
 	self -> display_list_frontier = 0;
-	
+
 	// Reset the render lists.
 	MCTileCacheRenderListReset(self, self -> scenery_render_list);
 	MCTileCacheRenderListReset(self, self -> sprite_render_list);
-	
+
 	// Reset the scenery control list.
 	self -> scenery_renderers_frontier = 0;
-	
+
 	// Move the start of the inactive tile list to the start of the used tiles.
 	self -> inactive_tile_index = self -> used_tiles . first;
-	
+
 	// Start off with no active tile count.
 	self -> active_tile_count = 0;
 }
@@ -1459,25 +1459,25 @@ void MCTileCacheEndFrame(MCTileCacheRef self)
 	// Destroy the frontiers array.
 	MCMemoryDeleteArray(self -> frontiers);
 	self -> frontiers = nil;
-	
+
 	// Tell the compositor we are about to start generating tiles.
 	if (self -> valid && self -> compositor . begin_tiling != nil)
 		if (!self -> compositor . begin_tiling(self -> compositor . context))
 			MCTileCacheInvalidate(self);
-	
+
 	// Render the sprites;
 	if (self -> valid)
 		MCTileCacheRenderSpriteTiles(self);
-	
+
 	// Render the scenery
 	if (self -> valid)
 		MCTileCacheRenderSceneryTiles(self);
-	
+
 	// Tell the compositor we are about to end generating tiles.
 	if (self -> valid && self -> compositor . end_tiling != nil)
 		if (!self -> compositor . end_tiling(self -> compositor . context))
 			MCTileCacheInvalidate(self);
-			
+
 	// Free the temporary tile (if there).
 	MCMemoryDeallocate(self -> temporary_tile);
 	self -> temporary_tile = nil;
@@ -1497,7 +1497,7 @@ static void MCTileCacheDrawSprite(MCTileCacheRef self, uint32_t p_sprite_id, MCG
 {
 	MCTileCacheSprite *t_sprite;
 	t_sprite = MCTileCacheGetSprite(self, p_sprite_id);
-	
+
 	if (!t_sprite -> renderer . callback(t_sprite -> renderer . context, p_context, p_rect))
 		MCTileCacheInvalidate(self);
 }
@@ -1518,10 +1518,10 @@ static void MCTileCacheRenderSpriteTiles(MCTileCacheRef self)
 		// IM-2014-07-03: [[ GraphicsPerformance ]] MCGRegion to collect dirty tile rects.
 		MCGRegionRef t_tile_region;
 		t_tile_region = nil;
-		
+
 		if (!MCGRegionCreate(t_tile_region))
 			MCTileCacheInvalidate(self);
-		
+
 		// Record the first index
 		uint32_t t_sprite_index;
 		t_sprite_index = t_index;
@@ -1547,7 +1547,7 @@ static void MCTileCacheRenderSpriteTiles(MCTileCacheRef self)
 
 			if (!MCGRegionAddRect(t_tile_region, MCGIntegerRectangleMake(t_tile->x * self->tile_size, t_tile->y * self->tile_size, self->tile_size, self->tile_size)))
 				MCTileCacheInvalidate(self);
-			
+
 			// Extend the required tiles rect.
 			if (t_tile -> x < t_required_tiles . left)
 				t_required_tiles . left = t_tile -> x;
@@ -1568,7 +1568,7 @@ static void MCTileCacheRenderSpriteTiles(MCTileCacheRef self)
 
 		// IM-2014-07-03: [[ GraphicsPerformance ]] Offset region to sprite origin
 		MCGRegionTranslate(t_tile_region, -t_sprite->xorg, -t_sprite->yorg);
-		
+
 		// Compute the rect of the tiles
 		MCRectangle32 t_required_rect;
 		t_required_rect = MCRectangle32FromMCGIntegerRectangle(MCGRegionGetBounds(t_tile_region));
@@ -1607,7 +1607,7 @@ static void MCTileCacheRenderSpriteTiles(MCTileCacheRef self)
 
 		// Free the tile region
 		MCGRegionDestroy(t_tile_region);
-		
+
 		// Now extract each of the required tiles.
 		if (self -> valid)
 			for(uint32_t i = t_sprite_index; i < t_index; i++)
@@ -1715,11 +1715,11 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 	// IM-2014-07-02: [[ GraphicsPerformance ]] MCGRegion used to collect required tile rects.
 	MCGRegionRef t_tile_region;
 	t_tile_region = nil;
-	
+
 	if (self->valid)
 		if (!MCGRegionCreate(t_tile_region))
 			MCTileCacheInvalidate(self);
-	
+
 	// Work out the bounds of the update.
 	MCTileCacheRectangle t_required_tiles;
 	t_required_tiles . left = t_required_tiles . top = INT32_MAX;
@@ -1732,7 +1732,7 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 
 		// IM-2014-07-02: [[ GraphicsPerformance ]] Add tile rect to redraw region
 		MCGRegionAddRect(t_tile_region, MCGIntegerRectangleMake(t_tile -> x * self -> tile_size, t_tile -> y * self -> tile_size, self -> tile_size, self -> tile_size));
-		
+
 		// Extend the required tiles rect.
 		if (t_tile -> x < t_required_tiles . left)
 			t_required_tiles . left = t_tile -> x;
@@ -1783,7 +1783,7 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 		// IM-2014-07-02: [[ GraphicsPerformance ]] Clip context to only the tiles we need.
 		MCGContextClipToRegion(t_context, t_tile_region);
 	}
-	
+
 	// Now we use the original render list in reverse to determine what layers
 	// to render, siphoning off tiles as we reach them in the sorted render
 	// list.
@@ -1815,8 +1815,12 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 			if (*t_activity < 2)
 			{
 				for(uint32_t y = 0; y < self -> tile_size; y++)
-//					memset((uint8_t*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y - t_required_tiles . top) * self -> tile_size) + (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t), 0, self -> tile_size * sizeof(uint32_t));
-					memset((void*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y - t_required_tiles . top) * self -> tile_size) + (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t), 0, self -> tile_size * sizeof(uint32_t));
+					memset((uint32_t*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y \
+						- t_required_tiles . top) * self -> tile_size) \
+						+ (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t),\
+						 0, \
+						self -> tile_size * sizeof(uint32_t));
+//					memset((void*)t_bitmap -> data + t_bitmap -> stride * (y + (t_tile -> y - t_required_tiles . top) * self -> tile_size) + (t_tile -> x - t_required_tiles . left) * self -> tile_size * sizeof(uint32_t), 0, self -> tile_size * sizeof(uint32_t));
 			}
 
 			// An active tile is marked with a 2.
@@ -1892,7 +1896,7 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 				// Get the cell ptr.
 				MCTileCacheCell *t_cell;
 				t_cell = MCTileCacheGetSceneryCell(self, x, y);
-				
+
 				// Update the layer ids via indirection through the scenery map.
 				for(uint32_t i = 0; i < t_cell -> tile_count; i++)
 				{
@@ -1909,7 +1913,7 @@ static void MCTileCacheRenderSceneryTiles(MCTileCacheRef self)
 				{
 					MCTileCacheTile *t_tile;
 					t_tile = MCTileCacheGetTile(self, t_sorted_render_list[t_index]);
-					
+
 					// If the x or y has changed, we've moved to another cell.
 					if (t_tile -> x != x || t_tile -> y != y)
 						break;
@@ -2052,7 +2056,7 @@ static void MCTileCachePopLayerFromDisplayList(uint16_t *p_display_list, uint32_
 {
 	r_ox = _pop_uint32(p_display_list, x_index);
 	r_oy = _pop_uint32(p_display_list, x_index);
-	
+
 	r_clip.x = _pop_uint32(p_display_list, x_index);
 	r_clip.y = _pop_uint32(p_display_list, x_index);
 	r_clip.width = _pop_uint32(p_display_list, x_index);
@@ -2123,7 +2127,7 @@ static void MCTileCacheRenderSceneryTile(MCTileCacheRef self, int32_t p_x, int32
 			}
 		}
 	}
-	
+
 	// If we don't have a tile, we allocate a new one and push it onto the
 	// render list.
 	MCTileCacheTile *t_tile;
@@ -2135,13 +2139,13 @@ static void MCTileCacheRenderSceneryTile(MCTileCacheRef self, int32_t p_x, int32
 
 		// Get the tile's ptr
 		t_tile = MCTileCacheGetTile(self, t_tile_index);
-		
+
 		// Update the tile entry.
 		t_tile -> first_layer = p_frontier -> first_layer;
 		t_tile -> last_layer = p_frontier -> last_layer;
 		t_tile -> x = p_x;
 		t_tile -> y = p_y;
-		
+
 		// Set the alpha appropriately. This allows us to use the information
 		// sooner. More accurate determination will be done after rendering.
 		t_tile -> alpha = p_is_opaque ? 255 : 127;
@@ -2149,14 +2153,14 @@ static void MCTileCacheRenderSceneryTile(MCTileCacheRef self, int32_t p_x, int32
 		// Push the tile onto the render list.
 		MCTileCacheRenderListPush(self, self -> scenery_render_list, t_tile_index);
 	}
-	else	
+	else
 		t_tile = MCTileCacheGetTile(self, t_tile_index);
 
 	// Finally, push the tile onto the display list, but only if it is not
 	// fully transparent.
 	if (t_tile -> alpha != 0)
 		MCTileCachePushCompositeOntoDisplayList(self, t_tile_index);
-		
+
 	// Finally, update the frontier. If the tile we have just output is opaque we
 	// mark the frontier as occluded, else empty.
 	if (t_tile -> alpha == 255)
@@ -2170,15 +2174,15 @@ void MCTileCacheRenderScenery(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 	// If the tilecache isn't valid, do nothing.
 	if (!self -> valid)
 		return;
-		
+
 	// If the tilecache is clean, reset the id.
 	if (self -> clean)
 		x_layer . id = 0;
-		
+
 	// Allocate a new layer id.
 	uint32_t t_layer_id;
 	t_layer_id = ++self -> scenery_renderers_frontier;
-	
+
 	// Ensure there is room in the renderer list.
 	if (self -> scenery_renderers_frontier >= self -> scenery_renderers_capacity &&
 		!MCMemoryResizeArray(self -> scenery_renderers_capacity != 0 ? self -> scenery_renderers_capacity * 2 : 4, self -> scenery_renderers, self -> scenery_renderers_capacity))
@@ -2186,15 +2190,15 @@ void MCTileCacheRenderScenery(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 		MCTileCacheInvalidate(self);
 		return;
 	}
-	
+
 	// Fill in the renderer list.
 	self -> scenery_renderers[self -> scenery_renderers_frontier] . callback = x_layer . callback;
 	self -> scenery_renderers[self -> scenery_renderers_frontier] . context = x_layer . context;
-	
+
 	// Update the scenery mapping.
 	if (x_layer . id != 0)
 		self -> scenery_map[x_layer . id] = t_layer_id;
-	
+
 	// Compute the affected and occluded tiles.
 	MCTileCacheRectangle t_affected_cells, t_inside_cells;
 	t_affected_cells = MCTileCacheComputeTouchedTiles(self, x_layer . region);
@@ -2209,11 +2213,11 @@ void MCTileCacheRenderScenery(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 			// Get the frontier ptr.
 			MCTileCacheFrontier *t_frontier;
 			t_frontier = &self -> frontiers[y * self -> tiles_across + x];
-			
+
 			// Skip the cell if it is completely occluded.
 			if (MCTileCacheFrontierIsOccluded(t_frontier))
 				continue;
-				
+
 			// Check to see if the tile occludes or not.
 			bool t_occludes;
 			if (x_layer . is_opaque && x_layer . opacity == 255)
@@ -2221,25 +2225,25 @@ void MCTileCacheRenderScenery(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 								x >= t_inside_cells . left && x < t_inside_cells . right;
 			else
 				t_occludes = false;
-				
+
 			// If the frontier is empty, then update the first layer.
 			if (MCTileCacheFrontierIsEmpty(t_frontier))
 			{
 				t_frontier -> first_layer = t_layer_id;
 				t_frontier -> old_first_layer = x_layer . id;
 			}
-			
+
 			// Always update the last layer.
 			t_frontier -> last_layer = t_layer_id;
 			t_frontier -> old_last_layer = x_layer . id;
-			
+
 			// If the cell needs flushing, then flush it (which also marks the
 			// frontier as occluded).
 			if (t_occludes)
 				MCTileCacheRenderSceneryTile(self, x, y, t_frontier, true);
 		}
 	}
-	
+
 	// Update the layer id to return.
 	x_layer . id = t_layer_id;
 }
@@ -2254,13 +2258,13 @@ static void MCTileCacheRenderSpriteTile(MCTileCacheRef self, int32_t p_x, int32_
 	// Fetch the sprite ptr.
 	MCTileCacheSprite *t_sprite;
 	t_sprite = MCTileCacheGetSprite(self, p_id);
-	
+
 	// See if the tile is already cached.
 	uint32_t t_tile_index;
 	t_tile_index = 0;
 	if (p_x >= t_sprite -> left && p_x < t_sprite -> right && p_y >= t_sprite -> top && p_y < t_sprite -> bottom)
 		t_tile_index = *MCTileCacheGetSpriteCell(self, p_id, p_x, p_y);
-		
+
 	// If the tile is already cached, then touch it, otherwise we must allocate
 	// a new one and schedule rendering.
 	MCTileCacheTile *t_tile;
@@ -2274,24 +2278,24 @@ static void MCTileCacheRenderSpriteTile(MCTileCacheRef self, int32_t p_x, int32_
 		// Search for an unused tile.
 		if (!MCTileCacheCreateTile(self, t_tile_index))
 			return;
-			
+
 		// Get the tile's ptr
 		t_tile = MCTileCacheGetTile(self, t_tile_index);
-		
+
 		// Update the tile's info to correspond to the sprite.
 		t_tile -> first_layer = p_id;
 		t_tile -> last_layer = 0;
 		t_tile -> x = p_x;
 		t_tile -> y = p_y;
-		
+
 		// Set the alpha appropriately. This allows us to use the information
 		// sooner. More accurate determination will be done after rendering.
 		t_tile -> alpha = p_is_opaque ? 255 : 127;
-		
+
 		// Push the tile onto the render list.
 		MCTileCacheRenderListPush(self, self -> sprite_render_list, t_tile_index);
 	}
-	
+
 	// Finally, push the tile onto the display list for compositing - but only if
 	// it is not (fully) transparent.
 	if (t_tile -> alpha != 0)
@@ -2303,16 +2307,16 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 	// If the tilecache isn't valid, do nothing.
 	if (!self -> valid)
 		return;
-	
+
 	// If the tilecache is clean, then reset the id.
 	if (self -> clean)
 		x_layer . id = 0;
-	
+
 	// If the layer id is 0, then we must create the sprite.
 	if (x_layer . id == 0 &&
 		!MCTileCacheInsertSprite(self, x_layer . callback, x_layer . context, x_layer . id))
 		return;
-	
+
 	// Compute the visible region of the sprite in global co-ords.
 	MCRectangle32 t_visible;
 	t_visible = MCRectangle32Intersect(MCRectangle32FromMCRectangle(self -> viewport), MCRectangle32Intersect(x_layer . region, x_layer . clip));
@@ -2320,7 +2324,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 	// Compute the region of the canvas touched by the sprite (in tiles).
 	MCTileCacheRectangle t_affected_cells;
 	t_affected_cells = MCTileCacheComputeTouchedTiles(self, t_visible);
-	
+
 	// Iterate over the affected frontiers from top to bottom.
 	for(int32_t y = t_affected_cells . top; y < t_affected_cells . bottom; y++)
 	{
@@ -2330,22 +2334,22 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 			// Fetch a pointer to the frontier.
 			MCTileCacheFrontier *t_frontier;
 			t_frontier = &self -> frontiers[y * self -> tiles_across + x];
-			
+
 			// Skip the cell if it is occluded.
 			if (MCTileCacheFrontierIsOccluded(t_frontier))
 				continue;
-				
+
 			// Skip the cell if it is empty.
 			if (MCTileCacheFrontierIsEmpty(t_frontier))
 				continue;
-				
+
 			// Render the cell, which will also mark the frontier as either
 			// empty or occluded, depending on any previously cached tile's
 			// status.
 			MCTileCacheRenderSceneryTile(self, x, y, t_frontier, false);
 		}
 	}
-	
+
 	// Get the sprite pointer.
 	MCTileCacheSprite *t_sprite;
 	t_sprite = MCTileCacheGetSprite(self, x_layer . id);
@@ -2360,7 +2364,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 	t_visible_tiles . top = MCTileCacheTileFloor(self, t_visible_tile_rect . y);
 	t_visible_tiles . right = MCTileCacheTileCeiling(self, t_visible_tile_rect . x + t_visible_tile_rect . width);
 	t_visible_tiles . bottom = MCTileCacheTileCeiling(self, t_visible_tile_rect . y + t_visible_tile_rect . height);
-	
+
 	// Make sure the entire visible tiles rect fits in the sprites 'window'.
 	// This might alter one or other of the visible tiles array and sprite
 	// origin.
@@ -2371,7 +2375,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 	// list.
 	bool t_layer_begun;
 	t_layer_begun = false;
-	
+
 	// Loop over the visible regin of the sprite, rendering any tiles that are
 	// not occluded by scenery.
 	for(int32_t y = t_visible_tiles . top; y < t_visible_tiles . bottom; y++)
@@ -2408,7 +2412,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 			MCTileCacheRenderSpriteTile(self, x, y, x_layer . id, x_layer . is_opaque);
 		}
 	}
-	
+
 	// Push the layer 'begin' marker but only if we actually rendered any sprite
 	// tiles.
 	if (t_layer_begun)
@@ -2417,7 +2421,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 					x_layer . clip,
 					x_layer . opacity,
 					x_layer . ink);
-					
+
 	// Finally, if the sprite is opaque, then occlude any frontiers that the
 	// sprite covers. (Note only do this if we are rendering with full opacity).
 	if (x_layer . is_opaque && x_layer . opacity == 255)
@@ -2441,7 +2445,7 @@ void MCTileCacheRenderSprite(MCTileCacheRef self, MCTileCacheLayer& x_layer)
 			}
 		}
 	}
-} 
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2449,19 +2453,19 @@ static bool MCTileCacheDoComposite(MCTileCacheRef self)
 {
 	if (self -> display_list_frontier == 0)
 		return true;
-	
+
 	bool t_success;
 	t_success = true;
-	
+
 	// Keep track of whether we are in a layer or not.
 	bool t_in_layer;
 	t_in_layer = false;
-	
+
 	// Keep track of the current layer origin.
 	int32_t t_ox, t_oy;
 	t_ox = self -> viewport . x;
 	t_oy = self -> viewport . y;
-	
+
 	// Keep track of the instruction we are on - this loop terminates when
 	// t_index reaches zero, or the compositor returns false.
 	uint32_t t_index;
@@ -2470,19 +2474,19 @@ static bool MCTileCacheDoComposite(MCTileCacheRef self)
 	{
 		// Move to the next index.
 		t_index -= 1;
-		
+
 		// Check to see what we should do.
 		if (self -> display_list[t_index] != 0)
 		{
 			// Non-zero means composite the tile, so first get the tile ptr.
 			MCTileCacheTile *t_tile;
 			t_tile = MCTileCacheGetTile(self, self -> display_list[t_index]);
-			
+
 			// Now compute its location.
 			int32_t t_x, t_y;
 			t_x = t_ox + t_tile -> x * self -> tile_size;
 			t_y = t_oy + t_tile -> y * self -> tile_size;
-			
+
 			// Finally tell the compositor about it.
 			if (t_tile -> constant == 0)
 			{
@@ -2500,14 +2504,14 @@ static bool MCTileCacheDoComposite(MCTileCacheRef self)
 			// A zero means start a layer if not in one.
 			MCRectangle32 t_clip;
 			uint32_t t_ink, t_opacity;
-			
+
 			// IM-2014-02-28: [[ Bug 11617 ]] Call function to get layer values from display list
 			MCTileCachePopLayerFromDisplayList(self->display_list, t_index, t_ox, t_oy, t_clip, t_opacity, t_ink);
-			
+
 			// Now we notify the compositor about starting a new layer.
 			if (self -> compositor . begin_layer != nil)
 				t_success = self -> compositor . begin_layer(self -> compositor . context, MCRectangle32ToMCRectangle(t_clip), t_opacity, t_ink);
-			
+
 			// Mark ourselves as being within a layer.
 			t_in_layer = true;
 		}
@@ -2516,17 +2520,17 @@ static bool MCTileCacheDoComposite(MCTileCacheRef self)
 			// A zero means end layer if in one. So reset the origin.
 			t_ox = 0;
 			t_oy = 0;
-			
+
 			// Notify the compositor.
 			if (self -> compositor . end_layer != nil)
 				t_success = self -> compositor . end_layer(self -> compositor . context);
-			
+
 			// Mark ourselves as being outside a layer.
 			t_in_layer = false;
 		}
 	}
 	while(t_index != 0 && t_success);
-	
+
 	return t_success;
 }
 
@@ -2543,7 +2547,7 @@ bool MCTileCacheComposite(MCTileCacheRef self, MCStackSurface *p_surface, MCGReg
 	// Next run through the display list (backwards).
 	if (t_success)
 		t_success = MCTileCacheDoComposite(self);
-	
+
 	// Final step, tell the compositor we are done.
 	if (t_success && self -> compositor . end_frame != nil)
 		t_success = self -> compositor . end_frame(self -> compositor . context, p_surface);
@@ -2556,10 +2560,10 @@ bool MCTileCacheSnapshot(MCTileCacheRef self, MCRectangle p_area, MCGImageRef& r
 	if (self -> compositor . begin_snapshot == nil ||
 		self -> compositor . end_snapshot == nil)
 		return false;
-	
+
 	bool t_success;
 	t_success = true;
-    
+
 	MCGRaster t_raster;
 	t_raster.width = p_area.width;
 	t_raster.height = p_area.height;
@@ -2567,19 +2571,19 @@ bool MCTileCacheSnapshot(MCTileCacheRef self, MCRectangle p_area, MCGImageRef& r
 	t_raster.stride = p_area.width * sizeof(uint32_t);
 	// IM-2014-05-20: [[ GraphicsPerformance ]] Use opaque raster format for snapshot
 	t_raster.format = kMCGRasterFormat_xRGB;
-	
+
 	if (t_success)
 		t_success = MCMemoryAllocate(t_raster.stride * t_raster.height, t_raster.pixels);
-	
+
 	if (t_success)
 		t_success = self -> compositor . begin_snapshot(self -> compositor . context, p_area, t_raster);
-	
+
 	if (t_success)
 		t_success = MCTileCacheDoComposite(self);
-	
+
 	if (t_success)
 		t_success = self -> compositor . end_snapshot(self -> compositor . context, p_area, t_raster);
-	
+
 	if (t_success)
 	{
 		t_success = MCGImageCreateWithRasterAndRelease(t_raster, r_image);
@@ -2588,6 +2592,6 @@ bool MCTileCacheSnapshot(MCTileCacheRef self, MCRectangle p_area, MCGImageRef& r
 	}
 
 	MCMemoryDeallocate(t_raster.pixels);
-	
+
 	return t_success;
 }

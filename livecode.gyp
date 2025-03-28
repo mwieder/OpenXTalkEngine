@@ -227,8 +227,8 @@
 				'thirdparty_libs_core':
 				[
 					'thirdparty/libffi/libffi.gyp:libffi',
+                    'thirdparty/libz/libz.gyp:libz',
 					'thirdparty/libpng/libpng.gyp:libpng',
-					'thirdparty/libz/libz.gyp:libz',
 					'thirdparty/libgif/libgif.gyp:libgif',
 					'thirdparty/libjpeg/libjpeg.gyp:libjpeg',
 					'thirdparty/libpcre/libpcre.gyp:libpcre',

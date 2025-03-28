@@ -6,6 +6,7 @@
 		[
 			# Group "Core - Graphics"
 			'include/customprinter.h',
+			'../thirdparty/libpng/include/png.h',
 			'src/bitmapeffect.h',
 			'src/bitmapeffectblur.h',
 			'src/color.h',
