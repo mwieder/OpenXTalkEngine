@@ -139,17 +139,23 @@
 									{
 										'libraries':
 										[
-											'lib/mac/libicui18n.a',
-											'lib/mac/libicuio.a',
-											'lib/mac/libicutu.a',
-											'lib/mac/libicuuc.a',
-											'lib/mac/libicudata.a',
+											#'lib/mac/libicui18n.a',
+											#'lib/mac/libicuio.a',
+											#'lib/mac/libicutu.a',
+											#'lib/mac/libicuuc.a',
+											#'lib/mac/libicudata.a',
+
+											'libicui18n.a',
+											'libicuio.a',
+											'libicutu.a',
+											'libicuuc.a',
+											'libicudata.a',
 										],
 									},
 									{
 										'library_dirs':
 										[
-											'lib/mac',
+											'lib/mac/>(toolset_arch)',
 										],
 
 										'libraries':
