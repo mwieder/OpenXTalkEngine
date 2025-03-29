@@ -267,26 +267,26 @@ echo "PLATFORM = ${PLATFORM}, ARCH = ${ARCH} HOST_ARCH = ${HOST_ARCH}"
 	# Copy libraries
 	for L in ${ICU_LIBS} ; do
 		if [ -f "${INSTALL_DIR}/${NAME}/lib/libicu${L}.a" ] ; then
-			if [ "${PLATFORM}" == "mac" -o "${PLATFORM}" == "ios" ] ; then
-				VAR="ICU${L}_LIBS"
-				eval "$VAR+=\"${INSTALL_DIR}/${NAME}/lib/libicu${L}.a \""
-			else
+			#if [ "${PLATFORM}" == "mac" -o "${PLATFORM}" == "ios" ] ; then
+				#VAR="ICU${L}_LIBS"
+				#eval "$VAR+=\"${INSTALL_DIR}/${NAME}/lib/libicu${L}.a \""
+			#else
 				mkdir -p "${OUTPUT_DIR}/lib/${NAME}"
 				cp "${INSTALL_DIR}/${NAME}/lib/libicu${L}.a" "${OUTPUT_DIR}/lib/${NAME}/libicu${L}.a"
-			fi
+			#fi
 		fi
 	done
 
 	# Copy executables
 	for B in ${ICU_BINARIES} ; do
 		if [ -f "${INSTALL_DIR}/${NAME}/bin/${B}" ] ; then
-			if [ "${PLATFORM}" == "mac" -o "${PLATFORM}" == "ios" ] ; then
-				VAR="ICU${B}_BINARIES"
-				eval "$VAR+=\"${INSTALL_DIR}/${NAME}/bin/${B} \""
-			else
+			#if [ "${PLATFORM}" == "mac" -o "${PLATFORM}" == "ios" ] ; then
+				#VAR="ICU${B}_BINARIES"
+				#eval "$VAR+=\"${INSTALL_DIR}/${NAME}/bin/${B} \""
+			#else
 				mkdir -p "${OUTPUT_DIR}/bin/${NAME}"
 				cp "${INSTALL_DIR}/${NAME}/bin/${B}" "${OUTPUT_DIR}/bin/${NAME}/${B}"
-			fi
+			#fi
 		fi
 	done
 
