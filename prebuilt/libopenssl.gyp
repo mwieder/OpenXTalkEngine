@@ -3,7 +3,7 @@
 	[
 		'../common.gypi',
 	],
-	
+
 	'targets':
 	[
 		{
@@ -87,8 +87,8 @@
 						{
 							'libraries':
 							[
-								'lib/mac/libcustomcrypto.a',
-								'lib/mac/libcustomssl.a',
+								'lib/mac/>(toolset_arch)/libcustomcrypto.a',
+								'lib/mac/>(toolset_arch)/libcustomssl.a',
 							],
 						},
 					],
@@ -110,7 +110,7 @@
 							[
 								'lib/linux/>(toolset_arch)',
 							],
-							
+
 							'libraries':
 							[
 								'-Wl,-whole-archive',
@@ -133,7 +133,7 @@
 										[
 											'lib/android/<(target_arch)/<(android_subplatform)',
 										],
-							
+
 										'libraries':
 										[
 											'-Wl,-whole-archive',
@@ -153,7 +153,7 @@
 							[
 								'unpacked/openssl/<(uniform_arch)-win32-$(PlatformToolset)_static_$(ConfigurationName)/lib',
 							],
-							
+
 							'libraries':
 							[
 								'-llibeay32',

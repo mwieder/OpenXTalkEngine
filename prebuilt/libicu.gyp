@@ -23,7 +23,7 @@
 				{
 					'variables':
 					{
-						'prebuilt_icu_bin_dir': 'bin/mac',
+						'prebuilt_icu_bin_dir': 'bin/mac/<(target_arch)',
 						'prebuilt_icu_share_dir': 'share',
 					},
 				},
