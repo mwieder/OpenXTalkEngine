@@ -33,7 +33,7 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'x86-android-ndk16r15',
     'x86_64-android-ndk16r15',
 
-    'universal-mac-macosx13.1', # Minimum deployment target
+    'universal-mac-macosx13', # Minimum deployment target
     'universal-ios-iphoneos14.5',
     'universal-ios-iphoneos14.4',
     'universal-ios-iphoneos13.2',
@@ -54,7 +54,9 @@ BUILDBOT_PLATFORM_TRIPLES = (
 KNOWN_PLATFORMS = (
     'linux-x86', 'linux-x86_64', 'linux-armv6hf', 'linux-armv7', 'linux-armv7l',
     'android-armv6', 'android-armv7', 'android-arm64', 'android-x86', 'android-x86_64',
-    'mac', 'ios',
+    'mac',
+#	'mac-arm64'
+	'ios',
     'win-x86', 'win-x86_64',
     'emscripten'
 )
@@ -280,7 +282,7 @@ def host_platform(opts):
     opts['HOST_PLATFORM'] = guess_platform()
 
 # TODO : need to deal with M1, M2, etc chips
-# uname -p will give the processor type
+# uname -p will give the processor type (x86_64 vs arm64
 def guess_xcode_arch(target_sdk):
     sdk, ver = re.match('^([^\\d]*)(\\d*)', target_sdk).groups()
     if sdk == 'macosx':
