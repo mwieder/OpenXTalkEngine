@@ -16,7 +16,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "osxprefix.h"
 
-#include "globdefs.h"
+//#include "globdefs.h" // osxprefix already does this
 #include "filedefs.h"
 #include "objdefs.h"
 #include "parsedef.h"
@@ -191,9 +191,9 @@ static bool MCRegionConvertToCGRectsCallback(void *p_state, const MCRectangle &p
 
 	if (!MCMemoryResizeArray(state -> count + 1, state -> rects, state -> count))
 		return false;
-	
+
 	state -> rects[state -> count - 1] = MCRectangleToCGRect(p_rect);
-	
+
 	return true;
 }
 
@@ -202,16 +202,16 @@ bool MCRegionConvertToCGRects(MCRegionRef self, void*& r_cgrects, uint32_t& r_cg
 	MCRegionConvertToCGRectsState t_state;
 	t_state . rects = nil;
 	t_state . count = 0;
-	
+
 	if (!MCRegionForEachRect(self, MCRegionConvertToCGRectsCallback, &t_state))
 	{
 		MCMemoryDeleteArray(t_state . rects);
 		return false;
 	}
-	
+
 	r_cgrects = t_state . rects;
 	r_cgrect_count = t_state . count;
-	
+
 	return true;
 }
 
@@ -232,7 +232,7 @@ static inline MCRectangle MCMacRectToMCRect(const Rect &p_rect)
 	t_rect.y = p_rect.top;
 	t_rect.width = p_rect.right - p_rect.left;
 	t_rect.height = p_rect.bottom - p_rect.top;
-	
+
 	return t_rect;
 }
 
@@ -241,13 +241,13 @@ static OSStatus MCRegionForEachRectQDCallback(UInt16 p_message, RgnHandle p_regi
 {
 	if (p_message != kQDRegionToRectsMsgParse)
 		return noErr;
-	
+
 	MCRegionForEachRectContext *t_context;
 	t_context = static_cast<MCRegionForEachRectContext*>(p_state);
-	
+
 	MCRectangle t_rect;
 	t_rect = MCMacRectToMCRect(*p_rect);
-	
+
 	if (t_context->callback(t_context->context, t_rect))
 		return noErr;
 	else
@@ -259,7 +259,7 @@ bool MCRegionForEachRect(MCRegionRef region, MCRegionForEachRectCallback callbac
 	MCRegionForEachRectContext t_context;
 	t_context.callback = callback;
 	t_context.context = context;
-	
+
 	return noErr == QDRegionToRects((RgnHandle)region, kQDParseRegionFromTopLeft, MCRegionForEachRectQDCallback, &t_context);
 }
 */
@@ -268,10 +268,9 @@ typedef bool (*MCRegionForEachRectCallback)(void *context, const MCRectangle& re
 bool MCRegionForEachRect(MCRegionRef region, MCRegionForEachRectCallback callback, void *context)
 {
 	// IM-2013-09-30: [[ FullscreenMode ]] Implement for mobile
-	
+
 	// region is just a single rect
 	return callback(context, region->rect);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

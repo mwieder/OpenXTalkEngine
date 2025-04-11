@@ -1,16 +1,16 @@
 /* Copyright (C) 2003-2015 LiveCode Ltd.
- 
+
  This file is part of LiveCode.
- 
+
  LiveCode is free software; you can redistribute it and/or modify it under
  the terms of the GNU General Public License v3 as published by the Free
  Software Foundation.
- 
+
  LiveCode is distributed in the hope that it will be useful, but WITHOUT ANY
  WARRANTY; without even the implied warranty of MERCHANTABILITY or
  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
  for more details.
- 
+
  You should have received a copy of the GNU General Public License
  along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
@@ -37,16 +37,16 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticExecAddRealToReal(double p_number, 
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticExecAddNumberToNumber(MCNumberRef p_number, MCNumberRef& x_target)
-{    
+{
     double t_target, t_number;
     t_target = MCNumberFetchAsReal(x_target);
     t_number = MCNumberFetchAsReal(p_number);
-    
+
     MCArithmeticExecAddRealToReal(t_number, t_target);
-    
+
     MCAutoNumberRef t_new_number;
     MCNumberCreateWithReal(t_target, &t_new_number);
-    
+
     MCValueAssign(x_target, *t_new_number);
 }
 
@@ -72,12 +72,12 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticExecSubtractNumberFromNumber(MCNumb
     double t_target, t_number;
     t_target = MCNumberFetchAsReal(x_target);
     t_number = MCNumberFetchAsReal(p_number);
-    
+
     MCArithmeticExecSubtractRealFromReal(t_number, t_target);
-    
+
     MCAutoNumberRef t_new_number;
     MCNumberCreateWithReal(t_target, &t_new_number);
-    
+
     MCValueAssign(x_target, *t_new_number);
 }
 
@@ -103,12 +103,12 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticExecMultiplyNumberByNumber(MCNumber
     double t_target, t_number;
     t_target = MCNumberFetchAsReal(x_target);
     t_number = MCNumberFetchAsReal(p_number);
-    
+
     MCArithmeticExecMultiplyRealByReal(t_target, t_number);
-    
+
     MCAutoNumberRef t_new_number;
     MCNumberCreateWithReal(t_target, &t_new_number);
-    
+
     MCValueAssign(x_target, *t_new_number);
 }
 
@@ -127,19 +127,19 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticExecDivideNumberByNumber(MCNumberRe
     double t_target, t_number;
     t_target = MCNumberFetchAsReal(x_target);
     t_number = MCNumberFetchAsReal(p_number);
-    
+
     MCArithmeticExecDivideRealByReal(t_target, t_number);
-    
+
     MCAutoNumberRef t_new_number;
     MCNumberCreateWithReal(t_target, &t_new_number);
-    
+
     MCValueAssign(x_target, *t_new_number);
 }
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerPlusInteger(integer_t p_left, integer_t p_right, integer_t& r_output)
 {
     MCArithmeticExecAddIntegerToInteger(p_left, p_right);
-    
+
     //if no error
     r_output = p_right;
 }
@@ -147,7 +147,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerPlusInteger(integer_t p_
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealPlusReal(double p_left, double p_right, double& r_output)
 {
     MCArithmeticExecAddRealToReal(p_left, p_right);
-    
+
     //if no error
     r_output = p_right;
 }
@@ -157,7 +157,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberPlusNumber(MCNumberRef p_
     MCNumberRef t_number;
     MCNumberCreateWithReal(MCNumberFetchAsReal(p_right), t_number);
     MCArithmeticExecAddNumberToNumber(p_left, t_number);
-    
+
     r_output = t_number;
     return;
 }
@@ -165,7 +165,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberPlusNumber(MCNumberRef p_
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerMinusInteger(integer_t p_left, integer_t p_right, integer_t& r_output)
 {
     MCArithmeticExecSubtractIntegerFromInteger(p_right, p_left);
-    
+
     //if no error
     r_output = p_left;
 }
@@ -173,7 +173,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerMinusInteger(integer_t p
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealMinusReal(double p_left, double p_right, double& r_output)
 {
     MCArithmeticExecSubtractRealFromReal(p_right, p_left);
-    
+
     //if no error
     r_output = p_left;
 }
@@ -183,7 +183,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberMinusNumber(MCNumberRef p
     MCNumberRef t_number;
     MCNumberCreateWithReal(MCNumberFetchAsReal(p_left), t_number);
     MCArithmeticExecSubtractNumberFromNumber(p_right, t_number);
-    
+
     r_output = t_number;
     return;
 }
@@ -191,7 +191,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberMinusNumber(MCNumberRef p
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerTimesInteger(integer_t p_left, integer_t p_right, integer_t& r_output)
 {
     MCArithmeticExecMultiplyIntegerByInteger(p_left, p_right);
-    
+
     //if no error
     r_output = p_left;
 }
@@ -199,7 +199,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerTimesInteger(integer_t p
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealTimesReal(double p_left, double p_right, double& r_output)
 {
     MCArithmeticExecMultiplyRealByReal(p_left, p_right);
-    
+
     //if no error
     r_output = p_left;
 }
@@ -209,7 +209,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberTimesNumber(MCNumberRef p
     MCNumberRef t_number;
     MCNumberCreateWithReal(MCNumberFetchAsReal(p_right), t_number);
     MCArithmeticExecMultiplyNumberByNumber(t_number, p_left);
-    
+
     r_output = t_number;
     return;
 }
@@ -217,7 +217,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberTimesNumber(MCNumberRef p
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerOverInteger(integer_t p_left, integer_t p_right, integer_t& r_output)
 {
     MCArithmeticExecDivideIntegerByInteger(p_left, p_right);
-    
+
     //if no error
     r_output = p_left;
 }
@@ -225,7 +225,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerOverInteger(integer_t p_
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealOverReal(double p_left, double p_right, double& r_output)
 {
     MCArithmeticExecDivideRealByReal(p_left, p_right);
-    
+
     //if no error
     r_output = p_left;
 }
@@ -235,7 +235,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberOverNumber(MCNumberRef p_
     MCNumberRef t_number;
     MCNumberCreateWithReal(MCNumberFetchAsReal(p_left), t_number);
     MCArithmeticExecDivideNumberByNumber(t_number, p_right);
-    
+
     r_output = t_number;
     return;
 }
@@ -250,8 +250,8 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerModInteger(integer_t p_l
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealModReal(double p_left, double p_right, double& r_output)
 {
-	double n = 0.0;
-	n = p_left / p_right;
+//	double n = 0.0;
+//	n = p_left / p_right;
 	//if (n == MCinfinity)
 
 	r_output = fmod(p_left, p_right);
@@ -262,10 +262,10 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberModNumber(MCNumberRef p_l
     double t_left, t_right;
     t_left = MCNumberFetchAsReal(p_left);
     t_right = MCNumberFetchAsReal(p_right);
-    
+
     double t_result;
     MCArithmeticEvalRealModReal(t_left, t_right, t_result);
-    
+
     MCNumberCreateWithReal(t_result, r_output);
 }
 
@@ -273,7 +273,7 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerWrapInteger(integer_t p_
 {
     if (p_right == 0)
         return;
-    
+
     integer_t t_y;
 	t_y = p_left > 0 ? p_right : -p_right;
 	if (p_left >= 0)
@@ -284,8 +284,8 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalIntegerWrapInteger(integer_t p_
 
 extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalRealWrapReal(double p_left, double p_right, double& r_output)
 {
-	double n = 0.0;
-	n = p_left / p_right;
+//	double n = 0.0;
+//	n = p_left / p_right;
 	//if (n == MCinfinity)
 
 	double t_y;
@@ -301,10 +301,10 @@ extern "C" MC_DLLEXPORT_DEF void MCArithmeticEvalNumberWrapNumber(MCNumberRef p_
     double t_left, t_right;
     t_left = MCNumberFetchAsReal(p_left);
     t_right = MCNumberFetchAsReal(p_right);
-    
+
     double t_result;
     MCArithmeticEvalRealWrapReal(t_left, t_right, t_result);
-    
+
     MCNumberCreateWithReal(t_result, r_output);
 }
 
@@ -467,7 +467,7 @@ extern "C" MC_DLLEXPORT_DEF MCValueRef MCArithmeticExecParseStringAsNumber(MCStr
     MCAutoNumberRef t_number;
     if (!MCNumberCreateWithReal(t_converted, &t_number))
         return MCValueRetain(kMCNull);
-    
+
     return MCValueRetain(*t_number);
 }
 
@@ -476,7 +476,7 @@ extern "C" MC_DLLEXPORT_DEF MCValueRef MCArithmeticExecParseListOfStringAsListOf
     MCAutoProperListRef t_output;
     if (!MCProperListCreateMutable(&t_output))
         return MCValueRetain(kMCNull);
-    
+
     for(uindex_t i = 0; i < MCProperListGetLength(p_list_of_string); i++)
     {
         MCValueRef t_element;
@@ -486,15 +486,15 @@ extern "C" MC_DLLEXPORT_DEF MCValueRef MCArithmeticExecParseListOfStringAsListOf
             MCErrorThrowGeneric(MCSTR("not a list of string"));
             return MCValueRetain(kMCNull);
         }
-        
+
         if (!MCProperListPushElementOntoBack(*t_output, MCArithmeticExecParseStringAsNumber((MCStringRef)t_element)))
             return MCValueRetain(kMCNull);
     }
-    
+
     MCAutoProperListRef t_list;
     if (!MCProperListCopy(*t_output, &t_list))
         return MCValueRetain(kMCNull);
-    
+
     return MCValueRetain(*t_list);
 }
 
