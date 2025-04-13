@@ -152,10 +152,11 @@ void MCIdeState::SetCommentDelta(uint4 p_line, int1 p_delta)
 	if (p_line > f_line_count)
 	{
 		f_line_properties = (int1 *)realloc(f_line_properties, sizeof(int1) * p_line);
-		memset((void *)(f_line_properties + f_line_count), 0, p_line - f_line_count);
+		memset((int1 *)(f_line_properties + f_line_count), 0, p_line - f_line_count);
+//		memset((void *)(f_line_properties + f_line_count), 0, p_line - f_line_count);
 		f_line_count = p_line;
 	}
-	f_line_properties[p_line - 1] = p_delta; 
+	f_line_properties[p_line - 1] = p_delta;
 }
 
 int1 MCIdeState::GetCommentDelta(uint4 p_line) const
@@ -191,7 +192,7 @@ Parse_stat MCIdeScriptAction::parse_target(MCScriptPoint& p_script,MCChunk*& r_t
 		r_target = new (nothrow) MCChunk(True);
 		t_status = r_target -> parse(p_script, False);
 	}
-	
+
 	return t_status;
 }
 
@@ -212,7 +213,7 @@ Parse_stat MCIdeScriptAction::parse_target_range(MCScriptPoint& p_script, Chunk_
 
 	if (t_status == PS_NORMAL)
 		t_status = p_script . parseexp(False, False, &r_start);
-	
+
 	if (t_status == PS_NORMAL)
 		t_status = p_script . skip_token(SP_FACTOR, TT_TO, PT_TO);
 
@@ -420,7 +421,7 @@ Parse_stat MCIdeScriptConfigure::parse(MCScriptPoint& p_script)
 
 	if (t_status == PS_NORMAL)
 		t_status = p_script . parseexp(False, False, &f_settings);
-	
+
 	return t_status;
 }
 
@@ -441,7 +442,7 @@ static uint1 commit_style(MCColourizeStyle& p_style)
 
 	if (t_index == s_script_style_count && s_script_style_count < 256)
 	{
-		s_script_style_count += 1; 
+		s_script_style_count += 1;
 		s_script_styles = (MCColourizeStyle *)realloc(s_script_styles, sizeof(MCColourizeStyle) * s_script_style_count);
 		memset((void *)&s_script_styles[t_index], 0, sizeof(MCColourizeStyle));
 	}
@@ -644,7 +645,7 @@ static unsigned char next_valid_char(const unsigned char *p_text, uindex_t &x_in
 	if (p_text[x_index] != REPLACEMENT_CHAR_UTF16 && p_text[x_index] != '\0')
 		if (p_text[x_index + 1] == REPLACEMENT_CHAR_ASCII)
 			return p_text[x_index += 2];
-	
+
 	return p_text[x_index += 1];
 }
 
@@ -655,7 +656,7 @@ static unichar_t next_valid_unichar(MCStringRef p_string, uindex_t &x_index)
     x_index = MCStringGraphemeBreakIteratorAdvance(p_string, x_index);
     if (x_index == kMCLocaleBreakIteratorDone)
         x_index = MCStringGetLength(p_string);
-    
+
     return MCStringGetCharAtIndex(p_string, x_index);
 }
 
@@ -699,7 +700,7 @@ static bool match_comment(const unsigned char *p_text, uint4 p_length, uint4 &x_
 					r_class = COLOURIZE_CLASS_SINGLE_COMMENT;
 					while(t_new_index < p_length && type_table[(t_char = next_valid_char(p_text, t_new_index))] != ST_EOL)
 						;
-		
+
 					x_index = t_new_index;
 					return true;
 				}
@@ -711,7 +712,7 @@ static bool match_comment(const unsigned char *p_text, uint4 p_length, uint4 &x_
 				r_class = COLOURIZE_CLASS_SINGLE_COMMENT;
 				while(x_index < p_length && type_table[(t_char = next_valid_char(p_text, x_index))] != ST_EOL)
 					;
-				
+
 				return true;
 
 			case ST_OP:
@@ -726,7 +727,7 @@ static bool match_comment(const unsigned char *p_text, uint4 p_length, uint4 &x_
 					x_index = t_new_index;
 					return true;
 				}
-				
+
 				t_new_index = x_index;
 				if (t_char == '/' && (t_char = next_valid_char(p_text, t_new_index)) == '*')
 				{
@@ -751,7 +752,7 @@ static bool match_comment(const unsigned char *p_text, uint4 p_length, uint4 &x_
 
 							r_update_min_nesting = true;
 						}
-						
+
 						t_char = next_valid_char(p_text, x_index);
 					}
 					if (t_nesting != 0 && x_index < p_length)
@@ -812,7 +813,7 @@ static void tokenize(const unsigned char *p_text, uint4 p_length, uint4 p_in_nes
 
 				t_min_nesting = MCU_min(t_min_nesting, t_nesting);
 			}
-			
+
 			t_char = next_valid_char(p_text, t_index);
 		}
 
@@ -905,7 +906,7 @@ static void tokenize(const unsigned char *p_text, uint4 p_length, uint4 p_in_nes
 						t_start = t_end;
 
 						// Once we've had a comment, there may be more stuff after it ends (if its a multi-line one), this stuff should be colourized
-						// as errors, even though it will actually compile. 
+						// as errors, even though it will actually compile.
 						t_class = COLOURIZE_CLASS_ERROR;
 						while(t_index < p_length && (type_table[p_text[t_index]] != ST_EOL))
 							t_index++;
@@ -921,7 +922,7 @@ static void tokenize(const unsigned char *p_text, uint4 p_length, uint4 p_in_nes
 					}
 
 				break;
-					
+
 				case ST_SEMI:
 				case ST_EOL:
 					t_char = next_valid_char(p_text, t_index);
@@ -964,7 +965,7 @@ static void tokenize(const unsigned char *p_text, uint4 p_length, uint4 p_in_nes
 								t_klength++;
 							}
 						}
-						
+
 						t_char = next_valid_char(p_text, t_index);
 					}
 					// MW-2013-08-23: [[ Bug 11122 ]] Special-case '$#'.
@@ -1036,9 +1037,9 @@ static bool match_comment_stringref(MCStringRef p_string, uint4 &x_index, MCColo
 	r_nesting_delta = 0;
 	r_update_min_nesting = false;
 	r_multiple_lines = false;
-    
+
     uindex_t t_length = MCStringGetLength(p_string);
-    
+
     const unichar_t * t_string = MCStringGetCharPtr(p_string);
 	unichar_t t_char = t_string[x_index];
 	while(x_index < t_length)
@@ -1053,21 +1054,21 @@ static bool match_comment_stringref(MCStringRef p_string, uint4 &x_index, MCColo
 					r_class = COLOURIZE_CLASS_SINGLE_COMMENT;
 					while(t_new_index < t_length && get_codepoint_type(next_valid_unichar(p_string, t_new_index)))
                         ;
-                    
+
 					x_index = t_new_index;
 					return true;
 				}
 				else
 					return false;
 			}
-                
+
 			case ST_COM:
 				r_class = COLOURIZE_CLASS_SINGLE_COMMENT;
 				while(x_index < t_length && get_codepoint_type(next_valid_unichar(p_string, x_index)))
                     ;
-				
+
 				return true;
-                
+
 			case ST_OP:
 			{
 				uindex_t t_new_index = x_index;
@@ -1076,18 +1077,18 @@ static bool match_comment_stringref(MCStringRef p_string, uint4 &x_index, MCColo
 					r_class = COLOURIZE_CLASS_SINGLE_COMMENT;
 					while(t_new_index < t_length && get_codepoint_type(next_valid_unichar(p_string, t_new_index)))
                         ;
-                    
+
 					x_index = t_new_index;
 					return true;
 				}
-				
+
 				t_new_index = x_index;
 				if (t_char == '/' && (t_char = next_valid_unichar(p_string, t_new_index)) == '*')
 				{
 					// As we only need to return the nesting difference, we start the nesting off at 0
 					uint4 t_nesting;
 					t_nesting = 0;
-                    
+
 					x_index = t_new_index;
 					t_char = next_valid_unichar(p_string, x_index);
 					t_nesting += 1;
@@ -1096,23 +1097,23 @@ static bool match_comment_stringref(MCStringRef p_string, uint4 &x_index, MCColo
 					{
 						if (get_codepoint_type(t_char) == ST_EOL)
 							r_multiple_lines = true;
-                        
+
 						t_new_index = x_index;
 						if (t_char == '*' && next_valid_unichar(p_string, t_new_index)  == '/')
 						{
 							t_nesting -= 1;
 							x_index = t_new_index;
-                            
+
 							r_update_min_nesting = true;
 						}
-						
+
 						t_char = next_valid_unichar(p_string, x_index);
 					}
 					if (t_nesting != 0 && x_index < t_length)
 						t_char = next_valid_unichar(p_string, x_index);
-                    
+
 					r_nesting_delta = t_nesting;
-                    
+
 					return true;
 				}
 				else
@@ -1123,7 +1124,7 @@ static bool match_comment_stringref(MCStringRef p_string, uint4 &x_index, MCColo
 		}
 	}
 	return false;
-    
+
 }
 
 
@@ -1131,36 +1132,36 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 {
     uint4 t_index;
     t_index = 0;
-    
+
     uint4 t_nesting;
     t_nesting = p_in_nesting;
-    
+
     uint4 t_min_nesting;
     t_min_nesting = t_nesting;
-    
+
     MCColourizeClass t_class;
     t_class = COLOURIZE_CLASS_NONE;
-    
+
     uindex_t t_length = MCStringGetLength(p_string);
-    
+
     if (t_length == 0)
     {
         r_min_nesting = p_in_nesting;
         r_out_nesting = p_in_nesting;
         return;
     }
-        
+
     if (MCStringIsTrivial(p_string))
     {
         MCAutoStringRefAsCString t_cstring;
         t_cstring . Lock(p_string);
-        
+
         tokenize((unsigned char*) *t_cstring, t_length, p_in_nesting, r_out_nesting, r_min_nesting, p_callback, p_context);
         return;
     }
-        
+
 	unichar_t t_char = MCStringGetCharAtIndex(p_string, 0);
-    
+
     if (t_nesting > 0)
     {
         while(t_nesting > 0 && t_index < t_length - 1)
@@ -1175,42 +1176,42 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 			{
 				t_nesting -= 1;
 				t_index = t_new_index;
-                
+
 				t_min_nesting = MCU_min(t_min_nesting, t_nesting);
 			}
-			
+
 			t_char = next_valid_unichar(p_string, t_index);
 		}
-        
+
 		if (t_nesting != 0 && t_index < t_length)
 			t_char = next_valid_unichar(p_string, t_index);
-        
+
 		p_callback(p_context, COLOURIZE_CLASS_MULTI_COMMENT, 0, 0, t_index);
 	}
-    
+
 	while(t_index < t_length)
 	{
 		uint4 t_class_index;
 		t_class_index = 0;
-        
+
 		uint4 t_start = t_index;
 		uint4 t_end = t_index;
-        
+
 		MCColourizeClass t_comment_class;
 		uint4 t_nesting_delta;
 		bool t_update_min_nesting;
 		bool t_multiple_lines;
-        
+
 		if (match_comment_stringref(p_string, t_index, t_comment_class, t_nesting_delta, t_update_min_nesting, t_multiple_lines))
 		{
 			t_end = t_index;
 			t_nesting = t_nesting + t_nesting_delta;
-            
+
 			if (t_update_min_nesting)
 				t_min_nesting = MCU_min(t_min_nesting, t_nesting);
-            
+
 			t_class = t_comment_class;
-            
+
 		}
 		else
 		{
@@ -1222,7 +1223,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 						;
 					t_end = t_index;
                     break;
-                    
+
 				case ST_MIN:
 					t_index++;
 					t_class = COLOURIZE_CLASS_OPERATOR;
@@ -1230,14 +1231,14 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 						;
 					t_end = t_index;
                     break;
-                    
+
 				case ST_OP:
 					t_class = COLOURIZE_CLASS_OPERATOR;
 					while(t_index < t_length && get_codepoint_type(t_char = next_valid_unichar(p_string, t_index)) == ST_OP)
 						;
 					t_end = t_index;
                     break;
-                    
+
 				case ST_LP:
 				case ST_RP:
 				case ST_LB:
@@ -1247,7 +1248,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 					t_class = COLOURIZE_CLASS_OPERATOR;
 					t_end = t_index;
                     break;
-                    
+
 				case ST_ESC:
 					t_char = next_valid_unichar(p_string, t_index);
 					p_callback(p_context, COLOURIZE_CLASS_CONTINUATION, 0, t_start, t_index);
@@ -1256,45 +1257,45 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 						t_char = next_valid_unichar(p_string, t_index);
 					if (t_start != t_index)
 						p_callback(p_context, COLOURIZE_CLASS_WHITESPACE, 0, t_start, t_index);
-                    
+
 					t_start = t_index;
 					t_class = COLOURIZE_CLASS_ERROR;
-                    
+
 					// OK-2008-05-19 : Comments are permitted after continuation chars, providing that they don't contain multiple lines.
 					if (match_comment_stringref(p_string, t_index, t_comment_class, t_nesting_delta, t_update_min_nesting, t_multiple_lines))
 					{
 						t_end = t_index;
 						if (!t_multiple_lines)
 							t_class = t_comment_class;
-                        
+
 						p_callback(p_context, t_class, 0, t_start, t_end);
 						t_start = t_end;
-                        
+
 						// Once we've had a comment, there may be more stuff after it ends (if its a multi-line one), this stuff should be colourized
 						// as errors, even though it will actually compile.
 						t_class = COLOURIZE_CLASS_ERROR;
 						while(t_index < t_length && (get_codepoint_type(MCStringGetCharAtIndex(p_string, t_index)) != ST_EOL))
 							t_index++;
-                        
+
 						t_end = t_index;
 					}
 					else
 					{
 						while(t_index < t_length && (get_codepoint_type(t_char) != ST_EOL))
 							t_char = next_valid_unichar(p_string, t_index);
-                        
+
 						t_end = t_index;
 					}
-                    
+
                     break;
-					
+
 				case ST_SEMI:
 				case ST_EOL:
 					t_char = next_valid_unichar(p_string, t_index);
 					t_class = COLOURIZE_CLASS_SEPARATOR;
 					t_end = t_index;
                     break;
-                    
+
                 case ST_LC:
                 case ST_RC:
                 case ST_EOF:
@@ -1303,7 +1304,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 					t_class = COLOURIZE_CLASS_ERROR;
 					t_end = t_index;
                     break;
-                    
+
                     // MW-2011-07-18: Make sure we handle ST_TAG like ST_ID - ST_TAG
                     //  is only used in server-mode when tag processing is turned on
 				case ST_TAG:
@@ -1330,12 +1331,12 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
                                     t_keyword[t_klength] = MCS_tolower(t_char);
                                 else
                                     t_keyword[t_klength] = ' ';
-                                
+
 								t_hash = (t_hash ^ t_keyword[t_klength]) + ((t_hash << 26) + (t_hash >> 6));
 								t_klength++;
 							}
 						}
-						
+
 						t_char = next_valid_unichar(p_string, t_index);
 					}
 					// MW-2013-08-23: [[ Bug 11122 ]] Special-case '$#'.
@@ -1348,7 +1349,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
                     // SN-2014-03-26 [[ ComposingChars ]] We are 1 byte too far since the last char we read was not a LIT, NUM or TAG (which excludes unicode chars)
 //                    if (t_index != t_length)
 //                        --t_index;
-                    
+
                     t_end = t_index;
 					if (t_class == COLOURIZE_CLASS_KEYWORD)
 					{
@@ -1364,7 +1365,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 					}
 				}
                     break;
-                    
+
 				case ST_LIT:
 					t_char = next_valid_unichar(p_string, t_index);
 					while(t_index < t_length && get_codepoint_type(t_char) != ST_EOL && get_codepoint_type(t_char) != ST_LIT)
@@ -1378,7 +1379,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 						t_class = COLOURIZE_CLASS_ERROR;
 					t_end = t_index;
                     break;
-                    
+
 				case ST_NUM:
 					t_class = COLOURIZE_CLASS_NUMBER;
 					while(t_index < t_length && get_codepoint_type(t_char = next_valid_unichar(p_string, t_index)) == ST_NUM)
@@ -1387,7 +1388,7 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
                     break;
 			}
 		}
-        
+
         // SN-2014-03-27 [[ CombiningChars ]] We need to check whether the last char is more than one codeunit
         // Get the start index of the next character
 //        uindex_t t_end_of_char = t_end;
@@ -1397,11 +1398,11 @@ static void tokenize_stringref(MCStringRef p_string, uint4 p_in_nesting, uint4& 
 //            t_end = t_end_of_char;
 //        else
 //            t_end = t_end_of_char - 1;
-//        
+//
 ////        t_index = t_end;
         p_callback(p_context, t_class, t_class_index, t_start, t_end);
 	}
-    
+
 	r_out_nesting = t_nesting;
 	r_min_nesting = t_min_nesting;
 }
@@ -1410,19 +1411,19 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 {
 	if (p_field -> getparagraphs() == NULL)
 		return;
-	
+
 	uint4 t_start;
 	t_start = p_start;
-	
+
 	uint4 t_end;
 	t_end = p_end;
-	
+
 	MCField *t_target;
 	t_target = p_field;
-	
+
 	MCIdeState *t_state;
 	t_state = p_state;
-	
+
 	MCParagraph *t_sentinal_paragraph;
 	MCParagraph *t_first_paragraph;
 	MCParagraph *t_last_paragraph;
@@ -1443,7 +1444,7 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 		t_target -> resolvechars(0, si, ei, t_start - 1, t_end - t_start + 1);
 		t_start = si + 1;
 		t_end = ei;
-		
+
 		// Takes si / ei as 1-based field indices.
 		t_target -> charstoparagraphs(t_start, t_end, t_first_paragraph, t_last_paragraph, t_first_line, t_last_line);
 	}
@@ -1453,7 +1454,7 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 		t_first_line = t_start;
 		t_last_line = t_end;
 	}
-	
+
 	uint4 t_old_nesting, t_new_nesting;
 	t_old_nesting = t_new_nesting = t_state -> GetCommentNesting(t_first_line);
 
@@ -1462,7 +1463,7 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 
 	uint4 t_line;
 	t_line = t_first_line;
-	
+
 	// MW-2013-10-24: [[ FasterField ]] We calculate the initial height of all the affected
 	//   paragraphs.
 	int32_t t_initial_height;
@@ -1493,7 +1494,7 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 	// MW-2013-10-24: [[ FasterField ]] Rather than recomputing and redrawing all
 	//   let's be a little more selective - only relaying out and redrawing the
 	//   paragraphs that have changed.
-	
+
 	// MW-2013-10-24: [[ FasterField ]] Calculate the final height of the affected paragraphs.
 	int32_t t_final_height;
 	t_final_height = 0;
@@ -1504,11 +1505,11 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 		t_final_height += t_paragraph -> getheight(t_target -> getfixedheight());
 	}
 	while(t_paragraph != t_first_paragraph);
-	
+
 	// MW-2013-10-24: [[ FasterField ]] Get the y offset of the initial paragraph
 	int32_t t_paragraph_y;
 	t_paragraph_y = t_target -> getcontenty() + t_target -> paragraphtoy(t_first_paragraph);
-	
+
 	// MW-2013-10-24: [[ FasterField ]] If the final height has changed, then recompute and
 	//   redraw everything from initial paragraph down. Otherwise, just redraw the affected
 	//   paragraphs.
@@ -1522,7 +1523,7 @@ static void TokenizeField(MCField *p_field, MCIdeState *p_state, Chunk_term p_ty
 	else
 		drect . height = t_initial_height;
 	drect . y = t_paragraph_y;
-		
+
 	t_target -> removecursor();
 	t_target -> layer_redrawrect(drect);
 	t_target -> replacecursor(False, True);
@@ -1568,7 +1569,7 @@ Parse_stat MCIdeScriptReplace::parse(MCScriptPoint& p_script)
 
 	if (t_status == PS_NORMAL)
 		t_status = parse_target_range(p_script, f_type, f_start, f_end, f_target);
-		
+
 	if (t_status == PS_NORMAL)
 		t_status = p_script . skip_token(SP_REPEAT, TT_UNDEFINED, RF_WITH);
 
@@ -1605,7 +1606,7 @@ void MCIdeScriptReplace::exec_ctxt(MCExecContext & ctxt)
         t_start_index = 1;
         t_end_index++;
     }
-    
+
     t_start_index -= 1;
 
     if (t_start_index > t_end_index)
@@ -1753,7 +1754,7 @@ static void strip_paragraph(void *p_context, MCColourizeClass p_class, uint4 p_i
 	case COLOURIZE_CLASS_SINGLE_COMMENT:
 	case COLOURIZE_CLASS_MULTI_COMMENT:
 	break;
-	
+
 	default:
 		s_strip_paragraph_ep -> concatchars(t_paragraph -> gettext_raw() + t_start, t_end - t_start, EC_SPACE, t_first);
 	break;
@@ -1982,7 +1983,7 @@ Parse_stat MCIdeScriptClassify::parse(MCScriptPoint& p_script)
 
 	if (t_status == PS_NORMAL)
 		t_status = p_script . skip_token(SP_FACTOR, TT_IN, PT_IN);
-	
+
 	if (t_status == PS_NORMAL)
 	{
 		m_target = new (nothrow) MCChunk(False);
@@ -1996,19 +1997,19 @@ static bool searchforhandlerinlist(MCHandlerlist *p_list, MCNameRef p_name, Hand
 {
 	if (p_list == nil)
 		return false;
-	
+
 	if (p_list -> hashandler(HT_MESSAGE, p_name))
 	{
 		r_type = HT_MESSAGE;
 		return true;
 	}
-	
+
 	if (p_list -> hashandler(HT_FUNCTION, p_name))
 	{
 		r_type = HT_FUNCTION;
 		return true;
 	}
-	
+
 	return false;
 }
 
@@ -2016,19 +2017,19 @@ static bool searchforhandlerinexternallist(MCExternalHandlerList *p_list, MCName
 {
 	if (p_list == nil)
 		return false;
-	
+
 	if (p_list -> HasHandler(p_name, HT_MESSAGE))
 	{
 		r_type = HT_MESSAGE;
 		return true;
 	}
-	
+
 	if (p_list -> HasHandler(p_name, HT_FUNCTION))
 	{
 		r_type = HT_FUNCTION;
 		return true;
 	}
-	
+
 	return false;
 }
 
@@ -2036,10 +2037,10 @@ static bool searchforhandlerinobject(MCObject *p_object, MCNameRef p_handler, Ha
 {
 	if (p_object == nil)
 		return false;
-	
+
 	if (searchforhandlerinlist(p_object -> gethandlers(), p_handler, r_type))
 		return true;
-	
+
 	if (p_object -> getparentscript() != nil)
 	{
 		MCObject *t_behavior;
@@ -2051,11 +2052,11 @@ static bool searchforhandlerinobject(MCObject *p_object, MCNameRef p_handler, Ha
 				return true;
 		}
 	}
-	
+
 	if (p_object -> gettype() == CT_STACK &&
 		searchforhandlerinexternallist(((MCStack *)p_object) -> getexternalhandlers(), p_handler, r_type))
 		return true;
-	
+
 	return false;
 }
 
@@ -2066,15 +2067,15 @@ static bool searchforhandlerinlibrarystacks(MCNameRef p_handler, Handler_type& r
 		if (searchforhandlerinobject(MCusing[i], p_handler, r_type))
 			return true;
 	}
-	
-	return false;	
+
+	return false;
 }
 
 static bool searchforhandlerinobjectlist(MCObjectList *p_list, MCNameRef p_name, Handler_type& r_type)
 {
 	if (p_list == nil)
 		return false;
-	
+
 	MCObjectList *t_object_ref;
 	t_object_ref = p_list;
 	do
@@ -2082,7 +2083,7 @@ static bool searchforhandlerinobjectlist(MCObjectList *p_list, MCNameRef p_name,
 		if (!t_object_ref -> getremoved() &&
 			searchforhandlerinobject(t_object_ref -> getobject(), p_name, r_type))
 			return true;
-		
+
 		t_object_ref = t_object_ref -> next();
 	}
 	while (t_object_ref != p_list);
@@ -2110,20 +2111,20 @@ static bool searchforhandler(MCObject *p_object, MCNameRef p_handler, Handler_ty
 {
 	if (searchforhandlerinobjectlist(MCfrontscripts, p_handler, r_type))
 		return true;
-	
+
 	for (MCObject *t_object = p_object; t_object != nil; t_object = t_object -> getparent())
 	{
 		t_object -> parsescript(False);
 		if (searchforhandlerinobject(t_object, p_handler, r_type))
-			return true;	
+			return true;
 	}
-	
+
 	if (searchforhandlerinobjectlist(MCbackscripts, p_handler, r_type))
 		return true;
-	
+
 	if (searchforhandlerinlibrarystacks(p_handler, r_type))
 		return true;
-	
+
 	return false;
 }
 
@@ -2368,7 +2369,7 @@ struct MCIdeFilterControlsVisitor: public MCObjectVisitor
     MCIdeFilterControlsOperator m_operator;
     MCStringRef m_pattern;
     MCListRef m_value;
-	
+
     uint32_t m_card_id;
 
     MCIdeFilterControlsVisitor(MCExecContext&ctxt, MCIdeFilterControlsProperty p_property, MCIdeFilterControlsOperator p_operator, MCStringRef p_pattern)
@@ -2383,13 +2384,13 @@ struct MCIdeFilterControlsVisitor: public MCObjectVisitor
         MCValueRelease(m_pattern);
         MCValueRelease(m_value);
     }
-	
+
 	virtual bool OnCard(MCCard *p_card)
 	{
 		m_card_id = p_card -> getid();
 		return MCObjectVisitor::OnCard(p_card);
 	}
-	
+
 	virtual bool OnObject(MCObject *p_object)
     {
         MCAutoValueRef t_left_value;
@@ -2488,10 +2489,10 @@ struct MCIdeFilterControlsVisitor: public MCObjectVisitor
 
             }
             break;
-				
+
 			case kMCIdeFilterOperatorNone:
 				break;
-				
+
         }
 
         if (t_accept)
@@ -2521,7 +2522,7 @@ Parse_stat MCIdeFilterControls::parse(MCScriptPoint& sp)
 {
 	Parse_stat t_stat;
 	t_stat = PS_NORMAL;
-	
+
 	if (t_stat == PS_NORMAL)
 		t_stat = sp . skip_token(SP_FACTOR, TT_OF, PT_OF);
 
@@ -2530,14 +2531,14 @@ Parse_stat MCIdeFilterControls::parse(MCScriptPoint& sp)
 		m_stack = new (nothrow) MCChunk(false);
 		t_stat = m_stack -> parse(sp, False);
 	}
-	
+
 	if (t_stat == PS_NORMAL)
 		t_stat = sp . skip_token(SP_MARK, TT_UNDEFINED, MC_WHERE);
-	
+
 	Symbol_type t_type;
 	if (t_stat == PS_NORMAL && (sp . next(t_type) != PS_NORMAL || t_type != ST_ID))
 		t_stat = PS_ERROR;
-	
+
 	if (t_stat == PS_NORMAL)
 	{
 		if (sp . token_is_cstring("scriptlines"))
@@ -2551,7 +2552,7 @@ Parse_stat MCIdeFilterControls::parse(MCScriptPoint& sp)
 		else
 			t_stat = PS_ERROR;
 	}
-	
+
 	if (t_stat == PS_NORMAL)
 	{
 		if (sp . skip_token(SP_FACTOR, TT_BINOP, O_LT) == PS_NORMAL)
@@ -2583,10 +2584,10 @@ Parse_stat MCIdeFilterControls::parse(MCScriptPoint& sp)
 		else if (sp . skip_token(SP_FACTOR, TT_BINOP, O_CONTAINS) == PS_NORMAL)
 			m_operator = kMCIdeFilterOperatorContains;
 	}
-	
+
 	if (t_stat == PS_NORMAL)
 		t_stat = sp . parseexp(False, True, &m_pattern);
-	
+
 	return t_stat;
 }
 
@@ -2627,4 +2628,3 @@ void MCIdeFilterControls::exec_ctxt(MCExecContext &ctxt)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-

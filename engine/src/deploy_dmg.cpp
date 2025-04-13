@@ -144,29 +144,29 @@ struct HFSPlusVolumeHeader
     uint32_t attributes;
     uint32_t lastMountedVersion;
     uint32_t journalInfoBlock;
- 
+
     uint32_t createDate;
     uint32_t modifyDate;
     uint32_t backupDate;
     uint32_t checkedDate;
- 
+
     uint32_t fileCount;
     uint32_t folderCount;
- 
+
     uint32_t blockSize;
     uint32_t totalBlocks;
     uint32_t freeBlocks;
- 
+
     uint32_t nextAllocation;
     uint32_t rsrcClumpSize;
     uint32_t dataClumpSize;
     HFSCatalogNodeID nextCatalogID;
- 
+
     uint32_t writeCount;
     uint64_t encodingsBitmap;
- 
+
     uint32_t finderInfo[8];
- 
+
 	union
 	{
 		struct
@@ -228,7 +228,7 @@ struct HFSFinderRect {
   int16_t right;
 };
 
-/* OSType is a 32-bit value made by packing four 1-byte characters 
+/* OSType is a 32-bit value made by packing four 1-byte characters
    together. */
 typedef uint32_t HFSFinderFourCharCode;
 typedef HFSFinderFourCharCode HFSFinderOSType;
@@ -334,7 +334,7 @@ struct HFSPlusCatalogFile {
     HFSFinderExtendedFileInfo finderInfo;
     uint32_t textEncoding;
     uint32_t reserved2;
- 
+
     HFSPlusForkData dataFork;
     HFSPlusForkData resourceFork;
 };
@@ -473,7 +473,7 @@ static void swap_hfsplus_catalog_file(HFSPlusCatalogFile& x)
 // list of records is then turned into a B-Tree structure level-by-level, until
 // a level is generated that has only one entry.
 //
-// 
+//
 //
 
 // A single sector is either a reference to a 512 byte block of a file, or is
@@ -670,7 +670,7 @@ static uint32_t unix_date_to_hfs_date(uint32_t p_date)
 Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 {
     return ES_NORMAL;
-    
+
 #if DEPLOY_DMG
 	bool t_success;
 	t_success = true;
@@ -922,7 +922,7 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 	if (t_success)
 	{
 		MCMemoryClear(t_btree -> nodes[0], t_btree -> node_size);
-		
+
 		BTNodeDescriptor *t_head;
 		t_head = (BTNodeDescriptor *)t_btree -> nodes[0];
 		t_head -> fLink = 0;
@@ -951,8 +951,8 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		t_rec -> attributes = kBTBigKeysMask | kBTVariableIndexKeysMask;
 		swap_bt_header_rec(*t_rec);
 
-//		memset((uint8_t *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
-		memset((void *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
+		memset((DmgBTree *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
+//		memset((void *)t_btree -> nodes[0] + 14 + sizeof(BTHeaderRec) + 128, 255, t_btree -> node_size - 6 - 128 - sizeof(BTHeaderRec) - 14);
 
 		*(uint16_t *)((uint8_t *)t_btree -> nodes[0] + t_btree -> node_size - 2) = htons(14);
 		*(uint16_t *)((uint8_t *)t_btree -> nodes[0] + t_btree -> node_size - 4) = htons(14 + sizeof(BTHeaderRec));
@@ -993,8 +993,8 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		t_rec -> attributes = kBTBigKeysMask;
 		swap_bt_header_rec(*t_rec);
 
-//		memset((uint8_t *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
-		memset((void *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+		memset((char *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+//		memset((void *)t_extents + 14 + sizeof(BTHeaderRec) + 128, 255, 4096 - 6 - 128 - sizeof(BTHeaderRec) - 14);
 
 		*(uint16_t *)(t_extents + 4096 - 2) = htons(14);
 		*(uint16_t *)(t_extents + 4096 - 4) = htons(14 + sizeof(BTHeaderRec));
@@ -1035,8 +1035,8 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		t_rec -> attributes = 6;
 		swap_bt_header_rec(*t_rec);
 
-//		memset((uint8_t *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
-		memset((void *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+		memset((char *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
+//		memset((void *)t_attrs + 14 + sizeof(BTHeaderRec) + 128, 255, 8192 - 6 - 128 - sizeof(BTHeaderRec) - 14);
 
 		*(uint16_t *)(t_attrs + 8192 - 2) = htons(14);
 		*(uint16_t *)(t_attrs + 8192 - 4) = htons(14 + sizeof(BTHeaderRec));
@@ -1063,7 +1063,7 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 	{
 		// The volume header and reserved section take up the first block
 		t_block_count += 1;
-		
+
 		// The Catalog BTree uses one allocation block per node
 		t_block_count += t_btree -> node_count;
 
@@ -1122,7 +1122,7 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 		MCMemoryCopy(&t_device_partitions[0] . pmPartName[0], "Apple", 5);
 		MCMemoryCopy(&t_device_partitions[0] . pmParType[0], "Apple_partition_map", 19);
 		swap_device_partition(t_device_partitions[0]);
-		
+
 		MCMemoryClear(&t_device_partitions[1], sizeof(DevicePartition));
 		t_device_partitions[1] . pmSig = kDevicePartitionSignature;
 		t_device_partitions[1] . pmMapBlkCnt = 3;
@@ -1287,7 +1287,7 @@ Exec_stat MCDeployDmgBuild(MCDeployDmgParameters& p_params)
 	MCMemoryDeleteArray(t_leaves);
 
 	MCDeployFileClose(t_output);
-    
+
 	return t_success ? ES_NORMAL : ES_ERROR;
 #endif
 }
