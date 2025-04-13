@@ -21,7 +21,7 @@ CUSTOM_DYNAMIC_LIBS=dl m pthread $(MODE_DYNAMIC_LIBS)
 
 CUSTOM_CCFLAGS=\
 	-Wall -Wno-unused-variable -Wno-switch -Wno-non-virtual-dtor -Wno-parentheses \
-	-Wc++14-extensions \
+	-Wnoc++14-extensions \
 	-fno-exceptions -fno-rtti \
 	-fmessage-length=0 \
 	$(MODE_CCFLAGS)
