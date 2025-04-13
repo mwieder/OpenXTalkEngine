@@ -40,6 +40,7 @@
 				'include',
 				'src',
 				'../thirdparty/libpng/include',
+				'../thirdparty/libjpeg/src',
 			],
 
 			'sources':
