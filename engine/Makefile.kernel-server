@@ -85,7 +85,7 @@ SOURCES=\
 	widget-events.cpp
 
 MLC_LIST = libkernel-modules.list
-	
+
 SOURCE_DIRS=
 
 CUSTOM_OVERRIDE_DEFINES=1
@@ -98,6 +98,7 @@ CUSTOM_INCLUDES=\
 
 CUSTOM_CCFLAGS=\
 	-Wall -Wno-unused-variable -Wno-switch -Wno-non-virtual-dtor -fno-exceptions -fno-rtti -fno-strict-aliasing \
+	-Wno-c++14-extensions \
 	-fmessage-length=0
 
 ifeq ($(ARCH),i386)
