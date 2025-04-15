@@ -15,7 +15,8 @@
 
 /* #undef ZIP_STATIC */
 
-
+#define _Nullable
+#define _Nonnull
 
 #if !defined(__STDC_FORMAT_MACROS)
 #define __STDC_FORMAT_MACROS 1

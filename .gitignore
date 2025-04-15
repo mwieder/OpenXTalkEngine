@@ -26,6 +26,7 @@ util/perfect/perfect.linux-*
 **/extensions/*/*/*.lce
 **/extensions/*/*/api.lcdoc
 */src/.lci/*
+revzip/src/*.h
 
 # Compiled source and intermediates #
 ###################

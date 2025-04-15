@@ -19,28 +19,28 @@
 /* #undef HAVE__STRTOI64 */
 /* #undef HAVE__STRTOUI64 */
 /* #undef HAVE__UNLINK */
-#define HAVE_ARC4RANDOM
-#define HAVE_CLONEFILE
-#define HAVE_COMMONCRYPTO
+/* #undef HAVE_ARC4RANDOM */
+/* #undef HAVE_CLONEFILE */
+/* #undef HAVE_COMMONCRYPTO */
 #define HAVE_CRYPTO
-/* #undef HAVE_FICLONERANGE */
+#define HAVE_FICLONERANGE
 #define HAVE_FILENO
 #define HAVE_FCHMOD
 #define HAVE_FSEEKO
 #define HAVE_FTELLO
-#define HAVE_GETPROGNAME
+/* #undef HAVE_GETPROGNAME */
 /* #undef HAVE_GNUTLS */
 #define HAVE_LIBBZ2
 #define HAVE_LIBLZMA
-/* #undef HAVE_LIBZSTD */
+#define HAVE_LIBZSTD
 #define HAVE_LOCALTIME_R
 /* #undef HAVE_LOCALTIME_S */
 /* #undef HAVE_MEMCPY_S */
 /* #undef HAVE_MBEDTLS */
 /* #undef HAVE_MKSTEMP */
-#define HAVE_NULLABLE
-/* #undef HAVE_OPENSSL */
-#define HAVE_SETMODE
+/* #undef HAVE_NULLABLE */
+#define HAVE_OPENSSL
+/* #undef HAVE_SETMODE */
 #define HAVE_SNPRINTF
 /* #undef HAVE_SNPRINTF_S */
 #define HAVE_STRCASECMP
