@@ -81,7 +81,6 @@
 							'-Wl,-platform_version',
 							'-Wl,macos',
 							'-Wl,13.1',
-							'-Wl,13.1',
 						],
 					},
 				},

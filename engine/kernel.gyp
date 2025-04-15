@@ -39,7 +39,7 @@
 			[
 				'include',
 				'src',
-				'../thirdparty/libpng/include',
+				'../thirdparty/libpng/src',
 				'../thirdparty/libjpeg/src',
 			],
 
