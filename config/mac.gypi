@@ -139,6 +139,7 @@
 
 							'-Wno-conversion',
 							'-Wno-shorten-64-to-32',
+                            '-Wno-c++14-extensions',
 
 							'-Werror=declaration-after-statement',
 							'-Werror=delete-non-virtual-dtor',
