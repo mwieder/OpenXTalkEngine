@@ -20,7 +20,7 @@ function fetchBinary
 {
 	cd "${BUILDDIR}"
 
-	if [ ! -d "$THIS" ] ; then
+	if [[ ! -d "$THIS"* ]] ; then
 		if [ ! -e "$ARCHIVE_DESTINATION" ] ; then
 			echo "Fetching ${THIS} source"
 			fetchUrl "${URL_ROOT}" "${ARCHIVE_DESTINATION}.tar"
