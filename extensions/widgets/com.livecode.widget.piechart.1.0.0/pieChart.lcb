@@ -1,0 +1,333 @@
+/**
+A pie chart control. A pie chart displays a set of values and labels as sectors of a circular chart. The labels are displayed alongside the chart, and can be shown or hidden.
+
+Name: sectorClicked
+Type: message
+Syntax: on sectorClicked pSectorNumber
+
+Summary: Sent when a sector of the pie chart is clicked.
+
+Parameters:
+pSectorNumber: The sector number of the clicked segment.
+
+Description:
+The <sectorClicked > message is sent when a sector in the pie chart is clicked. The <pSectorNumber> parameter number of the sector which was clicked.
+**/
+
+widget com.livecode.widget.piechart
+
+use com.livecode.canvas
+use com.livecode.widget
+use com.livecode.engine
+use com.livecode.library.widgetutils
+
+metadata title is "Pie Chart"
+metadata author is "LiveCode"
+metadata version is "1.0.0"
+metadata preferredSize is "200,150"
+metadata svgicon is "M115 386 c-44 -19 -103 -89 -111 -131 -31 -164 87 -282 251 -251 43 8 113 68 132 113 26 62 24 63 -97 63 l-110 0 0 110 c0 122 -2 124 -65 96z M200 301 l0 -101 101 0 102 0 -6 41 c-10 77 -79 146 -156 156 l-41 6 0 -102z"
+
+private variable mValues as List
+private variable mLabels as List
+private variable mColors as List
+private variable mShowLabels as Boolean
+private variable mChartOrigin as Point
+private variable mRadius as Number
+private variable mSectorAngles as List
+
+/**
+Syntax: set the sectorValues of <widget> to <pValueList>
+Syntax: get the sectorValues of <widget>
+
+Parameters:
+pValueList (String): A comma separated string of values.
+
+Summary: The list of values to be displayed on the pie chart.
+
+Description:
+Use the <sectorValues> property to set the values to be displayed in the pie chart.
+**/
+property "sectorValues" get getValues set setValues
+metadata sectorValues.default is "1,2,3,5,8,13"
+metadata sectorValues.label is "Values"
+
+/**
+Syntax: set the sectorLabels of <widget> to <pLabelList>
+Syntax: get the sectorLabels of <widget>
+
+Parameters:
+pLabelList (String): A comma separated string of labels.
+
+Summary: The list of labels associated with the pie chart sectors.
+
+Description:
+Use the <sectorLabels> property to set the labels to be displayed in the pie chart.
+**/
+property "sectorLabels" get getLabels set setLabels
+metadata sectorLabels.default is "Jan,Feb,Mar,Apr,May,Jun"
+metadata sectorLabels.label is "Labels"
+
+/**
+Syntax: set the showLabels of <widget> to { true | false }
+Syntax: get the showLabels of <widget>
+
+Summary: Whether the sector labels are shown or not.
+
+Description:
+Use the <showLabels> property to control whether the sector labels are shown or not.
+**/
+property "showLabels" get mShowLabels set setShowLabels
+metadata showLabels.default is "true"
+metadata showLabels.label is "Show sector labels"
+
+constant kPadding is 10
+
+public handler OnCreate()
+   variable tSectors
+
+   setValues("1,2,3,5,8,13")
+   setLabels("Jan,Feb,Mar,Apr,May,Jun")
+   put true into mShowLabels
+
+   put the number of elements in mValues into tSectors
+   put colorList(tSectors) into mColors
+end handler
+
+public handler OnPaint()
+   variable tWidth as Number
+   variable tHeight as Number
+   variable tDiameter as Number
+
+   variable tChartRect as Rectangle
+   variable tLabelRect as Rectangle
+   variable tLabelLineHeight as Number
+
+   put my width into tWidth
+   put my height into tHeight
+
+   if mShowLabels is false then
+      put the minimum of tHeight and tWidth into tDiameter
+      subtract kPadding*2 from tDiameter
+      put rectangle [0,0,tWidth,tHeight] into tChartRect
+   else
+      variable tLabelText as String
+      variable tLabelBounds as Rectangle
+      variable tLabelWidth as Number
+      variable tLabelHeight as Number
+
+      repeat for each element tLabelText in mLabels
+         measure tLabelText on this canvas
+         put the result into tLabelBounds
+
+         if the width of tLabelBounds > tLabelWidth then
+            put the width of tLabelBounds into tLabelWidth
+         end if
+
+         if the height of tLabelBounds > tLabelHeight then
+            put the height of tLabelBounds into tLabelHeight
+         end if
+      end repeat
+
+      put tLabelHeight into tLabelLineHeight
+      put tLabelHeight * (the number of elements in mLabels) into tLabelHeight
+      add tLabelLineHeight to tLabelWidth
+
+      if tWidth > tHeight then
+         put the minimum of tHeight and (tWidth - tLabelWidth) into tDiameter
+         subtract kPadding*2 from tDiameter
+
+         put rectangle [0,0,tWidth-tLabelWidth,tHeight] into tChartRect
+         put rectangle [tWidth-tLabelWidth,0,tWidth,tHeight] into tLabelRect
+      else
+         put the minimum of tWidth and (tHeight - tLabelHeight) into tDiameter
+         subtract kPadding*2 from tDiameter
+
+         put rectangle [0,0,tWidth,tHeight-tLabelHeight] into tChartRect
+         put rectangle [0,tHeight-tLabelHeight,tWidth,tHeight] into tLabelRect
+      end if
+   end if
+
+   variable tTotal as Number
+   variable tElement
+
+   repeat for each element tElement in mValues
+      add tElement parsed as number to tTotal
+   end repeat
+
+   variable tStartAngle as Number
+   variable tAngle as Number
+   variable tPath as Path
+   variable tSectorNumber as Number
+
+   put tDiameter / 2 into mRadius
+   put point [the width of tChartRect/2,the height of tChartRect/2] into mChartOrigin
+
+   repeat for each element tElement in mValues
+      add 1 to tSectorNumber
+      put (tElement parsed as number/tTotal) * 360 into tAngle
+
+      put the empty path into tPath
+      put sector path centered at mChartOrigin with radii [mRadius,mRadius] from tStartAngle to (tStartAngle + tAngle) into tPath
+      set the paint of this canvas to solid paint with element tSectorNumber of mColors
+      fill tPath on this canvas
+
+      push [tStartAngle,(tStartAngle + tAngle)] onto mSectorAngles
+
+      add tAngle to tStartAngle
+   end repeat
+
+   variable tLineTop as Number
+   variable tLineRect as Rectangle
+   variable tColorIndicatorDimension as Number
+   variable tColorIndicatorPadding as Number
+   variable tColorIndicatorPath as Path
+
+   if mShowLabels is true then
+      put (tLabelLineHeight/3) * 2 into tColorIndicatorDimension
+      put tLabelLineHeight/6 into tColorIndicatorPadding
+
+      put the top of tLabelRect into tLineTop
+      put 0 into tSectorNumber
+
+      repeat for each element tElement in mLabels
+         add 1 to tSectorNumber
+
+         put rectangle path of rectangle [the left of tLabelRect + tColorIndicatorPadding,tLineTop + tColorIndicatorPadding,the left of tLabelRect + tColorIndicatorDimension + tColorIndicatorPadding,tLineTop + tColorIndicatorDimension + tColorIndicatorPadding] into tColorIndicatorPath
+
+         set the paint of this canvas to solid paint with element tSectorNumber of mColors
+         fill tColorIndicatorPath on this canvas
+
+         put rectangle [the left of tLabelRect + tLabelLineHeight,tLineTop,tWidth,tLineTop + tLabelLineHeight] into tLineRect
+
+         set the paint of this canvas to solid paint with color [0,0,0,1]
+         fill text tElement at top left of tLineRect on this canvas
+         add tLabelLineHeight to tLineTop
+      end repeat
+   end if
+end handler
+
+public handler OnMouseUp()
+   variable tClickLoc as Point
+   variable tClickAngle as Number
+   variable tClickX as Number
+   variable tClickY as Number
+   variable tOriginX as Number
+   variable tOriginY as Number
+   variable tDeltaX as Number
+   variable tDeltaY as Number
+   variable tChartRect as Rectangle
+
+
+   -- Check the click was within the chart area
+   put the click position into tClickLoc
+   put the bounding box of circle path centered at mChartOrigin with radius mRadius into tChartRect
+
+   if tClickLoc is within tChartRect then
+      put the x of tClickLoc into tClickX
+      put the y of tClickLoc into tClickY
+
+      put the x of mChartOrigin into tOriginX
+      put the y of mChartOrigin into tOriginY
+
+      put tClickX-tOriginX into tDeltaX
+      put tClickY-tOriginY into tDeltaY
+
+      put the arctangent of (tDeltaY/tDeltaX) into tClickAngle
+      put tClickAngle * (180/pi) into tClickAngle
+      round(tClickAngle)
+
+      if (tDeltaX >= 0) and (tDeltaY >= 0) then
+         -- Q1
+      else if (tDeltaX < 0) and (tDeltaY >= 0) then
+         -- Q2
+         add 180 to tClickAngle
+      else if (tDeltaX < 0) and (tDeltaY < 0) then
+         -- Q3
+         add 180 to tClickAngle
+      else if (tDeltaX >= 0) and (tDeltaY < 0) then
+         -- Q4
+         add 360 to tClickAngle
+      end if
+
+      -- Find the correct sector
+      variable tSector as List
+      variable tSectorNumber as Number
+      variable tClickSector as Number
+      put 0 into tSectorNumber
+      repeat for each element tSector in mSectorAngles
+         add 1 to tSectorNumber
+         if tClickAngle > element 1 of tSector and tClickAngle < element 2 of tSector then
+            put tSectorNumber into tClickSector
+            exit repeat
+         end if
+      end repeat
+      post "sectorClicked" with [tClickSector]
+   end if
+end handler
+
+public handler OnSave(out rProperties as Array)
+	put the empty array into rProperties
+	put mValues into rProperties["values"]
+	put mLabels into rProperties["labels"]
+   put mShowLabels into rProperties["showLabels"]
+end handler
+
+public handler OnLoad(in pProperties as Array)
+	put pProperties["values"] into mValues
+	put pProperties["labels"] into mLabels
+   put pProperties["showLabels"] into mShowLabels
+end handler
+
+public handler colorList(in pNumber) returns List
+   variable tColors as List
+   variable tColorLevel as Number
+   variable tRepeats as Number
+
+   put 1 into tColorLevel
+   put pNumber / 6 into tRepeats
+   round tRepeats
+   add 1 to tRepeats
+
+   put the empty list into tColors
+   repeat tRepeats times
+      push color [tColorLevel,0,0] onto tColors
+      push color [0,tColorLevel,0] onto tColors
+      push color [0,0,tColorLevel] onto tColors
+      push color [tColorLevel,tColorLevel,0] onto tColors
+      push color [tColorLevel,0,tColorLevel] onto tColors
+      push color [0,tColorLevel,tColorLevel] onto tColors
+
+      divide tColorLevel by 2
+   end repeat
+   return tColors
+end handler
+
+public handler setValues(in pValues as String) returns nothing
+   split pValues by "," into mValues
+	redraw all
+end handler
+
+private handler getValues() returns String
+   variable tValues
+   combine mValues with "," into tValues
+   return tValues
+end handler
+
+public handler setLabels(in pLabels as String) returns nothing
+   split pLabels by "," into mLabels
+	redraw all
+end handler
+
+private handler getLabels() returns String
+   variable tLabels
+   combine mLabels with "," into tLabels
+   return tLabels
+end handler
+
+public handler setShowLabels(in pShow as Boolean) returns nothing
+   put pShow into mShowLabels
+   redraw all
+end handler
+
+
+end widget

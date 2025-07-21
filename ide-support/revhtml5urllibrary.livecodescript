@@ -18,31 +18,33 @@ You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 on extensionInitialize
-   if the target is not me then
-      exit extensionInitialize
-   end if
-
-   if the environment is "development" then
+   if the target is me then
+      if the environment is "development" then
 #      revSBAddDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url", "emscripten"
-      dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "scriptLibraries", "Internet", "scriptLibraries", "html5url", "emscripten"
-   end if
+         dispatch "revSBAddDependencyForInclusion" to stack "revsblibrary" with "scriptLibraries", "Internet", "scriptLibraries", "html5url", "emscripten"
+      end if
 
-   if the platform is "HTML5" then
-      libURLSetDriver the long id of me
+      switch the platform
+         case "HTML5"
+         case "web"
+            libURLSetDriver the long id of me
+      end switch
    end if
 end extensionInitialize
 
 on extensionFinalize
-   if the target is not me then
-      exit extensionFinalize
-   end if
+   if the target is me then
 
-   if the environment is "development" then
-      revSBRemoveDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url"
-   end if
+      if the environment is "development" then
+#      revSBRemoveDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url"
+         dispatch "revSBRemoveDependencyForInclusion" to stack "revsblibrary" with "scriptLibraries", "Internet", "scriptLibraries", "html5url"
+      end if
 
-   if the platform is "HTML5" then
-      libURLSetDriver empty
+      switch the platform
+         case "HTML5"
+         case "web"
+            libURLSetDriver empty
+      end switch
    end if
 end extensionFinalize
 
@@ -143,6 +145,28 @@ command ulExtHandleRequest pUrl, pAction, pHeaders, pPostData, pProxyUrl
       __ulExtSetURLStatus pURL, "error", the result, false
       __ulExtCleanupURL pURL
       exit ulExtHandleRequest
+   end if
+
+   -- If the method is PUT or POST, then, by default, we must use a content type
+   -- of `application/x-www-form-urlencoded`.
+   if tMethod is "PUT" or tMethod is "POST" then
+      -- As the JS API will append values to existing headers, we check first
+      -- that there is no Content-Type header.
+      local tContentTypeFound
+      repeat for each line tHeader in pHeaders
+         if tHeader begins with "Content-Type:" then
+            put true into tContentTypeFound
+            exit repeat
+         end if
+      end repeat
+
+      -- If there is no such pending Content-Type header, then set it to the
+      -- default.
+      if not tContentTypeFound then
+         __ulExtXMLHTTPSetHeaders \
+            tRequest, \
+            "Content-Type: application/x-www-form-urlencoded"
+      end if
    end if
 
    __ulExtXMLHTTPSetHeaders tRequest, pHeaders
@@ -424,8 +448,6 @@ end __ulExtCleanupURL
 -- Utililty handler that calls the given function in the javascript url library
 -- Pass the function name and any parameters
 private function __ulExtCallJS pFunction
-   local FUNCTIONNAME
-   put pFunction into FUNCTIONNAME
 
    -- build the list or parameters escaping any quotes
    local PARAMLIST
@@ -435,7 +457,7 @@ private function __ulExtCallJS pFunction
       if tParam is not a number and tParam is not among the words of "true false" then
          replace backslash with "\\" in tParam
          replace quote with backslash & quote in tParam
-         replace return with "\n" in tParam
+         replace cr with "\n" in tParam
          replace cr with "\r" in tParam
          put quote & tParam & quote into tParam
       end if
@@ -446,7 +468,7 @@ private function __ulExtCallJS pFunction
    end repeat
 
    local tJS
-   put "LiveCodeLibURL.[[FUNCTIONNAME]]([[PARAMLIST]])" into tJS
+   put "LiveCodeLibURL.[[pFunction]]([[PARAMLIST]])" into tJS
    put merge(tJS) into tJS
    do tJS as "javascript"
    return the result

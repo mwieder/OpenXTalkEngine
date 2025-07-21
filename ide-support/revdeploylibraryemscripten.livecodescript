@@ -30,13 +30,14 @@ command deployInitialize
    put __deployGetBrowserList() into tBrowserList
    split tBrowserList by cr and comma
    put tBrowserList into sBrowsers
-   
+
    repeat for each key tBrowser in tBrowserList
       if __deployBrowserSupportsPrivateMode?(tBrowser) then
          put tBrowserList[tBrowser] into sBrowsers[tBrowser && kPrivateModeSuffix]
       end if
    end repeat
-   
+
+# do this for html5 build
    put the temporary folder & slash & kBuildSpace into sHTTPFileSpace
    if not (there is a folder sHTTPFileSpace) then
       create folder sHTTPFileSpace
@@ -55,12 +56,12 @@ function deployListTargets
    put the keys of sBrowsers into tTargets
    filter tTargets without empty
    sort tTargets
-   
+
    if tTargets is not empty then
       put cr before tTargets
    end if
    put "Default Browser" before tTargets
-   return tTargets   
+   return tTargets
 end deployListTargets
 
 /*
@@ -73,7 +74,7 @@ command deployDo pTargetStack, pBrowser
    put empty into tError
    
    if tError is empty then
-      revStandaloneProgress "Configuring HTTP server..."      
+      revStandaloneProgress "Configuring HTTP server..."
       
       if sServerPort is not empty and sServerPort is not among the lines of the openSockets then
          httpdStop sServerPort
@@ -96,25 +97,27 @@ command deployDo pTargetStack, pBrowser
       if there is not a folder sHTTPFileSpace then
          create folder sHTTPFileSpace
          if the result is not empty then
-           put "Could not create temporary build folder:" && the result into tError
+            put "Could not create temporary build folder:" && the result into tError
          end if
       end if
    end if
-    
+   
    local tBuildFolder, tStandalonePath
    if tError is empty then
-      revStandaloneProgress "Building standalone..."   
+      revStandaloneProgress "Building standalone..."
       
       local tSettings
-      put revSBGetSettings(pTargetStack, true) into tSettings
+      dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
+      put the result into tSettings
+      --put revSBGetSettings(pTargetStack, true) into tSettings
       
-----------------------------------------------
-# NOTE: from 10.0.0-dp8 : do we want/need this?
+      ----------------------------------------------
+      # NOTE: from 10.0.0-dp8 : do we want/need this?
       # Set WASM output explicitly if no arch target specified
       if tSettings["Emscripten"] and not (tSettings["EmscriptenWASM"] or tSettings["EmscriptenJS"]) then
          put true into tSettings["EmscriptenWASM"]
       end if
-
+      
       # Only use js output if wasm is not specified
       if tSettings["EmscriptenWASM"] then
          put false into tSettings["EmscriptenJS"]
@@ -122,16 +125,16 @@ command deployDo pTargetStack, pBrowser
          put true into tSettings["EmscriptenJS"]
       end if
       
-----------------------------------------------
-
+      ----------------------------------------------
+      
       put sHTTPFileSpace & slash & tSettings["name"] into tBuildFolder
       if there is a folder tBuildFolder then
          revDeleteFolder tBuildFolder
       end if
       create folder tBuildFolder
       
-      put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath 
-#      replace "+" with "%20" in tStandalonePath
+      put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath
+      #      replace "+" with "%20" in tStandalonePath
       
       try
          if tSettings["EmscriptenWASM"] is true then
@@ -147,7 +150,7 @@ command deployDo pTargetStack, pBrowser
    end if
    
    if tError is empty then
-      revStandaloneProgress "Launching URL..."      
+      revStandaloneProgress "Launching URL..."
       
       local tPrivateMode
       put pBrowser ends with kPrivateModeSuffix into tPrivateMode
@@ -182,13 +185,13 @@ end q
 --
 private function __deployGetBrowserList
    local tBrowserList
-   
+
    switch the platform
       case "MacOS"
          _internal list browsers
          put the result into tBrowserList
          break
-         
+
       case "Win32"
          -- According to https://msdn.microsoft.com/en-us/library/dd203067(VS.85).aspx
          -- browsers should register in the registry at HKEY_LOCAL_MACHINE\SOFTWARE\Clients\StartMenuInternet
@@ -203,14 +206,15 @@ private function __deployGetBrowserList
          end repeat
          replace quote with empty in tBrowserList
          break
-         
+
       case "Linux"
          -- For linux, we have a list of known browsers.
          -- Check to see if the exe is in the path or installed in the user's home dir.
+
          local tBrowserArray
          put kLinuxBrowserList into tBrowserArray
          split tBrowserArray by comma and "="
-         
+
          set the itemDel to slash
          repeat for each key tBrowser in tBrowserArray
             get shell("which" && item 1 of tBrowserArray[tBrowser])
@@ -225,10 +229,10 @@ private function __deployGetBrowserList
             end if
          end repeat
          set the itemDel to comma
-         
+
          combine tBrowserList with cr and comma
          break
-         
+
       default
          put empty into tBrowserList
          break
@@ -298,7 +302,7 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
          end if
          put __deployGetBrowserPrivateModeArgs(pBrowser) after tArgs
       end if
-      
+
       switch the platform
          case "MacOS"
             if tArgs is not empty then
@@ -307,15 +311,15 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
                put "-n --args " before tArgs
             end if
             return shell("open -a" && q(pBrowser) && tArgs && q(pURL))
-            
+
          case "Win32"
             local tHideConsoleWindows
             put the hideConsoleWindows into tHideConsoleWindows
             set the hideConsoleWindows to true
             get shell(q(pBrowser) && tArgs && q(pURL))
-            set the hideConsoleWindows to tHideConsoleWindows            
+            set the hideConsoleWindows to tHideConsoleWindows
             return it
-            
+
          case "Linux"
             local tShell
             -- this will take care of firefox and google-chrome
@@ -324,7 +328,7 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
             if "chrome" is in pBrowser then
                put " --new-window --cors-exempt-headers" after tArgs
             end if
-            put tShell && tArgs && pURL into tCommand
+            put q(tShell) && tArgs && q(pURL) into tCommand
             return shell(tCommand)
          default
             launch URL pURL
@@ -340,7 +344,7 @@ end __deployLaunchURLInBrowser
 -- Display these in the message box.
 --
 on deployEmscriptenNewHTTPRequest pSocketID, pRequest
-   local tPath   
+   local tPath
    set the itemDel to slash
    repeat for each item tSubPath in pRequest["resource"]
       if tPath is not empty then
@@ -350,21 +354,23 @@ on deployEmscriptenNewHTTPRequest pSocketID, pRequest
    end repeat
    set the itemDel to comma
    put sHTTPFileSpace & slash before tPath
-   
+
    local tMimeType
    if tPath ends with ".html" then
       put "text/html" into tMimeType
+   else if tPath ends with ".html.mem" then
+      put "application/octet-stream" into tMimeType
    else if tPath ends with ".js" then
       put "text/javascript" into tMimeType
    else if tPath ends with ".wasm" then
       put "application/wasm" into tMimeType
    end if
-   
+
    local tResponseHeaders
    if tMimeType is not empty then
-      put "Content-Type:" && tMimeType & return after tResponseHeaders
+      put "Content-Type:" && tMimeType & cr after tResponseHeaders
    end if
-   
+
    if there is a file tPath then
       httpdResponse pSocketID, 200, URL ("binfile:" & tPath), tResponseHeaders
    else
@@ -372,7 +378,7 @@ on deployEmscriptenNewHTTPRequest pSocketID, pRequest
       if the last item pRequest["resource"] is "stdio.html" and pRequest["method"] is "POST" then
          local tContent
          put urlDecode(pRequest["content"]) into tContent
-         
+
          -- Parse and display emscripten log messages in the message box.
          -- Log messages from emscripten appear to be of the form
          -- ^<err|out|pageload|exit>^[count^]<message>
@@ -382,21 +388,21 @@ on deployEmscriptenNewHTTPRequest pSocketID, pRequest
          if matchText(tContent, "^\^(.+)\^([0-9]+)\^(.*)$", tMsgType, tMsgTypeCount, tMsgBody) then
             put " -" && tMsgType && "#" & tMsgTypeCount & return after msg
             if tMsgBody is not empty then
-               put tMsgBody & return after msg
+               put tMsgBody & cr after msg
             end if
          else if matchText(tContent, "^\^(.+)\^(.*)$", tMsgType, tMsgBody) then
             put " -" && tMsgType & return after msg
             if tMsgBody is not empty then
-               put tMsgBody & return after msg
+               put tMsgBody & cr after msg
             end if
          else
-            put tContent & return after msg
+            put tContent & cr after msg
          end if
-         
+
          httpdResponse pSocketID, 200
       else
          httpdResponse pSocketID, 404
       end if
       --set the itemDel to comma
-   end if   
+   end if
 end deployEmscriptenNewHTTPRequest

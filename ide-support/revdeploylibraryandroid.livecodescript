@@ -3,6 +3,7 @@ local sAndroidRoot
 local sJavaRoot
 
 local sAvailableDevices
+constant kDeployAndroidTargetSDK = "34"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +25,7 @@ end appendToStringList
 
 command deployInitialize
    deployAutoconfigure
-   
+
    if sAndroidRoot is not empty then
       revAndroidSetADBPath pathToAdb()
    else
@@ -46,35 +47,37 @@ end deployListTargets
 
 function deployIsAvailable?
    local tEnabled?
-   
+
    if sAvailableDevices is not an array then
       put false into tEnabled?
    else
       put true into tEnabled?
    end if
-   
+
    return tEnabled?
 end deployIsAvailable?
 
 command deployDo pTargetStack, pTargetDevice
    local tError
    put empty into tError
-   
+
    local tSettings
-   put revSBGetSettings(pTargetStack, true) into tSettings
-   
+   dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
+   put the result into tSettings
+   --put revSBGetSettings(pTargetStack, true) into tSettings
+
    local tIdentifier
    put tSettings["android,identifier"] into tIdentifier
    if tIdentifier is empty then
       put "com.yourcompany.yourapp" into tIdentifier
    end if
-   
+
    local tDeviceID
    put word 2 to -1 of pTargetDevice into tDeviceID
-   
+
    if tError is empty then
       revStandaloneProgress "Checking target device architecture..."
-      
+
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
@@ -87,14 +90,14 @@ command deployDo pTargetStack, pTargetDevice
       if not (tABI is among the items of "armeabi-v7a,arm64-v8a,x86,x86_64") then
          put "Checking target device architecture failed:" && the result into tError
       end if
-      
+
       local tArch
       put __ABIArch(tABI) into tArch
       repeat for each item tItem in revSBPlatformArchitectures("Android")
          put tItem is tArch into tSettings["Android",tItem]
       end repeat
    end if
-   
+
    local tTempApksFile
    if tError is empty then
       /* revSaveAsMobileStandalone expects the full path to the target bundle */
@@ -115,10 +118,10 @@ command deployDo pTargetStack, pTargetDevice
          put "Unable to build app for testing:" && tException into tError
       end try
    end if
-   
+
    if tError is empty then
       revStandaloneProgress "Installing app on target device..."
-      
+
       local tResult
       executeShellCommand pathToJava(), \
             "-jar", \
@@ -133,10 +136,10 @@ command deployDo pTargetStack, pTargetDevice
          put "Installation of app failed:" && the result into tError
       end if
    end if
-   
+
    if tError is empty then
       revStandaloneProgress "Launching app on target device..."
-      
+
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
@@ -148,15 +151,15 @@ command deployDo pTargetStack, pTargetDevice
          put "Launch of app failed:" && the result into tError
       end if
    end if
-   
+
    if "revStandaloneProgress" is among the lines of the openStacks then
       close stack "revStandaloneProgress"
    end if
-   
+
    if there is a file tTempApksFile then
       delete file tTempApksFile
    end if
-   
+
    return tError
 end deployDo
 
@@ -177,16 +180,16 @@ end __ABIArch
 command deployAutoconfigure
    local tSDK
    put the cMobileSupport["android.sdk"] of stack "revPreferences" into tSDK
-   if tSDK is not empty and not deployIsValidSDK(tSDK) then
+   if tSDK is not empty and not deploy.IsValidSDK?(tSDK) then
       put empty into tSDK
    end if
    set the cMobileSupport["android.sdk"] of stack "revPreferences" to tSDK
    put tSDK into sAndroidRoot
-   
+
    if sAndroidRoot is not empty then
       local tJDK
       put the cMobileSupport["android.jdk"] of stack "revPreferences" into tJDK
-      if tJDK is empty or not deployIsValidJDK(tJDK) then
+      if tJDK is empty or not deploy.IsValidJDK?(tJDK) then
          deployAutoconfigureJDK
          put the result into tJDK
       end if
@@ -197,7 +200,6 @@ command deployAutoconfigure
    else
       put empty into sJavaRoot
    end if
-end deployAutoconfigure
 end deployAutoconfigure
 
 
@@ -214,11 +216,11 @@ command deployAutoconfigureJDK
       case "linux"
          break
    end switch
-   
-   if deployIsValidJDK(tJDK) then
+
+   if deploy.IsValidJDK?(tJDK) then
       return tJDK
    end if
-   
+
    return empty
 end deployAutoconfigureJDK
 
@@ -229,7 +231,7 @@ end deployAutoconfigureSDK
 on androidDevicesChanged
    local tDevices
    put revAndroidListDevices() into tDevices
-   
+
    put empty into sAvailableDevices
    repeat for each line tDevice in tDevices
       if tDevice contains "no serial number" then
@@ -237,21 +239,22 @@ on androidDevicesChanged
       end if
       put word 2 of tDevice into sAvailableDevices[word 1 of tDevice]
    end repeat
-   
+
    revIDEDeployTargetsChanged
 end androidDevicesChanged
 
 ////////////////////////////////////////////////////////////////////////////////
 TODO: fix this
 
-function deployIsValidJDK pPath
+function deploy.IsValidJDK? pPath
    if there is no folder pPath then
-      --return "could not find registered jdk at" && tJavaHome
+      --answer error "could not find registered jdk at" && tJavaHome
+      answer error "could not find registered jdk at" && pPath
       return false
    end if
    
    if there is no file pathToJavaC(pPath) then
-      --return "missing javac tool, make sure your JDK install has not become corrupted"
+      answer error "missing javac tool, make sure your JDK install has not become corrupted"
       return false
    end if
    
@@ -262,9 +265,8 @@ function deployIsValidJDK pPath
    end if
    
    return true
-end deployIsValidJDK
+end deploy.IsValidJDK?
 
-constant kDeployAndroidTargetSDK = "33"
 function deployTargetSdkVersion
    return kDeployAndroidTargetSDK
 end deployTargetSdkVersion
@@ -277,41 +279,41 @@ function deployRequiredSDK
    return format("%s (API %s)", tAndroidVersion, kDeployAndroidTargetSDK)
 end deployRequiredSDK
 
-function deploy.IsValidSDK? pPath 
+function deploy.IsValidSDK? pPath
    if there is no folder (pPath & slash & "platforms") or \
          there is no folder (pPath & slash & "platform-tools") or \
          there is no folder (pPath & slash & "tools") then
       return "could not find platforms, platform-tools or tools folders at that path."
    end if
-   
+
    if there is no folder pathToRootPlatform(pPath) then
       return "could not find install of required target SDK, make sure it has been installed with the Android SDK Manager"
    end if
-   
+
    if there is no file pathToRootClasses(pPath) then
       return "missing root classes, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToAapt2(pPath) then
       return "missing aapt2 tool, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToAdb(pPath) then
       return "missing adb tool, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToSDKClasses(pPath) then
       return "missing sdklib.jar, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToZipAlign(pPath) then
       return "missing zipalign tool, make sure your SDK install has not become corrupted"
    end if
-   
-   --if there is no file pathToDex(pPath) then
-      --return "missing dex tool, make sure your SDK install has not become corrupted"
-   --end if
-   
+
+   if there is no file pathToD8(pPath) then
+      return "missing d8 tool, make sure your SDK install has not become corrupted"
+   end if
+
    return true
 end deploy.IsValidSDK?
 
@@ -319,9 +321,9 @@ function deployGetSDK
    return sAndroidRoot
 end deployGetSDK
 
-function deployGetJDK
+function deploy.GetJDK
    return sJavaRoot
-end deployGetJDK
+end deploy.GetJDK
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -335,11 +337,11 @@ function deployGetVersionsMap
    put "8.0 - Oreo" into tMap[26]
    put "8.1" into tMap[27]
    put "9.0 - Pie" into tMap[28]
-   put "10" into tMap[29]
-   put "11" into tMap[30]
-   put "12" into tMap[31]
-   put "13" into tMap[32]
-   put "14" into tMap[33]
+   put "10 - Q" into tMap[29]
+   put "11 - R" into tMap[30]
+   put "12 - API 31" into tMap[31]
+   put "13 - API 33" into tMap[33]
+   put "14 - API 34" into tMap[34]
    put "15" into tMap[34]
    return tMap
 end deployGetVersionsMap
@@ -348,7 +350,7 @@ constant kDefaultMinAPIVersion = 9
 function deployGetApiFromVersion pVersion
    local tAPI
    put kDefaultMinAPIVersion into tAPI
-   
+
    local tMap
    put deployGetVersionsMap() into tMap
    repeat for each key tAPIKey in tMap
@@ -357,7 +359,7 @@ function deployGetApiFromVersion pVersion
          exit repeat
       end if
    end repeat
-   
+
    return tAPI
 end deployGetApiFromVersion
 
@@ -372,9 +374,9 @@ private command executeShellCommand
          put param(i) & space after tShell
       end if
    end repeat
-   
+
    get doShellCommand(param(1), tShell)
-   
+
    return it
 end executeShellCommand
 
@@ -382,7 +384,7 @@ private function doShellCommand pCommand, pArguments
    local tCommandPath
    set the itemDelimiter to slash
    put item 1 to -2 of pCommand into tCommandPath
-   
+
    local tOldPath
    put $PATH into tOldPath
 	switch the platform
@@ -397,12 +399,12 @@ private function doShellCommand pCommand, pArguments
 			put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
 			break
 	end switch
-   
+
    set the hideConsoleWindows to true
    get shell(item -1 of pCommand && pArguments)
-   
+
    put tOldPath into $PATH
-   
+
    return it
 end doShellCommand
 
@@ -410,7 +412,7 @@ private command ensureFolderPath pPath
    if there is a folder pPath then
       exit ensureFolderPath
    end if
-   
+
    local tParentFolder
    set the itemdelimiter to slash
    put item 1 to -2 of pPath into tParentFolder
@@ -440,7 +442,7 @@ function pathToSDKClasses pRoot
    end if
    local tLibs,tSdkLib
    put files(pRoot&"/tools/lib") into tLibs
-   if tLibs contains "sdklib.jar" then 
+   if tLibs contains "sdklib.jar" then
       return pRoot & slash & "tools/lib/sdklib.jar"
    else
       filter tLibs with "sdklib-[0-9]*" into tSdkLib
@@ -462,11 +464,11 @@ end pathToCommonClasses
 private function searchTools pRoot, pCommand
    // search the shared tools folder
    if there is not a folder pRoot & slash & "tools" then return empty
-   
+
    local tPath
-   
+
    put pRoot & slash & "tools" & slash & pCommand into tPath
-   
+
    if there is a file tPath then
       return tPath
    else
@@ -478,34 +480,34 @@ function searchBuildTools pRoot, pCommand
    // the build tools folder contains version subfolders containing the actual executables,
    // so we search through each of them starting with the most recent
    if there is not a folder pRoot & slash & "build-tools" then return empty
-   
+
    local tOldFolder, tFolders, tOldItem
-   
+
    put the folder into tOldFolder
    set the folder to pRoot & slash & "build-tools"
-   
+
    put the folders into tFolders
-   
+
    set the folder to tOldFolder
-   
+
    if tFolders is empty then return empty
-   
+
    put the itemdelimiter into tOldItem
    set the itemdelimiter to "."
-   
+
    // sort version folders descending by x.x.x version numbers
    sort lines of tFolders descending numeric by item 3 of each
    sort lines of tFolders descending numeric by item 2 of each
    sort lines of tFolders descending numeric by item 1 of each
-   
+
    set the itemdelimiter to tOldItem
-   
+
    local tPath
    repeat for each line tVersion in tFolders
       put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
       if there is a file tPath then return tPath
    end repeat
-   
+
    return empty
 end searchBuildTools
 
@@ -513,10 +515,10 @@ function searchMobileRuntimeFolder pCommand
    local tPath
    put revEnvironmentUserRuntimePath() & slash & "Android" & slash & pCommand into tPath
    if there is a file tPath then return tPath
-   
+
    put revEnvironmentRuntimePath() & slash & "Android" & slash & pCommand into tPath
    if there is a file tPath then return tPath
-   
+
    return empty
 end searchMobileRuntimeFolder
 
@@ -537,17 +539,17 @@ private function pathToPlatformTool pRoot, pCommand
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-   
+
    -- IM-2013-05-21: Update to look in "build-tools/<version>" folder
    local tPath
    put searchBuildTools(pRoot, pCommand) into tPath
    if tPath is not empty then return tPath
-   
+
    -- MM-2011-08-09: Update to look in platform-tools folder if not present in platforms/android-8/tools/
    if there is a file pRoot & slash & "platforms/android-8/tools/" & pCommand then
       return pRoot & slash & "platforms/android-8/tools/" & pCommand
    end if
-   
+
    return pRoot & slash & "platform-tools/" & pCommand
 end pathToPlatformTool
 
@@ -574,19 +576,19 @@ function pathToZipAlign pRoot
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-   
+
    local tExe
    put executableName("zipalign") into tExe
-   
+
    // IM-2014-07-11: [[ Bug 12719 ]] First search the tools folder
    local tPath
    put searchTools(pRoot, tExe) into tPath
    if tPath is not empty then return tPath
-   
+
    // IM-2014-07-11: [[ Bug 12719 ]] zipalign was moved into build-tools as of version 19.1.0 so search there as well
    put searchBuildTools(pRoot, tExe) into tPath
    if tPath is not empty then return tPath
-   
+
    return pRoot & slash & "tools" & slash & tExe
 end pathToZipAlign
 
@@ -641,7 +643,7 @@ function pathToBundleTool
 
    if there is not a file tBundleToolJar then
       fetchBundleTool tBundleToolJar
-   end if 
+   end if
 
    return tBundleToolJar
 end pathToBundleTool
@@ -656,11 +658,11 @@ end pathToBundleToolDir
 private command fetchBundleTool pOutputFile
    local tFileData
    put downloadBundleTool() into tFileData
-   
+
    if tFileData is empty then
       throw "unable to fetch bundletool.jar"
    end if
-   
+
    set the itemDelimiter to slash
    ensureFolderPath (item 1 to -2 of pOutputFile)
    put tFileData into url ("binfile:" & pOutputFile)
@@ -690,11 +692,11 @@ private function downloadBundleTool
             break
       end switch
    end repeat
-   
+
    if tFailed then
       return empty
    end if
-   
+
    put url tUrl into tFileData
    return tFileData
 end downloadBundleTool
@@ -731,7 +733,7 @@ private function pathToDependencyCache
    if there is not a folder tCachePath then
       return empty
    end if
-   
+
    return tCachePath
 end pathToDependencyCache
 
@@ -741,7 +743,7 @@ private function pathToCachedDependency pPackage, pName, pVersion, pType
    if tPath is empty then
       return empty
    end if
-   
+
    put slash & formatDependencyPath(pPackage, pName, pVersion, pType) after tPath
    if there is not a file tPath then
       fetchRemoteDependency pPackage, pName, pVersion, pType, tPath
@@ -750,14 +752,14 @@ private function pathToCachedDependency pPackage, pName, pVersion, pType
          return empty
       end if
    end if
-   
+
    return tPath
 end pathToCachedDependency
 
 local sDownloadCallback
 on _fechMavenFileCallback
    if sDownloadCallback is not empty then
-      send sDownloadCallback["callback"] to sDownloadCallback["object"] with sDownloadCallback["context"]
+      dispatch sDownloadCallback["callback"] to sDownloadCallback["object"] with sDownloadCallback["context"]
    end if
 end _fechMavenFileCallback
 
@@ -783,11 +785,11 @@ private function fetchMavenFile pRepo, pPath
             break
       end switch
    end repeat
-   
+
    if tFailed then
       return empty
    end if
-   
+
    put url tUrl into tFileData
    return tFileData
 end fetchMavenFile
@@ -797,17 +799,17 @@ constant kGoogleRepo = "https://dl.google.com/android/maven2"
 private command fetchRemoteDependency pPackage, pName, pVersion, pType, pOutputFile
    local tDepPath
    put formatDependencyPath(pPackage, pName, pVersion, pType) into tDepPath
-   
+
    local tFileData
    put fetchMavenFile(kGoogleRepo, tDepPath) into tFileData
    if tFileData is empty then
       put fetchMavenFile(kMavenRepo, tDepPath) into tFileData
    end if
-   
+
    if tFileData is empty then
       throw "unable to fetch dependency file " & pPackage & "." & pName & "-" & pVersion & "." & pType
    end if
-   
+
    set the itemDelimiter to slash
    ensureFolderPath (item 1 to -2 of pOutputFile)
    put tFileData into url ("binfile:" & pOutputFile)
@@ -847,11 +849,12 @@ private function compareVersion pA, pB
    return 0
 end compareVersion
 
+constant kXMLError = "xmlerr,"
 constant kXMLErrorCantFindElement = "xmlerr, can't find element"
 private function _revXMLNodeContentsWithDefault pTree, pNode, pDefaultValue
    local tValue
    put revXMLNodeContents(pTree, pNode) into tValue
-   if tValue begins with "xmlerr," then
+   if tValue begins with kXMLError then
       if tValue is kXMLErrorCantFindElement then
          put pDefaultValue into tValue
       end if
@@ -862,7 +865,7 @@ end _revXMLNodeContentsWithDefault
 private function _revXMLNodeContentsOrThrow pTree, pNode, pErrorMessage
    local tValue
    put revXMLNodeContents(pTree, pNode) into tValue
-   if tValue begins with "xmlerr," then
+   if tValue begins with kXMLError then
       throw pErrorMessage
    end if
    return tValue
@@ -871,7 +874,7 @@ end _revXMLNodeContentsOrThrow
 private function parsePOMDependencyList pTree, pNode
    local tDependencyNode, tDependencies
    put revXMLFirstChild(pTree, pNode) into tDependencyNode
-   if tDependencyNode begins with "xmlerr," then
+   if tDependencyNode begins with kXMLError then
       put empty into tDependencyNode
    end if
    repeat while tDependencyNode is not empty
@@ -880,15 +883,19 @@ private function parsePOMDependencyList pTree, pNode
       put _revXMLNodeContentsOrThrow(pTree, tDependencyNode & "/artifactId", "missing dependency artifactId") into tDependency["artifactId"]
       local tVersion, tScope
       put _revXMLNodeContentsWithDefault(pTree, tDependencyNode & "/version", empty) into tVersion
-      if tVersion is not empty then put tVersion into tDependency["version"]
+      if tVersion is not empty then
+         put tVersion into tDependency["version"]
+      end if
       put _revXMLNodeContentsWithDefault(pTree, tDependencyNode & "/scope", empty) into tScope
-      if tScope is not empty then put tScope into tDependency["scope"]
-      
+      if tScope is not empty then
+         put tScope into tDependency["scope"]
+      end if
+
       appendToList tDependencies, tDependency
-      
+
       put revXMLNextSibling(pTree, tDependencyNode) into tDependencyNode
    end repeat
-   
+
    return tDependencies
 end parsePOMDependencyList
 
@@ -899,29 +906,29 @@ private function parsePOMFile pPomFile
    if tTreeId begins with "xmlerr" then
       throw "Error parsing POM file " & quote & pPomFile & quote & " - " & tTreeId
    end if
-   
+
    try
       local tChildNodes
       put revXMLChildNames(tTreeId, "/project", comma, empty, false) into tChildNodes
-      
+
       if "packaging" is among the items of tChildNodes then
          put _revXMLNodeContentsOrThrow(tTreeId, "/project/packaging", empty) into tPOM["packaging"]
       end if
-      
+
       local tParent
       if "parent" is among the items of tChildNodes then
          put _revXMLNodeContentsOrThrow(tTreeId, "project/parent/groupId", "missing parent groupId") into tPOM["parent"]["groupId"]
          put _revXMLNodeContentsOrThrow(tTreeId, "project/parent/artifactId", "missing parent artifactId") into tPOM["parent"]["artifactId"]
          put _revXMLNodeContentsOrThrow(tTreeId, "project/parent/version", "missing parent version") into tPOM["parent"]["version"]
       end if
-      
+
       if "dependencies" is among the items of tChildNodes then
          put parsePOMDependencyList(tTreeId, "project/dependencies") into tDependencies
          if tDependencies is not empty then
             put tDependencies into tPOM["dependencies"]
          end if
       end if
-      
+
       if "dependencyManagement" is among the items of tChildNodes then
          put parsePOMDependencyList(tTreeId, "project/dependencyManagement/dependencies") into tDependencies
          if tDependencies is not empty then
@@ -933,11 +940,11 @@ private function parsePOMFile pPomFile
    finally
       revXMLDeleteTree(tTreeId)
    end try
-   
+
    if tError is not empty then
       throw tError
    end if
-   
+
    return tPOM
 end parsePOMFile
 
@@ -945,16 +952,16 @@ private function getPOM pRoot, pGroup, pArtifact, pVersion
    // fetch library POM file
    local tPomFile
    put pathToAndroidDependency(pRoot, pGroup, pArtifact, pVersion, "pom") into tPomFile
-   
+
    local tPOM
    put parsePOMFile(tPomFile) into tPOM
-   
+
    if tPOM["parent"] is not empty then
       local tParentPOM
       put getPOM(pRoot, tPOM["parent"]["groupId"], tPOM["parent"]["artifactId"], tPOM["parent"]["version"]) into tParentPOM
       mergePOMParent tPOM, tParentPOM
    end if
-   
+
    return tPOM
 end getPOM
 
@@ -996,7 +1003,7 @@ private command parseVersionRanges pVersion, @rRanges, @rDefault
                if tRelation is not empty then
                   put tRelation into tLimit["relation"]
                   put tVersion into tLimit["version"]
-                  appendToList tRange, tLimit   
+                  appendToList tRange, tLimit
                end if
                put "<" into tRelation
                put tRelation into tLimit["relation"]
@@ -1011,7 +1018,7 @@ private command parseVersionRanges pVersion, @rRanges, @rDefault
                if tRelation is not empty then
                   put tRelation into tLimit["relation"]
                   put tVersion into tLimit["version"]
-                  appendToList tRange, tLimit   
+                  appendToList tRange, tLimit
                end if
                put "<=" into tRelation
                put tRelation into tLimit["relation"]
@@ -1027,7 +1034,7 @@ private command parseVersionRanges pVersion, @rRanges, @rDefault
                break
          end switch
       end repeat
-      
+
       repeat for each element tRange in tRanges
          // If a range is limited to a single version then use that as default
          if tRange[0]["relation"] is ">=" and \
@@ -1048,16 +1055,15 @@ private command parseVersionRanges pVersion, @rRanges, @rDefault
 end parseVersionRanges
 
 function resolvePOMDependency pDependency, pDependencyManagement
-   if pDependencyManagement is empty then
-      return pDependency
+   if pDependencyManagement is not empty then
+      repeat for each element tDefault in pDependencyManagement["dependencies"]
+         if tDefault["groupId"] is pDependency["groupId"] and tDefault["artifactId"] is pDependency["artifactId"] then
+            local tDependency
+            union pDependency with tDefault into tDependency
+            return tDependency
+         end if
+      end repeat
    end if
-   repeat for each element tDefault in pDependencyManagement["dependencies"]
-      if tDefault["groupId"] is pDependency["groupId"] and tDefault["artifactId"] is pDependency["artifactId"] then
-         local tDependency
-         union pDependency with tDefault into tDependency
-         return tDependency
-      end if
-   end repeat
    return pDependency
 end resolvePOMDependency
 
@@ -1082,27 +1088,28 @@ command resolveAndroidLibraryDependencyList @xDependencies, pRoot, pDependencyLi
    repeat while tDependencyList is not empty
       repeat for each line tDependencyLine in tDependencyList
          local tGroupId, tArtifactId, tVersion
-         put item 1 of tDependencyLine into tGroupId
-         put item 2 of tDependencyLine into tArtifactId
-         put item 3 of tDependencyLine into tVersion
-         
+         split tDependencyLine by ":"
+         put tDependencyLine[1] into tGroupId
+         put tDependencyLine[2] into tArtifactId
+         put tDependencyLine[3] into tVersion
+
          local tDepKey
          put depKey(tGroupId, tArtifactId) into tDepKey
          if xDependencies[tDepKey] is not empty then
             next repeat
          end if
-         
+
          // Decide which version to use - here we just use the suggested or default version
          local tVersionRanges, tDefaultVersion
          parseVersionRanges tVersion, tVersionRanges, tDefaultVersion
          put tDefaultVersion into tVersion
-         
+
          put tVersion into xDependencies[tDepKey]["version"]
-         
+
          // fetch library POM, extract library file type and dependencies
          local tPOM
          put getPOM(pRoot, tGroupId, tArtifactId, tVersion) into tPOM
-         
+
          local tType
          put tPOM["packaging"] into tType
          if tType is empty then put "jar" into tType
@@ -1119,18 +1126,23 @@ command resolveAndroidLibraryDependencyList @xDependencies, pRoot, pDependencyLi
                // Used for "parent" POMs
                break
          end switch
-         
+
          // add POM dependencies to check on next iteration
          if tPOM["dependencies"] is not empty then
             repeat for each element tDep in tPOM["dependencies"]
                put resolvePOMDependency(tDep, tPOM["dependencyManagement"]) into tDep
                if tDep["scope"] is among the items of kPOMRuntimeScopes then
-                  put (tDep["groupId"],tDep["artifactId"],tDep["version"]) & return after tNewDependencyList
+                  put format( \
+                        "%s:%s:%s\n", \
+                        tDep["groupId"],\
+                        tDep["artifactId"], \
+                        tDep["version"]) \
+                     after tNewDependencyList
                end if
             end repeat
          end if
       end repeat
-      
+
       put tNewDependencyList into tDependencyList
       put empty into tNewDependencyList
    end repeat
@@ -1161,12 +1173,12 @@ private function pathToAndroidDependency pRoot, pPackage, pName, pVersion, pType
    if tPath is not empty then
       return tPath
    end if
-   
+
    put pathToCachedDependency(pPackage, pName, pVersion, pType) into tPath
    if tPath is not empty then
       return tPath
    end if
-   
+
    return empty
 end pathToAndroidDependency
 
@@ -1210,6 +1222,7 @@ private function getRegistryValue pKey, pValue, pUse64Bit
    return word 3 to -1 of tValue
 end getRegistryValue
 
+# never used ? : mdw 2025.07.12
 private function listRegistryRecursive pKey, pUse64Bit
    local tRegCmd
    if pUse64Bit then
@@ -1220,17 +1233,17 @@ private function listRegistryRecursive pKey, pUse64Bit
    if there is no file tRegCmd then
       put "reg.exe" into tRegCmd
    end if
-   
+
    local tKeys
    put word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/s") into tKeys
-   
+
    local tCurrentKey, tKeyArray
    repeat for each line tLine in tKeys
       put word 1 to -1 of tLine into tLine
       if tLine is empty then
          next repeat
       end if
-      
+
       if tLine begins with " " then
          put word 3 to -1 of tLine into tKeyArray[tCurrentKey]
       else
@@ -1238,6 +1251,6 @@ private function listRegistryRecursive pKey, pUse64Bit
          delete char 1 to the number of chars of pKey + 1 of tCurrentKey
       end if
    end repeat
-   
+
    return tKeyArray
 end listRegistryRecursive

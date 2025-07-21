@@ -21,7 +21,7 @@ command saveAsMobileStandalone \
             " you need to choose the location of your Android development SDK" & \
             " in Preferences -> Mobile Support")
    end if
-   if not revIDEDeployAndroidIsValidSDK(tPath) then
+   if not Deploy.Android.IsValidSDK?(tPath) then
       throw revIDELocalise("The chosen folder in Preferences -> Mobile Support" & \
             " is not a valid Android SDK. Please ensure you have installed it correctly," & \
             " and enabled support for") && deploy.Android.RequiredSDK()
