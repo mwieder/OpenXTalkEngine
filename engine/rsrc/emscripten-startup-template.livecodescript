@@ -34,7 +34,7 @@ end try
 
 -- Try to print something vaguely helpful to the the log
 if tError is not empty then
-   write "startup failed:" && tError & return to stderr
+   write "startup failed:" && tError & cr to stderr
    throw tError
 end if
 

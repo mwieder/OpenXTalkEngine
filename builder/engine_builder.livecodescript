@@ -1,172 +1,166 @@
-﻿script "EngineBuilder"
+﻿script "engineBuilderRun"
 ---------------------------------------------------------------------
 
-private function engineBuilderVMRunPath
-   return "/Applications/VMware Fusion.app/Contents/Library/vmrun"
-end engineBuilderVMRunPath
+private function engineBuilderRun.VM.RunPath
+   return "/Applications/VMware Fusion.app/Contents/Library/VMrun"
+end engineBuilderRun.VM.RunPath
 
-private function engineBuilderVMFolder
+private function engineBuilderRun.VM.Folder
    return "/Users/michael/Documents/Virtual Machines"
-end engineBuilderVMFolder
+end engineBuilderRun.VM.Folder
 
-private function engineBuilderWindowsVMPath
-   return engineBuilderVMFolder() & "/Windows - Build.vmwarevm"
-end engineBuilderWindowsVMPath
+private function engineBuilderRun.Windows.VM.Path
+   return engineBuilderRun..VM.Folder() & "/Windows - Build.VM.ware.VM"
+end engineBuilderRun.Windows.VM.Path
 
-private function engineBuilderLinuxVMPath
-   return engineBuilderVMFolder() & "/Linux - Build.vmwarevm"
-end engineBuilderLinuxVMPath
+private function engineBuilderRun.Linux.VM.Path
+   return engineBuilderRun.VM.Folder() & "/Linux - Build.VM.wareVM"
+end engineBuilderRun.Linux.VM.Path
 
-private function engineBuilderLinuxVMRepoPath
+private function engineBuilderRun.Linux.VM.RepoPath
    return "/host/Workspace/livecode/builds/livecode"
-end engineBuilderLinuxVMRepoPath
+end engineBuilderRun.Linux.VM.RepoPath
 
-private function engineBuilderLinuxVMCommercialPath
+private function engineBuilderRun.Linux.VM.CommercialPath
    return "/host/Workspace/livecode/builds/livecode-commercial"
-end engineBuilderLinuxVMCommercialPath
+end engineBuilderRun.Linux.VM.CommercialPath
 
-private function engineBuilderWindowsVMCommercialPath
+private function engineBuilderRun.Windows.VM.CommercialPath
    return "C:/Workspace/livecode"
-end engineBuilderWindowsVMCommercialPath
+end engineBuilderRun.Windows.VM.CommercialPath
 
-private function engineBuilderWindowsVMRepoPath
+private function engineBuilderRun.Windows.VM.RepoPath
    return "C:/Workspace/livecode-commercial"
-end engineBuilderWindowsVMRepoPath
+end engineBuilderRun.Windows.VM.RepoPath
 
-private function engineBuilderLogFolder
+private function engineBuilderRun.LogFolder
    return builderRepoFolder() & "/_build/logs"
-end engineBuilderLogFolder
+end engineBuilderRun.LogFolder
 
-private function engineBuilderLogFolderLinuxVM
-   return engineBuilderLinuxVMRepoPath() & "/_build/logs"
-end engineBuilderLogFolderLinuxVM
+private function engineBuilderRun.LogFolderLinux.VM
+   return engineBuilderRun.Linux.VM.RepoPath() & "/_build/logs"
+end engineBuilderRun.LogFolderLinux.VM
 
-private function engineBuilderLogFolderWindowsVM
-   return engineBuilderLinuxWimdowsRepoPath() & "/_build/logs"
-end engineBuilderLogFolderWindowsVM
-
----------------------------------------------------------------------
-
-private function wrapQ pVal
-   return quote & pVal & quote
-end wrapQ
+private function engineBuilderRun.LogFolderWindows.VM
+   return engineBuilderRun.LinuxWimdowsRepoPath() & "/_build/logs"
+end engineBuilderRun.LogFolderWindows.VM
 
 ---------------------------------------------------------------------
 
-private command engineBuilderBuildMac pEdition, pVersion
+private command engineBuilderRun.BuildMac pEdition, pVersion
    builderLog "report", "Building Mac engines..."
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/error_mac.log")
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/build_mac.log")
-   
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/error_mac.log")
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/build_mac.log")
+
    local tCommand
-   put "sh" && wrapQ(builderCommercialFolder() & "/build-mac.osx") && ">" &&  wrapQ(engineBuilderLogFolder() & "/build_mac.log") && "2>"  && wrapQ(engineBuilderLogFolder() & "/error_mac.log") into tCommand
+   put "sh" && q(builderCommercialFolder() & "/build-mac.osx") && ">" &&  q(engineBuilderRun.LogFolder() & "/build_mac.log") && "2>"  && q(engineBuilderRun.LogFolder() & "/error_mac.log") into tCommand
    get shell(tCommand)
-   
+
    builderLog "message", "Mac build result..."
-   builderLog "message", URL ("file:" & engineBuilderLogFolder() & "/error_mac.log")
+   builderLog "message", URL ("file:" & engineBuilderRun.LogFolder() & "/error_mac.log")
    builderLog "report", "Building Mac complete."
-end engineBuilderBuildMac
+end engineBuilderRun.BuildMac
 
-private command engineBuilderBuildIOS pEdition, pVersion
+private command engineBuilderRun.BuildIOS pEdition, pVersion
    builderLog "report", "Building iOS engines..."
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/error_ios.log")
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/build_ios.log")
-   
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/error_ios.log")
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/build_ios.log")
+
    local tCommand
-   put "sh" && wrapQ(builderCommercialFolder() & "/build-ios.osx") && ">" &&  wrapQ(engineBuilderLogFolder() & "/build_ios.log") && "2>"  && wrapQ(engineBuilderLogFolder() & "/error_ios.log") into tCommand
+   put "sh" && q(builderCommercialFolder() & "/build-ios.osx") && ">" &&  q(engineBuilderRun.LogFolder() & "/build_ios.log") && "2>"  && q(engineBuilderRun.LogFolder() & "/error_ios.log") into tCommand
    get shell(tCommand)
-   
+
    builderLog "message", "iOS build result..."
-   builderLog "message", URL ("file:" & engineBuilderLogFolder() & "/error_ios.log")
+   builderLog "message", URL ("file:" & engineBuilderRun.LogFolder() & "/error_ios.log")
    builderLog "report", "Building iOS complete."
-end engineBuilderBuildIOS
+end engineBuilderRun.BuildIOS
 
-private command engineBuilderBuildAndroid pEdition, pVersion
+private command engineBuilderRun.BuildAndroid pEdition, pVersion
    builderLog "report", "Building Android engines..."
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/error_android.log")
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/build_android.log")
-   
-   local tCommand
-   put "sh" && wrapQ(builderCommercialFolder() & "/build-android.osx") && ">" &&  wrapQ(engineBuilderLogFolder() & "/build_android.log") && "2>"  && wrapQ(engineBuilderLogFolder() & "/error_android.log") into tCommand
-   get shell(tCommand)
-   
-   builderLog "message", "Android build result..."
-   builderLog "message", URL ("file:" & engineBuilderLogFolder() & "/error_android.log")
-   builderLog "report", "Building Android complete."
-end engineBuilderBuildAndroid
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/error_android.log")
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/build_android.log")
 
-private command engineBuilderBuildLinux pEdition, pVersion
-   local tCommand   
-   
+   local tCommand
+   put "sh" && q(builderCommercialFolder() & "/build-android.osx") && ">" &&  q(engineBuilderRun.LogFolder() & "/build_android.log") && "2>"  && q(engineBuilderRun.LogFolder() & "/error_android.log") into tCommand
+   get shell(tCommand)
+
+   builderLog "message", "Android build result..."
+   builderLog "message", URL ("file:" & engineBuilderRun.LogFolder() & "/error_android.log")
+   builderLog "report", "Building Android complete."
+end engineBuilderRun.BuildAndroid
+
+private command engineBuilderRun.BuildLinux pEdition, pVersion
+   local tCommand
+
    builderLog "report", "Building Linux engines..."
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/error_linux.log")
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/build_linux.log")
-   
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/error_linux.log")
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/build_linux.log")
+
    builderLog "message", "Starting VM..."
-   put wrapQ(engineBuilderVMRunPath()) && "-T fusion start" && wrapQ(engineBuilderLinuxVMPath()) && "nogui" into tCommand
+   put q(engineBuilderRun..VM.RunPath()) && "-T fusion start" && q(engineBuilderRun.Linux.VM.Path()) && "nogui" into tCommand
    get shell(tCommand)
    if it contains "error" then
-      builderLog "report", "Error starting VM:" && it
+      builderLog "report", "Error starting .VM:" && it
       throw "failure"
    end if
-   
+
    builderLog "message", "Compiling engines..."
-   put wrapQ(engineBuilderVMRunPath()) && "-T fusion -gu build -gp runlog runScriptInGuest" && wrapQ(engineBuilderLinuxVMPath()) && "/bin/sh" && wrapQ(engineBuilderLinuxVMCommercialPath() & "/build-linux.lnx >" && engineBuilderLogFolderLinuxVM() & "/build_linux.log" && "2>" && engineBuilderLogFolderLinuxVM() & "/error_linux.log") into tCommand
+   put q(engineBuilderRun.VM.RunPath()) && "-T fusion -gu build -gp runlog runScriptInGuest" && q(engineBuilderRun.Linux.VM.Path()) && "/bin/sh" && q(engineBuilderRun.Linux.VM.CommercialPath() & "/build-linux.lnx >" && engineBuilderRun.LogFolderLinux.VM() & "/build_linux.log" && "2>" && engineBuilderRun.LogFolderLinux.VM() & "/error_linux.log") into tCommand
    get shell(tCommand)
    if it contains "error" then
       builderLog "report", "Error building Linux engines:" && it
       throw "failure"
-   end if   
+   end if
    builderLog "message", "Linux compile result..."
-   builderLog "message", URL ("file:" & engineBuilderLogFolder() & "/error_linux.log")
-   
+   builderLog "message", URL ("file:" & engineBuilderRun.LogFolder() & "/error_linux.log")
+
    builderLog "message", "Suspending VM..."
-   put wrapQ(engineBuilderVMRunPath()) && "-T fusion suspend" && wrapQ(engineBuilderLinuxVMPath()) into tCommand
+   put q(engineBuilderRun.VM.RunPath()) && "-T fusion suspend" && q(engineBuilderRun.Linux.VM.Path()) into tCommand
    get shell(tCommand)
    if it contains "error" then
-      builderLog "report", "Error suspending VM:" && it
+      builderLog "report", "Error suspending .VM:" && it
       throw "failure"
    end if
-   
-   builderLog "report", "Building Linux complete."
-end engineBuilderBuildLinux
 
-private command engineBuilderBuildWindows pEdition, pVersion
-   exit engineBuilderBuildWindows
-   
+   builderLog "report", "Building Linux complete."
+end engineBuilderRun.BuildLinux
+
+private command engineBuilderRun.BuildWindows pEdition, pVersion
+   exit engineBuilderRun.BuildWindows
+
    builderLog "report", "Building Windows engines..."
-   put empty into URL ("file:" & engineBuilderLogFolder() & "/error_windows.log")
-   
-   local tCommand   
-   put wrapQ(engineBuilderVMRunPath()) && "-T fusion -gu administrator -gp runlog runScriptInGuest" && wrapQ(engineBuilderWindowsVMPath()) && wrapQ() && "cmd.exe /k \" & wrapQ(engineBuilderWindowsVMCommercialPath() & "/build-windows.bat" && pVersion && builderBuildsFolder()) into tCommand
+   put empty into URL ("file:" & engineBuilderRun.LogFolder() & "/error_windows.log")
+
+   local tCommand
+   put q(engineBuilderRun.VM.RunPath()) && "-T fusion -gu administrator -gp runlog runScriptInGuest" && q(engineBuilderRun.Windows.VM.Path()) && q() && "cmd.exe /k \" & q(engineBuilderRun.Windows.VM.CommercialPath() & "/build-windows.bat" && pVersion && builderBuildsFolder()) into tCommand
    get shell(tCommand)
-   
+
    if it is not empty then
       builderLog "report", "Error building Windows engines:" && it
       throw "failure"
-   else   
+   else
       builderLog "message", "Windows build result..."
-      builderLog "message", URL ("file:" & engineBuilderLogFolder() & "/error_windows.log")
+      builderLog "message", URL ("file:" & engineBuilderRun.LogFolder() & "/error_windows.log")
       builderLog "report", "Building Windows complete."
    end if
-end engineBuilderBuildWindows
+end engineBuilderRun.BuildWindows
 
 ---------------------------------------------------------------------
 
-private command engineBuilderBuildEnvironment pEdition, pVersion
+private command engineBuilderRun.BuildEnvironment pEdition, pVersion
    builderLog "report", "Configuring commercial environment stack..."
-   
+
    builderLog "message", "Fetching public key..."
    local tPostDataArray
    put pVersion into tPostDataArray["version"]
    put "jobbies123!" into tPostDataArray["password"]
-   
+
    local tPostData
    repeat for each line tKey in the keys of tPostDataArray
       put "&" & tKey & "=" & urlencode(tPostDataArray[tKey]) after tPostData
    end repeat
    delete the first char of tPostData
-   
+
    local tResult
    post tPostData to URL "http://livecode.com/livecode/building/fetch_key"
    put the result into tResult
@@ -174,17 +168,17 @@ private command engineBuilderBuildEnvironment pEdition, pVersion
       builderLog "report", "Error fetching public key for version" && pVersion & ":" && tResult
       throw "failure"
    end if
-   
+
    local tPubKey
    put line 2 to -1 of it into tPubKey
    if line 1 of it is not "success" then
       builderLog "report", "Error fetching public key for version" && pVersion & ":" && line 2 to -1 of it
       throw "failure"
    end if
-   
+
    builderLog "message", "New public key for version" && pVersion & "..."
    builderLog "message", tPubKey
-   
+
    builderLog "message", "Writing public key to stack..."
    local tKeyFile
    put the tempName into tKeyFile
@@ -192,35 +186,35 @@ private command engineBuilderBuildEnvironment pEdition, pVersion
    get shell(builderSystemFolder() & "/public_key_setter -ui" && builderCommercialFolder() & "/src/environment.livecode" && tKeyFile)
    builderLog "message", it
    delete file tKeyFile
-   
+
    builderLog "report", "Commercial environment stack configured."
-end engineBuilderBuildEnvironment
+end engineBuilderRun.BuildEnvironment
 
 ---------------------------------------------------------------------
 
-command engineBuilderRun pPlatform, pEdition, pVersion
-   builderEnsureFolder engineBuilderLogFolder()
-   
+command engineBuilderRun.Run pPlatform, pEdition, pVersion
+   builderEnsureFolder engineBuilderRun.LogFolder()
+
    switch pPlatform
       case "environment"
-         engineBuilderBuildEnvironment pEdition, pVersion
+         engineBuilderRun.BuildEnvironment pEdition, pVersion
          break
       case "mac"
-         engineBuilderBuildMac pEdition, pVersion
+         engineBuilderRun.BuildMac pEdition, pVersion
          break
       case "linux"
-         engineBuilderBuildLinux pEdition, pVersion
+         engineBuilderRun.BuildLinux pEdition, pVersion
          break
       case "windows"
-         engineBuilderBuildWindows pEdition, pVersion
+         engineBuilderRun.BuildWindows pEdition, pVersion
          break
       case "android"
-         engineBuilderBuildAndroid pEdition, pVersion
+         engineBuilderRun.BuildAndroid pEdition, pVersion
          break
       case "ios"
-         engineBuilderBuildiOS pEdition, pVersion
-         break         
+         engineBuilderRun.BuildiOS pEdition, pVersion
+         break
    end switch
-end engineBuilderRun
+end engineBuilderRun.Run
 
 ---------------------------------------------------------------------

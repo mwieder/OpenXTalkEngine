@@ -257,9 +257,10 @@ end ulExtSetFtpListCommand
 -- (eg. multiple async posts to the same url with differnt post data)
 local sRequestMap
 
-private function __ulExtXMLHTTPToURL pRequest
-   return __ulExtXMLHTTPGetURL(pRequest)
-end __ulExtXMLHTTPToURL
+# not used ??? 2025.07.22 mdw
+#private function __ulExtXMLHTTPToURL pRequest
+#   return __ulExtXMLHTTPGetURL(pRequest)
+#end __ulExtXMLHTTPToURL
 
 private function __ulExtXMLHTTPFromURL pURL
    return sRequestMap[pURL]
@@ -291,6 +292,7 @@ private command __ulExtXMLHTTPSend self, pBody
    return __ulExtCallJS("requestSend", self, pBody)
 end __ulExtXMLHTTPSend
 
+# not used ??? 2025.07.22 mdw
 private command __ulExtXMLHTTPCancel self
    get __ulExtCallJS("requestCancel", self)
    return empty

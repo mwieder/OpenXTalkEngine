@@ -1,5 +1,5 @@
 ﻿script "InstallerUtilities"
-# This is the back-end installer, updater and uninstaller code. 
+# This is the back-end installer, updater and uninstaller code.
 # This code doesn't know anything about the product it is installing, and should be capable
 # of being re-used for products other than LiveCode. It reads a "manifest" file, which contains
 # a list of files to be installed and some metadata. The files are then installed according to command
@@ -13,9 +13,9 @@ constant kRunOnce = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersio
 local sIsFaceless
 local sFacelessLog
 
-private function isInstallerEnvironment
+private function isInstallerEnvironment?
    return (the environment begins with "installer")
-end isInstallerEnvironment
+end isInstallerEnvironment?
 
 ################################################################################
 #
@@ -26,48 +26,48 @@ local sInstallerStack
 local sInstallerProcess
 local sInstallerError
 
-command installerRun pPath, pRecord, pOptions, pWithoutElevation
+command installerRun pPath, pRecord, pOptions, pWithoutElevation?
    local tCommand
-   if isInstallerEnvironment() then
+   if isInstallerEnvironment?() then
       put the effective filename of stack "Installer" into tCommand
    else
       put specialFolderPath("Desktop") & "/installbackend.exe" into tCommand
    end if
-   
+
    if tCommand contains space then
-      put quote & tCommand & quote into tCommand
+      put q(tCommand) into tCommand
    end if
-   
+
    local tArguments
-   put "doinstall -path" && quote & pPath & quote && "-record" && quote & pRecord & quote into tArguments
-   
+   put "doinstall -path" && q(pPath) && "-record" && q(pRecord) into tArguments
+
    repeat for each key tOption in pOptions
       if pOptions[tOption] is "true" then
          put space & "-enable" & tOption after tArguments
       else if pOptions[tOption] is "false" then
          put space & "-disable" & tOption after tArguments
       else
-         put space & tOption && quote & pOptions[tOption] & quote after tArguments
+         put space & tOption && q(pOptions[tOption]) after tArguments
       end if
    end repeat
-   
+
    put empty into sInstallerError
    put tCommand && tArguments into sInstallerProcess
    put the long id of stack "InstallerUI" of stack "Installer" into sInstallerStack
-   
+
    -- Make sure we do a log entry non-admin side. This ensures it has the correct owner on Linux.
    log "Commencing install action with:" && sInstallerProcess
-   
-   if pWithoutElevation or elevationNotSupported() then
+
+   if pWithoutElevation? or elevationNotSupported?() then
       open process sInstallerProcess for binary update
    else
       do "open elevated process sInstallerProcess for binary update"
    end if
    if the result is not empty then
       if the result is "access denied" then
-         installerDispatchFinished "Request to launch elevated installer slave failed."
+         installer.DispatchFinished "Request to launch elevated installer slave failed."
       else
-         installerDispatchFinished "Could not launch installer slave."
+         installer.DispatchFinished "Could not launch installer slave."
       end if
       exit installerRun
    end if
@@ -75,73 +75,73 @@ command installerRun pPath, pRecord, pOptions, pWithoutElevation
    installerMonitor
 end installerRun
 
-command installerRunUninstall pPath, pRecord, pWithoutElevation
+command installerRunUninstall pPath, pRecord, pWithoutElevation?
    local tCommand
-   if isInstallerEnvironment() then
+   if isInstallerEnvironment?() then
       put the effective filename of stack "Installer" into tCommand
    else
       put "C:/Users/Mark/Desktop/installbackend.exe" into tCommand
    end if
-   
+
    if tCommand contains space then
-      put quote & tCommand & quote into tCommand
+      put q(tCommand) into tCommand
    end if
-   
+
    local tArguments
-   put "douninstall -path" && quote & pPath & quote && "-record" && quote & pRecord & quote into tArguments
-   
+   put "douninstall -path" && q(pPath) && "-record" && q(pRecord) into tArguments
+
    put empty into sInstallerError
    put tCommand && tArguments into sInstallerProcess
    put the long id of stack "UninstallerUI" of stack "Installer" into sInstallerStack
-   
+
    -- Make sure we do a log entry non-admin side. This ensures it has the correct owner on Linux.
    log "Commencing uninstall action with:" && sInstallerProcess
-   
-   if pWithoutElevation or elevationNotSupported() then
+
+   if pWithoutElevation? or elevationNotSupported?() then
       open process sInstallerProcess for binary update
    else
       do "open elevated process sInstallerProcess for binary update"
    end if
    if the result is not empty then
       if the result is "access denied" then
-         installerDispatchFinished "Request to launch elevated uninstaller slave failed."
+         installer.DispatchFinished "Request to launch elevated uninstaller slave failed."
       else
-         installerDispatchFinished "Could not launch uninstaller slave."
+         installer.DispatchFinished "Could not launch uninstaller slave."
       end if
       exit installerRunUninstall
    end if
-   
+
    installerMonitor
 end installerRunUninstall
 
 -- Temporary function to determine if elevation is not supported on linux
-private function elevationNotSupported
+private function elevationNotSupported?
    if the platform is not "linux" then
       return false
    end if
-   
+
    set the itemDelimiter to ":"
    repeat for each item tPath in $PATH
       if there is a file (tPath & slash & "gksu") then
          return false
       end if
    end repeat
-   
+
    return true
-end elevationNotSupported
+end elevationNotSupported?
 
 command installerMonitor
    -- We loop each time until there is no more data to read from the slave process.
    set the itemDelimiter to tab
-   
+
    repeat forever
       -- If the slave process has gone away unexpectedly, dispatch a finished.
       if sInstallerProcess is not among the lines of the openProcesses then
          put empty into sInstallerProcess
-         installerDispatchFinished "Installer slave quit without eof."
+         installer.DispatchFinished "Installer slave quit without eof."
          exit repeat
       end if
-      
+
       -- Attempt to read a line from the installer process
       read from process sInstallerProcess for 1 line in 0 millisecs
       switch the result
@@ -151,13 +151,13 @@ command installerMonitor
             if item 1 of it is "error" then
                put item 2 of it into sInstallerError
             else if item 1 of it is "phase" then
-               installerDispatchPhase item 2 of it
+               installer.DispatchPhase item 2 of it
             else if item 1 of it is "progress" then
-               installerDispatchProgress item 2 of it, item 3 of it
+               installer.DispatchProgress item 2 of it, item 3 of it
             else if item 1 of it is "done" then
                close process sInstallerProcess
                put empty into sInstallerProcess
-               installerDispatchFinished
+               installer.DispatchFinished
                exit repeat
             end if
             break
@@ -171,12 +171,12 @@ command installerMonitor
             -- finished
             close process sInstallerProcess
             put empty into sInstallerProcess
-            installerDispatchFinished "Installer slave quit unexpectedly."
+            installer.DispatchFinished "Installer slave quit unexpectedly."
             exit repeat
             break
       end switch
    end repeat
-   
+
    -- If we still have a process, then send an update message in a short period of time
    if sInstallerProcess is not empty then
       send "installerMonitor" to me in 20 millisecs
@@ -185,26 +185,26 @@ end installerMonitor
 
 command installerCancel
    if sInstallerProcess is not empty and sInstallerProcess is among the lines of the openProcesses then
-      write "cancel" & return to process sInstallerProcess
+      write "cancel" & cr to process sInstallerProcess
    end if
 end installerCancel
 
-private command installerDispatchPhase pPhase
+private command installer.DispatchPhase pPhase
    dispatch "installerPhaseChanged" to this card of stack sInstallerStack with pPhase
-end installerDispatchPhase
+end installer.DispatchPhase
 
-private command installerDispatchProgress pPercentage, pMessage
+private command installer.DispatchProgress pPercentage, pMessage
    dispatch "installerProgressChanged" to this card of stack sInstallerStack with pPercentage, pMessage
-end installerDispatchProgress
+end installer.DispatchProgress
 
-private command installerDispatchFinished pDefaultError
+private command installer.DispatchFinished pDefaultError
    if sInstallerError is empty then
       put pDefaultError into sInstallerError
    end if
-   
+
    dispatch "installerFinished" to this card of stack sInstallerStack with sInstallerError
    put empty into sInstallerError
-end installerDispatchFinished
+end installer.DispatchFinished
 
 ################################################################################
 #
@@ -218,7 +218,7 @@ command runInstallerUI
    -- We are showing a UI, so hide this stack and switch the process
    -- to foreground (required for Mac OS X).
    hide me
-   
+
    -- Configure the UI options and switch to the installer UI stack.
    go invisible to card "Launch" of stack "InstallerUI"
 end runInstallerUI
@@ -229,7 +229,7 @@ command runUninstallerUI
    -- We are showing a UI, so hide this stack and switch the process
    -- to foreground (required for Mac OS X).
    hide me
-   
+
    -- Configure the UI options and switch to the uninstaller UI stack
    go invisible to card "Launch" stack "UninstallerUI"
 end runUninstallerUI
@@ -237,9 +237,9 @@ end runUninstallerUI
 -- Faceless install option
 command runFacelessInstall
    put true into sIsFaceless
-   
+
    try
-      send "runFaceless" to stack "InstallerUI"
+      dispatch "runFaceless" to stack "InstallerUI"
    catch tError
       quit 1
    end try
@@ -249,9 +249,9 @@ end runFacelessInstall
 -- Faceless uninstall option
 command runFacelessUninstall
    put true into sIsFaceless
-   
+
    try
-      send "runFaceless" to stack "UninstallerUI"
+      dispatch "runFaceless" to stack "UninstallerUI"
    catch tError
       quit 1
    end try
@@ -267,21 +267,21 @@ end runFacelessUninstall
 -- The record and path options are mandatory.
 command runInstallerActions
    log "Installer actions launched from '" & $0 & "'."
-   
+
    try
       -- The installer requires the parameter '-path' to determine where
       -- it is reinstalling.
       local tPath
       put ensureStringOption("path") into tPath
-      
+
       -- Next parse the record parameter.
       local tRecord
       put ensureStringOption("record") into tRecord
-      
+
       -- Now parse the boolean enable/disable options.
       local tOptions
       put parseBooleanOptions() into tOptions
-      
+
       -- Run the install action.
       actionInstall tPath, tRecord, tOptions
    catch tError
@@ -292,23 +292,23 @@ end runInstallerActions
 
 command runUninstallerActions
    log "Uninstaller actions launched from '" & $0 & "'."
-   
+
    try
       -- The installer requires the parameter '-path' to determine where
       -- it is reinstalling.
       local tPath
       put ensureStringOption("path") into tPath
-      
+
       -- Next parse the record parameter.
       local tRecord
       put ensureStringOption("record") into tRecord
-      
+
       -- Now parse the boolean enable/disable options.
       local tOptions
       put parseBooleanOptions() into tOptions
-      
+
       -- Run the uninstall action.
-      reportPhase "Uninstall"
+      report.Phase "Uninstall"
       actionUninstall tPath, tRecord, false
    catch tError
       quit 1
@@ -334,16 +334,16 @@ function parseBooleanOptions
    return tOptions
 end parseBooleanOptions
 
-function parseStringOption pName 
+function parseStringOption pName
    repeat with x = 1 to $#
       local tParam
       put value("$" & x) into tParam
-      
+
       if tParam is ("-" & pName) then
          if x + 1 <= $# then
             local tValue
             put value("$" & (x  + 1)) into tValue
-            
+
             -- The subsequent parameter must be of the form "...".
             if char 1 of tValue is not "-" then
                log "Option -" & pName && "has value '" & char 1 to -1 of tValue & "'."
@@ -357,10 +357,10 @@ function parseStringOption pName
          -- If this was the last parameter, or the next parameter was an option
          -- then its an error.
          log "Option -" & pName && "specified with no value"
-         reportError "Invocation error (no parameter for option)."
+         report.Error "Invocation error (no parameter for option)."
       end if
    end repeat
-   
+
    return empty
 end parseStringOption
 
@@ -369,7 +369,7 @@ function ensureStringOption pName
    put parseStringOption(pName) into tValue
    if tValue is empty then
       log "No -" & pName && "option specified."
-      reportError "Invocation error (expected option not present)"
+      report.Error "Invocation error (expected option not present)"
    end if
    return tValue
 end ensureStringOption
@@ -379,150 +379,150 @@ end ensureStringOption
 #    BACK-END INSTALLER IMPLEMENTATION
 #
 
--- This command performs all actions related to an install. Any errors that occur cause 'reportError'
+-- This command performs all actions related to an install. Any errors that occur cause 'report.Error'
 -- to be executed which will terminate. If an error occurs during an install, cleanup will be performed
 -- before exiting.
 command actionInstall pPath, pRecord, pOptions
    local tManifest, tManifestItems
-   
+
    -- Make sure the filetype is empty so extensions are use
    set the fileType to empty
-   
+
    -- If there is a 'log' option then set the log file (but only if we are faceless)
    if sIsFaceless and pOptions["log"] is not empty then
       put pOptions["log"] into sFacelessLog
    end if
-   
+
    -- If there is a record file, then run an uninstall first.
    if there is a file pRecord then
-      reportPhase "Uninstall"
+      report.Phase "Uninstall"
       actionUninstall pPath, pRecord, true
    end if
-   
+
    -- We are in 'install' phase
-   reportPhase "Install"
-   
+   report.Phase "Install"
+
    -- Open the internal payload archive that was inserted at deploy time.
    log "Install: Opening payload archive."
-   payloadOpen pOptions["archive"]
-   
+   payload.Open pOptions["archive"]
+
    -- Extract the manifest from the payload. The manifest will be returned to us as a standard text
    -- file (i.e. LF line endings).
    log "Install: Extracting payload manifest."
-   installExtractManifest tManifest
+   install.ExtractManifest tManifest
    replace "[[installFolder]]" with pPath in tManifest
-   
+
    -- Parse the manifest into an array of items.
    log "Install: Parsing manifest."
-   installParseManifest tManifest, tManifestItems
-   
+   install.ParseManifest tManifest, tManifestItems
+
    -- Calculate item sizes/progress for each manifest item
    log "Install: Instrumenting manifest with progress."
-   installInstrumentManifest tManifestItems
-   
+   install.InstrumentManifest tManifestItems
+
    -- Make sure we have the record file ready to go
    log "Install: Creating record file at '" & pRecord & "'"
-   installEnsureRecord pRecord
-   
+   install.EnsureRecord pRecord
+
    -- We need the target installation folder before doing anything else.
-   reportProgress 0, "Creating installation folder."
-   installEnsureFolder pPath
-   installRecord pRecord, "folder", pPath
-   
+   report.Progress 0, "Creating installation folder."
+   install.EnsureFolder pPath
+   install.Record pRecord, "folder", pPath
+
    -- We use try/catch here to ensure that we do an implicit uninstall if an error
    -- occurs.
    try
       -- Now loop through all the items in the manifest performing appropriate steps in each case.
       repeat for each element tManifestItem in tManifestItems
          -- Check for cancellation and report it if present
-         reportCheckCancel
-         
+         report.CheckCancel
+
          -- If the 'delay' option is specified, then wait for a bit (this is to help testing)
          if pOptions["delay"] then
             wait 5 millisecs
          end if
-         
+
          -- Now perform item specific actions
          switch tManifestItem["type"]
             -- An empty type means this was a comment or empty line, so we do nothing.
             case empty
                break
             case "file"
-               reportProgress tManifestItem["progress"], "Extracting file '" & tManifestItem["path"] & "'"
-               payloadExtractItemToFile tManifestItem["name"], tManifestItem["base_name"], tManifestItem["path"]
-               installRecord pRecord, tManifestItem["type"], tManifestItem["path"]
+               report.Progress tManifestItem["progress"], "Extracting file '" & tManifestItem["path"] & "'"
+               payload.ExtractItemToFile tManifestItem["name"], tManifestItem["base_name"], tManifestItem["path"]
+               install.Record pRecord, tManifestItem["type"], tManifestItem["path"]
                break
             case "executable"
-               reportProgress tManifestItem["progress"], "Extracting executable file '" & tManifestItem["path"] & "'"
-               payloadExtractItemToFile tManifestItem["name"], tManifestItem["base_name"], tManifestItem["path"]
-               installMakeExecutable tManifestItem["path"]
-               installRecord pRecord, tManifestItem["type"], tManifestItem["path"]
+               report.Progress tManifestItem["progress"], "Extracting executable file '" & tManifestItem["path"] & "'"
+               payload.ExtractItemToFile tManifestItem["name"], tManifestItem["base_name"], tManifestItem["path"]
+               install.MakeExecutable tManifestItem["path"]
+               install.Record pRecord, tManifestItem["type"], tManifestItem["path"]
                break
             case "folder"
-               reportProgress tManifestItem["progress"], "Creating folder '" & tManifestItem["path"] & "'"
-               installEnsureFolder tManifestItem["path"]
-               installRecord pRecord, tManifestItem["type"], tManifestItem["path"]
+               report.Progress tManifestItem["progress"], "Creating folder '" & tManifestItem["path"] & "'"
+               install.EnsureFolder tManifestItem["path"]
+               install.Record pRecord, tManifestItem["type"], tManifestItem["path"]
                break
             case "uninstaller"
-               reportProgress tManifestItem["progress"], "Installing uninstaller to '" & tManifestItem["path"] & "'"
-               installCopyUninstaller tManifestItem["path"]
-               installRecord pRecord, "uninstaller", tManifestItem["path"]
+               report.Progress tManifestItem["progress"], "Installing uninstaller to '" & tManifestItem["path"] & "'"
+               install.CopyUninstaller tManifestItem["path"]
+               install.Record pRecord, "uninstaller", tManifestItem["path"]
                break
             case "registry key"
-               reportProgress tManifestItem["progress"], "Creating registry key '" & tManifestItem["key"] & "' with value '" & tManifestItem["value"] & "'"
+               report.Progress tManifestItem["progress"], "Creating registry key '" & tManifestItem["key"] & "' with value '" & tManifestItem["value"] & "'"
                get tManifestItem["key"]
                if pOptions["allusers"] then
                   replace "HKEY_CURRENT_USER" with "HKEY_LOCAL_MACHINE" in it
                else
                   replace "HKEY_LOCAL_MACHINE" with "HKEY_CURRENT_USER" in it
                end if
-               installSetRegistryKey it, tManifestItem["value"], tManifestItem["value_type"]
-               installRecord pRecord, "registry key", it
+               install.SetRegistryKey it, tManifestItem["value"], tManifestItem["value_type"]
+               install.Record pRecord, "registry key", it
                break
             case "registry value"
-               reportProgress tManifestItem["progress"], "Creating registry entry '" & tManifestItem["entry"] & "' in key '" & tManifestItem["key"] & "' with value '" & tManifestItem["value"] & "'"
+               report.Progress tManifestItem["progress"], "Creating registry entry '" & tManifestItem["entry"] & "' in key '" & tManifestItem["key"] & "' with value '" & tManifestItem["value"] & "'"
                get tManifestItem["key"]
                if pOptions["allusers"] then
                   replace "HKEY_CURRENT_USER" with "HKEY_LOCAL_MACHINE" in it
                else
                   replace "HKEY_LOCAL_MACHINE" with "HKEY_CURRENT_USER" in it
                end if
-               installSetRegistryValue it, tManifestItem["entry"], tManifestItem["value"], tManifestItem["value_type"]
-               installRecord pRecord, "registry value", it & "\" & tManifestItem["entry"]
+               install.SetRegistryValue it, tManifestItem["entry"], tManifestItem["value"], tManifestItem["value_type"]
+               install.Record pRecord, "registry value", it & "\" & tManifestItem["entry"]
                break
             case "shortcut"
                set the itemDelimiter to slash
                if (pOptions["desktopshortcut"] and item 1 of tManifestItem["path"] is "Desktop") or \
                      (pOptions["startmenu"] and item 1 of tManifestItem["path"] is "Programs") or \
                      item 1 of tManifestItem["path"] is "Plugins" then
-                  reportProgress tManifestItem["progress"], "Creating shortcut '" & tManifestItem["path"] & "'"
-                  installMakeShortcut tManifestItem["path"], tManifestItem["target"], pOptions["allusers"]
-                  installRecord pRecord, "shortcut", tManifestItem["path"], pOptions["allusers"]
+                  report.Progress tManifestItem["progress"], "Creating shortcut '" & tManifestItem["path"] & "'"
+                  install.MakeShortcut tManifestItem["path"], tManifestItem["target"], pOptions["allusers"]
+                  install.Record pRecord, "shortcut", tManifestItem["path"], pOptions["allusers"]
                end if
                set the itemDelimiter to slash
                break
             case "desktop-application"
                if pOptions["startmenu"] then
-                  reportProgress tManifestItem["progress"], "Installing application menu entry for '" & tManifestItem["name"] & "'"
-                  installDesktopApplication pRecord, tManifestItem["name"], tManifestItem["source"], pPath, pOptions["allusers"]
+                  report.Progress tManifestItem["progress"], "Installing application menu entry for '" & tManifestItem["name"] & "'"
+                  install.DesktopApplication pRecord, tManifestItem["name"], tManifestItem["source"], pPath, pOptions["allusers"]
                end if
                break
             case "desktop-icon"
                if pOptions["startmenu"] then
-                  reportProgress tManifestItem["progress"], "Installing icon for '" & tManifestItem["name"] & "'"
-                  installDesktopIcon pRecord, tManifestItem["name"], tManifestItem["source"], pOptions["allusers"]
+                  report.Progress tManifestItem["progress"], "Installing icon for '" & tManifestItem["name"] & "'"
+                  install.DesktopIcon pRecord, tManifestItem["name"], tManifestItem["source"], pOptions["allusers"]
                end if
                break
             case "rename"
-               reportProgress tManifestItem["progress"], "Moving to final destination"
-               installRename pRecord, tManifestItem["source"], tManifestItem["target"]
+               report.Progress tManifestItem["progress"], "Moving to final destination"
+               install.Rename pRecord, tManifestItem["source"], tManifestItem["target"]
                break
             case "record"
                -- Legacy item type - ignored for now
                break
             default
                log "Install: Invalid manifest item type '" & tManifestItem["type"] & "'"
-               reportError "Internal error (illegal manifest item type found)."
+               report.Error "Internal error (illegal manifest item type found)."
                break
          end switch
       end repeat
@@ -530,61 +530,61 @@ command actionInstall pPath, pRecord, pOptions
       -- If an execution error occurs, then we log it and leave the installation how it is, otherwise
       -- it was a caught error and we attempt to uninstall before anything else.
       if item 1 of tError is not a number then
-         reportPhase "Cleanup"
+         report.Phase "Cleanup"
          actionUninstall pPath, pRecord, true
       else
          log "Install: Execution error - " & tError
-         reportError "Internal error."
+         report.Error "Internal error."
          put "internal" into tError
       end if
    end try
-   
+
    log "Install: Closing payload archive."
-   payloadClose
-   
+   payload.Close
+
    -- If there was no error, report that we are done. Otherwise, if this was not a 'cancel' error,
    -- then throw it.
    if tError is empty or tError is "cancel" then
-      reportFinished
+      report.Finished
    else
       throw tError
    end if
 end actionInstall
 
-private command installExtractManifest @rManifest
+private command install.ExtractManifest @rManifest
    -- Extract the item to the target variable
-   payloadExtractItemToVariable "manifest.txt", rManifest
-   
+   payload.ExtractItemToVariable "manifest.txt", rManifest
+
    -- Make sure we normalize line-endings to Rev standard LFs
    replace (numToChar(13) & numToChar(10)) with numToChar(10) in rManifest
    replace numToChar(13) with numToChar(10) in rManifest
-end installExtractManifest
+end install.ExtractManifest
 
-private command installParseManifest pManifest, @rManifestItems
+private command install.ParseManifest pManifest, @rManifestItems
    log "ParseManifest: Parsing manifest of length" && the number of chars in pManifest
    -- Manifest file uses 'tabs' as item delimiter
    set the itemDelimiter to tab
-   
+
    -- Start off with an empty list of items
    put empty into rManifestItems
-   
+
    -- Loop through each line, creating items as we go
    repeat for each line tLine in pManifest
-      
+
       -- If the line is just whitepace, ignore it
       if word 1 to -1 of tLine is empty then
          next repeat
       end if
-      
+
       -- If the first non-whitepsace char is '#', or '--' then ignore it
       if word 1 of tLine begins with "#" or \
             word 1 of tLine begins with "--" then
          next repeat
       end if
-      
+
       -- Decode into the the  'tItem' array
       local tItem
-      
+
       -- First parse the type portion (item 1)
       --    [ shared ] ( folder | registry | file | executable | shortcut | uninstaller )
       local tType, tShared
@@ -595,7 +595,7 @@ private command installParseManifest pManifest, @rManifestItems
       else
          put false into tItem["shared"]
       end if
-      
+
       -- Now decode type specific actions
       switch tItem["type"]
          case "folder"
@@ -648,100 +648,100 @@ private command installParseManifest pManifest, @rManifestItems
             break
          default
             log "ParseManifest:    invalid manifest item type '" & tItem["type"] & "'"
-            reportError "Internal error (illegal manifest item type found)."
+            report.Error "Internal error (illegal manifest item type found)."
             break
       end switch
-      
+
       -- Finally add the item to the item array
       put tItem into rManifestItems[the number of elements of rManifestItems + 1]
    end repeat
-end installParseManifest
+end install.ParseManifest
 
-private command installInstrumentManifest @xManifest
+private command install.InstrumentManifest @xManifest
    -- First loop through putting the running total into the progress field
    local tCurrentTotal
    put 0 into tCurrentTotal
    repeat with i = 1 to the number of elements of xManifest
       if xManifest[i]["type"] is among the items of "file,executable" then
-         add item 3 of payloadDescribeItem(xManifest[i]["name"])  to tCurrentTotal
+         add item 3 of payload.DescribeItem(xManifest[i]["name"])  to tCurrentTotal
       else
          add 100 to tCurrentTotal
       end if
       put tCurrentTotal into xManifest[i]["progress"]
    end repeat
-   
+
    -- Now normalize the progress field's to percentages
    repeat with i = 1 to the number of elements of xManifest
       divide xManifest[i]["progress"] by (tCurrentTotal / 100.0)
    end repeat
-end installInstrumentManifest
+end install.InstrumentManifest
 
-private command installEnsureFolder pPath
+private command install.EnsureFolder pPath
    log "EnsureFolder: Ensure '" & pPath & "' exists."
-   
+
    -- MM-2011-12-12: Allow Windows network drive installaitons.
    if pPath begins with "//" then
       get 4
    else
       get 2
    end if
-   
+
    -- Otherwise make sure we create all folders up to and including
    -- our target folder.
    set the itemDelimiter to slash
    repeat with i = it to the number of items of pPath
       local tFolderPrefix, tShortFolderPrefix
       put item 1 to i of pPath into tFolderPrefix
-      put installShortenPath(tFolderPrefix) into tShortFolderPrefix
+      put install.ShortenPath(tFolderPrefix) into tShortFolderPrefix
       if there is a folder tShortFolderPrefix or  tShortFolderPrefix is empty then
          next repeat
       end if
-      
+
       log "EnsureFolder:    creating folder '" & tShortFolderPrefix & "'."
       create folder tShortFolderPrefix
       if the result is not empty then
          log "EnsureFolder:    folder creation failed -" && the result
-         reportError "Unable to create required folder at '" & pPath & "'."
+         report.Error "Unable to create required folder at '" & pPath & "'."
       end if
    end repeat
-end installEnsureFolder
+end install.EnsureFolder
 
-private command installCopyUninstaller pTarget
+private command install.CopyUninstaller pTarget
    log "CopyUninstaller: Place uninstaller at '" & pTarget & "'"
    if the platform is "macos" then
       -- MM - copy the uninstaller app folder
       --
       set the itemDel to slash
-      installCopyUninstallerFolder item 1 to - 4 of the effective filename of stack "Installer", pTarget
+      install.CopyUninstallerFolder item 1 to - 4 of the effective filename of stack "Installer", pTarget
       if the result is not empty then
          log "CopyUninstaller:    copying failed -" && the result
-         reportError "Unable to copy uninstaller to '" & pTarget & "'."
+         report.Error "Unable to copy uninstaller to '" & pTarget & "'."
       end if
       set the itemDel to comma
    else
-      put url ("binfile:" & the effective filename of stack "Installer") into url ("binfile:" & installShortenPath(pTarget))
-      
+      put url ("binfile:" & the effective filename of stack "Installer") into url ("binfile:" & install.ShortenPath(pTarget))
+
       if the result is not empty then
          log "CopyUninstaller:    copying failed -" && the result
-         reportError "Unable to copy uninstaller to '" & pTarget & "'."
+         report.Error "Unable to copy uninstaller to '" & pTarget & "'."
       end if
-      
+
       // SN-2014-10-28: [[ Bug 16410 ]] The uninstaller needs the execution permission
       // (on Linux)
       if the platform contains "linux" then
          local tChmodResult
-         get shell("chmod +x " & quote & installShortenPath(pTarget) & quote)
+         get shell("chmod +x " & q(install.ShortenPath(pTarget)))
          if it is not empty then
             log "CopyUninstaller:    setting executable permission failed - " & it
-            reportError "Unable to copy uninstaller to '" & pTarget & "'."
+            report.Error "Unable to copy uninstaller to '" & pTarget & "'."
          end if
       end if
    end if
-end installCopyUninstaller
+end install.CopyUninstaller
 
 -- MM - recursive copying of a folder, making sure to set the executable bit of the installer itself
 --
-private command installCopyUninstallerFolder pSrcFolder, pDestFolder
+private command install.CopyUninstallerFolder pSrcFolder, pDestFolder
    local tOldFolder
    put the folder into tOldFolder
    if not (there is a folder pDestFolder) then
@@ -754,7 +754,7 @@ private command installCopyUninstallerFolder pSrcFolder, pDestFolder
    set the folder to pSrcFolder
    repeat for each line tFolder in the folders
       if not (tFolder begins with ".") then
-         installCopyUninstallerFolder pSrcFolder & slash & tFolder, pDestFolder & slash & tFolder
+         install.CopyUninstallerFolder pSrcFolder & slash & tFolder, pDestFolder & slash & tFolder
          if the result is not empty then
             return pDestFolder & slash & tFolder && the result
          end if
@@ -767,36 +767,45 @@ private command installCopyUninstallerFolder pSrcFolder, pDestFolder
          return pDestFolder & slash & tFile && the result
       end if
       if tFile is "installer" then
-         installMakeExecutable pDestFolder & slash & tFile
+         install.MakeExecutable pDestFolder & slash & tFile
       end if
    end repeat
    set the folder to tOldFolder
    return empty
-end installCopyUninstallerFolder
+end install.CopyUninstallerFolder
 
-private command installMakeExecutable pPath
+private command install.MakeExecutable pPath
    log "MakeExecutable: Ensuring file '" & pPath & "' is executable"
-   
+
    -- Only need to set executable bit on mac and linux
    if the platform is not among the items of "macos,linux" then
-      exit installMakeExecutable
+      exit install.MakeExecutable
    end if
-   
+
    -- Use the 'chmod' shell command
+# NOTE: this requires elevated privilege
    local tCommand, tCommandResult
-   put "chmod 755 " & quote & pPath & quote into tCommand
+   put "chmod 755 " & q(pPath) into tCommand
+
+#   if pWithoutElevation? or elevationNotSupported?() then
+#      open process tCommand for binary update
+#   else
+#      do "open elevated process tCommand for binary update"
+#   end if
+
    put shell(tCommand) into tCommandResult
+
    if the result is not 0 then
       log "MakeExecutable:    'chmod' failed - " & tCommandResult
-      reportError "Failed to mark file as executable."
+      report.Error "Failed to mark file as executable."
    end if
-end installMakeExecutable
+end install.MakeExecutable
 
-private command installMakeShortcut pPath, pTarget, pAllUsers
+private command install.MakeShortcut pPath, pTarget, pAllUsers
    log "MakeShortcut: Creating shortcut '" & pPath & "' to '" & pTarget & "'"
-   
+
    set the itemDelimiter to slash
-   
+
    -- Determine the base folder for the shortcut
    local tBaseFolder
    if item 1 of pPath is "Desktop" then
@@ -822,27 +831,27 @@ private command installMakeShortcut pPath, pTarget, pAllUsers
          end if
       end if
    end if
-   
+
    -- If the basefolder was not found, then this type of shortcut is
    -- not supported on this platform.
    if tBaseFolder is empty then
-      exit installMakeShortcut
+      exit install.MakeShortcut
    end if
-   
+
    -- Remove the first item as it just indicates the shortcut type
    delete item 1 of pPath
-   
+
    -- If there is no target, this is just a folder creation
    if pTarget is empty then
-      installEnsureFolder tBaseFolder & slash & pPath
-      exit installMakeShortcut
+      install.EnsureFolder tBaseFolder & slash & pPath
+      exit install.MakeShortcut
    end if
-   
+
    -- Make sure the appropriate folder structure is present
    if the number of items of pPath > 1 then
-      installEnsureFolder tBaseFolder & slash & (item 1 to -2  of pPath)
+      install.EnsureFolder tBaseFolder & slash & (item 1 to -2  of pPath)
    end if
-   
+
    -- Create the shortcut
    if the platform is "win32" then
       put ".lnk" after pPath
@@ -851,106 +860,106 @@ private command installMakeShortcut pPath, pTarget, pAllUsers
       create alias tBaseFolder & slash & pPath to file pTarget
       if the result is not empty then
          log "MakeShortcut:    'create alias' failed -" && the result
-         reportError "Failed to create " & item 1 of pPath & " shortcut."
+         report.Error "Failed to create " & item 1 of pPath & " shortcut."
       end if
    else
-      get shell("ln -s" && quote & pTarget & quote && quote & tBaseFolder & slash & pPath & quote)
+      get shell("ln -s" && q(pTarget) && q(tBaseFolder & slash & pPath ))
       if it is not empty then
          log "MakeShortcut:    'ln' failed -" && it
-         reportError "Failed to create " & item 1 of pPAth & " shortcut."
+         report.Error "Failed to create " & item 1 of pPAth & " shortcut."
       end if
    end if
-end installMakeShortcut
+end install.MakeShortcut
 
-private command installDesktopApplication pRecord, pName, pSource, pInstallPath, pAllUsers
+private command install.DesktopApplication pRecord, pName, pSource, pInstallPath, pAllUsers
    local tTargetPath
    put xdgDataPath(pAllUsers) & slash & "applications" into tTargetPath
-   
+
    -- Make sure the target path exists
-   installEnsureFolder tTargetPath
-   
+   install.EnsureFolder tTargetPath
+
    local tData
-   payloadExtractItemToVariable pSource, tData
+   payload.ExtractItemToVariable pSource, tData
    replace "[[installFolder]]" with pInstallPath in tData
    put tData into url ("binfile:" & tTargetPath & slash & pName & ".desktop")
    get shell("touch" && tTargetPath)
-   
-   installRecord pRecord, "file", tTargetPath & slash & pName & ".desktop"
-end installDesktopApplication
 
-private command installDesktopIcon pRecord, pName, pSource, pAllUsers
+   install.Record pRecord, "file", tTargetPath & slash & pName & ".desktop"
+end install.DesktopApplication
+
+private command install.DesktopIcon pRecord, pName, pSource, pAllUsers
    local tTargetPath
    put xdgDataPath(pAllUsers) & slash & "icons/hicolor/48x48/apps" into tTargetPath
-   
+
    -- Make sure the target path exists
-   installEnsureFolder tTargetPath
-   
-   payloadExtractItemToFile pSource, empty, tTargetPath & slash & pName & ".png"
+   install.EnsureFolder tTargetPath
+
+   payload.ExtractItemToFile pSource, empty, tTargetPath & slash & pName & ".png"
    get shell("touch" && tTargetPath)
-   
+
    -- Regenerate the icon cache
    -- Errors are ignored as the utility may not be present
    get shell("gtk-update-icon-cache" && xdgDataPath(pAllUsers) & "/icons/hicolor")
-   
-   installRecord pRecord, "file", tTargetPath & slash & pName & ".png"
-end installDesktopIcon
 
-private command installEnsureRecord pRecord
+   install.Record pRecord, "file", tTargetPath & slash & pName & ".png"
+end install.DesktopIcon
+
+private command install.EnsureRecord pRecord
    log "EnsureRecord: Ensuring new record exists at '" & pRecord & "'"
    -- Make sure the target folder exists, note we can't use 'ensurefolder'
    -- as this requires a writable record.
    set the itemDelimiter to slash
-   installEnsureFolder item 1 to -2 of pRecord
+   install.EnsureFolder item 1 to -2 of pRecord
    set the itemDelimiter to comma
-   
+
    -- Now ensure the file is created and is empty
-   put empty into url ("file:" & installShortenPath(pRecord))
+   put empty into url ("file:" & install.ShortenPath(pRecord))
    if the result is not empty then
       log "EnsureRecord:    failed to create record - " & the result
-      reportError "Internal error (couldn't create install record)."
+      report.Error "Internal error (couldn't create install record)."
    end if
-end installEnsureRecord
+end install.EnsureRecord
 
-private command installSetRegistryKey pKey, pValue, pType
+private command install.SetRegistryKey pKey, pValue, pType
    log "SetRegistryKey: Setting key '" & pKey & "' to '" & pValue & "' of type" && pType
-   
+
    if pType is "number" then
       put "dword" into pType
       put binaryEncode("i", pValue) into pValue
    else if pType is "path" then
       replace "/" with "\" in pValue
    end if
-   
+
    set the itemDelimiter to "\"
-   installEnsureRegistryKey item 1 to -2 of pKey
-   
+   install.EnsureRegistryKey item 1 to -2 of pKey
+
    get setRegistry(pKey & "\", pValue, pType)
    if the result is not empty and (the result is not "can't delete value" or pValue is not empty) then
       log "SetRegistryKey:    failed to set key - " & the result
-      reportError "Unable to set registry key '" & pKey & "' to required value."
+      report.Error "Unable to set registry key '" & pKey & "' to required value."
    end if
-end installSetRegistryKey
+end install.SetRegistryKey
 
-private command installSetRegistryValue pKey, pEntry, pValue, pType
+private command install.SetRegistryValue pKey, pEntry, pValue, pType
    log "SetRegistryValue: Setting value '" & pEntry & "' of key '" & pKey & "' to '" & pValue & "' of type" && pType
-   
+
    if pType is "number" then
       put "dword" into pType
       put binaryEncode("i", pValue) into pValue
    else if pType is "path" then
       replace "/" with "\" in pValue
    end if
-   
-   installEnsureRegistryKey pKey
-   
+
+   install.EnsureRegistryKey pKey
+
    get setRegistry(pKey & "\" & pEntry, pValue, pType)
    if the result is not empty then
       log "SetRegistryValue:   failed to set value of key -" && the result
-      reportError "Unable to set registry value '" & pValue & "' of key '" & pKey & "' to required setting."
+      report.Error "Unable to set registry value '" & pValue & "' of key '" & pKey & "' to required setting."
    end if
-end installSetRegistryValue
+end install.SetRegistryValue
 
-private command installEnsureRegistryKey pKey
+private command install.EnsureRegistryKey pKey
    log "EnsureRegistryKey: Ensure registry key '" & pKey & "' exists"
    set the itemDelimiter to "\"
    repeat with x = 2 to the number of items of pKey
@@ -960,55 +969,55 @@ private command installEnsureRegistryKey pKey
       if the result is not "can't find key" then
          next repeat
       end if
-      
+
       log "EnsureRegistryKey:    creating registry key '" & tKeyPrefix & "'"
       get setRegistry(tKeyPrefix & "\", empty)
       if the result is not empty then
          log "EnsureRegistryKey:    registry key creation failed -" && the result
-         reportError "Unable to create required registry key at '" & pKey & "'."
+         report.Error "Unable to create required registry key at '" & pKey & "'."
       end if
    end repeat
-end installEnsureRegistryKey
+end install.EnsureRegistryKey
 
-private command installRename pRecord, pSource, pTarget
+private command install.Rename pRecord, pSource, pTarget
    log "Rename: Renaming '" & pSource & "' to '" & pTarget & "'"
-   rename installShortenPath(pSource) to installShortenPath(pTarget)
+   rename install.ShortenPath(pSource) to install.ShortenPath(pTarget)
    if the result is not empty then
       log "Rename:    failed -" && the result
-      reportError "Unable to move components to final location."
+      report.Error "Unable to move components to final location."
    end if
-   installRecord pRecord, "rename", pTarget, pSource
-end installRename
+   install.Record pRecord, "rename", pTarget, pSource
+end install.Rename
 
-private command installRecord pRecord, pType, pPath, pPath2
+private command install.Record pRecord, pType, pPath, pPath2
    -- Shorten the path first
    local tShortRecord
-   put installShortenPath(pRecord) into tShortRecord
-   
+   put install.ShortenPath(pRecord) into tShortRecord
+
    -- Now enter the item in the record - note we open and close the file each entry. This ensures
    -- that each action is written atomically, in case the installer crashes or suffers some other fate.
    log "Record: Recording item of type '" & pType & "' with path '" & pPath & "'"
    open file tShortRecord for text append
    if the result is not empty then
       log "Record:    failed to open record - " && the result
-      reportError "Internal error (couldn't update install record)."
+      report.Error "Internal error (couldn't update install record)."
    end if
    write pType & tab & pPath & tab & pPath2 & return to file tShortRecord
    if the result is not empty then
       log "Record:    failed to write to record - " && the result
-      reportError "Internal error (couldn't write to install record)."
+      report.Error "Internal error (couldn't write to install record)."
    end if
    close file tShortRecord
-end installRecord
+end install.Record
 
 -- This method uses 'shortFilePath' to reduce the length of the given path to the shortened
 -- 8.3 format -- if on Windows. This allows the installer to handle much longer paths than would
 -- otherwise be possible.
-private function installShortenPath pLongPath
+private function install.ShortenPath pLongPath
    if the platform is not "win32" then
       return pLongPath
    end if
-   
+
    local tShortPath
    set the itemDelimiter to "/"
    put item 1 of pLongPath into tShortPath
@@ -1020,9 +1029,9 @@ private function installShortenPath pLongPath
       end if
       put slash & item -1 of it after tShortPath
    end repeat
-   
+
    return tShortPath
-end installShortenPath
+end install.ShortenPath
 
 -- This function returns the 'XDG' data path for this or all users.
 -- Note that, at this time, it does not use the XDG_DATA_DIRS var to work out where to
@@ -1033,11 +1042,11 @@ private function xdgDataPath pAllUsers
    if pAllUsers then
       return "/usr/share"
    end if
-   
+
    if $XDG_DATA_HOME is empty then
       return $HOME & slash & ".local/share"
    end if
-   
+
    return $XDG_DATA_HOME
 end xdgDataPath
 
@@ -1052,18 +1061,18 @@ command actionUninstall pPath, pRecord, pPreInstall
    -- Load the record file
    local tRecordFile
    log "Uninstall: Loading record file '" & pRecord & "'"
-   put url ("file:" & installShortenPath(pRecord)) into tRecordFile
+   put url ("file:" & install.ShortenPath(pRecord)) into tRecordFile
    if the result is not empty then
       log "Uninstall:    failed -" && the result
-      reportError "Internal error (couldn't read install record)"
+      report.Error "Internal error (couldn't read install record)"
    end if
-   
+
    -- Now split the record item by line so we can loop through in reverse order
    local tRecordItems, tTotalCount
    put tRecordFile into tRecordItems
    split tRecordItems by return
    put the number of elements of tRecordItems into tTotalCount
-   
+
    -- Now do the looping, keeping note of the uninstaller record which we do last
    local tUninstaller, tNonEmptyFolders, tCurrentCount
    put 0 into tCurrentCount
@@ -1074,15 +1083,15 @@ command actionUninstall pPath, pRecord, pPreInstall
       put item 2 of tRecordItems[x] into tParam
       put item 3 of tRecordItems[x] into tParam2
       set the itemDelimiter to comma
-      
+
       local tProgress
       add 1 to tCurrentCount
       put tCurrentCount / tTotalCount * 100.0 into tProgress
       switch tType
          case "file"
          case "executable"
-            put installShortenPath(tParam) into tShortParam
-            reportProgress tProgress, "Removing file at '" & tParam & "'"
+            put install.ShortenPath(tParam) into tShortParam
+            report.Progress tProgress, "Removing file at '" & tParam & "'"
             if there is a file tShortParam then
                delete file tShortParam
                if the result is not empty then
@@ -1093,10 +1102,10 @@ command actionUninstall pPath, pRecord, pPreInstall
             end if
             break
          case "folder"
-            put installShortenPath(tParam) into tShortParam
-            reportProgress tProgress, "Removing folder at '" & tParam & "'"
+            put install.ShortenPath(tParam) into tShortParam
+            report.Progress tProgress, "Removing folder at '" & tParam & "'"
             if there is a folder tShortParam then
-               if uninstallCanRemoveFolder(tParam) then
+               if uninstall.CanRemoveFolder?(tParam) then
                   delete folder tShortParam
                   if the result is not empty then
                      log "Uninstall: Removal of folder '" & tParam & "' failed -" && the result
@@ -1110,8 +1119,8 @@ command actionUninstall pPath, pRecord, pPreInstall
             end if
             break
          case "shortcut"
-            reportProgress tProgress, "Removing shortcut '" & tParam & "'"
-            
+            report.Progress tProgress, "Removing shortcut '" & tParam & "'"
+
             local tShortcut
             set the itemDelimiter to slash
             if item 1 of tParam is "Desktop" then
@@ -1140,7 +1149,7 @@ command actionUninstall pPath, pRecord, pPreInstall
             end if
             set the itemDelimiter to comma
             if the platform is "Win32" and there is a folder tShortcut then
-               if uninstallCanRemoveFolder(tShortcut) then
+               if uninstall.CanRemoveFolder?(tShortcut) then
                   delete folder tShortcut
                   if the result is not empty then
                      log "Uninstall: Removal of shortcut folder '" & tShortcut & "' failed -" && the result
@@ -1153,7 +1162,7 @@ command actionUninstall pPath, pRecord, pPreInstall
                   put ".lnk" after tShortcut
                end if
                if the platform is "linux" or the platform is "macos" then
-                  get shell("rm" && quote & tShortcut & quote)
+                  get shell("rm" && q(tShortcut))
                   log it && the result
                else
                   delete file tShortcut
@@ -1164,16 +1173,16 @@ command actionUninstall pPath, pRecord, pPreInstall
             end if
             break
          case "rename"
-            reportProgress tProgress, "Renaming item at '" & tParam & "' to '" & tParam2 & "'"
-            rename installShortenPath(tParam) to installShortenPath(tParam2)
+            report.Progress tProgress, "Renaming item at '" & tParam & "' to '" & tParam2 & "'"
+            rename install.ShortenPath(tParam) to install.ShortenPath(tParam2)
             if the result is not empty then
                log "Uninstall: Rename of item '" & tParam & "' failed -" && the result
             end if
          case "registry key"
-            reportProgress tProgress, "Removing registry key at '" & tParam & "'"
+            report.Progress tProgress, "Removing registry key at '" & tParam & "'"
             get queryRegistry(tParam & "\")
             if the result is empty then
-               if uninstallCanRemoveRegistryKey(tParam) then
+               if uninstall.CanRemoveRegistryKey?(tParam) then
                   get deleteRegistry(tParam)
                   if the result is not empty then
                      log "Uninstall: Removal of registry key '" & tParam & "' failed -" && the result
@@ -1184,7 +1193,7 @@ command actionUninstall pPath, pRecord, pPreInstall
             end if
             break
          case "registry value"
-            reportProgress tProgress, "Removing registry value '" & tParam & "'"
+            report.Progress tProgress, "Removing registry value '" & tParam & "'"
             get queryRegistry(tParam)
             if the result is empty then
                get setRegistry(tParam, empty)
@@ -1194,30 +1203,30 @@ command actionUninstall pPath, pRecord, pPreInstall
             end if
             break
          case "uninstaller"
-            reportProgress tProgress, "Removing uninstaller at '" & tParam & "'"
-            delete file installShortenPath(tParam)
-            if there is a file installShortenPath(tParam) then
+            report.Progress tProgress, "Removing uninstaller at '" & tParam & "'"
+            delete file install.ShortenPath(tParam)
+            if there is a file install.ShortenPath(tParam) then
                put tParam into tUninstaller
             end if
             break
       end switch
    end repeat
-   
+
    -- Finally we remove the uninstaller (if any) and the record...
    log "Uninstall: Removing installer record at '" & pRecord & "'"
-   delete file installShortenPath(pRecord)
-   
+   delete file install.ShortenPath(pRecord)
+
    -- And try again to remove any outstanding folders
    repeat for each line tFolder in tNonEmptyFolders
-      if uninstallCanRemoveFolder(tFolder) then
+      if uninstall.CanRemoveFolder?(tFolder) then
          log "Uninstall: Attempting to remove outstanding folder '" & tFolder & "'"
-         delete folder installShortenPath(tFolder)
+         delete folder install.ShortenPath(tFolder)
          if the result is not empty then
             log "Uninstall:    removal failed -" && the result
          end if
       end if
    end repeat
-   
+
    -- If we are on Windows, then launch a special self-deleting batch file
    -- to eliminate the remaining things. This batch file simply sits and spins
    -- trying to delete the uninstaller file every 5 seconds. It quits when
@@ -1229,20 +1238,20 @@ command actionUninstall pPath, pRecord, pPreInstall
       put "CD %windir%" & return after tBatchFile
       put ":Repeat" & return after tBatchFile
       put "CHOICE /N /C AB /D A /T 1 >NUL:" & return after tBatchFile
-      get installShortenPath(tUninstaller)
+      get install.ShortenPath(tUninstaller)
       replace slash with "\" in it
-      put "DEL" && quote & it & quote && "2>NUL:" & return after tBatchFile
-      put "IF EXIST" && quote & it & quote && "goto Repeat" & return after tBatchFile
+      put "DEL" && q(it) && "2>NUL:" & return after tBatchFile
+      put "IF EXIST" && q(it) && "goto Repeat" & return after tBatchFile
       repeat for each line tFolder in tNonEmptyFolders
-         put "RMDIR" && quote & tFolder & quote && "2>NUL:" & return after tBatchFile
+         put "RMDIR" && q(tFolder) && "2>NUL:" & return after tBatchFile
       end repeat
-      get installShortenPath(tBatchFilePath)
+      get install.ShortenPath(tBatchFilePath)
       replace slash with "\" in it
-      put "DEL" && quote & it & quote && "2>NUL:" && "&& EXIT" & return after tBatchFile
+      put "DEL" && q(it) && "2>NUL:" && "&& EXIT" & return after tBatchFile
       put tBatchFile into url ("file:" & tBatchFilePath)
-      
-      put "cmd.exe /Q /C " & quote & "start /MIN" && it & quote into tBatchCommand
-      
+
+      put "cmd.exe /Q /C " & q("start /MIN" && it) into tBatchCommand
+
       log "Uninstall: Running self-deletion batch file at '" & tBatchFilePath & "'"
       set the hideConsoleWindows to true
       open process tBatchCommand for neither
@@ -1253,17 +1262,17 @@ command actionUninstall pPath, pRecord, pPreInstall
          log "Uninstall:    execution failed -" && the result
       end if
    end if
-   
+
    -- Remove any docs cache for this version
-   uninstallRemoveDocsCache 
-   
+   uninstall.RemoveDocsCache
+
    -- Notify the master that uninstalling is done (but only if this is not a pre-install uninstall)
    if not pPreInstall then
-      reportFinished true
+      report.Finished true
    end if
 end actionUninstall
 
-private command uninstallSetWindowsShellCommand
+private command uninstall.SetWindowsShellCommand
    set the hideConsoleWindows to true
    if $COMSPEC is not empty then
       set the shellCommand to $COMSPEC
@@ -1271,24 +1280,24 @@ private command uninstallSetWindowsShellCommand
       --just in case $COMSPEC is not set
       set the shellCommand to "cmd.exe"
    end if
-end uninstallSetWindowsShellCommand
+end uninstall.SetWindowsShellCommand
 
-private function uninstallWindowsFromUnixPath pUnixPath
+private function uninstall.WindowsFromUnixPath pUnixPath
    replace "/" with "\" in pUnixPath
    return pUnixPath
-end uninstallWindowsFromUnixPath
+end uninstall.WindowsFromUnixPath
 
 private command uninstallDeleteFolder pSrcFolder
    if the platform is "Win32" then
-      uninstallSetWindowsShellCommand
-      get shell ("rmdir /s /q" && uninstallWindowsFromUnixPath(quote&pSrcFolder&quote))
+      uninstall.SetWindowsShellCommand
+      get shell ("rmdir /s /q" && uninstall.WindowsFromUnixPath(q(pSrcFolder)))
    else
-      get shell ("rm -rf" && quote&pSrcFolder&quote)
+      get shell ("rm -rf" && q(pSrcFolder))
    end if
    return the result
 end uninstallDeleteFolder
 
-private command uninstallRemoveDocsCache
+private command uninstall.RemoveDocsCache
    local tDocsCache
    switch the platform
       case "Linux"
@@ -1301,43 +1310,49 @@ private command uninstallRemoveDocsCache
          put specialFolderPath(0x001c) & "/RunRev/Documentation Cache" into tDocsCache
          break
    end switch
-   
+
    local tEdition
    put tolower(getInstallerType()) into tEdition
-   
+
    # The docs cache is per-version and edition
    local tVersion
    put the version into tVersion
    put replaceText(tVersion, "[-,\.]", "_") into tVersion
-   put slash & tVersion & "_" & tEdition  after tDocsCache
-   
+# does this fix the docs cache bug?
+   --put slash & tVersion & "_" & tEdition  after tDocsCache
+   put slash & tVersion after tDocsCache
+
+   if there is not a folder tDocsCache then
+      put "_" & tEdition  after tDocsCache
+   end if
+
    log "Uninstall: removing docs cache at" && tDocsCache
-   
+
    if there is a folder tDocsCache then
       uninstallDeleteFolder tDocsCache
       if the result is not empty then
          log "Uninstall: failed to remove docs cache"
       end if
    end if
-end uninstallRemoveDocsCache
+end uninstall.RemoveDocsCache
 
-private function uninstallCanRemoveFolder pPath
-   local tOldFolder, tCanRemove
+private function uninstall.CanRemoveFolder? pPath
+   local tOldFolder, tCanRemove?
    put the folder into tOldFolder
-   set the folder to installShortenPath(pPath)
-   put false into tCanRemove
+   set the folder to install.ShortenPath(pPath)
+   put false into tCanRemove?
    if the files is empty then
       if the folders is ".." then
-         put true into tCanRemove
+         put true into tCanRemove?
       end if
    end if
    set the folder to tOldFolder
-   return tCanRemove
-end uninstallCanRemoveFolder
+   return tCanRemove?
+end uninstall.CanRemoveFolder?
 
-private function uninstallCanRemoveRegistryKey pKey
+private function uninstall.CanRemoveRegistryKey? pKey
    return listRegistry(pKey) is empty
-end uninstallCanRemoveRegistryKey
+end uninstall.CanRemoveRegistryKey?
 
 ################################################################################
 #
@@ -1346,8 +1361,8 @@ end uninstallCanRemoveRegistryKey
 
 local sPayloadArchive
 
-private command payloadOpen pArchive
-   if isInstallerEnvironment() then
+private command payload.Open pArchive
+   if isInstallerEnvironment?() then
       if the platform is "MacOS" then
          local tPayload
          set the itemDel to slash
@@ -1363,23 +1378,23 @@ private command payloadOpen pArchive
    end if
    if the result is not empty then
       log "Opening payload failed -" && the result
-      reportError "Internal error (payload archive wouldn't open)."
+      report.Error "Internal error (payload archive wouldn't open)."
    end if
-end payloadOpen
+end payload.Open
 
-private command payloadClose
-   if isInstallerEnvironment() then
+private command payload.Close
+   if isInstallerEnvironment?() then
       do "_internal payload close"
    else
       revZipCloseArchive sPayloadArchive
       put empty into sPayloadArchive
    end if
    return empty
-end payloadClose
+end payload.Close
 
-private function payloadDescribeItem pItem
+private function payload.DescribeItem pItem
    local it
-   if isInstallerEnvironment() then
+   if isInstallerEnvironment?() then
       do "_internal payload describe pItem"
       if the result is not empty then
          get the result
@@ -1389,28 +1404,28 @@ private function payloadDescribeItem pItem
    end if
    if item 3 of it is not a number then
       log "Describing item '" & pItem & "' failed -" && it
-      reportError "Internal error (couldn't get payload item description)."
+      report.Error "Internal error (couldn't get payload item description)."
    end if
    return it
-end payloadDescribeItem
+end payload.DescribeItem
 
-private command payloadExtractItemToVariable pItem, @rData
-   if isInstallerEnvironment() then
+private command payload.ExtractItemToVariable pItem, @rData
+   if isInstallerEnvironment?() then
       do "_internal payload extract pItem; put it into rData"
    else
       revZipExtractItemToVariable sPayloadArchive, pItem, "rData"
    end if
    if the result is not empty then
       log "Payload: Extracting to variable failed for '" & pItem & "' - " & the result
-      reportError "Internal error (couldn't extract payload item)."
+      report.Error "Internal error (couldn't extract payload item)."
    end if
    return the result
-end payloadExtractItemToVariable
+end payload.ExtractItemToVariable
 
-private command payloadExtractItemToFile pItem, pBaseItem, pFile
+private command payload.ExtractItemToFile pItem, pBaseItem, pFile
    local tShortFile
-   put installShortenPath(pFile) into tShortFile
-   if isInstallerEnvironment() then
+   put install.ShortenPath(pFile) into tShortFile
+   if isInstallerEnvironment?() then
       if pBaseItem is empty then
          log "Payload: Extracting item '" & pItem & "' to file '" & pFile & "'"
          do "_internal payload extract pItem to tShortFile"
@@ -1423,25 +1438,25 @@ private command payloadExtractItemToFile pItem, pBaseItem, pFile
    end if
    if the result is not empty then
       log "Payload: Extracting to file '" & pFile & "' failed for item '" & pItem & "' - " & the result
-      reportError "Internal error (couldn't extract payload item to file)."
+      report.Error "Internal error (couldn't extract payload item to file)."
    end if
    return the result
-end payloadExtractItemToFile
+end payload.ExtractItemToFile
 
 ################################################################################
 #
 #    MASTER/SLAVE COMMUNICATION FUNCTIONS
 #
 
-private command reportCheckCancel
+private command report.CheckCancel
    if sIsFaceless then
-      exit reportCheckCancel
+      exit report.CheckCancel
    end if
-   
-   if isInstallerEnvironment() then
+
+   if isInstallerEnvironment?() then
       -- Attempt to read 1 line from the parent
       read from stdin for 1 line in 0 millisecs
-      
+
       switch the result
          -- If there was no error and the line reads 'cancel' we throw a cancellation msg
          case empty
@@ -1450,23 +1465,23 @@ private command reportCheckCancel
                throw "cancel"
             end if
             break
-            
+
             -- If there was a 'timeout' error then we carry on as normal
          case "timed out"
             break
-            
+
             -- Otherwise, some other error means communication with the master has gone, so we throw
             -- an error (i.e. eof)
          default
-            log "reportCheckCancel: eof when reading from master"
+            log "report.CheckCancel: eof when reading from master"
             throw "error"
       end switch
    end if
-end reportCheckCancel
+end report.CheckCancel
 
-private command reportPhase pPhase
+private command report.Phase pPhase
    if not sIsFaceless then
-      if isInstallerEnvironment() then
+      if isInstallerEnvironment?() then
          write "phase" & tab & pPhase & return to stdout
       else
          log "Phase Changed to -" && pPhase
@@ -1474,11 +1489,11 @@ private command reportPhase pPhase
    else
       write "Entering phase -" && pPhase & return to stdout
    end if
-end reportPhase
+end report.Phase
 
-private command reportProgress pProgress, pMessage
+private command report.Progress pProgress, pMessage
    if not sIsFaceless then
-      if isInstallerEnvironment() then
+      if isInstallerEnvironment?() then
          replace "\" with "\\" in pMessage
          replace return with "\n" in pMessage
          write "progress" & tab & pProgress & tab & pMessage & return to stdout
@@ -1486,11 +1501,11 @@ private command reportProgress pProgress, pMessage
          log pMessage
       end if
    end if
-end reportProgress
+end report.Progress
 
-private command reportFinished pIsUninstall
+private command report.Finished pIsUninstall
    if not sIsFaceless then
-      if isInstallerEnvironment() then
+      if isInstallerEnvironment?() then
          log "Done"
          write "done" & return to stdout
       end if
@@ -1501,24 +1516,24 @@ private command reportFinished pIsUninstall
          write "Installation succeeded." & return to stdout
       end if
    end if
-end reportFinished
+end report.Finished
 
-private command reportError pMessage
+private command report.Error pMessage
    if not sIsFaceless then
-      if isInstallerEnvironment() then
+      if isInstallerEnvironment?() then
          replace "\" with "\\" in pMessage
          replace return with "\n" in pMessage
          write "error" & tab & pMessage & return to stdout
          throw "error"
       else
-         put "ERROR" & tab & pMessage & return after field "Report" of me
+         put "ERROR" & tab & pMessage & cr after field "Report" of me
          throw "oh dear - there's been an error!"
       end if
    else
       write "Installation failed -" && pMessage & return to stdout
       throw "error"
    end if
-end reportError
+end report.Error
 
 ################################################################################
 #
@@ -1545,7 +1560,7 @@ command log pMessage
             put specialFolderPath(0x001c) & "/RunRev/Logs/" & the uProduct of stack "Installer" & "InstallerLog.txt" into tFile
             break
       end switch
-      
+
       if there is no file tFile then
          set the itemDelimiter to slash
          repeat with x = 1 to the number of items of tFile - 1
@@ -1555,7 +1570,7 @@ command log pMessage
          end repeat
          set the itemDelimiter to comma
       end if
-      
+
       open file tFile for text append
       write "[" && the internet date && "]" && ":" && pMessage & return to file tFile
       close file tFile
@@ -1623,3 +1638,7 @@ command setTitleField pField, pTitle, pSubTitle
       set the textColor of word (-the number of words of pTitle) to -1 of pField to "#444444"
    end if
 end setTitleField
+
+private function q pText
+   return quote & pText & quote
+end q

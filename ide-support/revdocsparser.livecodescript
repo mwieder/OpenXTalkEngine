@@ -2937,7 +2937,3 @@ end revDocsFormatGuideDataAsJSON
 on pushNotificationRegistrationError pErrorMessage
    
 end pushNotificationRegistrationError
-
-private function q pText
-   return quote & pText & quote
-end q

@@ -49,7 +49,7 @@ static void create_var(MCStringRef p_var)
 {
 	MCAutoStringRef t_vname;
 	/* UNCHECKED */ MCStringFormat(&t_vname, "$%d", nvars++);
-	
+
 	MCVariable *tvar;
 	MCNewAutoNameRef t_name;
 	/* UNCHECKED */ MCNameCreate(*t_vname, &t_name);
@@ -93,7 +93,7 @@ X_initialize_mcappcodepath(const X_init_options& p_options)
         MCappcodepath = MCValueRetain(p_options.app_code_path);
         return;
     }
-    
+
     MCU_path_split(MCcmd,
                    &MCappcodepath,
                    nullptr);
@@ -109,7 +109,7 @@ bool X_init(const X_init_options& p_options)
     MCstackbottom = (char *)&t_bottom;
 
     MCmainwindowcallback = p_options.main_window_callback;
-	
+
 #ifdef _WINDOWS_DESKTOP
 	// MW-2011-07-26: Make sure errno pointer is initialized - this won't be
 	//   if the engine is running through the plugin.
@@ -119,29 +119,29 @@ bool X_init(const X_init_options& p_options)
 #endif
 
 	////
-	
+
 	X_clear_globals();
-    
+
 	////
 
 #ifndef _WINDOWS_DESKTOP
 	MCS_init();
 #endif
-	
+
 	////
-	
+
 	X_initialize_names();
 
 	////
-	
+
 	// MW-2012-02-23: [[ FontRefs ]] Initialize the font module.
 	MCFontInitialize();
 	// MW-2012-02-23: [[ FontRefs ]] Initialize the logical font table module.
 	MCLogicalFontTableInitialize();
-	
+
 	// Initialize the event queue
 	MCEventQueueInitialize();
-	
+
 	////
 
 	MCswapbytes = byte_swapped();
@@ -165,7 +165,7 @@ bool X_init(const X_init_options& p_options)
     /* Set up MCcmd correctly - this is the path to the loadable object
      * containing this folder. */
     X_initialize_mccmd(p_options);
-    
+
     /* Set up MCappcodepath correctly if not already set - on desktop this is
      * the folder containing MCcmd. */
     X_initialize_mcappcodepath(p_options);
@@ -209,7 +209,7 @@ bool X_init(const X_init_options& p_options)
             /* UNCHECKED */ MCStringConvertToCString(argv[i], MCdisplayname);
 			continue;
 		}
-		
+
 		if (MCStringIsEqualToCString(argv[i], "-f", kMCCompareExact)
 			|| MCStringIsEqualToCString(argv[i], "-files", kMCCompareExact))
 
@@ -230,28 +230,28 @@ bool X_init(const X_init_options& p_options)
 			}
 			continue;
 		}
-		
+
 		if (MCStringIsEqualToCString(argv[i], "-m", kMCCompareExact)
 			|| MCStringIsEqualToCString(argv[i], "-mmap", kMCCompareExact))
 		{
 			MCmmap = False;
 			continue;
 		}
-		
+
 		if (MCStringIsEqualToCString(argv[i], "-n", kMCCompareExact)
 			|| MCStringIsEqualToCString(argv[i], "-nopixmaps", kMCCompareExact))
 		{
 			MCnopixmaps = True;
 			continue;
 		}
-			
+
 		if (MCStringIsEqualToCString(argv[i], "-x", kMCCompareExact)
 			|| MCStringIsEqualToCString(argv[i], "-xftoff", kMCCompareExact))
 		{
 			MCuseXft = False;
 			continue;
 		}
-		
+
 #ifdef _MAC_DESKTOP
 		if (MCStringIsEqualToCString(argv[i], "-psn", kMCCompareExact))
 		{
@@ -266,7 +266,7 @@ bool X_init(const X_init_options& p_options)
 			MCshmoff = True;
 			continue;
 		}
-		
+
 		if (MCStringIsEqualToCString(argv[i], "+s", kMCCompareExact)
 			|| MCStringIsEqualToCString(argv[i], "+sharedon", kMCCompareExact))
 		{
@@ -279,7 +279,7 @@ bool X_init(const X_init_options& p_options)
 			MCnoui = True;
 			continue;
 		}
-		
+
 		if (MCStringIsEqualToCString(argv[i], "-v", kMCCompareExact)
 			|| MCStringIsEqualToCString(argv[i], "-visualid", kMCCompareExact))
 		{
@@ -292,13 +292,13 @@ bool X_init(const X_init_options& p_options)
 			MCvisualid = visualid;
 			continue;
 		}
-		
+
 		if (MCStringIsEqualToCString(argv[i], "-h", kMCCompareExact)
 			&& MCglobals == NULL)
 		{
             MCAutoPointer<char> t_MCN_version;
             /* UNCHECKED */ MCStringConvertToCString(MCNameGetString(MCN_version_string), &t_MCN_version);
-			fprintf(stderr, "LiveCode %s Copyright 2003-2015 LiveCode Ltd\n\
+			fprintf(stderr, "OpenXTalk Community %s portions Copyright 2003-2015 LiveCode Ltd\n\
 			        Usage: %s [-d[isplay] displayname] \n\
 			        [-f[iles] (disable access to files and processes)\n\
 			        [-g[eometry] ={+-}<xoffset>{+-}<yoffset>]\n\
@@ -313,9 +313,10 @@ bool X_init(const X_init_options& p_options)
 			        [-w[indowid] n] (watch window id n for commands)\n\
 			        [stackname(s) | argument(s)]\n",  *t_MCN_version, *t_mccmd_utf8);
 
-			return False;
+//			return False;
+			return True;
 		}
-		
+
 		create_var(argv[i]);
 		/* UNCHECKED */ MCProperListPushElementOntoBack (*t_arguments, argv[i]);
 	}
@@ -339,7 +340,7 @@ bool X_init(const X_init_options& p_options)
 		MCstacknames = NULL;
 		MCeerror->clear();
 	}
-	
+
 	return true;
 }
 
@@ -380,7 +381,7 @@ bool X_main_loop_iteration()
 	MCscreen->siguser();
 	MCdefaultstackptr = MCstaticdefaultstackptr;
 	MCS_alarm(0.0);
-    
+
     return true;
 }
 

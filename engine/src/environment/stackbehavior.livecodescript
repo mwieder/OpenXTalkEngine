@@ -28,18 +28,18 @@ constant kLiveCode="LiveCode"
 constant kActivationUrl="http://www.runrev.com/activation-community/livecode"
 
 on startup pTest
-   put pTest into sTest   
-   
-   --put the version & "-" & the buildNumber into sVersion   
-   put the version & "-" & "xtalk" into sVersion   
+   put pTest into sTest
+
+   --put the version & "-" & the buildNumber into sVersion
+   put the version & "-" & "xtalk" into sVersion
    put false into sUnlocked
    put false into sDevelopment
-   
+
    put empty into sActivateReason
    put empty into sActivateEmail
    put empty into sActivatePassword
    put empty into sActivateHashedPassword
-   
+
    -- When testing in the IDE we don't do some things that would be annoying...
    if not sTest then
       -- Set up the stack and such for activation
@@ -48,9 +48,9 @@ on startup pTest
       reset cursors
       set the loc of me to the screenLoc
    end if
-   
+
    configureFonts the short name of me
-   
+
    -- Configure the appropriate paths
    switch the platform
       case "win32"
@@ -75,9 +75,9 @@ on startup pTest
          put specialFolderPath("home") & "/.runrev/licenses" into sLicensePath
          break
    end switch
-   
+
    guessRepositoryPath
-   
+
    -- Run things as if the 'REV_TOOLS_PATH' var was set.
    if sRepositoryPath is not empty then
       if there is a folder (sRepositoryPath & "/ide-svn/Toolset") then
@@ -86,7 +86,7 @@ on startup pTest
          put sRepositoryPath & "/ide" into $REV_TOOLS_PATH
       end if
    end if
-   
+
    --   if $0 is "activate" then
    --      performFacelessActivation
    --      quit 0
@@ -94,13 +94,13 @@ on startup pTest
    --      performFacelessDeactivation
    --      quit 0
    --   end if
-   
+
    if $REV_TOOLS_PATH is not empty then
       put $REV_TOOLS_PATH into sToolsPath
       put sToolsPath & slash & "environment_log.txt" into sLogPath
       put true into sDevelopment
    end if
-   
+
    if there is a file (sToolsPath & "/Startup.rev") then
       put sToolsPath & "/Startup.rev" into sHomePath
    else if  there is a file (sToolsPath & "/mchome.mc") then
@@ -112,48 +112,48 @@ on startup pTest
    else
       put the folder & "/Toolset/home.rev" into sHomePath
    end if
-   
+
    log "Engine Path = " & sEnginePath
    log "Repository Path = " & sHomePath
    log "Tools Path = " & sToolsPath
    log "Global License Path = " & sGlobalLicensePath
    log "License Path = " & sLicensePath
    log "Home Path = " & sHomePath
-   
+
    -- Make sure the licenses folder exists
    ensureFolder sLicensePath
-   
+
    -- Now start the licensing process
    /*local tActivationDetails, tFirstRun
    fetchActivationDetails  tActivationDetails
    --if the result is "not found" then
    --put true into tFirstRun
    --else
-   put false into tFirstRun
-   
+   --put false into tFirstRun
+
    --if the result is not "found" then
    --put "automatic" into tActivationDetails["type"]
    --put empty into tActivationDetails["email"]
    --put empty into tActivationDetails["password"]
    --end if
    --end if
-   
+
    -- Compute the token
    put activationLicenseFilePath() into sToken*/
-   
+
    -- EJB Activation Removal
    local tLicense
-   
+
    fetchLicenseTo tLicense
    licenseUnlock tLicense
-   
+
    --if firstRun() then
    --go to card "AccountSignUp"
    --return empty
    --else
    return sHomePath
    --end if
-   
+
    /*local tLicense
    fetchLicenseTo tLicense
    switch the result
@@ -184,32 +184,32 @@ on startup pTest
       default
          break
    end switch */
-   
+
    -- If we got to here, something went wrong, so make sure the token is the local
    -- one.
    /*put empty into sGlobalLicensePath
    put activationLicenseFilePath() into sToken
-   
+
    -- If we have previously saved activation details then what we do now depends on those.
    if tActivationDetails is an array then
       put tActivationDetails["email"] into sActivateEmail
       put empty into sActivatePassword
-      put hexDecode(tActivationDetails["password"]) into sActivateHashedPassword      
+      put hexDecode(tActivationDetails["password"]) into sActivateHashedPassword
    end if
-   
+
    go to card "Automatic Activation"
    return empty */
 end startup
 
 on shutdown
    send "revUnloadLibrary" to stack "revLibURL"
-   
+
    set the allowInterrupts to true
-   
+
    if sUnlocked then
       return sHomePath
    end if
-   
+
    return ""
 end shutdown
 
@@ -512,12 +512,12 @@ command performAutomaticActivation pEmail, pPassword, pHashedPassword
    if the backScripts is empty then
       send "revLoadLibrary" to stack "revLibURL"
    end if
-   
+
    -- Clear out the automatic activation state
    put empty into sActivateSession
    put empty into sActivateChallenge
    put empty into sActivateToken
-   
+
    -- Store the last attempted login
    put pEmail into sActivateEmail
    if pPassword is not empty then
@@ -527,29 +527,29 @@ command performAutomaticActivation pEmail, pPassword, pHashedPassword
       put empty into sActivatePassword
       put pHashedPassword into sActivateHashedPassword
    end if
-   
+
    -- Hide the input panel
    if there is a group "Input" then
       hide group "Input"
    end if
-   
+
    -- First do a 'login' request to fetch session and challenge
    local tSession, tChallenge
    --automaticActivationLogin pEmail
    --if the result is not "success" then
       --return "error"
    --end if
-   
+
    -- Build up the token for authentication purposes
    local tToken
    put hexEncode(the md5Digest of (pHashedPassword & the md5Digest of sActivateChallenge)) into sActivateToken
-   
+
    -- Now do a 'list' request to fetch the licenses the user can choose from
    --local tListResponse
    automaticActivationList
    if the result is not "success" then
       return "error"
-   end if   
+   end if
 end performAutomaticActivation
 
 --private command automaticActivationLogin pEmail
@@ -605,14 +605,14 @@ private command automaticActivationList
    set the itemDelimiter to "-"
    put item 1 to -2 of sVersion into tVersionName
    set the itemDelimiter to comma
-   
+
    -- Build the request
    local tPostData
    put "action=list" & return & \
          "session=" & sActivateSession & return & \
          "token=" & sActivateToken & return & \
          "version=" & tVersionName into tPostData
-   
+
    -- Submit the request
    local tPostResult, tPostError
    enterRemoteOperation
@@ -624,39 +624,39 @@ private command automaticActivationList
       put empty into sActivateError
       return "error"
    end if
-   
+
    -- If a network error was returned, do the right thing
    if tPostError is not empty then
       automaticActivationSetPostError tPostError
       return "error"
    end if
-   
+
    -- Extract the reponse
    split tPostResult by return and "="
-   
+
    -- If it was unsuccessful, then do the right thing
    if tPostResult["result"] is not "success" and tPostResult["result"] is not "nolicenses" then
       automaticActivationSetProtocolError tPostResult["result"]
       return "error"
    end if
-   
+
    -- Act on the response for 'nolicenses'
    if tPostResult["result"] is "nolicenses" then
       put "An error occurred while processing the request. Please try again." into sActivateError
       return "error"
    end if
-   
+
    -- Act on the response for success
    local tLicense
    put tPostResult into tLicense
    delete variable tLicense["result"]
-   combine tLicense with return and "="   
+   combine tLicense with return and "="
    licenseUnlock tLicense
    switch the result
       case "licensed"
          -- The license we have for this version is valid
          storeActivationDetails
-         storeLicenseForVersion sVersion, tLicense   
+         storeLicenseForVersion sVersion, tLicense
          if not sTest then
             libUrlResetAll
             repeat for each line tSocket in the openSockets
@@ -666,13 +666,13 @@ private command automaticActivationList
          else
             answer "Success!"
          end if
-         exit to top   
+         exit to top
       default
          -- Some other error occurred, so fall through to activation.
          --automaticActivationSetProtocolError "invalid"
          --return "error"
          --break
-   end switch   
+   end switch
 end automaticActivationList
 
 private command enterRemoteOperation
@@ -756,7 +756,7 @@ end activationDetailsFile
 private function activationLicenseFilePath pForceGlobal?
    local tLeaf
    put "xtalk.lclk" into tLeaf
-   
+
    local tPath
    if sGlobalLicensePath is not empty then
       put sGlobalLicensePath & slash & tLeaf into tPath
@@ -764,28 +764,28 @@ private function activationLicenseFilePath pForceGlobal?
          return tPath
       end if
    end if
-   
+
    return sLicensePath & slash & tLeaf
 end activationLicenseFilePath
 
 private command fetchActivationDetails @rDetails
    local tDetailsFile
    put activationDetailsFile() into tDetailsFile
-   
+
    if there is no file tDetailsFile then
       return "not found"
    end if
-   
+
    local tDetails
    put url ("file:" & tDetailsFile) into tDetails
    if the first line of tDetails is not "---- XTALK ACTIVATION DETAILS (R1) ----" or \
           the last line of tDetails is not "---- XTALK ACTIVATION DETAILS (R1) ----" then
       return "invalid"
    end if
-   
+
    delete the first line of tDetails
    delete the last line of tDetails
-   
+
    split tDetails by return and "="
    put tDetails into rDetails
    return "found"
@@ -794,21 +794,21 @@ end fetchActivationDetails
 command fetchLicenseTo @rLicense
    local tLicenseFile
    put activationLicenseFilePath() into tLicenseFile
-   
+
    put "/home/mwieder/.runrev/licenses/xtalk.lclk" into tLicenseFile
    if there is no file tLicenseFile then
       return "not found"
    end if
-   
+
    local tKey
    put url ("file:" & tLicenseFile) into tKey
-   
+
    if the first line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" or \
          the last line of tKey is not "---- XTALK ACTIVATION KEY (R1) ----" then
       return "invalid"
    end if
-   
-   put line 2 to -2 of tKey into rLicense   
+
+   put line 2 to -2 of tKey into rLicense
    return "found"
 end fetchLicenseTo
 
@@ -839,30 +839,30 @@ end storeLicenseForVersion
 command licenseUnlock pLicense
    local tSettings
    split pLicense by cr and "="
-   
+
    -- Only include the token if it is not global
    if sGlobalLicensePath is not empty and sToken begins with sGlobalLicensePath then
       put empty into tSettings["token"]
    else
       put sToken into tSettings["token"]
    end if
-   
+
    put pLicense["name"] into tSettings["name"]
    put pLicense["organization"] into tSettings["organization"]
    --   put "community" into tSettings["class"]
    put "commercial" into tSettings["class"]
-   put 1 into tSettings["multiplicity"]   
+   put 1 into tSettings["multiplicity"]
    --put "macosx,windows,linux,ios,android,html5,wasm" into tSettings["deploy"]
-   
+
    put "0"           into tSettings["scriptlimit"]
    put "0"           into tSettings["dolimit"]
    put "0"           into tSettings["usinglimit"]
    put "0"           into tSettings["insertlimit"]
-   
+
    put true into sUnlocked
-   
-   do "set the revLicenseLimits to tSettings"   
-   set the revLicenseLimits to tSettings   
+
+   do "set the revLicenseLimits to tSettings"
+   set the revLicenseLimits to tSettings
    return "licensed"
 end licenseUnlock
 
@@ -873,7 +873,7 @@ private function hexEncode pValue
    if pValue is empty then
       return empty
    end if
-   
+
    local tHexValue
    get binaryDecode("H" & the length of pValue * 2, pValue, tHexValue)
    return tHexValue
@@ -883,7 +883,7 @@ private function hexDecode pHexValue
    if pHexValue is empty then
       return empty
    end if
-   
+
    return binaryEncode("H" & the length of pHexValue, pHexValue)
 end hexDecode
 
@@ -903,35 +903,35 @@ end ensureFolder
 ################################################################################
 on accountCreate pFirstname, pEmail, pPassword
    local tEncryptedPassword
-   
+
    if the backScripts is empty then
       send "revLoadLibrary" to stack "revLibURL"
    end if
-   
+
    show image "loader"
-   
-   if pPassword is not empty then 
+
+   if pPassword is not empty then
       put hexEncode(md5digest(pPassword)) into tEncryptedPassword
    end if
-   
+
    local tPostData
    put "firstname="& urlencode(pFirstname) & "&" & \
          "email=" & urlencode(pEmail) & "&" & \
          "password=" & urlencode(tEncryptedPassword) into tPostData
-   
+
    local tPostResult, tPostError
    post tPostData to "http://livecode.com/livecode/register/"
    put the result into tPostError
-   put it into tPostResult  
-   
+   put it into tPostResult
+
    hide image "loader"
-   
-   if char 1 of tPostResult is 1 then      
+
+   if char 1 of tPostResult is 1 then
       put pEmail into sActivateEmail
       put tEncryptedPassword into sActivateHashedPassword
       storeActivationDetails
       accountSignupFinish
-   else  if char 1 of tPostResult is 0 then    
+   else  if char 1 of tPostResult is 0 then
       set the itemDel to "|"
       accountSignupMessage item 2 of tPostResult
    else
@@ -950,7 +950,7 @@ command accountSignupFinish
    local tLicense
    fetchLicenseTo tLicense
    licenseUnlock tLicense
-   
+
    libUrlResetAll
    repeat for each line tSocket in the openSockets
       close socket tSocket
@@ -973,12 +973,12 @@ private function firstRun
    --
    local tLicense
    put "name=LiveCode Community User" & cr & "organization=" & cr & "time=" & the seconds into tLicense
-   storeLicenseForVersion sVersion, tLicense   
-   
-   local tFirstRunPath, tCommunityLCLD, tCommercialLCLD  
+   storeLicenseForVersion sVersion, tLicense
+
+   local tFirstRunPath, tCommunityLCLD, tCommercialLCLD
    put sLicensePath & slash & "livecode-firstrun.lcf" into tFirstRunPath
    put sLicensePath & slash & "livecode-community.lcld" into tCommunityLCLD
-   put sLicensePath & slash & "livecode.lcld" into tCommercialLCLD   
+   put sLicensePath & slash & "livecode.lcld" into tCommercialLCLD
    if there is a file tFirstRunPath or there is a file  tCommunityLCLD or there is a file tCommercialLCLD then
       return false
    else
@@ -998,7 +998,7 @@ private command guessRepositoryPath
    local tBuildDir
    local tPackageDir
    local tAltPackageDir
-   
+
    switch the platform
       case "win32"
          put "win" into tPlatform
@@ -1010,7 +1010,7 @@ private command guessRepositoryPath
          put the platform into tPlatform
          break
    end switch
-   
+
    switch the processor
       case "i386"
          put "x86" into tProcessor
@@ -1019,11 +1019,11 @@ private command guessRepositoryPath
          put the processor into tProcessor
          break
    end switch
-   
+
    put "build-" & tPlatform & "-" & tProcessor into tBuildDir
    put tPlatform & "-" & tProcessor & "-bin" into tPackageDir
    put tPlatform & "-bin" into tAltPackageDir
-   
+
    set the itemDelimiter to "/"
    if tBuildDir is among the items of sEnginePath then
       put item 1 to (itemOffset(tBuildDir,sEnginePath) - 1) of sEnginePath into sRepositoryPath
@@ -1034,6 +1034,6 @@ private command guessRepositoryPath
    else if "_build" is among the items of sEnginePath then
       put item 1 to (itemOffset("_build",sEnginePath) - 1) of sEnginePath into sRepositoryPath
    end if
-   
+
    return sRepositoryPath
 end guessRepositoryPath

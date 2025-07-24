@@ -14,7 +14,7 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
 You should have received a copy of the GNU General Public License
-along with LiveCode.  If not see <http://www.gnu.org/licenses/>. 
+along with LiveCode.  If not see <http://www.gnu.org/licenses/>.
 */
 
 /**
@@ -33,9 +33,9 @@ on extensionInitialize
    if the target is not me then
       pass extensionInitialize
    end if
-   
+
    insert the script of me into back
-   
+
    if the environment contains "development" then
       set the _ideoverride of me to true
    end if
@@ -45,7 +45,7 @@ on extensionFinalize
    if the target is not me then
       pass extensionFinalize
    end if
-   
+
    remove the script of me from back
 end extensionFinalize
 
@@ -65,13 +65,13 @@ end __CompiledModuleVersion
 Check the module bytecode is the same version as a particular lc-compile
 
 Parameters:
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
-pModule: 
+pModule:
 The path to the compiled module bytecode file (.lcm)
 
-Returns: 
+Returns:
 true if the version of lc-compile matches that of the bytecode file,
 false otherwise.
 */
@@ -85,7 +85,7 @@ end extensionCheckModuleVersion
 Return the bytecode version of a particular lc-compile
 
 Parameters:
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
 Returns:
@@ -99,7 +99,7 @@ function extensionLCCompileVersion pLCCompile
       end if
       return sDefaultModuleVersion
    end if
-   
+
    local tTempFile, tModule, tFolder
    put the tempname into tTempFile
    set the itemdelimiter to slash
@@ -107,7 +107,7 @@ function extensionLCCompileVersion pLCCompile
    put "module com.livecode.dummy" into tModule
    put return & "end module" after tModule
    put tModule into url("file:" & tTempFile)
-   
+
    extensionCompile pLCCompile, tTempFile, "", "", "", tFolder, \
          "module.lcm"
    delete file tTempFile
@@ -118,22 +118,22 @@ end extensionLCCompileVersion
 Return the default bytecode output filename
 
 Parameters:
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
-pUseVersion: 
+pUseVersion:
 Whether to use the bytecode version as part of the filename or not.
 Defaults to true.
 
 Returns:
-Either "module.lcm" or "module.<lc-compile_version>.lcm" depending on 
+Either "module.lcm" or "module.<lc-compile_version>.lcm" depending on
 the value of the <pUseVersion> parameter.
 */
 function extensionBytecodeFilename pLCCompile, pUseVersion
-   if pUseVersion is empty then 
+   if pUseVersion is empty then
       put true into pUseVersion
    end if
-   
+
    if pUseVersion then
       return "module." & extensionLCCompileVersion(pLCCompile) & ".lcm"
    else
@@ -146,7 +146,7 @@ private command __EnsureExternal pExternal
    if sExternalsA[pExternal] then
       exit __EnsureExternal
    end if
-   
+
    local tEnvironment
    put the environment into tEnvironment
    switch tEnvironment
@@ -163,7 +163,7 @@ private command __EnsureExternal pExternal
       default
          break
    end switch
-   
+
    -- If we are running with an 'externals' folder, assume
    -- the externals are loaded
    local tHomeFolder
@@ -174,7 +174,7 @@ private command __EnsureExternal pExternal
    if tHomeFolder is empty then
       put specialfolderpath("engine") into tHomeFolder
    end if
-   
+
    local tFileExtension
    switch the platform
       case "MacOS"
@@ -191,23 +191,23 @@ private command __EnsureExternal pExternal
          put "so" into tFileExtension
          break
    end switch
-   
+
    local tExternalFilename
    if the environment is "server" then
       put "server-" after tExternalFilename
    end if
    put pExternal after tExternalFilename
    put "." & tFileExtension after tExternalFilename
-   
+
    if there is a file (tHomeFolder & slash & "externals" & slash & \
          tExternalFilename) then
       put true into sExternalsA[pExternal]
       exit __EnsureExternal
    end if
-   
+
    put specialFolderPath("engine") & slash before tExternalFilename
    set the externals of the templateStack to tExternalFilename
-   
+
    create stack pExternal && "External"
    start using it
    if the externalCommands of it is empty then
@@ -215,7 +215,7 @@ private command __EnsureExternal pExternal
    else
       put true into sExternalsA[pExternal]
    end if
-end __EnsureExternal 
+end __EnsureExternal
 
 private on __addToDependencies pDependee, pDependent, @xDependencies
    # AL-2015-04-13: [[ Bug 15216 ]] Use keys of array to remove duplicates
@@ -301,7 +301,7 @@ private function extensionIsBuiltin pID
       case "com.livecode.typeconvert"
       case "com.livecode.extensions.libbrowser"
       case "com.livecode.java"
-      case "com.livecode.emscripten"      
+      case "com.livecode.emscripten"
       case "com.livecode.objc"
       case "com.livecode.commercial.license"
          return true
@@ -315,17 +315,17 @@ Order extensions by dependency using requires info
 
 Parameters:
 pExtensions: A list of extensions to order, one per line
-pRequiresA: 
-An array of dependencies. For each key `tExtension`, 
-`pRequiresA[tExtension]` should be a list of extensions on which 
+pRequiresA:
+An array of dependencies. For each key `tExtension`,
+`pRequiresA[tExtension]` should be a list of extensions on which
 `tExtension` depends
 
-pIncludeBuiltin: 
-Include built-in modules in dependency analysis. Defaults to false. 
+pIncludeBuiltin:
+Include built-in modules in dependency analysis. Defaults to false.
 For most purposes, it is not necessary to include built-in modules.
 
 Returns:
-The list of extensions ordered by dependency according to the 
+The list of extensions ordered by dependency according to the
 dependency information in <pRequiresA>
 */
 function extensionOrderByDependency pExtensions, pRequiresA, \
@@ -341,12 +341,12 @@ function extensionOrderByDependency pExtensions, pRequiresA, \
       put pRequiresA[tExtension] into tRequirements
       repeat for each element tDependent in tRequirements
          if not pIncludeBuiltin and extensionIsBuiltin(tDependent) then
-            next repeat  	 
+            next repeat
          end if
          __addToDependencies tExtension, tDependent, tDependencies
       end repeat
    end repeat
-   
+
    # Order them
    return __dependencyOrder(tDependencies, tExtensions)
 end extensionOrderByDependency
@@ -377,11 +377,11 @@ end __extensionCompilerPath
 
 private function shellFormat pArg, pSwitch
    local tOutput
-   
+
    if pSwitch is not empty then
       put "--" & pSwitch & " " into tOutput
    end if
-   
+
    return tOutput & q(pArg) & " "
 end shellFormat
 
@@ -408,10 +408,10 @@ end __PopHideConsoleWindows
 
 private command doShell pShellCmd, @rResult, @rOutput
    __PushHideConsoleWindows true
-   
+
    put shell(pShellCmd) into rOutput
    put the result into rResult
-   
+
    __PopHideConsoleWindows
 end doShell
 
@@ -419,15 +419,15 @@ end doShell
 Compile a LiveCode Builder extension file
 
 Parameters:
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
 pFile: The main source file of the LCB extension
-pSupportFiles: 
+pSupportFiles:
 A list of support files required by the main source file. These must all be named `<main_source_name>-<suffix>.lcb`
 
-pLCIPath: 
-The location of the standard library module interface files. If empty, 
+pLCIPath:
+The location of the standard library module interface files. If empty,
 this will be computed.
 
 pExtraLCIPaths:
@@ -441,46 +441,46 @@ It: The dependency-ordered list.
 */
 command extensionCompile pLCCompile, pFile, pSupportFiles, pLCIPath, pExtraLCIPaths, pTargetFolder, pOutputFilename
    __EnsurePath pTargetFolder
-   
+
    # Compute the output filename if empty
    if pOutputFilename is empty then
       put extensionBytecodeFilename(pLCCompile, true) \
             into pOutputFilename
    end if
-   
+
    # The manifest is currently always generated from the source
    if there is a file (pTargetFolder & slash & "manifest.xml") then
       delete file (pTargetFolder & slash & "manifest.xml")
    end if
-   
+
    # Build the shell command
    local tShellCommand
    if pLCCompile is empty then
       put __extensionCompilerPath() into pLCCompile
    end if
    put shellFormat(pLCCompile) into tShellCommand
-   
+
    # The folder to put the .lci file
    put shellFormat(pTargetFolder, "modulepath") after tShellCommand
-   
+
    # The built-in module path
    if pLCIPath is empty then
       put __extensionResourcePath() & slash & "modules/lci" \
             into pLCIPath
    end if
    put shellFormat(pLCIPath, "modulepath") after tShellCommand
-   
+
    # Installed module path
    repeat for each line tInterface in pExtraLCIPaths
       put shellFormat(tInterface, "modulepath") after tShellCommand
    end repeat
-   
+
    # The manifest target
    put shellFormat(pTargetFolder & slash & "manifest.xml", "manifest") after tShellCommand
-   
+
    # The output
    put shellFormat(pTargetFolder & slash & pOutputFilename, "output") after tShellCommand
-   
+
    # Support files must be dependency-ordered
    if pSupportFiles is not empty then
       extensionDepsOrder pLCCompile, pSupportFiles
@@ -492,13 +492,13 @@ command extensionCompile pLCCompile, pFile, pSupportFiles, pLCIPath, pExtraLCIPa
    repeat for each line tSupport in pSupportFiles
       put shellFormat(tSupport) after tShellCommand
    end repeat
-   
+
    # The target .lcb file
    put shellFormat(pFile) after tShellCommand
-   
+
    local tShellResult, tShellOutput
    doShell tShellCommand, tShellResult, tShellOutput
-   
+
    if tShellResult is 0 then
       return tShellOutput for value
    end if
@@ -509,10 +509,10 @@ end extensionCompile
 Use lc-compile to order LiveCode Builder extensions by dependency.
 
 Parameters:
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
-pExtensionList: 
+pExtensionList:
 A list of LiveCode Builder extensions to put in dependency order
 
 The result: Any error that occurred.
@@ -525,19 +525,19 @@ command extensionDepsOrder pLCCompile, pExtensionList
       put __extensionCompilerPath() into pLCCompile
    end if
    put shellFormat(pLCCompile) into tShellCommand
-   
+
    # The deps mode
    put shellFormat("order", "deps") after tShellCommand
-   
+
    # The args
    put shellFormat("--") after tShellCommand
    repeat for each line tExtension in pExtensionList
       put shellFormat(tExtension) after tShellCommand
    end repeat
-   
+
    local tShellResult, tShellOutput
    doShell tShellCommand, tShellResult, tShellOutput
-   
+
    if tShellResult is 0 then
       return tShellOutput for value
    end if
@@ -559,11 +559,11 @@ Parameters:
 pDocsParser: The path to the docs parser script.
 pTargetFolder: The target folder to extract the extension to
 pCommercialExtension: Whether the extension source should be removed
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
-pLCIPath: 
-The location of the standard library module interface files. If empty, 
+pLCIPath:
+The location of the standard library module interface files. If empty,
 this will be computed.
 
 pExtraLCIPaths:
@@ -580,22 +580,22 @@ command extensionBuildPackageAndExtractLCB pDocsParser, pTargetFolder, \
    end if
 
 	put false into pCommercialExtension # don't remove source
-   
+
    # Items 7 onwards in 'the params' are quoted full paths to ext files
    # Construct the list of extensions to build
    local tExtList
    repeat for each item tItem in item 7 to -1 of the params
       appendToStringList tExtList, char 2 to -2 of tItem
    end repeat
-   
+
    extensionDepsOrder pLCCompile, tExtList
    if the result is not empty then
       throw the result
       exit extensionBuildPackageAndExtractLCB
    end if
-   
+
    put word 1 to -1 of it into tExtList
-   
+
    set the itemdelimiter to slash
    repeat for each line tExtPath in tExtList
       local tSourceFileName, tSourceFolder
@@ -612,7 +612,7 @@ end extensionBuildPackageAndExtractLCB
 Build, package and extract extension
 
 Parameters:
-pProtectifyScript: 
+pProtectifyScript:
 The path to the script that protects a livecode stack.
 
 pProtectifyOutput: The target filename for the protected livecode stack
@@ -621,12 +621,12 @@ pDocsParser: The path to the docs parser script.
 pSourceFolder: The folder containing the extension
 pSourceFileName: The extension file name
 pTargetFolder: The target folder to extract the extension to
-pCommercialExtension: Whether the extension source should be removed
-pLCCompile: 
+pIsCommercialExtension: Whether the extension source should be removed
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
-pLCIPath: 
-The location of the standard library module interface files. If empty, 
+pLCIPath:
+The location of the standard library module interface files. If empty,
 this will be computed.
 
 pExtraLCIPaths:
@@ -637,17 +637,17 @@ command extensionBuildPackageAndExtract pProtectifyScript, \
       pSourceFolder, pSourceFileName, pTargetFolder, \
       pIsCommercialExtension, pLCCompile, pLCIPath, pExtraLCIPaths
 
-put false into pCommercialExtension
+put false into pIsCommercialExtension
 
 #   if pIsCommercialExtension is true and \
 #         not (pSourceFileName ends with ".lcb") then
-#      extensionProtectStack pProtectifyScript, pSourceFolder, \ 
+#      extensionProtectStack pProtectifyScript, pSourceFolder, \
 #            pSourceFileName, pProtectifyOutput, pGitHash
 #   end if
-   
+
    extensionExtractDocs pDocsParser, pSourceFolder, \
          pSourceFolder & slash & pSourceFileName
-   
+
    local tPackage
    if not (pSourceFileName ends with ".lcb") then
       extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
@@ -659,7 +659,7 @@ put false into pCommercialExtension
             pLCIPath, pExtraLCIPaths
    end if
    put the result into tPackage
-   
+
    extractExtension tPackage, pSourceFolder, pTargetFolder
    delete file tPackage
 end extensionBuildPackageAndExtract
@@ -672,7 +672,7 @@ end q
 Protect a livecode stack using the provided script
 
 Parameters:
-pProtectifyScript: 
+pProtectifyScript:
 The path to the script that protects a livecode stack.
 
 pSourceFolder: The folder containing the extension
@@ -684,7 +684,7 @@ command extensionProtectStack pProtectifyScript, pSourceFolder, pSourceFileName,
    if there is not a stack pProtectifyScript then
       throw "Error: could not load script protector:" && pProtectifyScript
    end if
-   
+
    try
       dispatch "protectifyStack" to stack pProtectifyScript with \
             pSourceFolder & slash & pSourceFileName, pOutput, pGitHash
@@ -698,8 +698,8 @@ end extensionProtectStack
 Extract docs from extension files
 
 Parameters:
-pDocsParser: 
-The path to the docs parser script. If empty, this command will do 
+pDocsParser:
+The path to the docs parser script. If empty, this command will do
 nothing
 
 pOutputDir: The folder to output the extracted docs file
@@ -712,24 +712,24 @@ command extensionExtractDocs pDocsParser, pOutputDir
    if there is not a stack pDocsParser then
       exit extensionExtractDocs
    end if
-   
+
    start using stack pDocsParser
-   
+
    __EnsurePath pOutputDir
-   
+
    if there is not a folder pOutputDir then
       throw "Error: could not create output directory: " & pOutputDir
    end if
-   
+
    # Items 3 onwards in 'the params' are quoted full paths to source files
    local tSourceFiles
    repeat for each item tItem in item 3 to -1 of the params
       appendToStringList tSourceFiles, char 2 to -2 of tItem
    end repeat
-   
+
    repeat for each line tSourceFile in tSourceFiles
       local tName, tSource, tContent, tDocs
-      
+
       if tSourceFile ends with "lcb" then
          put "api" into tName
          put revDocsGenerateDocsFileFromModularFile(tSourceFile) into tDocs
@@ -753,11 +753,11 @@ command extensionExtractDocs pDocsParser, pOutputDir
          end if
          put revDocsGenerateDocsFileFromText(tContent, tSource) into tDocs
       end if
-      
+
       put textEncode(tDocs, "UTF-8") into tDocs
-      
+
       replace numToByte(13) with numToByte(10) in tDocs
-      
+
       put tDocs into url ("binfile:" & pOutputDir & "/" & tName & ".lcdoc")
    end repeat
 end extensionExtractDocs
@@ -790,82 +790,82 @@ constant kEditorsKey = "editors"
 private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemoveSource, @rBuiltLocation
    local tFullPath
    put pFolder & slash & pDetailsA[kFileKey] into tFullPath
-   
+
 #put "pFolder=" && pFolder & cr after msg # debugging
 #put "pDetailsA[kFileKey]=" && pDetailsA[kFileKey] & cr after msg # debugging
 
    if there is not a file tFullPath then
       return "Error: missing file" && tFullPath
    end if
-   
+
    local tManifestFile
    put pFolder & slash & "manifest.xml" into tManifestFile
-   
+
    if there is no file tManifestFile then
       return "Error: missing manifest" && tManifestFile
    end if
-   
+
    local tTargetFolder
    if pTargetFolder is empty then
       put pFolder into tTargetFolder
    else
       put pTargetFolder into tTargetFolder
    end if
-   
+
    __EnsurePath tTargetFolder
-   
+
    local tTargetName
    if pDetailsA[kNameKey] is empty then
       return "no id found in " && tFullpath
    end if
    put pDetailsA[kNameKey] into tTargetName
-   
+
    local tTargetVersion
    if pDetailsA[kVersionKey] is empty then
       return "no version found in " && tFullpath
    end if
    put pDetailsA[kVersionKey] into tTargetVersion
-   
+
    local tArchive
    put tTargetFolder & slash & tTargetName & "." & \
          tTargetVersion & ".lce" into tArchive
-   
+
    if there is a file tArchive then
       delete file tArchive
    end if
    revZipOpenArchive tArchive, "write"
-   
+
    if the result begins with "ziperr" then
       return "couldn't open zip archive" && tArchive
    end if
-   
+
    local tHaveSvgIcon
    put ("svgicon" is among the keys of pDetailsA) into tHaveSvgIcon
-   
+
    # Don't include source if not required
    local tSourceFile, tSupportFiles
 #   if not pRemoveSource then
       put tFullPath into tSourceFile
       put pDetailsA[kSupportFilesKey] into tSupportFiles
 #   end if
-   
+
    local tError
    put __extensionAddFilesToPackage(\
          tSourceFile, tSupportFiles, pFolder, tArchive, \
          pDetailsA) into tError
-   
+
    revZipCloseArchive tArchive
-   
+
    if tError is empty then
       if the result begins with "ziperr" then
          put "Error: couldn't close zip archive" && tArchive into tError
       end if
    end if
-   
+
    if tError is not empty then
       return tError
    end if
-   
+
    put tArchive into rBuiltLocation
    return empty
 end __extensionBuildPackage
@@ -874,7 +874,7 @@ private command __extensionAddFolder pArchive, pBaseFolder, pFolderName, pResour
    repeat for each line tLine in pResourcesList
       revZipAddItemWithFile pArchive, pFolderName& slash & tLine, \
             pBaseFolder & slash & pFolderName & slash & tLine
-      
+
       if the result begins with "ziperr" then
          return "couldn't add" && pFolderName & ":" && tLine
       end if
@@ -884,27 +884,27 @@ end __extensionAddFolder
 
 private function __extensionAddFilesToPackage \
       pSource, pSupportFiles, pFolder, pArchive, pDetailsA
-   
+
    set the itemdelimiter to slash
    # Add source into package, if present
    if pSource is not empty then
       revZipAddItemWithFile pArchive, item -1 of pSource, pSource
-      
+
       if the result begins with "ziperr" then
          return "couldn't add source" && pSource & cr & the result & cr
       end if
    end if
-   
+
    # Add support files into package
    repeat for each line tSupport in pSupportFiles
       put pFolder & slash & tSupport into tSupport
       revZipAddItemWithFile pArchive, item -1 of tSupport, tSupport
-      
+
       if the result begins with "ziperr" then
          return "couldn't add support file" && tSupport
       end if
    end repeat
-   
+
    # Add modules into package
    repeat for each line tModuleFile in pDetailsA[kModuleFilesKey]
       put pFolder & slash & tModuleFile into tModuleFile
@@ -913,14 +913,14 @@ private function __extensionAddFilesToPackage \
          return "couldn't add module" && tModuleFile
       end if
    end repeat
-   
+
    # Add manifest into package
    revZipAddItemWithFile pArchive, "manifest.xml", pFolder & slash & "manifest.xml"
-   
+
    if the result begins with "ziperr" then
       return "couldn't add manifest" && pArchive
    end if
-   
+
    # Add user guide
    if pDetailsA[kGuideContentsKey] is not empty then
       __extensionAddFolder pArchive, pFolder, "docs/guide", pDetailsA[kGuideContentsKey]
@@ -930,24 +930,24 @@ private function __extensionAddFilesToPackage \
    if the result begins with "ziperr" then
       return "couldn't add guide" && pArchive
    end if
-   
+
    # Add icons
    if pDetailsA[kIconKey] is not empty then
       revZipAddItemWithFile pArchive, "support/icon.png", pDetailsA[kIconKey]
-      
+
       if the result begins with "ziperr" then
          return "couldn't add icon.png" && pArchive
       end if
    end if
-   
+
    if pDetailsA[kRetinaIconKey] is not empty then
       revZipAddItemWithFile pArchive, "support/icon@extra-high.png", pDetailsA[kRetinaIconKey]
-      
+
       if the result begins with "ziperr" then
          return "couldn't add icon@extra-high.png" && pArchive
       end if
    end if
-   
+
    # Add docs
    if pDetailsA[kApiFileKey] is not empty then
       revZipAddItemWithFile pArchive, "api.lcdoc", pDetailsA[kApiFileKey]
@@ -955,49 +955,49 @@ private function __extensionAddFilesToPackage \
    if the result begins with "ziperr" then
       return "couldn't add doc" && pDetailsA[kApiFileKey]
    end if
-   
+
    # Add resources
    __extensionAddFolder pArchive, pFolder, "resources", pDetailsA[kResourcesKey]
    if the result is not empty then
       return the result
    end if
-   
+
    # Add code
    __extensionAddFolder pArchive, pFolder, "code", pDetailsA[kCodeKey]
    if the result is not empty then
       return the result
    end if
-   
+
    # Add sample stacks
    __extensionAddFolder pArchive, pFolder, "samples", pDetailsA[kSamplesKey]
    if the result is not empty then
       return the result
    end if
-   
+
    # AL-2015-03-18: [[ Bug 15007 ]] Include interface file if present
    if pDetailsA[kInterfaceKey] is not empty then
       revZipAddItemWithFile pArchive, item -1 of pDetailsA[kInterfaceKey], pDetailsA[kInterfaceKey]
-      
+
       if the result begins with "ziperr" then
          return "couldn't add interface file" && pDetailsA[kInterfaceKey]
       end if
    end if
-   
+
    # Add default script
    if pDetailsA[kDefaultScriptFileKey] is not empty then
       revZipAddItemWithFile pArchive, "support/defaultscript.livecodescript", pDetailsA[kDefaultScriptFileKey]
-      
+
       if the result begins with "ziperr" then
          return "couldn't add default script" && pDetailsA[kDefaultScriptFileKey] & cr & the result & cr
       end if
    end if
-   
+
    # Add editors
    __extensionAddFolder pArchive, pFolder, "editors", pDetailsA[kEditorsKey]
    if the result is not empty then
       return the result
    end if
-   
+
    return empty
 end __extensionAddFilesToPackage
 
@@ -1006,7 +1006,7 @@ private function __extensionListResourcesRecursive pFolder, pPrefix
    if pPrefix is not empty then
       put pPrefix & slash into tPrefix
    end if
-   
+
    # Add files to the list of resources
    repeat for each line tResource in files(pFolder)
       if tResource begins with "." then next repeat
@@ -1016,7 +1016,7 @@ private function __extensionListResourcesRecursive pFolder, pPrefix
          put return & tPrefix & tResource after tResources
       end if
    end repeat
-   
+
    # Add folders to the list of resources
    repeat for each line tResourceFolder in folders(pFolder)
       if tResourceFolder begins with "." then next repeat
@@ -1038,7 +1038,7 @@ Fetch all the information about an extension in the given folder
 
 Parameters:
 pFolder: The folder to search for an extension
-pParseManifest: 
+pParseManifest:
 Whether to parse any existing manifest file for information about the
 extension.
 
@@ -1049,25 +1049,25 @@ if none was found.
 function extensionFetchFolderDetails pFolder, pParseManifest
    local tMainFile, tType, tSupportFiles
    extensionFetchSourceFromFolder pFolder, tMainFile, tSupportFiles, tType
-   
+
    if tType is "none" then
       return empty
    end if
-   
+
    local tDetailsA
    put tMainFile into tDetailsA[kFileKey]
    put tSupportFiles into tDetailsA[kSupportFilesKey]
    put tType into tDetailsA[kSourceTypeKey]
-   
+
    local tAPIFolder
    if there is a folder (pFolder & slash & "docs" & slash & "api") then
       put pFolder & slash & "docs" & slash & "api" into tAPIFolder
    else
       put pFolder into tAPIFolder
    end if
-   
+
    put tAPIFolder & slash & "api.lcdoc" into tDetailsA[kApiFileKey]
-   
+
    if there is a file (pFolder & slash & "support" & slash & "icon.png") then
       put (pFolder & slash & "support" & slash & "icon.png") into tDetailsA[kIconKey]
    else if there is a file  (pFolder & slash & "icon.png") then
@@ -1075,7 +1075,7 @@ function extensionFetchFolderDetails pFolder, pParseManifest
    else
       put empty into tDetailsA[kIconKey]
    end if
-   
+
    if there is a file (pFolder & slash & "support" & slash & "icon@extra-high.png") then
       put (pFolder & slash & "support" & slash & "icon@extra-high.png") into tDetailsA[kRetinaIconKey]
    else if there is a file (pFolder & slash & "icon@extra-high.png") then
@@ -1083,7 +1083,7 @@ function extensionFetchFolderDetails pFolder, pParseManifest
    else
       put empty into tDetailsA[kRetinaIconKey]
    end if
-   
+
    local tGuide, tGuideFile, tGuideFolder
    put pFolder & slash & "docs" & slash & "guide" into tGuideFolder
    if there is a file (tGuideFolder & slash & "guide.md") then
@@ -1093,7 +1093,7 @@ function extensionFetchFolderDetails pFolder, pParseManifest
    else if there is a file (pFolder & slash & "guide.md") then
       put pFolder & slash & "guide.md" into tDetailsA[kGuideFileKey]
    end if
-   
+
    // AL-2015-02-23: [[ Bug 14552 ]] Find resource folder and return details
    local tResourceFolder, tResources
    put pFolder & slash & "resources" into tResourceFolder
@@ -1101,28 +1101,28 @@ function extensionFetchFolderDetails pFolder, pParseManifest
       put __extensionListResourcesRecursive(tResourceFolder, "") into tResources
       put tResources into tDetailsA[kResourcesKey]
    end if
-   
+
    local tCodeFolder, tCode
    put pFolder & slash & "code" into tCodeFolder
    if there is a folder tCodeFolder then
       put __extensionListResourcesRecursive(tCodeFolder, "") into tCode
       put tCode into tDetailsA[kCodeKey]
    end if
-   
+
    local tSamplesFolder, tSamples
    put pFolder & slash & "samples" into tSamplesFolder
    if there is a folder tSamplesFolder then
       put __extensionListResourcesRecursive(tSamplesFolder, "") into tSamples
       put tSamples into tDetailsA[kSamplesKey]
    end if
-   
+
    # Default script
    local tDefaultScriptPath
    put pFolder & "/support/defaultscript.livecodescript" into tDefaultScriptPath
    if there is a stack tDefaultScriptPath then
       put pFolder & "/support/defaultscript.livecodescript" into tDetailsA[kDefaultScriptFileKey]
    end if
-   
+
    # Custom PI editors
    local tEditorsFolder, tEditors
    put pFolder & slash & "editors" into tEditorsFolder
@@ -1130,7 +1130,7 @@ function extensionFetchFolderDetails pFolder, pParseManifest
       put __extensionListResourcesRecursive(tEditorsFolder, "") into tEditors
       put tEditors into tDetailsA[kEditorsKey]
    end if
-   
+
    # Compiled module files
    local tModuleFiles
    if tDetailsA[kSourceTypeKey] is "lcb" then
@@ -1138,7 +1138,7 @@ function extensionFetchFolderDetails pFolder, pParseManifest
       filter tModuleFiles with regex pattern "^module(\.[0-9]+)?\.lcm$"
       put tModuleFiles into tDetailsA[kModuleFilesKey]
    end if
-   
+
    # Fetch data from manifest
    local tManifest
    put pFolder & slash & "manifest.xml" into tManifest
@@ -1146,15 +1146,15 @@ function extensionFetchFolderDetails pFolder, pParseManifest
          there is a file tManifest then
       union tDetailsA with extensionFetchMetadata(tManifest)
    end if
-   
+
    # Now we have the name, add the interface file
    local tInterfaceFile
    put pFolder & slash & tDetailsA[kNameKey] & ".lci" into tInterfaceFile
    if there is a file tInterfaceFile then
       put tInterfaceFile into tDetailsA[kInterfaceKey]
    end if
-   
-   return tDetailsA 
+
+   return tDetailsA
 end extensionFetchFolderDetails
 
 /**
@@ -1177,21 +1177,21 @@ command extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
    local tTargetDir, tBuildTarget, tZip
    put tDetailsA[kNameKey] into tTargetDir
    put pTargetFolder & slash & tTargetDir into tBuildTarget
-   
+
    __extensionBuildPackage tDetailsA, pSourceFolder, pTargetFolder, \
          pRemoveSource, tZip
    if the result is not empty then
       return the result for error
    end if
-   
+
    return tZip for value
 end extensionPackage
 
 private command __EnsurePath pPath
    if there is a folder pPath then exit __EnsurePath
-   
+
    set the itemdelimiter to slash
-   
+
    local tPathPart
    repeat for each item tPart in pPath
       put tPart after tPathPart
@@ -1204,22 +1204,22 @@ end __EnsurePath
 
 private command extractExtension pZip, pSourceFolder, pTargetFolder
    __EnsureExternal "revzip"
-   
+
    local tDetailsA
    put extensionFetchFolderDetails(pSourceFolder) into tDetailsA
-   
+
    local tTargetDir, tBuildTarget, tError, tName
    put tDetailsA[kNameKey] into tName
    put pTargetFolder & slash & tName into tBuildTarget
-   
+
    __EnsurePath tBuildTarget
-   
+
    # Extract the icon,docs and executable module into the folder
    revZipOpenArchive pZip, "read"
    if the result begins with "ziperr" then
       put the result into tError
    end if
-   
+
    local tZipItems
    if tError is empty then
       put revZipEnumerateItems(pZip) into tZipItems
@@ -1227,7 +1227,7 @@ private command extractExtension pZip, pSourceFolder, pTargetFolder
          put the result into tError
       end if
    end if
-   
+
    # Extract all the files
    local tDirectory
    set the itemdelimiter to slash
@@ -1238,15 +1238,15 @@ private command extractExtension pZip, pSourceFolder, pTargetFolder
       if the result begins with "ziperr" then
          put the result into tError
       end if
-   end repeat 
-   
+   end repeat
+
    if tError is empty then
       revZipCloseArchive pZip
       if the result begins with "ziperr" then
          put the result into tError
       end if
    end if
-   
+
    if tError is not empty then
       throw "zip error when extracting extension" && tName & ":" && tError
    end if
@@ -1261,7 +1261,7 @@ pTargetFolder: The folder to output the extension package
 pRemoveSource: Whether to remove the source files or not
 */
 command extensionPackageScriptExtension pSourceFolder, \
-      pTargetFolder, pRemoveSource   
+      pTargetFolder, pRemoveSource
 
    extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
    if the result is not empty then
@@ -1277,11 +1277,11 @@ Parameters:
 pSourceFolder: The folder containing the extension
 pTargetFolder: The folder to output the extension package
 pRemoveSource: Whether to remove the source files or not
-pLCCompile: 
+pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
-pLCIPath: 
-The location of the standard library module interface files. If empty, 
+pLCIPath:
+The location of the standard library module interface files. If empty,
 this will be computed.
 
 pExtraLCIPaths:
@@ -1293,54 +1293,54 @@ command extensionPackageBuilderExtension pSourceFolder, \
    if pLCCompile is empty then
       put __extensionCompilerPath() into pLCCompile
    end if
-   
+
    # The built-in module path
    if pLCIPath is empty then
       put __extensionResourcePath() & slash & "modules/lci" \
             into pLCIPath
    end if
-   
+
    local tCompileShell
    put shellFormat(pLCCompile) into tCompileShell
    put shellFormat("-Werror") after tCompileShell
    put shellFormat(pLCIPath, "modulepath") after tCompileShell
-   
+
    # Installed module path
    repeat for each line tInterface in pExtraLCIPaths
       put shellFormat(tInterface, "modulepath") after tCompileShell
    end repeat
-   
+
    put shellFormat(pSourceFolder & slash & "manifest.xml", "manifest") \
          after tCompileShell
    put shellFormat(pSourceFolder & slash & "module.lcm", "output") \
          after tCompileShell
-   
+
    local tSource, tSupportFiles, tType
    extensionFetchSourceFromFolder pSourceFolder, tSource, tSupportFiles, tType
-   
+
    -- Multi-module assemblies must be in reverse dependency order
    local tDepsShell
-   	
+
    if tSupportFiles is not empty then
       put shellFormat(pLCCompile) into tDepsShell
       put shellFormat("order", "deps") after tDepsShell
       repeat for each line tSupportModule in tSupportFiles
-         put shellFormat(pSourceFolder & slash & tSupportModule, "") \ 
+         put shellFormat(pSourceFolder & slash & tSupportModule, "") \
                after tDepsShell
       end repeat
 
       local tDepsResult, tDepsOutput
       doShell tDepsShell, tDepsResult, tDepsOutput
-      
+
       if tDepsResult is not 0 then
          throw "subprocess error when finding support deps order for" && tSource & ":" && tDepsOutput
-      end if  
+      end if
 
       repeat for each line tSupportModule in tDepsOutput
          put shellFormat(tSupportModule, "") after tCompileShell
       end repeat
    end if
-   	
+
    put shellFormat(pSourceFolder & slash & tSource, "") \
          after tCompileShell
 
@@ -1348,8 +1348,8 @@ command extensionPackageBuilderExtension pSourceFolder, \
    doShell tCompileShell, tShellResult, tShellOutput
    if tShellResult is not 0 then
       throw "subprocess error when compiling extension" && tSource & ":" && tShellOutput
-   end if    
-   
+   end if
+
    extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
    if the result is not empty then
       throw the result
@@ -1388,8 +1388,8 @@ command extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
    local tDocA, tDataA
    dispatch function "revDocsParseDocFileToLibraryArray" to stack pDocsParser \
          with (pSourceFolder & slash & "api.lcdoc")
-   put the result into tDocA 
-   
+   put the result into tDocA
+
    set the itemdelimiter to comma
    repeat for each item tKey in "title,author,version,name,type,display name,requires,uses,svgicon"
       put tDocA[tKey] into tDataA[tKey]
@@ -1397,20 +1397,20 @@ command extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
    if tDataA[kTitleKey] is empty then
       put tDataA["display name"] into tDataA["title"]
    end if
-   
+
    local tPackageXML, tAttrA
    repeat for each item tTag in "name,title,author,version,type"
       addXML tPackageXML, 1, tTag, tDataA[tTag]
    end repeat
-   
+
    addXML tPackageXML, 1, "license", "community"
-   
+
    repeat for each element tRequirement in tDataA["requires"]
       put tRequirement into tAttrA["name"]
       addXML tPackageXML, 1, "requires", "", tAttrA
       put empty into tAttrA
    end repeat
-   
+
    repeat for each item tMetadata in "svgicon"
       local tValue
       put tDataA[tMetadata] into tValue
@@ -1421,11 +1421,11 @@ command extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
       addXML tPackageXML, 1, "metadata", tValue, tAttrA
       put empty into tAttrA
    end repeat
-   
+
    local tXML
    put "0.0" into tAttrA["version"]
    addXML tXML, 0, "package", return & tPackageXML, tAttrA
-   
+
    log "writing manifest to" && pSourceFolder & slash & "manifest.xml"
    put textEncode(tXML, "utf-8") into url("binfile:" & pSourceFolder & slash & "manifest.xml")
 end extensionGenerateManifestForLCSExtension
@@ -1445,67 +1445,67 @@ function extensionFetchMetadata pManifestPath
    __EnsureExternal "revxml"
 
    local tDataA
-   
+
    local tManifestContents, tTreeID
    put url ("file:" & pManifestPath) into tManifestContents
    put revXMLCreateTree(tManifestContents,true,true,false) into tTreeID
-   
+
    if tTreeID begins with "xmlerr" then
       return "Error: invalid xml in manifest" for error
    end if
-   
+
    local tTargetType
    put textDecode(revXMLNodeContents(tTreeID, "/package/type"), "utf-8") into tTargetType
-   
+
    if tTargetType begins with "xmlerr" then
       return "Error: no type found in manifest" for error
    end if
    put tTargetType into tDataA[kTypeKey]
-   
+
    local tTargetName
    put textDecode(revXMLNodeContents(tTreeID, "/package/name"), "utf-8") into tTargetName
    if tTargetName begins with "xmlerr" then
       return "Error: couldn't retrieve extension name from manifest" for error
    end if
    put tTargetName into tDataA[kNameKey]
-   
+
    local tTargetTitle
    put textDecode(revXMLNodeContents(tTreeID, "/package/title"), "utf-8") into tTargetTitle
-   
+
    if tTargetTitle is empty or tTargetTitle begins with "xmlerr" then
       put empty into tTargetTitle
    end if
    put tTargetTitle into tDataA[kTitleKey]
-   
+
    local tTargetVersion
    put textDecode(revXMLNodeContents(tTreeID, "/package/version"), "utf-8") into tTargetVersion
-   
+
    if tTargetVersion is empty or tTargetVersion begins with "xmlerr" then
       put empty into tTargetVersion
    end if
    put tTargetVersion into tDataA[kVersionKey]
-   
+
    local tTargetAuthor
    put textDecode(revXMLNodeContents(tTreeID, "/package/author"), "utf-8") into tTargetAuthor
    if tTargetAuthor is empty or tTargetAuthor begins with "xmlerr" then
       put empty into tTargetAuthor
    end if
    put tTargetAuthor into tDataA[kAuthorKey]
-   
+
    local tTargetPlatforms
    put textDecode(revXMLNodeContents(tTreeID, "/package/platforms"), "utf-8") into tTargetPlatforms
    if tTargetPlatforms is empty or tTargetPlatforms begins with "xmlerr" then
       put empty into tTargetPlatforms
    end if
    put tTargetPlatforms into tDataA[kPlatformsKey]
-   
+
    local tTargetOs
    put textDecode(revXMLNodeContents(tTreeID, "/package/os"), "utf-8") into tTargetOs
    if tTargetOs is empty or tTargetOs begins with "xmlerr" then
       put empty into tTargetOs
    end if
    put tTargetOs into tDataA[kOsKey]
-   
+
    # Fetch property metadata
    local tMetadataValue, tMetadataKey
    local tMetadataNodes, tMetadataA, tKeys, tValue
@@ -1518,7 +1518,7 @@ function extensionFetchMetadata pManifestPath
       end if
       __SetMetadata tMetadataKey, tMetadataValue, tDataA
    end repeat
-   
+
    # Fetch extension dependencies
    local tRequires, tCount
    put 0 into tCount
@@ -1529,7 +1529,7 @@ function extensionFetchMetadata pManifestPath
       put revXMLAttribute(tTreeID,"package" & "/" & tDependency,"name") into tName
       put tName into tDataA["requires"][tCount]
    end repeat
-   
+
    # Fetch library handlers
    if tTargetType is "library" then
       local tHandlerList, tHandlerNodes
@@ -1537,11 +1537,11 @@ function extensionFetchMetadata pManifestPath
       repeat for each line tHandler in tHandlerNodes
          local tHandlerName
          put revXMLAttribute(tTreeID,"package" & "/" & tHandler,"name") into tHandlerName
-         
+
          if tHandlerName is empty or tHandlerName begins with "xmlerr" then
             next repeat
          end if
-         
+
          if tHandlerList is empty then
             put tHandlerName into tHandlerList
          else
@@ -1550,20 +1550,20 @@ function extensionFetchMetadata pManifestPath
       end repeat
       put tHandlerList into tDataA["handlers"]
    end if
-   
+
    # User visible should default to true
    if tDataA["uservisible"] is empty then
       put true into tDataA["uservisible"]
    end if
-   
+
    return tDataA for value
 end extensionFetchMetadata
 
 private function __fetchExtensionManifestData pFolder, pExtFile
    local tDataA
    put extensionFetchMetadata(pFolder & slash & "manifest.xml") into tDataA
-   
-   # If we couldn't fetch a type id, or there was no manifest then 
+
+   # If we couldn't fetch a type id, or there was no manifest then
    # the result will not be empty
    if the result is not empty then
       put "Invalid manifest" into tDataA["error"]
@@ -1579,14 +1579,14 @@ Parameters:
 pFolder: The folder to search
 pIsUserFolder: Whether this is a user folder or not
 pRecursive: Whether to search subfolders
-xDataA: 
-An array. Details of any extensions found will be placed in the 
+xDataA:
+An array. Details of any extensions found will be placed in the
 array under xDataA[<type_id>][<folder>]
 */
 command extensionFindInFolder pFolder, pIsUserFolder, pRecursive, @xDataA
    local tExtSource, tArray, tFiles, tMainSource, tSupportFiles, tType
    extensionFetchSourceFromFolder pFolder, tMainSource, tSupportFiles, tType
-   
+
    -- If we found no extensions, recurse
    if the result is not empty or tType is "none" then
       if pRecursive then
@@ -1598,14 +1598,14 @@ command extensionFindInFolder pFolder, pIsUserFolder, pRecursive, @xDataA
       end if
       exit extensionFindInFolder
    end if
-   
+
    put __fetchExtensionManifestData(pFolder, tMainSource) into tArray
-   
+
    put tMainSource into tArray[kSourceFileKey]
    put tSupportFiles into tArray[kSupportFilesKey]
    put tType into tArray[kSourceTypeKey]
    put not pIsUserFolder into tArray[kIdeKey]
-   
+
    local tTypeID
    if tArray[kNameKey] is empty then
       put pFolder into tTypeID
@@ -1637,7 +1637,7 @@ private command __FilterFilesForExtension pFiles, @rResult, @rType
          then
       put "lcb" into tType
    end if
-   
+
    if tType is empty then
       filter pFiles with regex pattern \
             __RegexPatternForSource("lcs") into tExtFiles
@@ -1657,17 +1657,17 @@ Parameters:
 pFolder: The folder to search
 rSource: The main source file found
 rSupportFiles: A list of supporting source files found
-rType (enum): The type of extension. 
+rType (enum): The type of extension.
 - "lcb": A LiveCode Builder extension
 - "lcs": A LiveCode Script extension
 */
 command extensionFetchSourceFromFolder pFolder, @rSource, @rSupportFiles, @rType
    local tFiles
    put files(pFolder) into tFiles
-   
+
    local tExtFiles, tType
    __FilterFilesForExtension tFiles, tExtFiles, tType
-   
+
    -- Try and separate main source from support
    local tFoundCount, tSupport, tMainFile
    put the number of lines in tExtFiles into tFoundCount
@@ -1687,13 +1687,13 @@ command extensionFetchSourceFromFolder pFolder, @rSource, @rSupportFiles, @rType
                "<main-name>-<support-name>."
       end if
    else
-      put tExtFiles into tMainFile 
+      put tExtFiles into tMainFile
    end if
-   
+
    if tType is empty then
       put "none" into tType
-   end if 
-   
+   end if
+
    put tMainFile into rSource
    put tSupport into rSupportFiles
    put tType into rType
@@ -1707,19 +1707,19 @@ Parameters:
 pPackage: The .lce package to validate
 rManifestDataA: The basic manifest data extracted from the package
 
-The result: 
-If the package was deemed invalid, the result contains the reason why 
+The result:
+If the package was deemed invalid, the result contains the reason why
 the package failed validation.
 
 Description:
-Use the <extensionValidateLCEPackage> command to naively validate the 
-contents of an .lce package. <extensionValidateLCEPackage> checks if 
-there is a file that looks like the main extension (either a compiled 
+Use the <extensionValidateLCEPackage> command to naively validate the
+contents of an .lce package. <extensionValidateLCEPackage> checks if
+there is a file that looks like the main extension (either a compiled
 LiveCode Builder module file or a LiveCode stack), that it contains a
 manifest XML file and that the manifest contains the minimum required
 information, namely the name, version, author, type, and title.
 
-The manifest information is returned in the <rManifestDataA> out 
+The manifest information is returned in the <rManifestDataA> out
 parameter.
 */
 command extensionValidateLCEPackage pPackage, @rManifestDataA
@@ -1728,15 +1728,15 @@ command extensionValidateLCEPackage pPackage, @rManifestDataA
    if the result is not empty then
       return pPackage && "is not a valid archive"
    end if
-   
-   # If we have a root folder in the archive, reject it 
+
+   # If we have a root folder in the archive, reject it
    local tZipItems, tError
    put revZipEnumerateItems(pPackage) into tZipItems
-   
+
    if the last char of line 1 of tZipItems is "/" then
       put "invalid archive structure - files must be at root" into tError
    end if
-   
+
    # Ensure the zip contains all the required files
    if tError is empty then
       local tExtFiles, tType
@@ -1745,16 +1745,16 @@ command extensionValidateLCEPackage pPackage, @rManifestDataA
          put "invalid package - no stack or module found" into tError
       end if
    end if
-   
+
    if tError is empty then
       if "manifest.xml" is not among the lines of tZipItems then
          put "invalid package - manifest not found" into tError
       end if
    end if
-   
+
    # Get initial manifest data needed for loading
    local tManifestText, tManifestData, tManifestXMLTree
-   
+
    # Extract the package manfiest to a variable to read key data
    if tError is empty then
       revZipExtractItemToVariable pPackage, "manifest.xml", \
@@ -1763,19 +1763,19 @@ command extensionValidateLCEPackage pPackage, @rManifestDataA
          put "unable to extract manifest data" into tError
       end if
    end if
-   
+
    revZipCloseArchive pPackage
-   
+
    if tError is not empty then
       return tError
    end if
-   
+
    put revXMLCreateTree(tManifestText,true,true,false) into tManifestXMLTree
-   
+
    if tManifestXMLTree is not a number then
       return "invalid manifest"
    end if
-   
+
    # Check the manifest contains the required xml elements
    repeat for each item tItem in "name,version,author,type,title"
       put __extensionManifestValueFromTree(tManifestXMLTree, tItem) \
@@ -1785,7 +1785,7 @@ command extensionValidateLCEPackage pPackage, @rManifestDataA
          exit repeat
       end if
    end repeat
-   
+
    # Fetch the manifest requirements
    local tRequires
    put __extensionManifestValueFromTree(tManifestXMLTree, "requires") \
@@ -1793,13 +1793,13 @@ command extensionValidateLCEPackage pPackage, @rManifestDataA
    if tRequires is an array then
       put tRequires into tManifestData["requires"]
    end if
-   
+
    revXMLDeleteTree tManifestXMLTree
-   
+
    if tError is not empty then
       return tError
    end if
-   
+
    put tManifestData into rManifestDataA
    return empty
 end extensionValidateLCEPackage
@@ -1832,7 +1832,7 @@ private function __extensionManifestValueFromTree pTreeID, pProperty
             into tValue
          break
    end switch
-   
+
    if tValue begins with "xmlerr" then
       return tValue for error
    end if
