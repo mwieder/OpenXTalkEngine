@@ -3410,7 +3410,7 @@ function revSBEnginePath pPlatform
    put "Professional" into tEdition
    --end if
    --put "Community" into tEdition
-
+   
    -- MW-2013-06-13: [[ CloneAndRun ]] If not installed, then fetch the engine locally.
    if revEnvironmentIsInstalled() then
       # MW-2009-06-24: For Mac OS X, engine source is two lines, first is PPC (if any), second
@@ -3423,7 +3423,8 @@ function revSBEnginePath pPlatform
          case "MacOSX x86-32"
          case "MacOSX x86-64"
          case "MacOSX arm64"
-            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone-" & tEdition
+            # return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone-" & tEdition
+            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone"
             break
          case "Windows"
             return tRuntimePath & "/Windows/x86-32/Standalone-" & tEdition
@@ -3432,11 +3433,13 @@ function revSBEnginePath pPlatform
             return tRuntimePath & "/Windows/x86-64/Standalone-" & tEdition
             break
          case "Linux"
-            return tRuntimePath & "/Linux/x86-32/Standalone-" & toLower(tEdition)
+            # return tRuntimePath & "/Linux/x86-32/Standalone-" & toLower(tEdition)
+            return tRuntimePath & "/Linux/x86-32/Standalone"
             break
             -- MW-2013-11-06: [[ LinuxX64 ]] Compute the correct path for 64-bit linux.
          case "Linux x64"
-            return tRuntimePath & "/Linux/x86-64/Standalone-" & toLower(tEdition)
+            # return tRuntimePath & "/Linux/x86-64/Standalone-" & toLower(tEdition)
+            return tRuntimePath & "/Linux/x86-64/Standalone"
             break
             -- FG-2014-08-19: [[ RPi ]] Compute the correct path for ARMv6 Linux
          case "Linux armv6-hf"
@@ -3451,7 +3454,7 @@ function revSBEnginePath pPlatform
       // SN-2015-05-15: [[ DeployAllPlatforms ]] Allow the deployment to happen
       //  for another platform, from the repository.
       local tBinariesPath
-
+      
       if pPlatform contains "MacOSX" and the platform is not "macos" or \
             pPlatform contains "Linux" and the platform is not "linux" or \
             pPlatform is "Windows" and the platform is not "win32" then
@@ -3459,7 +3462,7 @@ function revSBEnginePath pPlatform
       else
          put revEnvironmentBinariesPath() into tBinariesPath
       end if
-
+      
       switch word 1 of pPlatform
          case "MacOSX"
             return tBinariesPath & "/Standalone.app/Contents/MacOS/Standalone"
@@ -3468,7 +3471,7 @@ function revSBEnginePath pPlatform
             return tBinariesPath & slash & "standalone-" & tEdition & ".exe"
             break
          case "Linux"
-            return tBinariesPath & slash & "standalone-" & toLower(tEdition)
+            return tBinariesPath & slash & toLower("standalone-" & tEdition)
             break
          default
             return empty
@@ -3533,7 +3536,3 @@ command revSBSetSettings pStack, pSettings
    set the customProperties["cRevStandaloneSettings"] of stack \
          (the mainstack of stack pStack) to pSettings
 end revSBSetSettings
-
-private function q pText
-   return quote & pText & quote
-end q
