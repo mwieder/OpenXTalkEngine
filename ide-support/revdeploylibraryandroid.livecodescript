@@ -4,6 +4,7 @@ local sJavaRoot
 
 local sAvailableDevices
 constant kDeployAndroidTargetSDK = "34"
+#constant kDeployAndroidTargetSDK = "36"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -280,41 +281,47 @@ function deployRequiredSDK
 end deployRequiredSDK
 
 function deploy.IsValidSDK? pPath
-   if there is no folder (pPath & slash & "platforms") or \
-         there is no folder (pPath & slash & "platform-tools") or \
-         there is no folder (pPath & slash & "tools") then
-      return "could not find platforms, platform-tools or tools folders at that path."
+   if there is no folder (pPath & slash & "platforms") then
+      return "could not find platforms folder at that path."
    end if
-
+   
+   if there is no folder (pPath & slash & "platform-tools") then
+      return "could not find platform-tools folder at that path."
+   end if
+   
+   if there is no folder (pPath & slash & "build-tools") then
+      return "could not find build-tools folder at that path."
+   end if
+   
    if there is no folder pathToRootPlatform(pPath) then
       return "could not find install of required target SDK, make sure it has been installed with the Android SDK Manager"
    end if
-
+   
    if there is no file pathToRootClasses(pPath) then
       return "missing root classes, make sure your SDK install has not become corrupted"
    end if
-
+   
    if there is no file pathToAapt2(pPath) then
       return "missing aapt2 tool, make sure your SDK install has not become corrupted"
    end if
-
+   
    if there is no file pathToAdb(pPath) then
       return "missing adb tool, make sure your SDK install has not become corrupted"
    end if
-
+   
    if there is no file pathToSDKClasses(pPath) then
       return "missing sdklib.jar, make sure your SDK install has not become corrupted"
    end if
-
+   
    if there is no file pathToZipAlign(pPath) then
       return "missing zipalign tool, make sure your SDK install has not become corrupted"
    end if
-
+   
    if there is no file pathToD8(pPath) then
       return "missing d8 tool, make sure your SDK install has not become corrupted"
    end if
-
-   return true
+   
+   return empty
 end deploy.IsValidSDK?
 
 function deployGetSDK
@@ -339,10 +346,11 @@ function deployGetVersionsMap
    put "9.0 - Pie" into tMap[28]
    put "10 - Q" into tMap[29]
    put "11 - R" into tMap[30]
-   put "12 - API 31" into tMap[31]
-   put "13 - API 33" into tMap[33]
-   put "14 - API 34" into tMap[34]
-   put "15" into tMap[34]
+   put "12 - S" into tMap[31]
+   put "13 - Tiramisu" into tMap[33]
+   put "14 - UpsideDownCake" into tMap[34]
+   put "15 - VanillaIceCream" into tMap[35]
+   put "16 - Baklava" into tMap[36]
    return tMap
 end deployGetVersionsMap
 
@@ -424,11 +432,13 @@ end ensureFolderPath
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function pathToRootPlatform pRoot
+private function pathToRootPlatform pRoot
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-
+   
+   # get a list of the folder in the platforms folder
+   # return the highest number of "android-<number>"
    return pRoot & slash & "platforms/android-" & kDeployAndroidTargetSDK
 end pathToRootPlatform
 
@@ -441,13 +451,13 @@ function pathToSDKClasses pRoot
       put sAndroidRoot into pRoot
    end if
    local tLibs,tSdkLib
-   put files(pRoot&"/tools/lib") into tLibs
+   put files(pRoot&"/build-tools/lib") into tLibs
    if tLibs contains "sdklib.jar" then
-      return pRoot & slash & "tools/lib/sdklib.jar"
+      return pRoot & slash & "build-tools/lib/sdklib.jar"
    else
       filter tLibs with "sdklib-[0-9]*" into tSdkLib
       if tSdkLib is empty then return empty
-      return pRoot & "/tools/lib/" & tSdkLib
+      return pRoot & "/build-tools/lib/" & tSdkLib
    end if
 end pathToSDKClasses
 
@@ -596,6 +606,7 @@ function pathToD8 pRoot
    return pathToPlatformTool(pRoot, executableName("d8"))
 end pathToD8
 
+# pRoot should be "android-studio/jbr"
 function pathToJavaC pRoot
    if pRoot is empty then
       put sJavaRoot into pRoot

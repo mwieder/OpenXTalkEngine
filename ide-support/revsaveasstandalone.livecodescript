@@ -2398,7 +2398,7 @@ private command addMapping pPlatform, pName, pLocation
 end addMapping
 
 # AL-2015-01-29: [[ Scriptify IDE ]] Factor out external copy function to ensure external is included in deploy params
-private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, pStandaloneRoot, pTargetFolder, pIsFolder
+private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, pStandaloneRoot, pTargetFolder, pIsFolder?
    local tSourcePath, tTargetPath, tTargetModule
    put pSourceFolder & slash & pSourceFile into tSourcePath
    if pTargetFolder is not empty then
@@ -2408,7 +2408,7 @@ private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, p
    end if
    put pStandaloneRoot & slash & tTargetModule into tTargetPath
 
-   if pIsFolder then
+   if pIsFolder? then
       if there is no folder tSourcePath then
          return "not found"
       end if
@@ -2538,21 +2538,21 @@ end copyCEFResources
 private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalonePath
    local tExternalRes, tColors, tCursorName, tCurrentLocation, tExternalPath, tExternals, tExternalLibrary
    local tCopyFiles, tOrigVisible, tPath, tExternalFile, x, tColor, tPattern, tExternalName
-
+   
    local tScriptLibraries
    put sStandaloneSettingsA["scriptLibraries"] into tScriptLibraries
-
+   
    local tAppBundle, tCEFFramework, tCEFResources, tCEFDest
-
+   
    revStandaloneProgress "Copying externals..."
-
+   
    lock screen
    -- good time to do the platform specific resource moving
    -- because we need to resave the mainstack anyway
    set the itemDel to "/"
    put item 1 to -2 of pStandalonePath into tCurrentLocation
    set the itemDel to ","
-
+   
    local tSupportFolder, tExtension, tSharedExtension, tPlatform, tArch
    local tDetailsA
    put standalonePlatformDetails(pPlatform) into tDetailsA
@@ -2566,8 +2566,8 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
    end if
    put tDetailsA["platform"] into tPlatform
    put tDetailsA["architecture"] into tArch
-
-
+   
+   
    # OK-2010-04-26: Bug 8539 - PDF Printer not included
    if sStandaloneSettingsA["pdfPrinter"] then
       copyModule tPlatform, "revpdfprinter", "revpdfprinter" & tExtension, tSupportFolder, tCurrentLocation, "", tPlatform is "MacOSX"
@@ -2582,7 +2582,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          end if
       end if
    end if
-
+   
    -- MM-2014-01-29: [[ OpenSSL ]] We now build our own version of OpenSSL.
    if "SSL & Encryption" is among the lines of sStandaloneSettingsA["scriptLibraries"] then
       copyModule tPlatform, "revsecurity", "revsecurity" & tSharedExtension, tSupportFolder, tCurrentLocation, "", false
@@ -2594,7 +2594,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          end if
       end if
    end if
-
+   
    switch
       case pPlatform contains "MacOSX"
          if sStandaloneSettingsA["cursors"] then put "revMacCursors" & return after tCopyFiles
@@ -2621,10 +2621,10 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          break
    end switch
    delete char -1 of tCopyFiles
-
+   
    -- copy the resources into the standalone mainstack
    local tWaitCount
-
+   
    # OK-2009-12-16 : Bug 8470 - Messages need to be locked here to prevent the IDE going crazy
    lock messages
    repeat for each line tLine in tCopyFiles
@@ -2643,31 +2643,35 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
    end repeat
    unlock messages
    unlock screen
-
+   
    -- sanitise raw list of externals from inclusions pane
    revSBSanitiseExternalsList pPlatform, sStandaloneSettingsA["externals"]
-
+   
    -- create list of externals and paths
    local tExternalPathsA
    repeat for each line tExternalName in sStandaloneSettingsA["externals"]
-      put revSBIncludedExternalPath(pPlatform, tExternalName) into tExternalPathsA[tExternalName]
+      dispatch function "SBIncludedExternalPath" to stack "revSBLibrary" with pPlatform, tExternalName
+      put the result into tExternalPathsA[tExternalName]
+      #put revSBIncludedExternalPath(pPlatform, tExternalName) into tExternalPathsA[tExternalName]
    end repeat
-
+   
    -- check externals that are added to the 'scriptLibraries' key
    repeat for each line tExternalName in revExternalsList()
       -- check this item is selected for installation
       if tExternalName is not among the lines of tScriptLibraries then
          next repeat
       end if
-
+      
       -- get the path to the external
       put revExternalPath(tExternalName, tPlatform, tArch) into tExternalPathsA[tExternalName]
    end repeat
-
-   if there is not a folder (tCurrentLocation & slash & "Externals") then
-      create folder (tCurrentLocation & slash & "Externals")
+   
+   if tExternalPath is not empty then
+      if there is not a folder (tCurrentLocation & slash & "Externals") then
+         create folder (tCurrentLocation & slash & "Externals")
+      end if
    end if
-
+   
    set the itemDel to slash
    repeat for each key tExternalName in tExternalPathsA
       put tExternalPathsA[tExternalName] into tExternalPath
@@ -2677,14 +2681,14 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          revStandaloneAddWarning tPlatform && tArch & ", external" && "No externals.txt config file found for" &&tExternalName
          next repeat
       end if
-
+      
       local tSourceExternal
       put item -1 of tExternalPath into tSourceExternal
-
+      
       // AL-2015-05-07: [[ Bug 15320 ]] Make sure universal external name is used.
       local tExternal
       put revSBExternalNameFromFile(tPlatform, tSourceExternal) into tExternal
-
+      
       copyModule tPlatform, tExternal, tSourceExternal, item 1 to -2 of tExternalPath, tCurrentLocation, "Externals", tPlatform is "MacOSX"
       if the result is not empty then
          revStandaloneAddWarning tPlatform && tArch & ", external" && the result & ":" && q(tExternalPath)
@@ -2704,25 +2708,25 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
       end if
       addExternal tExternal
    end repeat
-
+   
    local tSourceFile, tSourceFolder, tTargetFolder, tDestFolder
    repeat for each line tLib in sStandaloneSettingsA["jarFiles"]
       set the itemdelimiter to slash
       put item -1 of tLib into tSourceFile
       put item 1 to -2 of tLib into tSourceFolder
       put tCurrentLocation & slash & "Externals/JVM" into tDestFolder
-
+      
       revSBEnsureFolder tDestFolder
       copyModule tPlatform, tSourceFile, tSourceFile, \
             tSourceFolder, tCurrentLocation, "Externals/JVM", false
    end repeat
-
+   
    repeat for each line tLib in sStandaloneSettingsA["extension_code_resources"]
       set the itemdelimiter to slash
       put item -1 of tLib into tSourceFile
       put item 1 to -2 of tLib into tSourceFolder
       put tCurrentLocation & slash & "Externals" into tDestFolder
-
+      
       revSBEnsureFolder tDestFolder
       set the itemDelimiter to "."
       copyModule tPlatform, item 1 to -2 of tSourceFile, tSourceFile, \
@@ -2733,20 +2737,20 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
                sStandaloneSettingsA
       end if
    end repeat
-
+   
    // SN-2015-07-01: [[ Bug 15259 ]] We don't want the saving to be trapped by
    //  a saveStackRequest handler in the standalone stack
    lock messages
    save stack pStackFilePath
    unlock messages
-
+   
    -- MM-2013-04-05: [[ Bug 10756 ]] Make sure we're allowed to delete the stack before deleteing.
    set the cantDelete of stack pStackFilePath to false
    delete stack pStackFilePath
 end copyExternals
 
 private command log pMessage
-   put pMessage & return after msg
+   put pMessage & cr after msg
 end log
 
 #####################################################################

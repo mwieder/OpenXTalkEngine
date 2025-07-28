@@ -40,7 +40,7 @@ on revSBCopyFileToFolder pSourceFile, pTargetFolder, pCallback, pCallbackTarget
 end revSBCopyFileToFolder
 
 # copied from LC10-rc1
-on revSBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallback, pCallbackTarget
+on SBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallback, pCallbackTarget
    if there is no folder pTargetFolder then
       return "target folder not found"
    end if
@@ -49,7 +49,7 @@ on revSBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallbac
    put pTargetFolder & "/" & item -1 of pTargetFile into tTargetFile
    __revSBCopyFile pSourceFile, tTargetFile, pCallback, pCallbackTarget
    return the result
-end revSBCopyFileToFileInFolder
+end SBCopyFileToFileInFolder
 
 on revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
@@ -770,7 +770,7 @@ end revStandaloneAddWarning
 
 command revStandaloneProgress pMessage
    if not revSBSuppressDialogs() then
-      dispatch "revUpdateStandaloneProgress" to stack "revStandaloneSettings" with pMessage
+      dispatch "UpdateStandaloneProgress" to stack "revStandaloneSettings" with pMessage
    end if
 end revStandaloneProgress
 
@@ -957,46 +957,91 @@ constant kAskDialog                  = "true"
 constant kAnswerDialog               = "true"
 constant kCursors                    = "false"
 
-on revSBDefaultStandaloneSettings pStack, @xSettingsA
+on SBDefaultStandaloneSettings pStack, @xSettingsA
    local tName
    -- name
-   if xSettingsA["name"] = "" then put pStack into xSettingsA["name"]
+   if xSettingsA["name"] is empty then
+      put pStack into xSettingsA["name"]
+   end if
+   # NOTE: ??? 246 is bizarre... is this the absolute length limit of the filename?
    put char 1 to 246 of xSettingsA["name"] into xSettingsA["name"]
-   if xSettingsA["inclusions"] = "" then put "search" into xSettingsA["inclusions"]
-   if xSettingsA["OSX,name"] = "" then put pStack into xSettingsA["OSX,name"]
-   if xSettingsA["Windows,ProductName"] = "" then put pStack into xSettingsA["Windows,ProductName"]
+   if xSettingsA["inclusions"] is empty then
+      put "search" into xSettingsA["inclusions"]
+   end if
+   if xSettingsA["OSX,name"] is empty then
+      put pStack into xSettingsA["OSX,name"]
+   end if
+   if xSettingsA["Windows,ProductName"] is empty then
+      put pStack into xSettingsA["Windows,ProductName"]
+   end if
    -- main resources
    if xSettingsA["askDialog"] = "" then
       put kAskDialog into xSettingsA["askDialog"]
       -- assume no properties set
-      if xSettingsA["scriptLibraries"] = "" then put replaceText(kDefaultScriptLibraries,",",cr) into xSettingsA["scriptLibraries"]
+      if xSettingsA["scriptLibraries"] = "" then
+         put replaceText(kDefaultScriptLibraries,",",cr) into xSettingsA["scriptLibraries"]
+      end if
 
       put revEnvironmentRuntimePath() & "/Windows/x86-32/Support/Sample Icons" into tName
-      if xSettingsA["Windows,iconFile"] = "" then put tName & "/genericapp.ico" into xSettingsA["Windows,iconFile"]
-      if xSettingsA["Windows,documenticonFile"] = "" then put tName & "/genericdoc.ico" into xSettingsA["Windows,documenticonFile"]
+      if xSettingsA["Windows,iconFile"] is empty then
+         put tName & "/genericapp.ico" into xSettingsA["Windows,iconFile"]
+      end if
+      if xSettingsA["Windows,documenticonFile"] is empty then
+         put tName & "/genericdoc.ico" into xSettingsA["Windows,documenticonFile"]
+      end if
    end if
-   if xSettingsA["answerDialog"] = "" then put kAnswerDialog into xSettingsA["answerDialog"]
-   if xSettingsA["cursors"] = "" then put kCursors into xSettingsA["cursors"]
+   if xSettingsA["answerDialog"] is empty then
+      put kAnswerDialog into xSettingsA["answerDialog"]
+   end if
+   if xSettingsA["cursors"] is empty then
+      put kCursors into xSettingsA["cursors"]
+   end if
    -- version
    set the itemDel to "."
    repeat with X=1 to the number of items of kDefaultVersionNumber
-      if xSettingsA["Windows,fileversion"&X] = "" then put item X of kDefaultVersionNumber into xSettingsA["Windows,fileversion"&X]
-      if xSettingsA["Windows,productversion"&X] = "" then put item X of kDefaultVersionNumber into xSettingsA["Windows,productversion"&X]
+      if xSettingsA["Windows,fileversion"&X] is empty then
+         put item X of kDefaultVersionNumber into xSettingsA["Windows,fileversion"&X]
+      end if
+      if xSettingsA["Windows,productversion"&X] is empty then
+         put item X of kDefaultVersionNumber into xSettingsA["Windows,productversion"&X]
+      end if
    end repeat
    set the itemDel to ","
-   if xSettingsA["OSX,longVersion"] = "" then put pStack&&kDefaultVersionNumber into xSettingsA["OSX,longVersion"]
-   if xSettingsA["OSX,info"] = "" then put pStack&&"Version"&&kDefaultVersionNumber into xSettingsA["OSX,info"]
-   if xSettingsA["OSX,shortVersion"] = "" then put kDefaultVersionNumber into xSettingsA["OSX,shortVersion"]
-   if xSettingsA["Windows,FileDescription"] = "" then put pStack&&kDefaultVersionNumber&&"for Windows" into xSettingsA["Windows,FileDescription"]
+   if xSettingsA["OSX,longVersion"] = "" then
+      put pStack&&kDefaultVersionNumber into xSettingsA["OSX,longVersion"]
+   end if
+   if xSettingsA["OSX,info"] = "" then
+      put pStack&&"Version"&&kDefaultVersionNumber into xSettingsA["OSX,info"]
+   end if
+   if xSettingsA["OSX,shortVersion"] = "" then
+      put kDefaultVersionNumber into xSettingsA["OSX,shortVersion"]
+   end if
+   if xSettingsA["Windows,FileDescription"] = "" then
+      put pStack&&kDefaultVersionNumber&&"for Windows" into xSettingsA["Windows,FileDescription"]
+   end if
    -- document types
-   if the number of chars of xSettingsA["OSX,signature"] <> 4 then put kDefaultCreator into xSettingsA["OSX,signature"]
-   if xSettingsA["OSX,documentType"] = "" then put kDefaultDocumentType into xSettingsA["OSX,documentType"]
-   if xSettingsA["OSX,documentExtension"] = "" then put kDefaultDocumentExtension into xSettingsA["OSX,documentExtension"]
+   if the number of chars of xSettingsA["OSX,signature"] <> 4 then
+      put kDefaultCreator into xSettingsA["OSX,signature"]
+   end if
+   if xSettingsA["OSX,documentType"] = "" then
+      put kDefaultDocumentType into xSettingsA["OSX,documentType"]
+   end if
+   if xSettingsA["OSX,documentExtension"] = "" then
+      put kDefaultDocumentExtension into xSettingsA["OSX,documentExtension"]
+   end if
    -- set the unix stuff to true because they will only be imported into unix builds anyway
-   if xSettingsA["UNIX,colorChooser"] = "" then put true into xSettingsA["UNIX,colorChooser"]
-   if xSettingsA["UNIX,printerChooser"] = "" then put true into xSettingsA["UNIX,printerChooser"]
-   if xSettingsA["UNIX,pageSetup"] = "" then put true into xSettingsA["UNIX,pageSetup"]
-   if xSettingsA["UNIX,fileSelector"] = "" then put true into xSettingsA["UNIX,fileSelector"]
+   if xSettingsA["UNIX,colorChooser"] = "" then
+      put true into xSettingsA["UNIX,colorChooser"]
+   end if
+   if xSettingsA["UNIX,printerChooser"] = "" then
+      put true into xSettingsA["UNIX,printerChooser"]
+   end if
+   if xSettingsA["UNIX,pageSetup"] = "" then
+      put true into xSettingsA["UNIX,pageSetup"]
+   end if
+   if xSettingsA["UNIX,fileSelector"] = "" then
+      put true into xSettingsA["UNIX,fileSelector"]
+   end if
 
    /* - if IDE platform is in deployment targets, then default
    *   to IDE platform + IDE arch
@@ -1038,10 +1083,18 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
    -- copyright
    get the seconds
    convert it to dateItems
-   if xSettingsA["OSX,copyright"] = "" then put item 1 of it&&the cUserOrganisation of stack "Home"&&"All rights reserved worldwide" into xSettingsA["OSX,copyright"]
-   if xSettingsA["OSX,identifier"] = "" then put "com."&replaceText(toLower(the cUserOrganisation of stack "Home")," ","")&"."&replaceText(toLower(xSettingsA["name"])," ","") into xSettingsA["OSX,identifier"]
-   if xSettingsA["Windows,LegalCopyright"] = "" then put item 1 of it&&the cUserOrganisation of stack "Home"&&"All rights reserved worldwide" into xSettingsA["Windows,LegalCopyright"]
-   if xSettingsA["Windows,companyname"] = "" then put the cUserOrganisation of stack "Home" into xSettingsA["Windows,companyname"]
+   if xSettingsA["OSX,copyright"] is empty then
+      put item 1 of it && the cUserOrganisation of stack "Home" && "All rights reserved worldwide" into xSettingsA["OSX,copyright"]
+   end if
+   if xSettingsA["OSX,identifier"] is empty then
+      put "com."&replaceText(toLower(the cUserOrganisation of stack "Home")," ","")&"."&replaceText(toLower(xSettingsA["name"])," ","") into xSettingsA["OSX,identifier"]
+   end if
+   if xSettingsA["Windows,LegalCopyright"] is empty then
+      put item 1 of it&&the cUserOrganisation of stack "Home"&&"All rights reserved worldwide" into xSettingsA["Windows,LegalCopyright"]
+   end if
+   if xSettingsA["Windows,companyname"] is empty then
+      put the cUserOrganisation of stack "Home" into xSettingsA["Windows,companyname"]
+   end if
 
    /* If an existing stack was configured to build for PowerPC, then default to MacOS 64bit */
    if xSettingsA["MacOSX PowerPC-32"] and \
@@ -1052,11 +1105,11 @@ on revSBDefaultStandaloneSettings pStack, @xSettingsA
 
    -- Auto-remove stack passwords from community stacks
    --if not revEnvironmentEditionProperty("password_protection") then
-      --if xSettingsA["password"] is not empty then
-         --delete variable xSettingsA["password"]
-      --end if
+   --if xSettingsA["password"] is not empty then
+   --delete variable xSettingsA["password"]
    --end if
-end revSBDefaultStandaloneSettings
+   --end if
+end SBDefaultStandaloneSettings
 
 function revSBPlatformToLicensedPlatform pPlatform
    local tLicensedPlatform
@@ -1385,28 +1438,36 @@ private function __ScriptLibraries
    return tLibs
 end __ScriptLibraries
 
-private function revSBPlatformToRuntimeFolderName pPlatform
+private function SBPlatformToRuntimeFolderName pPlatform
    -- Ensure folder casing is correct
+   local tFolderName
    switch pPlatform
       case "MacOSX"
-         return "Mac OS X"
+         put "Mac OS X" into tFolderName
+         break
       case "iOS"
-         return "iOS"
+         put "iOS" into tFolderName
+         break
       case "Windows"
-         return "Windows"
+         put "Windows" into tFolderName
+         break
       case "Linux"
-         return "Linux"
+         put "Linux" into tFolderName
+         break
       case "Android"
-         return "Android"
+         put "Android" into tFolderName
+         break
       case "Emscripten"
-         return "Emscripten"
+         put "Emscripten" into tFolderName
+         break
    end switch
 
-   return empty
-end revSBPlatformToRuntimeFolderName
+   return tFolderName
+end SBPlatformToRuntimeFolderName
 
+constant kSBEXTERNALS = "revbrowser Browser,revdb Database,revspeech Speech,revvideograbber Video Grabber,revxml XML,revzip Revolution Zip"
 function revSBExternalsMapping
-   return "revbrowser Browser,revdb Database,revspeech Speech,revvideograbber Video Grabber,revxml XML,revzip Revolution Zip"
+   return kSBEXTERNALS
 end revSBExternalsMapping
 
 function revSBExtExternalsMapping
@@ -1439,21 +1500,22 @@ function revSBExtExternalsMapping
          "mergSocial" & cr & \
          "rrehardcopy" & cr & \
          "tsNet" into kExtExternals
-   
+
    return kExtExternals
 end revSBExtExternalsMapping
 
-function revSBDatabaseDriversMapping
-   return "mysql MySQL,odbc ODBC,postgresql PostgreSQL,sqlite SQLite,oracle Oracle"
-end revSBDatabaseDriversMapping
+constant kDATABASEDRIVERS = "mysql MySQL,odbc ODBC,postgresql PostgreSQL,sqlite SQLite,oracle Oracle"
+function SBDatabaseDriversMapping
+   return kDATABASEDRIVERS
+end SBDatabaseDriversMapping
 
-function revSBFileIsFontFile pFile
+function SBFileIsFontFile? pFile
    return (pFile ends with ".ttf" or pFile ends with ".ttc" or pFile ends with ".otf")
-end revSBFileIsFontFile
+end SBFileIsFontFile?
 
 -- MW-2013-06-13: [[ CloneAndRun ]] If we aren't installed, then generate the externals
 --   list by hand.
-private function revSBExternalsBuildList pPlatform
+private function SBExternalsBuildList pPlatform
    -- For now, only allow externals for the current build platform
    local tExpectedPlatform
    switch the platform
@@ -1474,9 +1536,9 @@ private function revSBExternalsBuildList pPlatform
    end if
 
    return revExternalsList()
-end revSBExternalsBuildList
+end SBExternalsBuildList
 
-private function revSBDesktopExternalsFromFolder pFolder
+private function SBDesktopExternalsFromFolder pFolder
    -- Find all relevant Externals.txt files
    local tFilesList
    put revSBEnumerateFolder(pFolder) into tFilesList
@@ -1491,25 +1553,25 @@ private function revSBDesktopExternalsFromFolder pFolder
    end repeat
 
    return tListA
-end revSBDesktopExternalsFromFolder
+end SBDesktopExternalsFromFolder
 
-private function revSBDesktopExternalsList pPlatform
+private function SBDesktopExternalsList pPlatform
    local tPlatformFolder
-   put revSBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
+   put SBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
 
    local tListA
 
    local tTargetFolder
    put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBDesktopExternalsFromFolder(tTargetFolder)
+   union tListA with SBDesktopExternalsFromFolder(tTargetFolder)
 
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBDesktopExternalsFromFolder(tTargetFolder)
+   union tListA with SBDesktopExternalsFromFolder(tTargetFolder)
 
    return the keys of tListA
-end revSBDesktopExternalsList
+end SBDesktopExternalsList
 
-private function revSBMobileExternalsFromFolder pFolder
+private function SBMobileExternalsFromFolder pFolder
    local tFilesList
    put revSBEnumerateFolder(pFolder) into tFilesList
 
@@ -1531,41 +1593,41 @@ private function revSBMobileExternalsFromFolder pFolder
    end repeat
 
    return tListA
-end revSBMobileExternalsFromFolder
+end SBMobileExternalsFromFolder
 
-private function revSBMobileExternalsList pPlatform
+private function SBMobileExternalsList pPlatform
    -- Since the mobile Runtime folders don't have Externals.txt,
    -- just check which externals are available from the fixed list
    local tPlatformFolder
-   put revSBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
+   put SBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
 
    local tListA
 
    local tTargetFolder
    put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBMobileExternalsFromFolder(tTargetFolder)
+   union tListA with SBMobileExternalsFromFolder(tTargetFolder)
 
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBMobileExternalsFromFolder(tTargetFolder)
+   union tListA with SBMobileExternalsFromFolder(tTargetFolder)
 
    return the keys of tListA
-end revSBMobileExternalsList
+end SBMobileExternalsList
 
 -- Check in the IDE and user-defined externals locations for
 -- Externals.txt files
 function revSBExternalsList pPlatform
    if not revEnvironmentIsInstalled() then
-      return revSBExternalsBuildList(pPlatform)
+      return SBExternalsBuildList(pPlatform)
    end if
 
    switch pPlatform
       case "MacOSX"
       case "Linux"
       case "Windows"
-         return revSBDesktopExternalsList(pPlatform)
+         return SBDesktopExternalsList(pPlatform)
       case "iOS"
       case "Android"
-         return revSBMobileExternalsList(pPlatform)
+         return SBMobileExternalsList(pPlatform)
       default
          return empty
    end switch
@@ -1596,7 +1658,7 @@ private function SBDatabaseDriversBuildList pPlatform
    return revDatabaseDriverList()
 end SBDatabaseDriversBuildList
 
-private function revSBDesktopDatabaseDriversFromFolder pFolder
+private function SBDesktopDatabaseDriversFromFolder pFolder
    -- Find all relevant Database Drivers.txt files
    local tFilesList
    put revSBEnumerateFolder(pFolder) into tFilesList
@@ -1611,22 +1673,22 @@ private function revSBDesktopDatabaseDriversFromFolder pFolder
    end repeat
 
    return tListA
-end revSBDesktopDatabaseDriversFromFolder
+end SBDesktopDatabaseDriversFromFolder
 
 -- Check in the IDE and user-defined DB driver locations for
 -- Database Drivers.txt files
 private function SBDesktopDatabaseDriversList pPlatform
    local tPlatformFolder
-   put revSBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
+   put SBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
 
    local tListA
 
    local tTargetFolder
    put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBDesktopDatabaseDriversFromFolder(tTargetFolder)
+   union tListA with SBDesktopDatabaseDriversFromFolder(tTargetFolder)
 
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
-   union tListA with revSBDesktopDatabaseDriversFromFolder(tTargetFolder)
+   union tListA with SBDesktopDatabaseDriversFromFolder(tTargetFolder)
 
    return the keys of tListA
 end SBDesktopDatabaseDriversList
@@ -1643,7 +1705,7 @@ private function SBMobileDatabaseDriversFromFolder pFolder
    end repeat
 
    local tFixedDrivers
-   put revSBDatabaseDriversMapping() into tFixedDrivers
+   put SBDatabaseDriversMapping() into tFixedDrivers
 
    local tListA
    set the itemdelimiter to comma
@@ -1660,7 +1722,7 @@ private function SBMobileDatabaseDriversList pPlatform
    -- Since the mobile Runtime folders don't have Externals.txt,
    -- just check which DB drivers are available from the fixed list
    local tPlatformFolder
-   put revSBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
+   put SBPlatformToRuntimeFolderName(pPlatform) into tPlatformFolder
 
    local tListA
 
@@ -1748,7 +1810,7 @@ end revSBLcextFileIsZipArchive
 
 function revSBLcextExternalHasFolder pExternal, pPlatform
    local tContents, tFolder
-   put revSBPlatformToRuntimeFolderName(pPlatform) into tFolder
+   put SBPlatformToRuntimeFolderName(pPlatform) into tFolder
 
    revZipOpenArchive pExternal, "read"
    if the result is empty then
@@ -1778,7 +1840,7 @@ private function __FilterExternalsForMobile pList, pPlatform
          if tList is empty then
             put tLine into tList
          else
-            put return & tLine after tList
+            put cr & tLine after tList
          end if
       end if
    end repeat
@@ -1789,7 +1851,7 @@ private function __FilterExternalsForMobile pList, pPlatform
          if tList is empty then
             put tLine into tList
          else
-            put return & tLine after tList
+            put cr & tLine after tList
          end if
       end if
    end repeat
@@ -2198,7 +2260,7 @@ command revSBUpdateInclusions pInclusions, pExclusions, pStackName
    end repeat
 end revSBUpdateInclusions
 
-function revSBInclusionToMobileKey pName, pType, pPlatform
+function SBInclusionToMobileKey pName, pType, pPlatform
    local tToInclude
    switch pName
       case "pdfPrinter"
@@ -2211,7 +2273,7 @@ function revSBInclusionToMobileKey pName, pType, pPlatform
          switch pType
             case "database driver"
                local tDBDriverID, tDBDrivers
-               put revSBDatabaseDriversMapping() into tDBDrivers
+               put SBDatabaseDriversMapping() into tDBDrivers
                put "db" & word 1 of item itemOffset(pName, tDBDrivers) of tDBDrivers into tToInclude
                break
             case "external"
@@ -2229,7 +2291,7 @@ function revSBInclusionToMobileKey pName, pType, pPlatform
    end if
 
    return empty
-end revSBInclusionToMobileKey
+end SBInclusionToMobileKey
 
 -- Mobile standalone builders need to use this to convert from new inclusion settings
 command revSBConvertSettingsForPlatform @xSettings, pPlatform
@@ -2253,19 +2315,19 @@ command revSBConvertSettingsForPlatform @xSettings, pPlatform
 
    -- Convert from desktop specific keys to mobile
    if xSettings["pdfPrinter"] then
-      put "true" into xSettings[revSBInclusionToMobileKey("pdfPrinter", "", pPlatform)]
+      put "true" into xSettings[SBInclusionToMobileKey("pdfPrinter", "", pPlatform)]
    end if
 
    repeat for each line tLine in xSettings["databaseDrivers"]
-      put "true" into xSettings[revSBInclusionToMobileKey(tLine, "database driver", pPlatform)]
+      put "true" into xSettings[SBInclusionToMobileKey(tLine, "database driver", pPlatform)]
    end repeat
 
    repeat for each line tLine in xSettings["scriptLibraries"]
-      put "true" into xSettings[revSBInclusionToMobileKey(tLine, "external", pPlatform)]
+      put "true" into xSettings[SBInclusionToMobileKey(tLine, "external", pPlatform)]
    end repeat
 end revSBConvertSettingsForPlatform
 
-function revSBIncludedExternalPath pTarget, pName
+function SBIncludedExternalPath pTarget, pName
    local tPlatform
    put revSBTargetToPlatform(pTarget) into tPlatform
 
@@ -2289,7 +2351,7 @@ function revSBIncludedExternalPath pTarget, pName
    end if
 
    return sExternalsLocationA[tPlatform][pName][tArchitecture]
-end revSBIncludedExternalPath
+end SBIncludedExternalPath
 
 private command __ResolveIncludedExternal pTarget, @xFiles, @rHasResources
    local tHasResources
@@ -2299,7 +2361,7 @@ private command __ResolveIncludedExternal pTarget, @xFiles, @rHasResources
    if xFiles begins with "!" then
 
       local tExtPath
-      put revSBIncludedExternalPath(pTarget, char 2 to -1 of xFiles) into tExtPath
+      put SBIncludedExternalPath(pTarget, char 2 to -1 of xFiles) into tExtPath
       -- if the file prefixed with ! was not a named external, treat normally
       if tExtPath is not empty then
          put tExtPath into xFiles
@@ -2625,7 +2687,7 @@ command revSBUpdateDeployParams pStack, pTarget, pStandaloneSettings, @xDeployPa
    repeat for each line tLibrary in pStandaloneSettings["externals"]
       -- check if there are any supporting libraries for the external and add
       local tExtPath
-      put revSBIncludedExternalPath(pTarget, tLibrary) into tExtPath
+      put SBIncludedExternalPath(pTarget, tLibrary) into tExtPath
       if tExtPath is not empty then
          set the itemDelimiter to slash
          delete the last item of tExtPath
@@ -2692,16 +2754,16 @@ command revSBOverrideBuiltInInclusion pPlatform, pInclusionType, pInclusion
    delete variable  sBuiltInInclusions[pPlatform][pInclusionType][pInclusion]
 end revSBOverrideBuiltInInclusion
 
-command revSBRemoveInclusions pStack, pPlatform, pConfirm, @xSettings
+command SBRemoveInclusions pStack, pPlatform, pConfirm?, @xSettings
    local tName, tKey
    repeat for each key tKey in sBuiltInInclusions[pPlatform]
       repeat for each key tName in sBuiltInInclusions[pPlatform][tKey]
 
          local tInclude?
          put xSettings["overrideInclusions"][tName] into tInclude?
-         if pConfirm and xSettings["overrideInclusions"][tName] is empty then
+         if pConfirm? and xSettings["overrideInclusions"][tName] is empty then
             local tSilenceWarning?
-            dispatch "revConfirmInclusion" to stack "revStandaloneSettings" with tName, tInclude?, tSilenceWarning?
+            dispatch "ConfirmInclusion" to stack "revStandaloneSettings" with tName, tInclude?, tSilenceWarning?
 
             if tSilenceWarning? then
                local tOverride
@@ -2721,7 +2783,7 @@ command revSBRemoveInclusions pStack, pPlatform, pConfirm, @xSettings
          end if
       end repeat
    end repeat
-end revSBRemoveInclusions
+end SBRemoveInclusions
 
 private command revSBListWidgetsOfStack pStack, @xWidgetKindsA
    local tNumCards, tNumWidgets, tKind
@@ -2793,7 +2855,7 @@ private command __InitialiseInclusionDependencies
 
    // Database drivers require revdb
    local tDBName
-   repeat for each item tDatabaseDriver in revSBDatabaseDriversMapping()
+   repeat for each item tDatabaseDriver in SBDatabaseDriversMapping()
       put word 2 to -1 of tDatabaseDriver into tDBName
       revSBAddDependencyForInclusion "databaseDrivers", tDBName, "scriptLibraries", "Database"
    end repeat
@@ -3174,7 +3236,7 @@ private command initialiseSearchForInclusions
    put "revZip" into sPatternsA["Revolution Zip"]["Script"]
    put "scriptLibraries" into sPatternsA["Revolution Zip"]["Key"]
 
-   repeat for each item tDBDriver in revSBDatabaseDriversMapping()
+   repeat for each item tDBDriver in SBDatabaseDriversMapping()
       local tDBName, tDB
       put word 1 of tDBDriver into tDB
       put word 2 to -1 of tDBDriver into tDBName
@@ -3399,7 +3461,7 @@ private command revCheckObject pObject,pUserLibraries, @xSettings, @xWidgetKinds
    end if
 end revCheckObject
 
-
+constant kSTANDALONEBINARY = "Standalone"
 function revSBEnginePath pPlatform
    local tEdition
    --put the editionType into tEdition
@@ -3407,10 +3469,10 @@ function revSBEnginePath pPlatform
    //  allow to create broken applications, so that the executable file in it bears the edition.
    --if tEdition is not "community" then
    --put "Commercial" into tEdition
-   put "Professional" into tEdition
+   --put "Professional" into tEdition
    --end if
-   --put "Community" into tEdition
-   
+   put "community" into tEdition
+
    -- MW-2013-06-13: [[ CloneAndRun ]] If not installed, then fetch the engine locally.
    if revEnvironmentIsInstalled() then
       # MW-2009-06-24: For Mac OS X, engine source is two lines, first is PPC (if any), second
@@ -3423,27 +3485,24 @@ function revSBEnginePath pPlatform
          case "MacOSX x86-32"
          case "MacOSX x86-64"
          case "MacOSX arm64"
-            # return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone-" & tEdition
-            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/Standalone"
+            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/" & kSTANDALONEBINARY
             break
          case "Windows"
-            return tRuntimePath & "/Windows/x86-32/Standalone-" & tEdition
+            return tRuntimePath & "/Windows/x86-32/" & kSTANDALONEBINARY
             break
          case "Windows x86-64"
-            return tRuntimePath & "/Windows/x86-64/Standalone-" & tEdition
+            return tRuntimePath & "/Windows/x86-64/" & kSTANDALONEBINARY
             break
          case "Linux"
-            # return tRuntimePath & "/Linux/x86-32/Standalone-" & toLower(tEdition)
-            return tRuntimePath & "/Linux/x86-32/Standalone"
+            return tRuntimePath & "/Linux/x86-32/" & kSTANDALONEBINARY
             break
             -- MW-2013-11-06: [[ LinuxX64 ]] Compute the correct path for 64-bit linux.
          case "Linux x64"
-            # return tRuntimePath & "/Linux/x86-64/Standalone-" & toLower(tEdition)
-            return tRuntimePath & "/Linux/x86-64/Standalone"
+            return tRuntimePath & "/Linux/x86-64/" & kSTANDALONEBINARY
             break
             -- FG-2014-08-19: [[ RPi ]] Compute the correct path for ARMv6 Linux
          case "Linux armv6-hf"
-            return tRuntimePath & "/Linux/armv6-hf/Standalone-" & toLower(tEdition)
+            return tRuntimePath & "/Linux/armv6-hf/" & kSTANDALONEBINARY
             break
          default
             return "error"
@@ -3454,7 +3513,7 @@ function revSBEnginePath pPlatform
       // SN-2015-05-15: [[ DeployAllPlatforms ]] Allow the deployment to happen
       //  for another platform, from the repository.
       local tBinariesPath
-      
+
       if pPlatform contains "MacOSX" and the platform is not "macos" or \
             pPlatform contains "Linux" and the platform is not "linux" or \
             pPlatform is "Windows" and the platform is not "win32" then
@@ -3462,10 +3521,10 @@ function revSBEnginePath pPlatform
       else
          put revEnvironmentBinariesPath() into tBinariesPath
       end if
-      
+
       switch word 1 of pPlatform
          case "MacOSX"
-            return tBinariesPath & "/Standalone.app/Contents/MacOS/Standalone"
+            return tBinariesPath & "/Standalone.app/Contents/MacOS/" & kSTANDALONEBINARY
             break;
          case "Windows"
             return tBinariesPath & slash & "standalone-" & tEdition & ".exe"
@@ -3508,7 +3567,7 @@ function revSBGetSettings pStack, pDeploy?
          (the mainstack of stack pStack) into tSettingsA
 
    # Set empty values to defaults
-   revSBDefaultStandaloneSettings pStack, tSettingsA
+   SBDefaultStandaloneSettings pStack, tSettingsA
 
    if pDeploy? then
       local tKey, tInclusion

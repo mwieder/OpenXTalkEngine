@@ -12,12 +12,12 @@ command saveAsMobileStandalone \
       pSettings, \
       @xStandalonePaths, \
       pDevice
-   
+
    local tPath
    put the cMobileSupport["android.sdk"] of stack "revPreferences" into tPath
-   
+
    if tPath is empty then
-      throw revIDELocalise("In order to build Android standalones" & \ 
+      throw revIDELocalise("In order to build Android standalones" & \
             " you need to choose the location of your Android development SDK" & \
             " in Preferences -> Mobile Support")
    end if
@@ -26,14 +26,14 @@ command saveAsMobileStandalone \
             " is not a valid Android SDK. Please ensure you have installed it correctly," & \
             " and enabled support for") && deploy.Android.RequiredSDK()
    end if
-   
+
    local tTargetType
    if pTarget contains "build" then
       put "android release" into tTargetType
    else
       put "android test" into tTargetType
    end if
-   
+
    local tPackage
    put pAabFile into tPackage
    if not pSettings["android,use bundle"] then
@@ -41,24 +41,24 @@ command saveAsMobileStandalone \
       put "apk" into the last item of tPackage
       set the itemDelimiter to ","
    end if
-   
+
    try
       put the cMobileSupport["android.jdk"] of stack "revPreferences" into sJavaRoot
       dispatch "savingMobileStandalone" to stack pStack with tTargetType, tPackage
    end try
-   
+
    try
       saveAsMobileStandaloneMain pStack, pAabFile, pTarget, pSettings,pDevice
    catch tError
    end try
-   
+
    try
       if tError is not empty then
          put empty into tPackage
       end if
       dispatch "mobileStandaloneSaved" to stack pStack with tTargetType, tPackage
    end try
-   
+
    if tError is not empty then
       throw tError
    end if
@@ -68,19 +68,19 @@ private function pathIsRelative pPath
    if pPath is empty then throw "empty path"
    if pPath begins with "/" then return false
    if char 2 of pPath is ":" then return false
-   
+
    return true
 end pathIsRelative
 
 // IM-2013-05-21: [[ BZ 10904 ]] This function replicates the functionality of the apkbuilder script which has now been removed from the Android SDK platform tools
 private command buildAPK pUnalignedApkFile, pUnsignedParam, pAssetArchive, pClassesFile, pLibsBuildFolder
    local tResult, tSep
-   if the platform is "Win32" then 
+   if the platform is "Win32" then
       put ";" into tSep
    else
       put ":" into tSep
    end if
-   
+
    // We need the 'common' classes to fix the following exception
    /*
    Exception in thread "main" java.lang.NoClassDefFoundError: com/android/prefs/AndroidLocation
@@ -114,7 +114,7 @@ private function updateMinimumAPI pVersionSet, pLimit
    else
       put "highest" into tLimitType
    end if
-   
+
    answer "The minimum Android API is currently set to" && \
          pVersionSet && \
          "but the" && tLimitType & " Android API available from LiveCode" && the version && \
@@ -122,7 +122,7 @@ private function updateMinimumAPI pVersionSet, pLimit
          "Do you want to update the minimum Android API to" && pLimit & "?" \
          with "No" or "Yes" \
          titled "Minimum Android API error"
-   
+
    return (it is "Yes")
 end updateMinimumAPI
 
@@ -144,7 +144,8 @@ private function __ArchABI pArch
    end switch
 end __ArchABI
 
-constant kAndroidExternals = "revzip revxml dbsqlite dbmysql dbodbc dbpostgresql revpdfprinter"
+constant kAndroidExternals = "revzip,revxml,dbsqlite,dbmysql,dbodbc,dbpostgresql,revpdfprinter,blur,merJson,mergMarkdown,tsNet"
+constant kMediaIcons = "media_next.png,media_pause.png,media_play.png,media_prev.png,media_stop.png"
 
 private function AmazonBillingReceiver
    local tAmazonReceiver
@@ -181,10 +182,10 @@ private command saveAsMobileStandaloneMain \
    
    dispatch "deploy.Android.Initialize" to stack "revDeployLibrary"
    
-   -- If we're searching for inclusions, do it here 
+   -- If we're searching for inclusions, do it here
    local tConfirm, tResult
    put true into tConfirm
-   if pSettings["inclusions"] is "search" then 
+   if pSettings["inclusions"] is "search" then
       put false into tConfirm
       -- search for inclusions when building for simulator
       if pTarget contains "test" then
@@ -202,7 +203,7 @@ private command saveAsMobileStandaloneMain \
    end if
    
    -- Manually remove built-in implementations from detected script library inclusions
-   revSBRemoveInclusions pStack, "android", tConfirm, pSettings
+   SBRemoveInclusions pStack, "android", tConfirm, pSettings
    
    -- Make sure old-style keys are retained, and updated with new information
    -- from inclusions pane of standalone settings GUI
@@ -324,9 +325,9 @@ private command saveAsMobileStandaloneMain \
    end if
    
    -- Compute the externals list (includes drivers on Android)
-   repeat for each word tExternal in kAndroidExternals
+   repeat for each item tExternal in kAndroidExternals
       if pSettings["android,include" && tExternal] then
-         if tExternal begins with "db" then 
+         if tExternal begins with "db" then
             if "revdb" is not among the lines of tExternals then
                put "revdb" & return after tExternals
             end if
@@ -459,7 +460,7 @@ private command saveAsMobileStandaloneMain \
                   appendToStringList tExtJars, pSettings["jarFiles"]
                end if
                break
-         end switch 
+         end switch
          
       end repeat
       delete the last char of tExternals
@@ -591,7 +592,7 @@ private command saveAsMobileStandaloneMain \
          put "  <uses-permission android:name="&quote&"com.android.vending.BILLING"&quote&" />" & return after tPermissions
          put "<activity" & CR & \
                "android:name=" & quote & "com.android.billingclient.api.ProxyBillingActivity" & quote & CR & \
-               "android:configChanges=" & quote & "keyboard|keyboardHidden|screenLayout|screenSize|orientation" & quote & CR & \ 
+               "android:configChanges=" & quote & "keyboard|keyboardHidden|screenLayout|screenSize|orientation" & quote & CR & \
                "android:theme=" & quote & "@android:style/Theme.Translucent.NoTitleBar" & quote & return & \
                "android:exported=" & quote & "false" & quote & " />" into tProxyBillingActivity
       end if
@@ -935,7 +936,7 @@ private command saveAsMobileStandaloneMain \
    /* Adaptive Icons */
    if pSettings["android,icon type"] is "adaptive" and \
          pSettings["android,adaptive icons resources path"] is not empty then
-      local tAdaptiveIconsResFolder 
+      local tAdaptiveIconsResFolder
       put pSettings["android,adaptive icons resources path"] \
             into tAdaptiveIconsResFolder
       if pathIsRelative(tAdaptiveIconsResFolder) then
@@ -1015,6 +1016,21 @@ private command saveAsMobileStandaloneMain \
       end if
       put tDrawableResBuildFolder & slash & "notify_icon.png" & cr after tAssetFiles
    end if
+   
+   repeat for each item tFile in kMediaIcons
+      local tPath
+      put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & tFile) \
+            into tPath
+      if there is a file tPath then
+         put url ("binfile:" & tPath) \
+               into url ("binfile:" & tDrawableResBuildFolder & slash & tFile)
+         if the result is not empty then
+            throw "could not copy icon '" & tPath & "'"
+         end if
+         put tDrawableResBuildFolder & slash & tFile & return \
+               after tAssetFiles
+      end if
+   end repeat
    
    ------- Compile the Standalone
    revStandaloneProgress "Building executable..."
@@ -1344,7 +1360,7 @@ end repeat
 
 set the itemDelimiter to slash
 repeat for each line tJarFile in pSettings["jarFiles"]
-   if there is a file (tLibsBuildFolder & slash & item -1 of tJarFile) then 
+   if there is a file (tLibsBuildFolder & slash & item -1 of tJarFile) then
       delete file (tLibsBuildFolder & slash & item -1 of tJarFile)
    end if
 end repeat
@@ -1431,8 +1447,8 @@ private function escapeLabel pLabel
    replace quote with "\" & quote in pLabel
    return pLabel
 end escapeLabel
-   
-private command processAaptResult @xResult   
+
+private command processAaptResult @xResult
    -- MW-2012-07-04: On Linux, 'aapt' can complain about libz version info
    --   so we delete that line from the result before checking for an error.
    if line 1 of xResult contains "no version information available" then
@@ -1568,11 +1584,11 @@ private command linkResources pBuildFolder, pResourceGenFolder, pManifestFile, p
    if tAaptResult is not empty then
       return tAaptResult
    end if
-   
+
    local tBundleDir
    put pBuildFolder & slash & "aab-bundle" & slash into tBundleDir
    revSBEnsureFolder tBundleDir
-   
+
    // Open the app bundle archive and extract them into the app bundle directory
    set the itemDel to slash
    revZipOpenArchive tBundleFile, "read"
@@ -1587,7 +1603,7 @@ private command linkResources pBuildFolder, pResourceGenFolder, pManifestFile, p
       end repeat
       revZipCloseArchive tBundleFile
    end if
-   
+
    return empty
 end linkResources
 
@@ -1761,8 +1777,8 @@ private command expandAARsAndComputeSettings tBuildFolder, @xSettingsA
    end repeat
    set the folder to tDefaultFolder
 end expandAARsAndComputeSettings
-   
-constant kSupportedAARFiles = "AndroidManifest.xml,classes.jar,R.txt"   
+
+constant kSupportedAARFiles = "AndroidManifest.xml,classes.jar,R.txt"
 constant kSupportedAARFolders = "res"
 private command updateSettingsForExtractedAAR pFolder, @xSettingsA
    local tExtractedItem, tItemPackage
@@ -1788,7 +1804,7 @@ private command updateSettingsForExtractedAAR pFolder, @xSettingsA
       put pFolder & slash & tItem into tExtractedItem
       if there is not a folder tExtractedItem then
          next repeat
-      end if     
+      end if
       switch tItem
          case "res"
             if tItemPackage is not empty then
@@ -1811,12 +1827,12 @@ end getPackageFromAndroidManifestFile
 
 private command addAssetsToArchive pFileData, pBaseFolder, pArchive
    local tDeviceConfig, tConfigFile, tCustomConfigFile, tFonts
-   
+
    put mapFIlePath(revMobileRuntimeFolder() & slash & "lc_device_config.txt") into tConfigFile
    if there is not a file tConfigFile then
       put empty into tConfigFile
    end if
-   
+
    constant kICUDataFiles="icu-coll.dat,icu-core.dat,icu-iter.dat"
    local tIcuDataPath
    local tAndroidPath
@@ -1836,15 +1852,15 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
    --throw "could not find icu data '" & tIcuDataPath & "'"
    --end if
    --revZipAddUncompressedItemWithFile pArchive, "assets/icudata-minimal.dat", tIcuDataPath
-   
+
    repeat for each element tFile in pFileData
       if there is a file tFile["resolved"] then
          if tConfigFile is not empty and tFile["name"] ends with "lc_device_config.txt" then
             // need to merge config files
             put tFile["resolved"] into tCustomConfigFile
-         else if revSBFileIsFontFile(tFile["name"]) then
+         else if SBFileIsFontFile?(tFile["name"]) then
             -- MM-2012-03-07: [[ Custom fonts ]] If any fonts are found, add to the list so that they are handled correctly
-            put tFile["resolved"] & return after tFonts
+            put tFile["resolved"] & cr after tFonts
          else if tFile["name"] ends with ".lcext" or tFile["name"] ends with ".dylib" then
             -- MW-2012-07-05: [[ Externals ]] If an 'lcext' file or dylib file is found then we ignore it.
          else if tFile["name"] ends with "AndroidManifest.xml" then
@@ -1860,17 +1876,17 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
          throw "could not find referenced asset to include -" && tFile["resolved"]
       end if
    end repeat
-   
+
    if tCustomConfigFile is empty then
       if tConfigFile is not empty then
          revZipAddUncompressedItemWithFile pArchive, "assets/lc_device_config.txt", tConfigFile
       end if
    else
-      put url ("binfile:" & tConfigFile) & return into tDeviceConfig
+      put url ("binfile:" & tConfigFile) & cr into tDeviceConfig
       put url ("binfile:" & tCustomConfigFile) after tDeviceConfig
       revZipAddUncompressedItemWithData pArchive, "assets/lc_device_config.txt", "tDeviceConfig"
    end if
-   
+
    -- MM-2012-03-07: [[ Custom fonts ]] Add any fonts found to the assets/fonts folder
    set the itemDel to slash
    repeat for each line tFont in tFonts
@@ -1878,12 +1894,12 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
          revZipAddUncompressedItemWithFile pArchive, "assets/fonts/" & item -1 of tFont, tFont
       end if
    end repeat
-   set the itemDel to comma   
+   set the itemDel to comma
 end addAssetsToArchive
 
 private command addAssetsFromFolderToArchive pFolder, pBaseName, pArchive, @pFonts
    set the itemDelimiter to slash
-   
+
    -- Ignore any .svn folders
    if the last item of pFolder is ".svn" then
       exit addAssetsFromFolderToArchive
@@ -1892,16 +1908,16 @@ private command addAssetsFromFolderToArchive pFolder, pBaseName, pArchive, @pFon
    if char -1 of pFolder is slash then
       delete char -1 of pFolder
    end if
-   
+
    local tOldFolder
    put the folder into tOldFolder
    set the folder to pFolder
    if the folder is not pFolder then
       throw "could not descend into referenced asset folder -" && pFolder
    end if
-   
+
    repeat for each line tFile in the files
-      if revSBFileIsFontFile(tFile) then
+      if SBFileIsFontFile?(tFile) then
          -- MM-2012-03-07: [[ Custom fonts ]] If any fonts are found, add to the list so that they are handled correctly
          put the folder & slash & tFile & return after pFonts
       else if tFile ends with ".lcext" or tFile ends with ".dylib" then
@@ -1910,15 +1926,15 @@ private command addAssetsFromFolderToArchive pFolder, pBaseName, pArchive, @pFon
          revZipAddUncompressedItemWithFile pArchive, pBaseName & slash & tFile, the folder & slash & tFile
       end if
    end repeat
-   
+
    repeat for each line tFolder in the folders
       if tFolder is ".." then
          next repeat
       end if
-      
+
       addAssetsFromFolderToArchive pFolder & slash & tFolder, pBaseName & slash & tFolder, pArchive, pFonts
    end repeat
-   
+
    set the folder to tOldFolder
 end addAssetsFromFolderToArchive
 
@@ -1933,7 +1949,7 @@ private function fileIsZipArchive pFile
    if it is empty then
       throw "could not open external -" && pFile
    end if
-   
+
    return byte 1 of it is "P" and byte 2 of it is "K" and byte 3 of it is numToChar(3) and byte 4 of it is numToChar(4)
 end fileIsZipArchive
 
@@ -1944,7 +1960,7 @@ private function addExternalFromFile pExternal, pClassesFolder, pArchLibsFolders
    if not fileIsZipArchive(pExternal) then
       exit addExternalFromFile
    end if
-   
+
    -- Get the name of the external.
    local tExternalName
    set the itemDelimiter to slash
@@ -1952,21 +1968,21 @@ private function addExternalFromFile pExternal, pClassesFolder, pArchLibsFolders
    set the itemDelimiter to "."
    put the first item of it into tExternalName
    set the itemDelimiter to slash
-   
+
    -- Compute the class / lib names.
    local tClassesFile, tLibFileA, tJarPrefix
    put pClassesFolder & slash & "lib" & tExternalName into tJarPrefix
    put tJarPrefix & ".jar" into tClassesFile
-   
+
    -- Otherwise open the archive and check for appropriate android components
    revZipOpenArchive pExternal, "read"
    if the result is empty then
-      
+
       -- MERG-2015-10-14: [[ ThirdpartyLibs ]] Add support for thirdparty librares
       local tZipItems
       put revZipEnumerateItems(pExternal) into tZipItems
       filter tZipItems with "Android/*"
-      
+
       local tZipItemsFiltered
       filter tZipItems with regex pattern ".*(\.jar|Classes)$" into tZipItemsFiltered
       repeat for each line tZipItem in tZipItemsFiltered
@@ -1975,33 +1991,33 @@ private function addExternalFromFile pExternal, pClassesFolder, pArchLibsFolders
             put tJarPrefix & "-" & the last item of tZipItem & ".jar" into tJarPath
             revZipExtractItemToFile pExternal, tZipItem, tJarPath
             appendToStringList tJarPath, rJarFiles
-         else 
+         else
             # will be Classes file
             revZipExtractItemToFile pExternal, tZipItem, tClassesFile
             appendToStringList tClassesFile, rJarFiles
          end if
       end repeat
-      
+
       repeat for each key tArch in pArchLibsFolders
          local tPattern
          put "^Android/(?:External-" & tArch & "|lib.+" & tArch & "\.so)$" into tPattern
          filter tZipItems with regex pattern tPattern into tZipItemsFiltered
          put pArchLibsFolders[tArch] & slash & "lib" & tExternalName & ".so" into tLibFileA[tArch]
-         
+
          repeat for each line tZipItem in tZipItemsFiltered
             if tZipItem ends with ".so" then
                revZipExtractItemToFile pExternal, tZipItem, \
-                     pArchLibsFolders[tArch] & slash & the last item of tZipItem 
-            else 
+                     pArchLibsFolders[tArch] & slash & the last item of tZipItem
+            else
                # will be External-<Arch> file
                revZipExtractItemToFile pExternal, tZipItem, tLibFileA[tArch]
             end if
          end repeat
       end repeat
-      
+
       revZipCloseArchive pExternal
    end if
-   
+
    if there is a file tClassesFile then
       repeat for each key tArch in pArchLibsFolders
          if there is no file tLibFileA[tArch] then
@@ -2009,7 +2025,7 @@ private function addExternalFromFile pExternal, pClassesFolder, pArchLibsFolders
          end if
       end repeat
    end if
-   
+
    return tLibFileA is an array
 end addExternalFromFile
 
@@ -2021,15 +2037,15 @@ private function addExternalFromFolder pExternal, pClassesFolder, pArchLibsFolde
    set the itemDelimiter to "."
    put the first item of it into tExternalName
    set the itemDelimiter to slash
-   
+
    -- Compute the class / lib names.
    local tClassesFile, tLibFileA, tJarPrefix
    put pClassesFolder & slash & "lib" & tExternalName into tJarPrefix
    put tJarPrefix & ".jar" into tClassesFile
-   
+
    local tItems
    put files(pExternal & "/Android") into tItems
-   
+
    local tItemsFiltered
    filter tItems with regex pattern ".*(\.jar|Classes)$" into tItemsFiltered
    repeat for each line tItem in tItemsFiltered
@@ -2038,13 +2054,13 @@ private function addExternalFromFolder pExternal, pClassesFolder, pArchLibsFolde
          put tJarPrefix & "-" & the last item of tItem & ".jar" into tJarPath
          revSBCopyFile pExternal & "/Android/" & tItem, tJarPath
          appendToStringList tJarPath, rJarFiles
-      else 
+      else
          # will be Classes file
          revSBCopyFile pExternal & "/Android/" & tItem, tClassesFile
          appendToStringList tClassesFile, rJarFiles
       end if
    end repeat
-   
+
    repeat for each key tArch in pArchLibsFolders
       local tPattern
       put "^(?:External-" & tArch & "|lib.+" & tArch & "\.so)$" into tPattern
@@ -2053,15 +2069,15 @@ private function addExternalFromFolder pExternal, pClassesFolder, pArchLibsFolde
       repeat for each line tItem in tItemsFiltered
          if tItem ends with ".so" then
             revSBCopyFile pExternal & "/Android/" & tItem, \
-                  pClassesFolder & slash & the last item of tItem 
-         else 
+                  pClassesFolder & slash & the last item of tItem
+         else
             # will be External-<Arch> file
             revSBCopyFile pExternal & "/Android/" & tItem, \
                   tLibFileA[tArch]
          end if
       end repeat
    end repeat
-   
+
    if there is a file tClassesFile then
       repeat for each key tArch in pArchLibsFolders
          if there is no file tLibFileA[tArch] then
@@ -2069,7 +2085,7 @@ private function addExternalFromFolder pExternal, pClassesFolder, pArchLibsFolde
          end if
       end repeat
    end if
-   
+
    return tLibFileA is an array
 end addExternalFromFolder
 
@@ -2077,10 +2093,10 @@ end addExternalFromFolder
 
 private function revMobileRuntimeFolder pTarget
    local tOverridePath, tUserPath
-   
+
    # TODO: fix this
    return pathToRepoAndroidBinaries()
-   
+
    // IM-2013-12-16: [[ Bug 11594 ]] Check override is not empty to avoid accidentally detecting "/Android" path
    if revOverrideRuntimePath() is not empty then
       put revOverrideRuntimePath() & slash & "Android" into tOverridePath
@@ -2088,7 +2104,7 @@ private function revMobileRuntimeFolder pTarget
          return tOverridePath
       end if
    end if
-   
+
    // IM-2013-12-16: [[ Bug 11594 ]] Check override is not empty to avoid accidentally detecting "/Android" path
    if revEnvironmentUserRuntimePath() is not empty then
       put revEnvironmentUserRuntimePath() & slash & "Android" into tUserPath
@@ -2096,7 +2112,7 @@ private function revMobileRuntimeFolder pTarget
          return tUserPath
       end if
    end if
-   
+
    return revEnvironmentRuntimePath() & slash & "Android"
 end revMobileRuntimeFolder
 
@@ -2108,9 +2124,9 @@ private command executeAdbCommand pCommand
    if tAdb is empty or there is not a file tAdb then
       exit executeAdbCommand
    end if
-   
+
    get doShellCommand(tAdb, pCommand)
-   
+
    return it
 end executeAdbCommand
 
@@ -2141,7 +2157,7 @@ private command insertIntoList pValue, @xList, pAt
    put pValue into tNewList[pAt]
    put tNewList into xList
 end insertIntoList
-   
+
 private function shellEscape pString
    switch the platform
       case "MacOS"
@@ -2163,7 +2179,7 @@ private command executeShellCommand
    repeat with i = 2 to the paramCount
       appendToList param(i), tArray
    end repeat
-   
+
    executeShellCommandWithParams param(1), tArray
    return the result
 end executeShellCommand
@@ -2173,25 +2189,25 @@ private command executeShellCommandWithParams pCommand, pParamArray
    repeat for each element tParam in pParamArray
       if not (tParam begins with "-") then
          put shellEscape(tParam)into tParam
-      end if   
+      end if
       put tParam & space after tShell
    end repeat
-   
+
    get doShellCommand(pCommand, tShell)
-   
+
    return it
 end executeShellCommandWithParams
 
 private function doShellCommand pCommand, pArguments
    --makeBuildLogEntry "Executing command:" && pCommand && pArguments
-   
+
    local tCommandPath
    set the itemDelimiter to slash
    put item 1 to -2 of pCommand into tCommandPath
    if the platform is "win32" then
       put shortFilePath(tCommandPath) into tCommandPath
    end if
-   
+
    local tOldPath
    put $PATH into tOldPath
    if the platform is "win32" then
@@ -2202,13 +2218,13 @@ private function doShellCommand pCommand, pArguments
    else if the platform is "linux" then
       put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
    end if
-   
+
    set the hideConsoleWindows to true
    write item -1 of pCommand && pArguments & return to stderr
    get shell(item -1 of pCommand && pArguments)
-   
+
    put tOldPath into $PATH
-   
+
    return it
 end doShellCommand
 
@@ -2338,18 +2354,18 @@ private function mapFilePath pPath
       // SN-2015-01-19: [[ Bug 13213 ]] Linux filepaths are case-sensitive.
       //   so we try to caselessly match the targetted file, with the actual files.
       set the itemDelimiter to slash
-      
+
       // Get the list of files in the targetted directory
       local tOldFolder, tFiles
       put the defaultFolder into tOldFolder
       set the defaultFolder to item 1 to -2 of pPath
-      
+
       put the files into tFiles
       set the defaultFolder to tOldFolder
-      
+
       local tLineOffset
       put lineOffset(last item of pPath, tFiles) into tLineOffset
-      
+
       // We return empty if we can't find the specified file
       // That will allow us to throw an error in such a case.
       if tLineOffset is 0 then
@@ -2359,7 +2375,7 @@ private function mapFilePath pPath
       end if
       return pPath
    end if
-   
+
    local tPath
    local tBinariesFolder, tComponent, tSuffix
    local tArch, tFoundArch
@@ -2379,16 +2395,16 @@ private function mapFilePath pPath
    end if
 
    put pathToRepoAndroidBinaries(tArch) into tBinariesFolder
-   
+
    // SN-2015-07-02: [[ GypifiedAndroid ]] Throw an error if there is
    //  not the expected build folder
    if there is no folder tBinariesFolder then
       throw "Error: Android binaries folder" && tBinariesFolder && "could not be found"
    end if
-   
+
    set the itemDelimiter to slash
    put the last item of pPath into tComponent
-   
+
    switch tComponent
       case "notify_icon.png"
          put merge("[[tBinariesFolder]]/notify_icon.png") into tPath
@@ -2439,7 +2455,7 @@ private function mapFilePath pPath
          put pPath into tPath
          break
    end switch
-   
+
    return tPath
 end mapFilePath
 
@@ -2451,7 +2467,7 @@ private function androidCreateAppManifest pMainManifest, pAdditionalManifestsA, 
    repeat for each element tManifest in pAdditionalManifestsA
       appendToList androidManifestToArray(tManifest, pBuildVariables), tAdditionalArraysA
    end repeat
-   
+
    MergeManifestArrays tMainArrayA, tAdditionalArraysA
    return ConvertArrayToXML(tMainArrayA, "utf-8")
 end androidCreateAppManifest
@@ -2592,7 +2608,7 @@ private command mergeManifestElements @xElement, pNewElement
             /* TODO - implement merge conflict resolution using "tools:" attributes */
             next repeat
          end if
-         
+
          if xElement["@name"] is "uses-sdk" then
             if tKey is "minSdkVersion" then
                /* NON_STANDARD - merging a library with a higher minSdkVersion is typically an error,
@@ -2627,7 +2643,7 @@ private function androidManifestToArray pManifestFile, pBuildVariables
 end androidManifestToArray
 
 /*
-Handlers for converting XML text to LiveCode arrays and vice versa. 
+Handlers for converting XML text to LiveCode arrays and vice versa.
 Based on an implementation by Trevor DeVore of Blue Mango Learning Systems.
 */
 
@@ -2636,22 +2652,22 @@ Converts an XML tree into a LiveCode multi-dimensional array.
 
 Parameters:
 pXML: The xml to convert.
-pStoreEncodedAs: 
+pStoreEncodedAs:
 Encoding to use. Must be a value that can be passed to textEncode. Default is "utf-8".
 */
 private function ConvertXMLToArray pXML, pStoreEncodedAs
    local theArray,theResult,theRootNode,theTreeID
    local theXMLEncoding, tVersion
-   
+
    ## Create an XML tree from XML text
    put revCreateXMLTreeWithNamespaces(pXML, true, true, false) into theTreeID
-   
+
    if theTreeID is an integer then
       ## Determine the encoding of the XML, default to UTF-8
       put matchText(pXML, "<?xml (.)encoding=" & quote & "([^" & quote & "])", tVersion, theXMLEncoding) into theResult
       if theXMLEncoding is empty then put "utf-8" into theXMLEncoding
-      
-      ## Now convert to array. 
+
+      ## Now convert to array.
       ## The 1st dimension has one key which is the name of the root node.
       put revXMLRootNode(theTreeID) into theRootNode
       if theRootNode is not empty and not(theRootNode begins with "xmlerr,") then
@@ -2659,10 +2675,10 @@ private function ConvertXMLToArray pXML, pStoreEncodedAs
                into theArray[1]
          put theRootNode into theArray[1]["@name"]
       end if
-      
+
       revDeleteXMLTree theTreeID
    end if
-   
+
    return theArray
 end ConvertXMLToArray
 
@@ -2691,9 +2707,9 @@ pStoreEncodedAs: Encoding to use. Must be a value that can be passed to textEnco
 Description:
 The array should be keyed numerically, in order of appearance of nodes.
 pArray[1] is assumend to be the root node in the XML tree.
-each node is an array with three possible keys, 
+each node is an array with three possible keys,
 - @name (required): The name of the node
-- @attributes: The attributes of the node, stored as an array of 
+- @attributes: The attributes of the node, stored as an array of
   name/value pairs
 - @children: A numerically keyed array of child nodes
 - @value: The text value of the node
@@ -2701,23 +2717,23 @@ Returns: Text of the XML represented by the array, or error message.
 */
 private function ConvertArrayToXML pArray, pArrayEncoding, pStoreEncodedAs
    local theError,theRootNode,theXML,theXMLTree
-   
+
    ## if pArrayEncoding is empty then current platform encoding is assumed
    if pStoreEncodedAs is empty then put "UTF-8" into pStoreEncodedAs
-   
+
    ## Create XML for root node. Note that we take extra steps in order to support
    ## converting an array that only represents part of a tree rather than the entire tree.
    ## In this case there may be multiple nodes at the root level.
-   put pArray[1]["@name"] into theRootNode 
+   put pArray[1]["@name"] into theRootNode
    put "<" & theRootNode & "/>" into theXML
-   
+
    local tEncoding
    ## Create XML needed to create tree
    put format("<?xml version=\"1.0\" encoding=\"%s\"?>", \
          pStoreEncodedAs) into tEncoding
    put tEncoding before theXML
    put revCreateXMLTreeWithNamespaces(theXML, true, true, false) into theXMLTree
-   
+
    if theXMLTree is an integer then
       ## Loop over all nodes at root level
       ## Create tree using helper function
@@ -2728,10 +2744,10 @@ private function ConvertArrayToXML pArray, pArrayEncoding, pStoreEncodedAs
          ConvertArrayDimensionToXML tNode, theXMLTree, slash & tName, \
                tName, pArrayEncoding, pStoreEncodedAs
          put the result into theError
-         
+
          if theError is not empty then exit repeat
       end repeat
-      
+
       if theError is not empty then
          ## something went wrong, clean bad tree
          revDeleteXMLTree theXMLTree
@@ -2739,7 +2755,7 @@ private function ConvertArrayToXML pArray, pArrayEncoding, pStoreEncodedAs
    else
       put theXMLTree into theError
    end if
-   
+
    if theError is not empty then
       return theError for error
    else
@@ -2748,7 +2764,7 @@ private function ConvertArrayToXML pArray, pArrayEncoding, pStoreEncodedAs
             for value
    end if
 end ConvertArrayToXML
- 
+
 private command ConvertArrayDimensionToXML pArray, pTreeID, pNode, pName, pArrayEncoding, pStoreEncodedAs
    local theError,theKey,theKeys,tName
    put pName into tName
@@ -2760,34 +2776,34 @@ private command ConvertArrayDimensionToXML pArray, pTreeID, pNode, pName, pArray
             local theAttr
             put theKey into theAttr
             replace space with "-" in theAttr
-            
+
             revSetXMLAttribute pTreeID, pNode, theAttr, \
                   EncodeString(pArray[tKey][theKey], \
                   pArrayEncoding, pStoreEncodedAs)
-            if the result begins with "xmlerr," then 
+            if the result begins with "xmlerr," then
                put the result && "(setting attribute" && theKey && "for node" && pNode & ")" into theError
             end if
-            
+
             if theError is not empty then exit repeat
          end repeat
-         
+
       else if tKey is "@value" then
          ## This XML tree is using complex structure. Node is the value of the parent node
          revPutIntoXMLNode pTreeID, pNode, EncodeString(pArray[tKey], pArrayEncoding, pStoreEncodedAs)
          if the result begins with "xmlerr," then
             put the result && "(adding child node" && tName && "to node" && pNode & ")" into theError
          end if
-         
+
       else if tKey is "@children" then
          local tCounts
          repeat for each element tChildNode in pArray[tKey]
             add 1 to tCounts[tChildNode["@name"]]
-            ## Node has children. Add node to XML tree then call self recursivly to create children nodes. 
+            ## Node has children. Add node to XML tree then call self recursivly to create children nodes.
             revAddXMLNode pTreeID, pNode, tChildNode["@name"], empty
             if the result begins with "xmlerr," then
                put the result && "(adding node" && tName & ")" into theError
             end if
-            
+
             if theError is empty then
                ConvertArrayDimensionToXML tChildNode, pTreeID, \
                      pNode & slash & tChildNode["@name"] & "[" & tCounts[tChildNode["@name"]] & "]", \
@@ -2805,13 +2821,13 @@ private command ConvertArrayDimensionToXML pArray, pTreeID, pNode, pName, pArray
       end if
       if theError is not empty then exit repeat
    end repeat
-   
+
    return theError
 end ConvertArrayDimensionToXML
- 
+
 private function ConvertXMLNodeToArray pTreeID, pNode, pXMLTreeEncoding, pStoreEncodedAs
    local theArrayA,theAttributes,theChildNode,theKey
-   
+
    ## Look for attributes of the node. Store as array in "@attributes" key
    put revXMLAttributes(pTreeID, pNode, tab, cr) into theAttributes
    if theAttributes is not empty then
@@ -2819,8 +2835,8 @@ private function ConvertXMLNodeToArray pTreeID, pNode, pXMLTreeEncoding, pStoreE
       split theAttributes by cr and tab -- create array
       put theAttributes into theArrayA["@attributes"]
    end if
-   
-   ## Look for children nodes. 
+
+   ## Look for children nodes.
    set the itemDelimiter to slash
    put revXMLFirstChild(pTreeID, pNode) into theChildNode
    if theChildNode is empty or theChildNode begins with "xmlerr," then
@@ -2843,32 +2859,32 @@ private function ConvertXMLNodeToArray pTreeID, pNode, pXMLTreeEncoding, pStoreE
          set the itemdelimiter to "["
          if the number of items in theKey > 1 then
             put item 1 to -2 of theKey into theKey
-         end if    
+         end if
          set the itemdelimiter to slash
          put ConvertXMLNodeToArray(pTreeID, theChildNode, pXMLTreeEncoding, pStoreEncodedAs) into theArrayA["@children"][tIndex]
          put theKey into theArrayA["@children"][tIndex]["@name"]
          put revXMLNextSibling(pTreeID, theChildNode) into theChildNode
       end repeat
-      
+
       return theArrayA
    end if
 end ConvertXMLNodeToArray
- 
+
 private function EncodeString pString, pInEncoding, pOutEncoding
    if pInEncoding is pOutEncoding then
       return pString
    end if
-   
+
    if pInEncoding is not empty then
       -- if pOutEncoding is empty then pString will be converted to the current platform encoding
       put textDecode(pString, pInEncoding) into pString
    end if
-   
+
    if pOutEncoding is not empty then
       -- if pInEncoding is empty then pString is assumed to be in the current platform encoding
       put textEncode(pString, pOutEncoding) into pString
    end if
-   
+
    return pString
 end EncodeString
 
@@ -2877,13 +2893,13 @@ end EncodeString
 private function getGoogleServicesStringResources pAppId, pJSON
    local tResources
    local tGS
-   
+
    try
       put JSONImport(pJSON) into tGS
    catch tException
       return empty
    end try
-   
+
    local tGoogleApiKey, tGoogleAppId
    repeat for each element tClient in tGS["client"]
       if tClient["client_info"]["android_client_info"]["package_name"] is pAppId then
@@ -2891,33 +2907,33 @@ private function getGoogleServicesStringResources pAppId, pJSON
          put tClient["client_info"]["mobilesdk_app_id"] into tGoogleAppId
       end if
    end repeat
-   
+
    if tGoogleApiKey is not empty then
       put tGoogleApiKey into tResources["google_api_key"]
    end if
-   
+
    if tGoogleAppId is not empty then
       put tGoogleAppId into tResources["google_app_id"]
    end if
-   
+
    local tGCMDefaultSenderId
    put tGS["project_info"]["project_number"] into tGCMDefaultSenderId
    if tGCMDefaultSenderId is not empty then
       put tGCMDefaultSenderId into tResources["gcm_defaultSenderId"]
    end if
-   
+
    local tGoogleStorageBucket
    put tGS["project_info"]["storage_bucket"] into tGoogleStorageBucket
    if tGoogleStorageBucket is not empty then
       put tGoogleStorageBucket into tResources["google_storage_bucket"]
    end if
-   
+
    local tProjectId
    put tGS["project_info"]["project_id"] into tProjectId
    if tProjectId is not empty then
       put tProjectId into tResources["project_id"]
    end if
-   
+
    return tResources
 end getGoogleServicesStringResources
 
@@ -2932,7 +2948,4 @@ private function generateStringResourceXML pStringResources
    return tXML
 end generateStringResourceXML
 
-private function q pText
-   return quote & pText & quote
-end q
 ################################################################################
