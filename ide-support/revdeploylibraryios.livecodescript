@@ -546,7 +546,7 @@ function deployCheckLatestSDKIsInstalled @rTooltip, @rAvailableSDKs
    put false into tValid
    
    put deployGetIphoneOSes() into tIosXcodePairs
-   get deployGetSDKVersions()
+   get deploy.GetSDKVersions()
    
    // We loop on all the possible iOS usable for this MacOS version
    local tIostoInstall, tXcodeToInstall
@@ -580,11 +580,11 @@ function deployGetSimulatorVersions
 end deployGetSimulatorVersions
 
 -- MM-2012-09-13: Invoked to get the list of SDKs available
-function deployGetSDKVersions
+function deploy.GetSDKVersions
    get the keys of sDeviceSDKs
    sort it ascending
    return it
-end deployGetSDKVersions
+end deploy.GetSDKVersions
 
 -- Invoked to get the list of devices valid for the given simulator
 function deployGetSimulatorFamilies pSimulator

@@ -63,9 +63,9 @@ command deployDo pTargetStack, pTargetDevice
    put empty into tError
 
    local tSettings
-   dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
-   put the result into tSettings
-   --put revSBGetSettings(pTargetStack, true) into tSettings
+   --dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
+   --put the result into tSettings
+   put revSBGetSettings(pTargetStack, true) into tSettings
 
    local tIdentifier
    put tSettings["android,identifier"] into tIdentifier
@@ -272,13 +272,13 @@ function deployTargetSdkVersion
    return kDeployAndroidTargetSDK
 end deployTargetSdkVersion
 
-function deployRequiredSDK
+function deploy.RequiredSDK
    local tMap
-   put deployGetVersionsMap() into tMap
+   put deploy.GetVersionsMap() into tMap
    local tAndroidVersion
    put word 1 of tMap[kDeployAndroidTargetSDK] into tAndroidVersion
    return format("%s (API %s)", tAndroidVersion, kDeployAndroidTargetSDK)
-end deployRequiredSDK
+end deploy.RequiredSDK
 
 function deploy.IsValidSDK? pPath
    if there is no folder (pPath & slash & "platforms") then
@@ -310,7 +310,7 @@ function deploy.IsValidSDK? pPath
    end if
    
    if there is no file pathToSDKClasses(pPath) then
-      return "missing sdklib.jar, make sure your SDK install has not become corrupted"
+      --return "missing sdklib.jar, make sure your SDK install has not become corrupted"
    end if
    
    if there is no file pathToZipAlign(pPath) then
@@ -324,9 +324,9 @@ function deploy.IsValidSDK? pPath
    return empty
 end deploy.IsValidSDK?
 
-function deployGetSDK
+function deploy.GetSDK
    return sAndroidRoot
-end deployGetSDK
+end deploy.GetSDK
 
 function deploy.GetJDK
    return sJavaRoot
@@ -334,15 +334,15 @@ end deploy.GetJDK
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function deployGetVersionsMap
+function deploy.GetVersionsMap
    local tMap
    put "5.0 - Lollipop" into tMap[21]
    put "5.1" into tMap[22]
    put "6.0 - Marshmallow" into tMap[23]
    put "7.0 - Nougat" into tMap[24]
-   put "7.1" into tMap[25]
+   --put "7.1" into tMap[25]
    put "8.0 - Oreo" into tMap[26]
-   put "8.1" into tMap[27]
+   --put "8.1" into tMap[27]
    put "9.0 - Pie" into tMap[28]
    put "10 - Q" into tMap[29]
    put "11 - R" into tMap[30]
@@ -352,7 +352,7 @@ function deployGetVersionsMap
    put "15 - VanillaIceCream" into tMap[35]
    put "16 - Baklava" into tMap[36]
    return tMap
-end deployGetVersionsMap
+end deploy.GetVersionsMap
 
 constant kDefaultMinAPIVersion = 9
 function deployGetApiFromVersion pVersion
@@ -360,7 +360,7 @@ function deployGetApiFromVersion pVersion
    put kDefaultMinAPIVersion into tAPI
 
    local tMap
-   put deployGetVersionsMap() into tMap
+   put deploy.GetVersionsMap() into tMap
    repeat for each key tAPIKey in tMap
       if pVersion is tMap[tAPIKey] then
          put tAPIKey into tAPI
@@ -392,27 +392,27 @@ private function doShellCommand pCommand, pArguments
    local tCommandPath
    set the itemDelimiter to slash
    put item 1 to -2 of pCommand into tCommandPath
-
+   
    local tOldPath
    put $PATH into tOldPath
-	switch the platform
-		case "win32"
-			replace slash with backslash in tCommandPath
-			put tCommandPath & ";" & sJavaRoot & "\bin" & ";" before $PATH
-			break
-		case "macos"
-			put tCommandPath & ":" before $PATH
-			break
-		case "linux"
-			put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
-			break
-	end switch
-
+   switch the platform
+      case "win32"
+         replace slash with backslash in tCommandPath
+         put tCommandPath & ";" & sJavaRoot & "\bin" & ";" before $PATH
+         break
+      case "macos"
+         put tCommandPath & ":" before $PATH
+         break
+      case "linux"
+         put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
+         break
+   end switch
+   
    set the hideConsoleWindows to true
    get shell(item -1 of pCommand && pArguments)
-
+   
    put tOldPath into $PATH
-
+   
    return it
 end doShellCommand
 
@@ -451,6 +451,7 @@ function pathToSDKClasses pRoot
       put sAndroidRoot into pRoot
    end if
    local tLibs,tSdkLib
+   # this should be pRoot/<version>/build-tools/lib
    put files(pRoot&"/build-tools/lib") into tLibs
    if tLibs contains "sdklib.jar" then
       return pRoot & slash & "build-tools/lib/sdklib.jar"
@@ -471,55 +472,83 @@ function pathToCommonClasses pRoot
    return pRoot & slash & "tools/lib/" & tCommonLib
 end pathToCommonClasses
 
+# older SDK versions have a "tools" folder
 private function searchTools pRoot, pCommand
    // search the shared tools folder
-   if there is not a folder pRoot & slash & "tools" then return empty
-
-   local tPath
-
-   put pRoot & slash & "tools" & slash & pCommand into tPath
-
-   if there is a file tPath then
-      return tPath
-   else
-      return empty
+   if there is a folder pRoot & slash & "tools" then
+      local tPath
+      
+      put pRoot & slash & "tools" & slash & pCommand into tPath
+      
+      if there is a file tPath then
+         return tPath
+      end if
    end if
+   return empty
 end searchTools
 
 function searchBuildTools pRoot, pCommand
    // the build tools folder contains version subfolders containing the actual executables,
    // so we search through each of them starting with the most recent
-   if there is not a folder pRoot & slash & "build-tools" then return empty
-
-   local tOldFolder, tFolders, tOldItem
-
-   put the folder into tOldFolder
-   set the folder to pRoot & slash & "build-tools"
-
-   put the folders into tFolders
-
-   set the folder to tOldFolder
-
-   if tFolders is empty then return empty
-
-   put the itemdelimiter into tOldItem
-   set the itemdelimiter to "."
-
-   // sort version folders descending by x.x.x version numbers
-   sort lines of tFolders descending numeric by item 3 of each
-   sort lines of tFolders descending numeric by item 2 of each
-   sort lines of tFolders descending numeric by item 1 of each
-
-   set the itemdelimiter to tOldItem
-
-   local tPath
-   repeat for each line tVersion in tFolders
-      put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
-      if there is a file tPath then return tPath
-   end repeat
-
+   --put param(0) && pRoot && pCommand & cr after msg
+   
+   if there is a folder pRoot & slash & "build-tools" then
+      local tOldFolder, tSDKFolders, tOldItem
+      
+      put the folder into tOldFolder
+      set the folder to pRoot & slash & "build-tools"
+      
+      put the folders into tSDKFolders
+      filter tSDKFolders without ".*"
+      set the folder to tOldFolder
+      
+      --put param(0) && tSDKFolders & cr after msg
+      
+      return searchSDKbuildtoolsVersionsFor(pCommand, pRoot, tSDKFolders)
+      --      if tFolders is empty then return empty
+      
+      --      put the itemdelimiter into tOldItem
+      --      set the itemdelimiter to "."
+      
+      --      // sort version folders descending by x.x.x version numbers
+      --      sort lines of tFolders descending numeric by item 3 of each
+      --      sort lines of tFolders descending numeric by item 2 of each
+      --      sort lines of tFolders descending numeric by item 1 of each
+      
+      --      set the itemdelimiter to tOldItem
+      
+      --      local tPath
+      --      repeat for each line tVersion in tFolders
+      --         put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
+      --         if there is a file tPath then
+      --            return tPath
+      --         end if
+      --      end repeat
+   end if
    return empty
 end searchBuildTools
+
+private function searchSDKbuildtoolsVersionsFor pCommand, pRoot, pFolders
+   local tOldItem
+   put the itemdelimiter into tOldItem
+   set the itemdelimiter to "."
+   
+   // sort version folders descending by x.x.x version numbers
+   sort lines of pFolders descending numeric by item 3 of each
+   sort lines of pFolders descending numeric by item 2 of each
+   sort lines of pFolders descending numeric by item 1 of each
+   
+   set the itemdelimiter to tOldItem
+   
+   local tPath
+   repeat for each line tVersion in pFolders
+      put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
+      if there is a file tPath then
+         return tPath
+      end if
+   end repeat
+   return empty
+end searchSDKbuildtoolsVersionsFor
 
 function searchMobileRuntimeFolder pCommand
    local tPath
@@ -549,17 +578,27 @@ private function pathToPlatformTool pRoot, pCommand
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-
+   
    -- IM-2013-05-21: Update to look in "build-tools/<version>" folder
    local tPath
    put searchBuildTools(pRoot, pCommand) into tPath
    if tPath is not empty then return tPath
-
+   
+   local tOldFolder, tFolders, tOldItem
+   
+   put the folder into tOldFolder
+   set the folder to pRoot & slash & "build-tools"
+   
+   put the folders into tFolders
+   
+   set the folder to tOldFolder
+   return searchSDKbuildtoolsVersionsFor(pCommand, pRoot, tFolders)
+   
    -- MM-2011-08-09: Update to look in platform-tools folder if not present in platforms/android-8/tools/
    if there is a file pRoot & slash & "platforms/android-8/tools/" & pCommand then
       return pRoot & slash & "platforms/android-8/tools/" & pCommand
    end if
-
+   
    return pRoot & slash & "platform-tools/" & pCommand
 end pathToPlatformTool
 
@@ -582,23 +621,29 @@ function pathToDebugKey pRoot
    return specialFolderPath("home") & "/.android/debug.keystore"
 end pathToDebugKey
 
+# pRoot here is ~/Android/Sdk
 function pathToZipAlign pRoot
+   return pathToPlatformTool(pRoot, executableName("zipalign"))
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-
+   
    local tExe
    put executableName("zipalign") into tExe
-
+   
    // IM-2014-07-11: [[ Bug 12719 ]] First search the tools folder
    local tPath
    put searchTools(pRoot, tExe) into tPath
-   if tPath is not empty then return tPath
-
+   if tPath is not empty then
+      return tPath
+   end if
+   
    // IM-2014-07-11: [[ Bug 12719 ]] zipalign was moved into build-tools as of version 19.1.0 so search there as well
    put searchBuildTools(pRoot, tExe) into tPath
-   if tPath is not empty then return tPath
-
+   if tPath is not empty then
+      return tPath
+   end if
+   
    return pRoot & slash & "tools" & slash & tExe
 end pathToZipAlign
 
