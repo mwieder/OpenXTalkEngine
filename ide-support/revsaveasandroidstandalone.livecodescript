@@ -12,31 +12,33 @@ command saveAsMobileStandalone \
       pSettings, \
       @xStandalonePaths, \
       pDevice
-
+   
    local tPath
-   put the cMobileSupport["android.sdk"] of stack "revPreferences" into tPath
-
+   #put the cMobileSupport["android.sdk"] of stack "revPreferences" into tPath
+   dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.sdk"
+   put the result into tPath
+   
    if tPath is empty then
       throw revIDELocalise("In order to build Android standalones" & \
             " you need to choose the location of your Android development SDK" & \
             " in Preferences -> Mobile Support")
    end if
    local tIsValid?
-
+   
    put Deploy.Android.IsValidSDK?(tPath) into tIsValid?
    if tIsValid? is not empty then
       throw revIDELocalise("The chosen folder in Preferences -> Mobile Support" & \
             " is not a valid Android SDK. Please ensure you have installed it correctly," & \
             " and enabled support for") && deploy.Android.RequiredSDK()
    end if
-
+   
    local tTargetType
    if pTarget contains "build" then
       put "android release" into tTargetType
    else
       put "android test" into tTargetType
    end if
-
+   
    local tPackage
    put pAabFile into tPackage
    if not pSettings["android,use bundle"] then
@@ -44,40 +46,42 @@ command saveAsMobileStandalone \
       put "apk" into the last item of tPackage
       set the itemDelimiter to ","
    end if
-
+   
    try
-      put the cMobileSupport["android.jdk"] of stack "revPreferences" into sJavaRoot
+      #put the cMobileSupport["android.jdk"] of stack "revPreferences" into sJavaRoot
+      dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.jdk"
+      put the result into sJavaRoot
       dispatch "savingMobileStandalone" to stack pStack with tTargetType, tPackage
    end try
-
+   
    try
       saveAsMobileStandaloneMain pStack, pAabFile, pTarget, pSettings,pDevice
    catch tError
    end try
-
+   
    try
       if tError is not empty then
          put empty into tPackage
       end if
       dispatch "mobileStandaloneSaved" to stack pStack with tTargetType, tPackage
    end try
-
+   
    if tError is not empty then
       throw tError
    end if
 end saveAsMobileStandalone
 
-private function pathIsRelative pPath
+private function pathIsRelative? pPath
    if pPath is empty then throw "empty path"
    if pPath begins with "/" then return false
    if char 2 of pPath is ":" then return false
 
    return true
-end pathIsRelative
+end pathIsRelative?
 
 // IM-2013-05-21: [[ BZ 10904 ]] This function replicates the functionality of the apkbuilder script which has now been removed from the Android SDK platform tools
 private command buildAPK pUnalignedApkFile, pUnsignedParam, pAssetArchive, pClassesFile, pLibsBuildFolder
-   local tResult, tSep
+   local tSep
    if the platform is "Win32" then
       put ";" into tSep
    else
@@ -106,11 +110,10 @@ private command buildAPK pUnalignedApkFile, pUnsignedParam, pAssetArchive, pClas
    appendToParams tParams, "-nf", pLibsBuildFolder
 
    executeShellCommandWithParams pathToJava(), tParams
-   put the result into tResult
-   return tResult
+   return the result
 end buildAPK
 
-private function updateMinimumAPI pVersionSet, pLimit
+private function updateMinimumAPI? pVersionSet, pLimit
    local tLimitType
    if pVersionSet < pLimit then
       put "lowest" into tLimitType
@@ -127,7 +130,7 @@ private function updateMinimumAPI pVersionSet, pLimit
          titled "Minimum Android API error"
 
    return (it is "Yes")
-end updateMinimumAPI
+end updateMinimumAPI?
 
 private function badAndroidApiMessage
    return "Not a valid Android API"
@@ -155,12 +158,74 @@ private function AmazonBillingReceiver
    put "<receiver android:name="& q("com.amazon.inapp.purchasing.ResponseReceiver") & \
          " android:exported=" & q("true") & ">" into tAmazonReceiver
    put "<intent-filter>" & cr after tAmazonReceiver
-   put "<action android:name="& q(com.amazon.inapp.purchasing.NOTIFY") &" " & cr after tAmazonReceiver
+   put "<action android:name=" & q("com.amazon.inapp.purchasing.NOTIFY") & cr after tAmazonReceiver
    put "android:permission ="& q("com.amazon.inapp.purchasing.Permission.NOTIFY") &"  />" & cr after tAmazonReceiver
    put "</intent-filter>" after tAmazonReceiver
    put "</receiver>" after tAmazonReceiver
    return tAmazonReceiver
 end AmazonBillingReceiver
+
+private function customUrlScheme pScheme
+   local tCustomUrlFilter
+   if pScheme is not empty then
+      put "<intent-filter>" & \
+            "<action android:name="&q("android.intent.action.VIEW")&" />" & \
+            "<category android:name="&q("android.intent.category.DEFAULT")&" />" & \
+            "<category android:name="&q("android.intent.category.BROWSABLE")&" />" & \
+            "<data android:scheme="&q(pScheme)&" />" & \
+            "</intent-filter>" into tCustomUrlFilter
+   else
+      put empty into tCustomUrlFilter
+   end if
+   return tCustomUrlFilter
+end customUrlScheme
+
+private function installLocation pType
+   local tInstallLocation
+   switch pType
+      case "Internal Storage Only"
+      case empty
+         put empty into tInstallLocation
+         break
+      case "Allow External Storage"
+         put "android:installLocation="&q("auto") into tInstallLocation
+         break
+      case "Prefer External Storage"
+         put "android:installLocation="&q("preferExternal") into tInstallLocation
+         break
+   end switch
+   return tInstallLocation
+end installLocation
+
+private function billingSupportClass pPackageIdentifier
+   local tClass
+   put "package" && pPackageIdentifier & ";" & cr into tClass
+   put "import com.runrev.android.LiveCodeService;" & cr after tClass
+   put "public class mblandroidservice extends LiveCodeService {}" & cr after tClass
+   return tClass
+end billingSupportClass
+
+private function activityClass pPackageIdentifier
+   local tClass
+   put "package" && pPackageIdentifier & ";" & cr into tClass
+   put "import com.runrev.android.LiveCodeActivity; import java.lang.reflect.*;" & cr after tClass
+   put "public class mblandroid extends LiveCodeActivity {public Class getServiceClass() {return mblandroidservice.class;}}" & cr after tClass
+   return tClass
+end activityClass
+
+private function billingClass pPackageIdentifier
+   local tClass
+   put "package" && pPackageIdentifier & ";" & cr into tClass
+   put "import com.runrev.android.EngineReceiver;" & cr after tClass
+   put "public class AppReceiver extends EngineReceiver {}" & cr after tClass
+end billingClass
+
+private command makeTempBuildFolder pFolderPath
+   create folder pFolderPath
+   if there is no folder pFolderPath then
+      throw "could not create build folder" && pFolderPath
+   end if
+end makeTempBuildFolder
 
 private command saveAsMobileStandaloneMain \
       pStack, \
@@ -168,7 +233,7 @@ private command saveAsMobileStandaloneMain \
       pTarget, \
       pSettings, \
       pDevice
-
+   
    local tArchABIs, tArchs
    repeat for each item tItem in revSBPlatformArchitectures("Android")
       if pSettings["android",tItem] then
@@ -182,9 +247,9 @@ private command saveAsMobileStandaloneMain \
    end if
    combine tArchABIs by comma as set
    combine tArchs by comma as set
-
+   
    dispatch "deploy.Android.Initialize" to stack "revDeployLibrary"
-
+   
    -- If we're searching for inclusions, do it here
    local tConfirm, tResult
    put true into tConfirm
@@ -194,9 +259,9 @@ private command saveAsMobileStandaloneMain \
       if pTarget contains "test" then
          revSBSearchForInclusions pStack, pSettings
       end if
-
+      
    end if
-
+   
    -- Make sure all dependencies are included
    revSBUpdateForDependencies "android", tArchs, , pSettings
    revSBEnsurePerExtensionSettings "android", pSettings
@@ -204,27 +269,27 @@ private command saveAsMobileStandaloneMain \
    if tResult is not empty then
       throw tResult
    end if
-
+   
    -- Manually remove built-in implementations from detected script library inclusions
    SBRemoveInclusions pStack, "android", tConfirm, pSettings
-
+   
    -- Make sure old-style keys are retained, and updated with new information
    -- from inclusions pane of standalone settings GUI
    revSBConvertSettingsForPlatform pSettings, "android"
-
+   
    -- Compute the base folder
    local tBaseFolder
    set the itemDelimiter to slash
    put item 1 to -2 of the effective filename of stack pStack into tBaseFolder
    set the itemDelimiter to comma
-
+   
    -- Fetch the various options we need to initially build the app-bundle
    local tName, tVersionName, tVersionCode, tExternals, tDrivers
-   local tIcon, tKey, tUseDebugKey, tStatusBarIcon
+   local tIcon, tKey, tUseDebugKey?, tStatusBarIcon
    put pSettings["name"] into tName
    put pSettings["android,icon"] into tIcon
    put pSettings["android,key"] into tKey
-
+   
    if pSettings["android,label"] is empty then
       put tName into pSettings["android,label"]
    end if
@@ -243,31 +308,31 @@ private command saveAsMobileStandaloneMain \
    if pSettings["android,status bar hidden"] is empty then
       put "false" into pSettings["android,status bar hidden"]
    end if
-
+   
    // SN-2015-05-13: [[ AndroidVersions ]] Make sure that the minimum version is
    // the minimum version that we can use.
    local tMinimumVersion, tMaximumVersion
    put item 1 of deploy.Android.GetApisList() into tMinimumVersion
    put last item of deploy.Android.GetApisList() into tMaximumVersion
-
+   
    if pSettings["android,minimum version"] is empty then
       put tMinimumVersion into pSettings["android,minimum version"]
    else if pSettings["android,minimum version"] < tMinimumVersion then
       // In case the minimum version is still 2.2 (for instance), we warn the user
       //  that we want to update it, before doing so.
-      if updateMinimumAPI(pSettings["android,minimum version"], tMinimumVersion) then
+      if updateMinimumAPI?(pSettings["android,minimum version"], tMinimumVersion) then
          put tMinimumVersion into pSettings["android,minimum version"]
       else
          throw badAndroidAPIMessage()
       end if
    else if pSettings["android,minimum version"] > tMaximumVersion then
-      if updateMinimumAPI(pSettings["android,minimum version"], tMaximumVersion) then
+      if updateMinimumAPI?(pSettings["android,minimum version"], tMaximumVersion) then
          put tMaximumVersion into pSettings["android,minimum version"]
       else
          throw badAndroidAPIMessage()
       end if
    end if
-
+   
    put pSettings["android,statusBarIcon"] into tStatusBarIcon
    if tStatusBarIcon is empty then
       // put default sb icon path into tStatusBarIcon
@@ -275,58 +340,58 @@ private command saveAsMobileStandaloneMain \
       // line 629.
       put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "notify_icon.png") into tStatusBarIcon
    end if
-
-   local tUseFirebaseMessaging?, tUseGoogleServices
+   
+   local tUseFirebaseMessaging?, tUseGoogleServices?
    if pSettings["android,enablePushNotification"] then
       // Push notification on Android requires both firebase-messaging and google-services libraries
       put true into tUseFirebaseMessaging?
-      put true into tUseGoogleServices
+      put true into tUseGoogleServices?
    end if
-
+   
    if tUseFirebaseMessaging? then
       // Add firebase messaging dependencies to settings
       appendToStringList ("com.google.firebase", "firebase-messaging", "22.0.0"), pSettings["android,android dependencies"]
    end if
-
-   if tUseGoogleServices then
+   
+   if tUseGoogleServices? then
       // Add google play services dependencies to settings
       appendToStringList ("com.google.gms", "google-services", "4.3.8"), pSettings["android,android dependencies"]
    end if
-
+   
    if pSettings["android,inAppPurchasing"] and pSettings["android,billingProvider"] is "Google" then
       appendToStringList ("com.android.billingclient", "billing", "5.2.1"), pSettings["android,android dependencies"]
    end if
-
+   
    switch pSettings["android,signing"]
       case "sign with my key"
          break
       case "sign for development only"
-         put true into tUseDebugKey
+         put true into tUseDebugKey?
          put empty into tKey
          break;
       case "do not sign"
-         put false into tUseDebugKey
+         put false into tUseDebugKey?
          put empty into tKey
          break
       default
          break
    end switch
-
+   
    -- Compute the icon path
-   if tIcon is not empty and pathIsRelative(tIcon) then
+   if tIcon is not empty and pathIsRelative?(tIcon) then
       put tBaseFolder & slash before tIcon
    end if
-
+   
    -- Compute the key path
-   if tKey is not empty and pathIsRelative(tKey) then
+   if tKey is not empty and pathIsRelative?(tKey) then
       put tBaseFolder & slash before tKey
    end if
-
+   
    -- Compute the status bar icon path
-   if tStatusBarIcon is not empty and pathIsRelative(tStatusBarIcon) then
+   if tStatusBarIcon is not empty and pathIsRelative?(tStatusBarIcon) then
       put tBaseFolder & slash before tStatusBarIcon
    end if
-
+   
    -- Compute the externals list (includes drivers on Android)
    repeat for each item tExternal in kAndroidExternals
       if pSettings["android,include" && tExternal] then
@@ -344,13 +409,13 @@ private command saveAsMobileStandaloneMain \
    end repeat
    delete the last char of tExternals
    delete the last char of tDrivers
-
+   
    -- Compute the stackfiles list
    lock messages
    local tStackFiles
    revSBRelativeStackFilesList pStack, tStackFiles
    unlock messages
-
+   
    -- Make sure the app-bundle isn't already there
    if there is a file pAabFile then
       delete file pAabFile
@@ -358,108 +423,109 @@ private command saveAsMobileStandaloneMain \
          throw "unable to remove existing aab"
       end if
    end if
-
+   
    try
       ------- Create the build folder
       local tBuildFolder
       local tResBuildFolder, tClassesBuildFolder, tLibsBuildFolder
       local tDrawableResBuildFolder, tLayoutResBuildFolder, tXMLResBuildFolder, tValuesResBuildFolder
-      put tempName() into tBuildFolder
+      put tempName() into tBuildFolder # temp folder in the /tmp directory
       create folder tBuildFolder
       if the platform is "win32" then
          put shortFilePath(tBuildFolder) into tBuildFolder
       end if
-
+      
       put tBuildFolder & slash & "classes_app" into tClassesBuildFolder
       put tBuildFolder & slash & "lib" into tLibsBuildFolder
-
+      
       put tBuildFolder & slash & "res-build/res" into tResBuildFolder
       put tResBuildFolder & slash & "drawable" into tDrawableResBuildFolder
       put tResBuildFolder & slash & "layout" into tLayoutResBuildFolder
       put tResBuildFolder & slash & "xml" into tXMLResBuildFolder
       put tResBuildFolder & slash & "values" into tValuesResBuildFolder
-      create folder tClassesBuildFolder
-      if there is no folder tClassesBuildFolder then
-         throw "could not create build folder" && tClassesBuildFolder
-      end if
-      create folder tLibsBuildFolder
-      if there is no folder tLibsBuildFolder then
-         throw "could not create build folder" && tLibsBuildFolder
-      end if
-
+      
+      makeTempBuildFolder tClassesBuildFolder
+      makeTempBuildFolder tLibsBuildFolder
+      
+      #      create folder tClassesBuildFolder
+      #      if there is no folder tClassesBuildFolder then
+      #         throw "could not create build folder" && tClassesBuildFolder
+      #      end if
+      #      create folder tLibsBuildFolder
+      #      if there is no folder tLibsBuildFolder then
+      #         throw "could not create build folder" && tLibsBuildFolder
+      #      end if
+      
       local tArchLibsBuildFolders
       repeat for each item tArch in tArchABIs
          put tLibsBuildFolder & slash & tArch into tArchLibsBuildFolders[tArch]
-         create folder tArchLibsBuildFolders[tArch]
-         if there is no folder tArchLibsBuildFolders[tArch] then
-            throw "could not create build folder" && tArchLibsBuildFolders[tArch]
-         end if
+         makeTempBuildFolder tArchLibsBuildFolders[tArch]
+         #         create folder tArchLibsBuildFolders[tArch]
+         #         if there is no folder tArchLibsBuildFolders[tArch] then
+         #            throw "could not create build folder" && tArchLibsBuildFolders[tArch]
+         #         end if
       end repeat
-
+      
+      #      makeTempBuildFolder tResBuildFolder
       revSBEnsureFolder tResBuildFolder
       if there is no folder tResBuildFolder then
          throw "could not create build folder" && tResBuildFolder
       end if
+      
       if there is no folder tDrawableResBuildFolder then
-         create folder tDrawableResBuildFolder
-         if there is no folder tDrawableResBuildFolder then
-            throw "could not create build folder" && tDrawableResBuildFolder
-         end if
+         makeTempBuildFolder tDrawableResBuildFolder
+         #         create folder tDrawableResBuildFolder
+         #         if there is no folder tDrawableResBuildFolder then
+         #            throw "could not create build folder" && tDrawableResBuildFolder
+         #         end if
       end if
       if there is no folder tLayoutResBuildFolder then
-         create folder tLayoutResBuildFolder
-         if there is no folder tLayoutResBuildFolder then
-            throw "could not create build folder" && tLayoutResBuildFolder
-         end if
+         makeTempBuildFolder tLayoutResBuildFolder
+         #         create folder tLayoutResBuildFolder
+         #         if there is no folder tLayoutResBuildFolder then
+         #            throw "could not create build folder" && tLayoutResBuildFolder
+         #         end if
       end if
       if there is no folder tXMLResBuildFolder then
-         create folder tXMLResBuildFolder
-         if there is no folder tXMLResBuildFolder then
-            throw "could not create build folder" && tXMLResBuildFolder
-         end if
+         makeTempBuildFolder tXMLResBuildFolder
+         #         create folder tXMLResBuildFolder
+         #         if there is no folder tXMLResBuildFolder then
+         #            throw "could not create build folder" && tXMLResBuildFolder
+         #         end if
       end if
       if there is no folder tValuesResBuildFolder then
-         create folder tValuesResBuildFolder
-         if there is no folder tValuesResBuildFolder then
-            throw "could not create build folder" && tValuesResBuildFolder
-         end if
+         makeTempBuildFolder tValuesResBuildFolder
+         #         create folder tValuesResBuildFolder
+         #         if there is no folder tValuesResBuildFolder then
+         #            throw "could not create build folder" && tValuesResBuildFolder
+         #         end if
       end if
-      #if there is no folder tBuildFolder or \
-      #there is no folder tClassesBuildFolder or \
-      #there is no folder tLibsBuildFolder or \
-      #there is no folder tResBuildFolder or \
-      #there is no folder tDrawableResBuildFolder or \
-      #there is no folder tLayoutResBuildFolder or \
-      #there is no folder tXMLResBuildFolder or \
-      #there is no folder tValuesResBuildFolder then
-      #throw "could not create build folders"
-      #end if
-
+      
       if the platform is "win32" then
          put shortFilePath(tBuildFolder) into tBuildFolder
       end if
-
+      
       -------- Unpack all the files used by the externals
       local tManifestFile, tManifest
-
+      
       revStandaloneProgress "Integrating externals..."
-
+      
       if tExternals is not empty then
          put cr after tExternals
       end if
       set the itemDelimiter to "."
-
+      
       local tResolvedFileData
       revSBUpdateSettingsForExtensions "android", pSettings
       revSBResolveCopyFilesList tBaseFolder, "android", pSettings, tResolvedFileData
-
+      
       repeat for each element tFile in tResolvedFileData
          -- Add to list of manifests to merge
          if tFile["name"] is "AndroidManifest.xml" then
             appendToStringList tFile["resolved"], pSettings["androidManifests"]
             next repeat
          end if
-
+         
          local tExtJars
          put empty into tExtJars
          -- Only look for lcext files.
@@ -485,24 +551,24 @@ private command saveAsMobileStandaloneMain \
                end if
                break
          end switch
-
+         
       end repeat
       delete the last char of tExternals
       set the itemDelimiter to comma
-
+      
       -------- Resolve & fetch maven dependencies
       revStandaloneProgress "Fetching dependencies..."
-
+      
       addAndroidDependenciesToSettings pSettings
       expandAARsAndComputeSettings tBuildFolder, pSettings
-
+      
       -------- Create the Manifest
       revStandaloneProgress "Writing manifest..."
-
+      
       if tManifestFile is empty then
          put tBuildFolder & slash & "AndroidManifest.xml" into tManifestFile
       end if
-
+      
       if tManifest is empty then
          put url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "Manifest.xml")) into tManifest
       end if
@@ -517,15 +583,15 @@ private command saveAsMobileStandaloneMain \
       replace "${IDENTIFIER}" with pSettings["android,identifier"] in tManifest
       replace "${VERSION_NAME}" with pSettings["android,version name"] in tManifest
       replace "${VERSION_CODE}" with pSettings["android,version code"] in tManifest
-
+      
       /* Use legacy icon if adaptive icons are not provided */
       local tIsLegacyIcon
       put false into tIsLegacyIcon
-
+      
       if pSettings["android,icon type"] is empty then
          put "legacy" into pSettings["android,icon type"]
       end if
-
+      
       local tManifestIcon
       if pSettings["android,icon type"] is "adaptive" and \
             pSettings["android,adaptive icons resources path"] is not empty then
@@ -538,13 +604,13 @@ private command saveAsMobileStandaloneMain \
       put empty into tManifestIcon
    end if
    replace "${ICON}" with tManifestIcon in tManifest
-
+   
    if pSettings["android,status bar hidden"] then
       replace "${THEME}" with "@android:style/Theme.NoTitleBar.Fullscreen" in tManifest
    else
       replace "${THEME}" with "@android:style/Theme.NoTitleBar" in tManifest
    end if
-
+   
    local tAllowedAppIDs
    if pSettings["android,allowed app ids"] is not empty then
       put "<queries>" & return into tAllowedAppIDs
@@ -554,18 +620,18 @@ private command saveAsMobileStandaloneMain \
       put "</queries>" after tAllowedAppIDs
    end if
    replace "${QUERY_LIST}" with tAllowedAppIDs in tManifest
-
+   
    local tInitialOrientation
    put pSettings["android,initial orientation"] into tInitialOrientation
    if tInitialOrientation is "landscape" then
       put "sensorLandscape" into tInitialOrientation
    end if
    replace "${ORIENTATION}" with tInitialOrientation in tManifest
-
+   
    replace "${MIN_SDK_VERSION}" with pSettings["android,minimum version"] in tManifest
    replace "${TARGET_SDK_VERSION}" with targetSDKVersion() in tManifest
-
-   local tUsesFeature, tUsesPermission, tFeatures, tPermissions, tAd, tForeground?
+   
+   local tUsesFeature, tUsesPermission, tFeatures, tPermissions, tAd?, tForeground?
    repeat for each key tFeature in pSettings["android,device capabilities"]
       put "  <uses-feature android:name="& q("android."&tFeature) &" android:required="& q("${REQUIRED}") &" />" into tUsesFeature
       replace "${REQUIRED}" with pSettings["android,device capabilities"][tFeature] in tUsesFeature
@@ -577,7 +643,7 @@ private command saveAsMobileStandaloneMain \
    end repeat
    repeat for each key tPermission in pSettings["android,application permissions"]
       if tPermission is "AD" then
-         put true into tAd
+         put true into tAd?
          put "  <uses-permission android:name="&quote&"android.permission.ACCESS_NETWORK_STATE"&quote&"/>" & cr into tUsesPermission
          put "  <uses-permission android:name="&quote&"android.permission.READ_PHONE_STATE"&quote&" />" after tUsesPermission
       else
@@ -585,18 +651,18 @@ private command saveAsMobileStandaloneMain \
       end if
       put tUsesPermission & cr after tPermissions
    end repeat
-
+   
    replace "${USES_FEATURE}" with tFeatures in tManifest
    --replace "${USES_PERMISSION}" with tPermissions in tManifest
-
+   
    local tService, tReceiver
    -- MW-2017-06-13: add generic service
    put "<service android:enabled=" & q("true") && "android:name=" & q(".mblandroidservice") after tService
-   if tForeground then
-      put " android:foregroundServiceType=" & q)"mediaPlayback") after tService
+   if tForeground? then
+      put " android:foregroundServiceType=" & q("mediaPlayback") after tService
    end if
    put "/>" & cr after tService
-
+   
    -- IM-2012-02-28: need barebones receiver for local notifications
    put "<receiver android:name="&quote&"AppReceiver"&quote&">" into tReceiver
    --      if tBilling then
@@ -611,7 +677,7 @@ private command saveAsMobileStandaloneMain \
    --         put empty into tService
    --      end if
    put "</receiver>" after tReceiver
-
+   
    local tProxyBillingActivity
    -- PM-2014-03-17: [[ In App Purchasing Updates ]] Include new store setting in manifest.
    if pSettings["android,inAppPurchasing"] then
@@ -631,9 +697,9 @@ private command saveAsMobileStandaloneMain \
          put AmazonBillingReceiver() after tReceiver
       end if
    end if
-
+   
    replace "${BILLING_ACTIVITY}" with tProxyBillingActivity in tManifest
-
+   
    local tNFCIntentFilter
    if pSettings["android,nfc"] then
       put "<intent-filter>" & return & \
@@ -641,49 +707,51 @@ private command saveAsMobileStandaloneMain \
             "</intent-filter>" & return & \
             "<meta-data android:name=" & q("android.nfc.action.TECH_DISCOVERED") & \
             " android:resource=" & q("@xml/nfc_tech_filter") & " />" & cr into tNFCIntentFilter
-
+      
       put "<uses-permission android:name=" & q("android.permission.NFC") & " />" & cr after tPermissions
    end if
    replace "${NFC_FILTER}" with tNFCIntentFilter in tManifest
-
+   
    replace "${SERVICE}" with tService in tManifest
    replace "${RECEIVER}" with tReceiver in tManifest
    replace "${USES_PERMISSION}" with tPermissions in tManifest
-
-   if tAd is true then
+   
+   if tAd? is true then
       replace "${AD_ACTIVITY}" with "<activity android:name=" & q("com.inneractive.api.ads.InneractiveFullScreenView") & "></activity>" in tManifest
    else
       replace "${AD_ACTIVITY}" with empty in tManifest
    end if
-
+   
    local tInstallLocation
-   switch pSettings["android,installLocation"]
-      case "Internal Storage Only"
-      case empty
-         put empty into tInstallLocation
-         break
-      case "Allow External Storage"
-         put "android:installLocation="&q("auto") into tInstallLocation
-         break
-      case "Prefer External Storage"
-         put "android:installLocation="&q("preferExternal") into tInstallLocation
-         break
-   end switch
+   --   switch pSettings["android,installLocation"]
+   --      case "Internal Storage Only"
+   --      case empty
+   --         put empty into tInstallLocation
+   --         break
+   --      case "Allow External Storage"
+   --         put "android:installLocation="&q("auto") into tInstallLocation
+   --         break
+   --      case "Prefer External Storage"
+   --         put "android:installLocation="&q("preferExternal") into tInstallLocation
+   --         break
+   --   end switch
+   put installLocation(pSettings["android,installLocation"]) into tInstallLocation
    replace "${INSTALL_LOCATION}" with tInstallLocation in tManifest
-
+   
    local tCustomUrlFilter
-   if pSettings["android,customUrlScheme"] is not empty then
-      put "<intent-filter>" & \
-            "<action android:name="&q("android.intent.action.VIEW")&" />" & \
-            "<category android:name="&q("android.intent.category.DEFAULT")&" />" & \
-            "<category android:name="&q("android.intent.category.BROWSABLE")&" />" & \
-            "<data android:scheme="&q(pSettings["android,customUrlScheme"])&" />" & \
-            "</intent-filter>" into tCustomUrlFilter
-   else
-      put empty into tCustomUrlFilter
-   end if
+   --   if pSettings["android,customUrlScheme"] is not empty then
+   --      put "<intent-filter>" & \
+   --            "<action android:name="&q("android.intent.action.VIEW")&" />" & \
+   --            "<category android:name="&q("android.intent.category.DEFAULT")&" />" & \
+   --            "<category android:name="&q("android.intent.category.BROWSABLE")&" />" & \
+   --            "<data android:scheme="&q(pSettings["android,customUrlScheme"])&" />" & \
+   --            "</intent-filter>" into tCustomUrlFilter
+   --   else
+   --      put empty into tCustomUrlFilter
+   --   end if
+   put customUrlScheme(pSettings["android,customUrlScheme"]) into tCustomUrlFilter
    replace "${CUSTOM_URL_FILTER}" with tCustomUrlFilter in tManifest
-
+   
    local tPushPermissions
    local tPushService
    if tUseFirebaseMessaging? then
@@ -713,15 +781,15 @@ private command saveAsMobileStandaloneMain \
    put "            android:name=" & q("android.support.FILE_PROVIDER_PATHS") & cr after tProvider
    put "            android:resource=" & q("@xml/file_provider_paths") & " />" & cr after tProvider
    put "    </provider>" & cr after tProvider
-
+   
    replace "${PROVIDER}" with tProvider in tManifest
-
+   
    // SN-2015-09-24: [[ Bug 15875 ]] Add the screenSize configChanges value for API > 12
    //  Otherwise the app restarts on orientation change.
    local tConfigChangesProp
    put "keyboardHidden|orientation|uiMode|screenSize" into tConfigChangesProp
    replace "${CONFIG_CHANGES}" with tConfigChangesProp in tManifest
-
+   
    // SN-2015-09-30: [[ Bug 10267 ]] Hardware Acceleration option added
    local tHardwareAccelerated
    if pSettings["android,hardware accelerated"] then
@@ -730,7 +798,7 @@ private command saveAsMobileStandaloneMain \
       put "false" into tHardwareAccelerated
    end if
    replace "${HARDWARE_ACCELERATED}" with tHardwareAccelerated in tManifest
-
+   
    // Allow http connections
    local tAllowHttpConnections, tHasInternetPermission?
    if the keys of pSettings["android,application permissions"] contains "Internet" then
@@ -742,9 +810,9 @@ private command saveAsMobileStandaloneMain \
       put empty into tAllowHttpConnections
    end if
    replace "${ALLOW_HTTP_CONNECTIONS}" with tAllowHttpConnections in tManifest
-
+   
    put tManifest into url ("binfile:" & tManifestFile)
-
+   
    local tAdditional
    repeat for each line tManifest in pSettings["androidManifests"]
       appendToList tManifest, tAdditional
@@ -756,97 +824,102 @@ private command saveAsMobileStandaloneMain \
    if the result is not empty then
       throw "could not create manifest"
    end if
-
+   
    -------- Build the Classes
    revStandaloneProgress "Building classes..."
-
+   
    -- MW-2012-07-05: Make sure we record all classes we build so we can clean up.
    local tCompiledClassFilePath, tBuiltClassFiles
    put empty into tBuiltClassFiles
    put pSettings["android,identifier"] into tCompiledClassFilePath
    replace "." with "/" in tCompiledClassFilePath
-
+   
+   # copy the Classes file from the Runtime folder to the build folder
    local tLiveCodeClassesFile
    put tBuildFolder & slash & "LiveCode.jar" into tLiveCodeClassesFile
-   put url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "Classes")) into url ("binfile:" & tLiveCodeClassesFile)
+   put url("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "Classes")) into url("binfile:" & tLiveCodeClassesFile)
    if the result is not empty then
-      throw "could not prepare LiveCode classes"
+      throw "could not prepare LiveCode classes:" && the result
    end if
-
+   
    local tClassPath
    if the platform is "win32" then
       put pathToRootClasses() & ";" & tLiveCodeClassesFile & ";" & tClassesBuildFolder & ";" into tClassPath
    else
       put pathToRootClasses() & ":" & tLiveCodeClassesFile & ":" & tClassesBuildFolder into tClassPath
    end if
-
+   
+   #breakpoint
+   
    -- MW-2017-06-13: compile the renamed service class
-   local tClass, tClassFile
+   local tClassFile
    put tClassesBuildFolder & slash & "mblandroidservice.java" into tClassFile
-   put "package" && pSettings["android,identifier"] & ";" & cr into tClass
-   put "import com.runrev.android.LiveCodeService;" & cr after tClass
-   put "public class mblandroidservice extends LiveCodeService {}" & cr after tClass
-   put tClass into url ("binfile:" & tClassFile)
+   put billingSupportClass(pSettings["android,identifier"]) into url ("binfile:" & tClassFile)
    if the result is not empty then
       throw "could not create billing support class:" && the result
    end if
-
+   
+   #put "tClassesBuildFolder=" && tClassesBuildFolder & cr into msg
+   #put "tClassPath=" && tClassPath & cr after msg
+   #put "tClassFile=" && tClassFile & cr after msg
+   
    appendToStringList tClassFile, tBuiltClassFiles
-   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   #   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   executeShellCommand pathToJavaC(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
    if the result is not empty then
       throw "could not compile service support class:" && the result
    end if
    appendToStringList tClassesBuildFolder & slash & tCompiledClassFilePath & "/mblandroidservice.class", tBuiltClassFiles
-
+   
    put tClassesBuildFolder & slash & "mblandroid.java" into tClassFile
-   put "package" && pSettings["android,identifier"] & ";" & cr into tClass
-   put "import com.runrev.android.LiveCodeActivity; import java.lang.reflect.*;" & cr after tClass
-   put "public class mblandroid extends LiveCodeActivity {public Class getServiceClass() {return mblandroidservice.class;}}" & cr after tClass
-   put tClass into url ("binfile:" & tClassFile)
+   put activityClass(pSettings["android,identifier"]) into url ("binfile:" & tClassFile)
    if the result is not empty then
-      throw "could not create activity class"
+      throw "could not create activity class:" && the result
    end if
-
+   
    appendToStringList tClassFile, tBuiltClassFiles
-   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   #   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   executeShellCommand pathToJavaC(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
    if the result is not empty then
-      throw "could not compile application class"
+      throw "could not compile application class:" && the result
    end if
    appendToStringList tClassesBuildFolder & slash & tCompiledClassFilePath & "/mblandroid.class", tBuiltClassFiles
-
+   
    -- IM-2012-02-28: need barebones receiver for local notifications
    // build receiver class
+   local tClass
    put tClassesBuildFolder & slash & "AppReceiver.java" into tClassFile
    put "package" && pSettings["android,identifier"] & ";" & cr into tClass
    put "import com.runrev.android.EngineReceiver;" & cr after tClass
    put "public class AppReceiver extends EngineReceiver {}" & cr after tClass
    put tClass into url ("binfile:" & tClassFile)
    if the result is not empty then
-      throw "could not create billing support class"
+      throw "could not create billing support class:" && the result
    end if
    appendToStringList tClassFile, tBuiltClassFiles
-
-   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   
+   #   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   executeShellCommand pathToJavaC(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
    if the result is not empty then
-      throw "could not compile billing support class"
+      throw "could not compile billing support class:" && the result
    end if
    appendToStringList tClassesBuildFolder & slash & tCompiledClassFilePath & "/AppReceiver.class", tBuiltClassFiles
-
+   
    // Generate push notification service class
    if tUseFirebaseMessaging? then
       local tPushServiceClass, tPushServiceClassFile
       put tClassesBuildFolder & slash & "PushService.java" into tPushServiceClassFile
-
+      
       put "package "&pSettings["android,identifier"]&";" & cr & \
             "import com.runrev.android.*;" & cr & \
             "public class PushService extends com.runrev.android.LiveCodeFirebaseMessagingService {}" & cr into tPushServiceClass
-
+      
       put tPushServiceClass into url ("binfile:" & tPushServiceClassFile)
       if the result is not empty then
          throw "could not create push notification support class:" && the result
       end if
       appendToStringList tPushServiceClassFile, tBuiltClassFiles
-
+      
       local tCombinedClassPath
       put tClassPath into tCombinedClassPath
       repeat for each line tJar in pSettings["jarFiles"]
@@ -856,20 +929,21 @@ private command saveAsMobileStandaloneMain \
             put ":" & tJar after tCombinedClassPath
          end if
       end repeat
-
-      executeShellCommand pathToJavac(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tCombinedClassPath, tPushServiceClassFile
+      
+      #      executeShellCommand pathToJavac(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tCombinedClassPath, tPushServiceClassFile
+      executeShellCommand pathToJavac(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tCombinedClassPath, tPushServiceClassFile
       put the result into tResult
       if tResult is not empty then
          throw "error compiling push notification service class:" & cr & tResult
       end if
       appendToStringList tClassesBuildFolder & slash & tCompiledClassFilePath & "/PushService.class", tBuiltClassFiles
-   end if
-
+   end if -- tUseFirebaseMessaging?
+   
    // Generate Google services resources
-   if tUseGoogleServices then
+   if tUseGoogleServices? then
       local tGoogleServicesJSON
       put pSettings["android,googleServicesJSON"] into tGoogleServicesJSON
-      if pathIsRelative(tGoogleServicesJSON) then
+      if pathIsRelative?(tGoogleServicesJSON) then
          put tBaseFolder & slash before tGoogleServicesJSON
       end if
       if there is a file tGoogleServicesJSON then
@@ -884,37 +958,38 @@ private command saveAsMobileStandaloneMain \
          throw "An enabled feature requires Google Services to be configured. Please specify the path to your google-services.json file in the Standalone Application Settings for Android"
       end if
    end if
-
+   
    // Generate app content provider class
    local tProviderClass, tProviderClassFile
    put tClassesBuildFolder & slash & "AppProvider.java" into tProviderClassFile
-
+   
    put "package" && pSettings["android,identifier"] & ";" & cr into tProviderClass
    put "import com.runrev.android.*;" & cr after tProviderClass
    put "public class AppProvider extends com.runrev.android.AppProvider {}" & cr after tProviderClass
-
+   
    put tProviderClass into url ("binfile:" & tProviderClassFile)
    if the result is not empty then
       throw "could not create app content provider"
    end if
    appendToStringList tProviderClassFile, tBuiltClassFiles
-
-   executeShellCommand pathToJavac(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tProviderClassFile
+   
+   #   executeShellCommand pathToJavac(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tProviderClassFile
+   executeShellCommand pathToJavac(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tProviderClassFile
    if the result is not empty then
       throw "could not compile app content provider" & cr & the result
    end if
    appendToStringList tClassesBuildFolder & slash & tCompiledClassFilePath & "/AppProvider.class", tBuiltClassFiles
-
+   
    -- MW-2012-07-05: Record all asset files that are copied into /tmp
    local tAssetFiles
    put empty into tAssetFiles
-
+   
    local tAssetArchive
    put tBuildFolder & slash & "lcandroid.ap_" into tAssetArchive
    if there is a file tAssetArchive then
       delete file tAssetArchive
    end if
-
+   
    local tLayoutXML
    put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "livecode_inputcontrol.xml") into tLayoutXML
    put url ("binfile:" & tLayoutXML) into url ("binfile:" & tLayoutResBuildFolder & slash & "livecode_inputcontrol.xml")
@@ -922,7 +997,7 @@ private command saveAsMobileStandaloneMain \
       throw "could not copy layout file '" & tLayoutXML & "'"
    end if
    put tLayoutResBuildFolder & slash & "livecode_inputcontrol.xml" & cr after tAssetFiles
-
+   
    local tNFCTechFilter
    put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "nfc_tech_filter.xml") into tNFCTechFilter
    put url ("binfile:" & tNFCTechFilter) into url ("binfile:" & tXMLResBuildFolder & slash & "nfc_tech_filter.xml")
@@ -930,71 +1005,50 @@ private command saveAsMobileStandaloneMain \
       throw "could not copy NFC tech filter file '" & tNFCTechFilter & "'"
    end if
    put tXMLResBuildFolder & slash & "nfc_tech_filter.xml" & cr after tAssetFiles
-
+   
    /* Adaptive Icons */
    if pSettings["android,icon type"] is "adaptive" and \
          pSettings["android,adaptive icons resources path"] is not empty then
       local tAdaptiveIconsResFolder
       put pSettings["android,adaptive icons resources path"] \
             into tAdaptiveIconsResFolder
-      if pathIsRelative(tAdaptiveIconsResFolder) then
+      if pathIsRelative?(tAdaptiveIconsResFolder) then
          put tBaseFolder & slash before tAdaptiveIconsResFolder
       end if
-
+      
       local tAdaptiveIconsResSubfolders
       put folders(tAdaptiveIconsResFolder) into tAdaptiveIconsResSubfolders
       repeat for each line tResSubfolder in tAdaptiveIconsResSubfolders
          if tResSubfolder is ".." or tResSubfolder is "layout" then
             next repeat
          end if
-
+         
          local tSubfolderContents
          put files(tAdaptiveIconsResFolder & slash & tResSubfolder) \
                into tSubfolderContents
-
+         
          if there is not a folder (tResBuildFolder & slash & tResSubfolder) then
             revSBEnsureFolder tResBuildFolder & slash & tResSubfolder
             filter lines of tSubfolderContents without "*.webp"
          end if
-
+         
          repeat for each line tFile in tSubfolderContents
             revCopyFile \
                   tAdaptiveIconsResFolder & slash & tResSubfolder & slash & tFile, \
                   tResBuildFolder & slash & tResSubfolder
          end repeat
       end repeat
-
+      
       /* Inclusion of res/values(-night)/themes.xml causes a build error so remove it */
       local tThemesXml
-
+      
       deleteInclusionFile "values/themes.xml"
       deleteInclusionFile "values-night/themes.xml"
       deleteInclusionFile "values/styles.xml"
       deleteInclusionFile "values-night/styles.xml"
-
-      --      put tResBuildFolder & slash & "values/themes.xml" into tThemesXml
-      --      if there is a file tThemesXml then
-      --         delete file tThemesXml
-      --      end if
-
-      --      put tResBuildFolder & slash & "values-night/themes.xml" into tThemesXml
-      --      if there is a file tThemesXml then
-      --         delete file tThemesXml
-      --      end if
-
-      --      /* Inclusion of res/values(-night)/styles.xml causes a build error so remove it */
-      --      local tStylesXml
-      --      put tResBuildFolder & slash & "values/styles.xml" into tStylesXml
-      --      if there is a file tStylesXml then
-      --         delete file tStylesXml
-      --      end if
-
-      --      put tResBuildFolder & slash & "values-night/styles.xml" into tStylesXml
-      --      if there is a file tStylesXml then
-      --         delete file tStylesXml
-      --      end if
+      
    end if
-
+   
    local tFileProviderPaths
    put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "file_provider_paths.xml") into tFileProviderPaths
    put url ("binfile:" & tFileProviderPaths) into url ("binfile:" & tXMLResBuildFolder & slash & "file_provider_paths.xml")
@@ -1002,7 +1056,7 @@ private command saveAsMobileStandaloneMain \
       throw "could not copy file provider paths file '" & tFileProviderPaths & "'"
    end if
    put tXMLResBuildFolder & slash & "file_provider_paths.xml" & return after tAssetFiles
-
+   
    /* Use legacy icon if adaptive icons are not provided */
    if tIsLegacyIcon then
       put url ("binfile:" & tIcon) into url ("binfile:" & tDrawableResBuildFolder & slash & "icon.png")
@@ -1011,7 +1065,7 @@ private command saveAsMobileStandaloneMain \
       end if
       put tDrawableResBuildFolder & slash & "icon.png" & cr after tAssetFiles
    end if
-
+   
    if there is a file tStatusBarIcon then
       put url ("binfile:" & tStatusBarIcon) into url ("binfile:" & tDrawableResBuildFolder & slash & "notify_icon.png")
       if the result is not empty then
@@ -1019,7 +1073,7 @@ private command saveAsMobileStandaloneMain \
       end if
       put tDrawableResBuildFolder & slash & "notify_icon.png" & cr after tAssetFiles
    end if
-
+   
    repeat for each item tFile in kMediaIcons
       local tPath
       put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & tFile) \
@@ -1034,12 +1088,12 @@ private command saveAsMobileStandaloneMain \
                after tAssetFiles
       end if
    end repeat
-
+   
    ------- Compile the Standalone
    revStandaloneProgress "Building executable..."
-
+   
    put tExternals into pSettings["externals"]
-
+   
    appendToStringList "revsecurity:./librevsecurity", pSettings["android,library"]
    repeat for each line tEntry in tExternals
       appendToStringList tEntry & ":" & "./lib" & tEntry, pSettings["android,library"]
@@ -1047,13 +1101,13 @@ private command saveAsMobileStandaloneMain \
    repeat for each line tEntry in tDrivers
       appendToStringList tEntry & ":" & "./lib" & tEntry, pSettings["android,library"]
    end repeat
-
+   
    set the itemDelimiter to comma
    repeat for each item tArch in tArchs
       local tArchCodeResources
       filter pSettings["extension_code_resources"] \
             with ("*code/" & tArch & "-android*") into tArchCodeResources
-
+      
       repeat for each line tLib in tArchCodeResources
          local tSourceFile, tSourceName
          set the itemdelimiter to slash
@@ -1061,27 +1115,27 @@ private command saveAsMobileStandaloneMain \
          set the itemDelimiter to "."
          put item 1 to -2 of tSourceFile into tSourceName
          set the itemDelimiter to comma
-
+         
          if not(tSourceFile begins with "lib") then
             put "lib" before tSourceFile
          end if
-
+         
          put url ("binfile:" & tLib) into \
                url ("binfile:" & tArchLibsBuildFolders[__ArchABI(tArch)] & slash & tSourceFile)
-
+         
          if (tSourceName & ":./" & tSourceFile) is not among the lines of pSettings["android,library"] then
             appendToStringList tSourceName & ":./" & tSourceFile, pSettings["android,library"]
          end if
       end repeat
    end repeat
-
+   
    local tDeploy
    -- Update the deploy params with script library and extension inclusions
    revSBUpdateDeployParams pStack, "android", pSettings, tDeploy
-
+   
    -- Stackfile to use
    put the effective filename of stack pStack into tDeploy["stackfile"]
-
+   
    repeat for each key tArch in tArchLibsBuildFolders
       -- Engine to use
       put mapAndroidPath(tArch) & slash & "Standalone" into tDeploy["engine"]
@@ -1089,30 +1143,30 @@ private command saveAsMobileStandaloneMain \
       if there is no file tDeploy["engine"] then
          throw "Could not find standalone engine"
       end if
-
+      
       -- Output file to create
       put tArchLibsBuildFolders[tArch] & slash & "librevandroid.so" into tDeploy["output"]
-
+      
       _internal deploy android tDeploy
       if the result is not empty then
          throw the result
       end if
    end repeat
-
+   
    -------- Assembling Resources
    revStandaloneProgress "Assembling resources..."
-
+   
    local tLibPackages
    if pSettings["libraryPackages"] is not empty then
       put pSettings["libraryPackages"] into tLibPackages
       replace cr with ":" in tLibPackages
    end if
-
+   
    local tResourceClasses, tCompiledResourceClasses
    local tResourceGenFolder, tClassesFile
    put tBuildFolder & slash & "gen" into tResourceGenFolder
    revSBEnsureFolder tResourceGenFolder
-
+   
    compileResourceClasses \
          tBuildFolder, \
          tResBuildFolder, \
@@ -1123,7 +1177,7 @@ private command saveAsMobileStandaloneMain \
             "could not compile resource classes - error:\n%s", \
             the result)
    end if
-
+   
    linkResources \
          tBuildFolder, \
          tResourceGenFolder, \
@@ -1135,7 +1189,7 @@ private command saveAsMobileStandaloneMain \
       throw "could not link resources - error:" & cr & the result
    end if
    put tBuildFolder into tClassesFile
-
+   
    repeat for each line tLine in revSBEnumerateFolder(tResourceGenFolder)
       if tLine ends with "/R.java" then
          appendToStringList tResourceGenFolder & slash & tLine, tResourceClasses
@@ -1143,7 +1197,8 @@ private command saveAsMobileStandaloneMain \
    end repeat
    if tResourceClasses is not empty then
       local tResourceCompileParams
-      appendToParams tResourceCompileParams, "-target", "1.6", "-source", "1.6", "-Xlint:none"
+      #      appendToParams tResourceCompileParams, "-target", "1.6", "-source", "1.6", "-Xlint:none"
+      appendToParams tResourceCompileParams, "-Xlint:none"
       appendToParams tResourceCompileParams, "-d", tResourceGenFolder
       appendToParams tResourceCompileParams, "-cp", tClassPath
       repeat for each line tRClass in tResourceClasses
@@ -1159,7 +1214,7 @@ private command saveAsMobileStandaloneMain \
          end if
       end repeat
    end if
-
+   
    // To avoid hitting command-line character limits, we write the list of input files to disk
    local tD8InputList
    appendToStringList tLiveCodeClassesFile, tD8InputList
@@ -1171,14 +1226,14 @@ private command saveAsMobileStandaloneMain \
          appendToStringList tClassFile, tD8InputList
       end if
    end repeat
-
+   
    local tD8InputListParamFile
    put tBuildFolder & slash & "d8-input-list.txt" into tD8InputListParamFile
    put tD8InputList into url ("file:" & tD8InputListParamFile)
    if the result is not empty then
       throw "could not create list of encoded classes"
    end if
-
+   
    local tD8Params
    appendToParams tD8Params, "--min-api", pSettings["android,minimum version"]
    appendToParams tD8Params, "--lib", pathToRootClasses()
@@ -1190,43 +1245,43 @@ private command saveAsMobileStandaloneMain \
    if tResult is not empty then
       throw "could not encode class bundle - error:" & cr & tResult
    end if
-
+   
    -------- Assembling Assets
    revStandaloneProgress "Assembling assets..."
-
+   
    revZipOpenArchive tAssetArchive, "update"
    if the result is not empty then
       throw "could not open asset archive"
    end if
-
+   
    addAssetsToArchive tResolvedFileData, tBaseFolder, tAssetArchive
-
+   
    revZipCloseArchive tAssetArchive
    if the result is not empty then
       throw "asset archive creation failed"
    end if
-
+   
    ------- Prepare the Package
    revStandaloneProgress "Preparing package..."
-
+   
    local tUnalignedApkFile
    put tBuildFolder & slash & "lcandroid-unaligned.apk" into tUnalignedApkFile
    if there is a file tUnalignedApkFile then
       delete file tUnalignedApkFile
    end if
-
+   
    repeat for each key tArch in tArchLibsBuildFolders
       -- MM-2014-01-29: [[ OpenSSL ]] Include the revsecurity library.
       if pSettings["android,include revsecurity"] then
          put url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & tArch & slash & "revsecurity")) \
                into url ("binfile:" & tArchLibsBuildFolders[tArch] & slash & "librevsecurity.so")
-
+         
          // SN-2015-01-22: [[ Bug 13213 ]] Throw an error in case an error occurred
          if the result is not empty then
             throw "Could not find revsecurity library"
          end if
       end if
-
+      
       -- Copy across the externals into the libs folder
       repeat for each line tEntry in tExternals
          -- Only copy across an external from the Runtime folder if we haven't
@@ -1241,7 +1296,7 @@ private command saveAsMobileStandaloneMain \
             throw "Could not find " & tEntry && "library"
          end if
       end repeat
-
+      
       -- Copy across any other driver libraries into the libs folder
       repeat for each line tEntry in tDrivers
          -- Only copy across the library if it's not already there
@@ -1255,17 +1310,17 @@ private command saveAsMobileStandaloneMain \
          end if
       end repeat
    end repeat
-
+   
    prepareBundle tBuildFolder, tArchLibsBuildFolders, tAssetArchive
-
+   
    local tKeyStoreAlias, tKeyStorePassword, tPrivateKeyPassword
-   if (tKey is not empty) or tUseDebugKey then
-      if tUseDebugKey then
+   if (tKey is not empty) or tUseDebugKey? then
+      if tUseDebugKey? then
          put pathToDebugKey() into tKey
          put "androiddebugkey" into tKeyStoreAlias
          put "android" into tKeyStorePassword
          put "android" into tPrivateKeyPassword
-
+         
          // Create debug key if it does not already exist
          if there is not a file tKey then
             local tKeytoolParams
@@ -1278,7 +1333,7 @@ private command saveAsMobileStandaloneMain \
             appendToParams tKeyToolParams, "-keysize", 2048
             appendToParams tKeyToolParams, "-validity", 10000
             appendToParams tKeytoolParams, "-dname", "CN=Android Debug,O=Android,C=US"
-
+            
             executeShellCommandWithParams pathToKeytool(), tKeytoolParams
             put the result into tResult
             processKeytoolResult tResult
@@ -1290,23 +1345,23 @@ private command saveAsMobileStandaloneMain \
          if not tKey begins with "/" then
             put tBaseFolder & slash before tKey
          end if
-
+         
          if there is no file tKey then
             throw "could not file keystore '" & tKey & "'"
          end if
-
+         
          ask "Please provide the keystore alias to use"
          if it is empty then
             throw "no keystore alias provided for keystore"
          end if
          put it into tKeystoreAlias
-
+         
          ask password clear "Please provide the keystore password"
          if it is empty then
             throw "no password provided for keystore"
          end if
          put it into tKeystorePassword
-
+         
          ask password clear "Please provide the private key password"
          if it is empty then
             throw "no password provided for private key"
@@ -1314,7 +1369,7 @@ private command saveAsMobileStandaloneMain \
          put it into tPrivateKeyPassword
       end if
    end if
-
+   
    generateBundle \
          tBuildFolder, \
          pAabFile, \
@@ -1323,11 +1378,12 @@ private command saveAsMobileStandaloneMain \
          tKeystorePassword, \
          tPrivateKeyPassword, \
          pDevice
-
+   
    ------- Signing the Package
-   if not (pTarget contains "test") then
+   --if not (pTarget contains "test")  then
+   if false then
       revStandaloneProgress "Signing package..."
-
+      
       executeShellCommand \
             pathToJarSigner(), \
             "-sigalg", "SHA1withRSA", \
@@ -1337,7 +1393,7 @@ private command saveAsMobileStandaloneMain \
             "-keypass", tPrivateKeyPassword, \
             pAabFile, \
             tKeystoreAlias
-
+      
       if the result begins with "jarsigner error" then
          throw "signing failed -" && word 4 to -1 of the result
       else if the result begins with "jarsigner: Certificate chain not found" then
@@ -1346,9 +1402,11 @@ private command saveAsMobileStandaloneMain \
          throw "signing failed - key password was incorrect or" && word 2 to -1 of the result
       end if
    end if
-
+   
 catch tError
 end try
+
+# clean up the mess
 
 if there is a file tUnalignedApkFile then delete file tUnalignedApkFile
 if there is a file tAssetArchive then delete file tAssetArchive
@@ -1358,7 +1416,9 @@ repeat for each element tFolder in tArchLibsBuildFolders
    repeat for each line tFile in files(tFolder)
       delete file (tFolder & slash & tFile)
    end repeat
-   if there is a folder tFolder then delete folder tFolder
+   if there is a folder tFolder then
+      delete folder tFolder
+   end if
 end repeat
 
 set the itemDelimiter to slash
@@ -1367,11 +1427,19 @@ repeat for each line tJarFile in pSettings["jarFiles"]
       delete file (tLibsBuildFolder & slash & item -1 of tJarFile)
    end if
 end repeat
-if there is a folder tLibsBuildFolder then delete folder tLibsBuildFolder
-if there is a file tClassesFile then delete file tClassesFile
+if there is a folder tLibsBuildFolder then
+   delete folder tLibsBuildFolder
+end if
+if there is a file tClassesFile then
+   delete file tClassesFile
+end if
+
 repeat for each line tClassFile in tBuiltClassFiles
-   if there is a file tClassFile then delete file tClassFile
+   if there is a file tClassFile then
+      delete file tClassFile
+   end if
 end repeat
+
 repeat while there is a folder (tClassesBuildFolder & slash & tCompiledClassFilePath)
    delete folder (tClassesBuildFolder & slash & tCompiledClassFilePath)
    if the result is not empty then
@@ -1383,28 +1451,6 @@ set the itemDelimiter to comma
 
 cleanTempFiles tAssetFiles, tManifestFile
 cleanTempFolders tLayoutResBuildFolder, tDrawableResBuildFolder, tResBuildFolder, tClassesBuildFolder, tBuildFolder
-
---repeat for each line tFIle in tAssetFiles
---   if there is a file tFile then delete file tFile
---end repeat
---if there is a folder tLayoutResBuildFolder then
---   delete folder tLayoutResBuildFolder
---end if
---if there is a folder tDrawableResBuildFolder then
---   delete folder tDrawableResBuildFolder
---end if
---if there is a folder tResBuildFolder then
---   delete folder tResBuildFolder
---end if
---if there is a file tManifestFile then
---   delete file tManifestFile
---end if
---if there is a folder tClassesBuildFolder then
---   delete folder tClassesBuildFolder
---end if
---if there is a folder tBuildFolder then
---   delete folder tBuildFolder
---end if
 
 if tError is not empty then
    throw tError
@@ -1678,11 +1724,11 @@ private command generateBundle \
       pKeystorePassword, \
       pPrivateKeyPassword, \
       pDevice
-
+   
    local tBundleDir, tBaseArchive
    put pBuildFolder & slash & "aab-bundle" into tBundleDir
    put pBuildFolder & slash & "base.zip" into tBaseArchive
-
+   
    revZipOpenArchive tBaseArchive, "write"
    if the result is empty then
       local tFile, tList
@@ -1694,7 +1740,7 @@ private command generateBundle \
       end repeat
       revZipCloseArchive tBaseArchive
    end if
-
+   
    executeShellCommand pathToJava(), \
          "-jar", \
          pathToBundleTool(), \
@@ -1702,25 +1748,25 @@ private command generateBundle \
          "--config", pBuildFolder & slash & "BundleConfig.json", \
          "--modules", tBaseArchive, \
          "--output", pPackage
-
+   
    if the result is not empty then
       throw the result
    end if
    if there is a file tBaseArchive then delete file tBaseArchive
-
+   
    -- Generate an APK file from the bundle as well
    set the itemDel to "."
    local tApksFile, tApkFile
    put item 1 to -2 of pPackage & ".apks" into tApksFile
    put item 1 to -2 of pPackage & ".apk" into tApkFile
-
+   
    local tParams
    appendToParams tParams, "-jar"
    appendToParams tParams, pathToBundleTool()
    appendToParams tParams, "build-apks"
    appendToParams tParams, "--bundle", pPackage
    appendToParams tParams, "--output", tApksFile
-
+   
    if pDevice is empty then
       appendToParams tParams, "--mode", "universal"
    else
@@ -1728,28 +1774,28 @@ private command generateBundle \
       appendToParams tParams, "--device-id", pDevice
       appendToParams tParams, "--adb", pathToAdb()
    end if
-
+   
    if pKey is not empty then
       appendToParams tParams, "--ks", pKey
       appendToParams tParams, "--ks-pass", "pass:" & pKeystorePassword
       appendToParams tParams, "--ks-key-alias", pKeystoreAlias
       appendToParams tParams, "--key-pass", "pass:" & pPrivateKeyPassword
    end if
-
+   
    executeShellCommandWithParams \
          pathToJava(), \
          tParams
-
+   
    local tResult
    put the result into tResult
-
+   
    if pDevice is empty then
       revZipOpenArchive tApksFile, "read"
       if the result is empty then
          revZipExtractItemToFile tApksFile, "universal.apk", tApkFile
          revZipCloseArchive tApksFile
       end if
-
+      
       if there is a file tApksFile then delete file tApksFile
    end if
    return tResult
@@ -1760,7 +1806,7 @@ private command appendToStringList pValue, @xList
       if xList is empty then
          put tLine into xList
       else
-         put return & tLine after xList
+         put cr & tLine after xList
       end if
    end repeat
 end appendToStringList

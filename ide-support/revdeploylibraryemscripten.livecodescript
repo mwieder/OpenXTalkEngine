@@ -15,7 +15,7 @@ for more details.
 You should have received a copy of the GNU General Public License
 along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
-constant kLinuxBrowserList = "Firefox=firefox/firefox,Chrome=google-chrome/google-chrome,Opera=opera/opera"
+constant kLinuxBrowserList = "Firefox=firefox/firefox,Chrome=google-chrome/google-chrome,Brave=brave/brave"
 constant kPrivateModeSuffix = "[Private Mode]"
 # TODO: update this
 constant kBuildSpace = "livecode-emscripten-builds"
@@ -180,7 +180,7 @@ private function q pString
 end q
 
 -- Returns a return delimited list of the form <browser>,<path to exe>
--- Use an internal command on OSX, the registery in Windows and a static list on Linux.
+-- Use an internal command on OSX, the registry in Windows and a static list on Linux.
 -- Not implemented on other platforms - we just use the default browser here.
 --
 private function __deployGetBrowserList
@@ -259,6 +259,7 @@ end __deployBrowserSupportsPrivateMode?
 private function __deployGetBrowserPrivateModeArgs pBrowser
    local tPrivateMode
    switch
+      case pBrowser contains "brave"
       case pBrowser contains "chrome"
          put "--incognito" into tPrivateMode
          break
@@ -287,7 +288,7 @@ private function __deployGetBrowserPrivateModeArgs pBrowser
    return tPrivateMode
 end __deployGetBrowserPrivateModeArgs
 
-private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
+private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode?
    if pBrowser is empty or pBrowser is "default" then
       # use the default browser
       launch URL pURL
@@ -296,7 +297,7 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode
       replace "chrome" with "google-chrome" in pBrowser
       local tArgs
       put __deployGetBrowserArgs(pBrowser) into tArgs
-      if pPrivateMode then
+      if pPrivateMode? then
          if tArgs is not empty then
             put space after tArgs
          end if

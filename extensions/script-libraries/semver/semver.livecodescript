@@ -701,7 +701,7 @@ function semverSatisfies pVersion, pRange
       return true
    end if
    
-   semverParse pVersion, false
+   semverParse pVersion
    if the result is not empty then
       return the result for error
    end if
@@ -741,7 +741,7 @@ function semverMaxSatisfying pVersions, pRange
    put pVersions into tVersions
    local tIndex, tFoundIndex
    repeat with tIndex = 1 to the number of elements of pVersions
-      semverParse tVersions[tIndex], false
+      semverParse tVersions[tIndex]
       if the result is not empty then
          return the result for error
       end if

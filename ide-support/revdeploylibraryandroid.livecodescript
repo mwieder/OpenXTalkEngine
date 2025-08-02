@@ -61,44 +61,44 @@ end deployIsAvailable?
 command deployDo pTargetStack, pTargetDevice
    local tError
    put empty into tError
-
+   
    local tSettings
    --dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
    --put the result into tSettings
    put revSBGetSettings(pTargetStack, true) into tSettings
-
+   
    local tIdentifier
    put tSettings["android,identifier"] into tIdentifier
    if tIdentifier is empty then
       put "com.yourcompany.yourapp" into tIdentifier
    end if
-
+   
    local tDeviceID
    put word 2 to -1 of pTargetDevice into tDeviceID
-
+   
    if tError is empty then
       revStandaloneProgress "Checking target device architecture..."
-
+      
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
             "shell", \
             "getprop", \
-         "ro.product.cpu.abi"
-
+            "ro.product.cpu.abi"
+      
       local tABI
       put word 1 of line 1 of the result into tABI
       if not (tABI is among the items of "armeabi-v7a,arm64-v8a,x86,x86_64") then
          put "Checking target device architecture failed:" && the result into tError
       end if
-
+      
       local tArch
       put __ABIArch(tABI) into tArch
       repeat for each item tItem in revSBPlatformArchitectures("Android")
          put tItem is tArch into tSettings["Android",tItem]
       end repeat
    end if
-
+   
    local tTempApksFile
    if tError is empty then
       /* revSaveAsMobileStandalone expects the full path to the target bundle */
@@ -114,15 +114,15 @@ command deployDo pTargetStack, pTargetDevice
                tSettings, \
                tStandalonePaths, \
                tDeviceID
-
+         
       catch tException
          put "Unable to build app for testing:" && tException into tError
       end try
    end if
-
+   
    if tError is empty then
       revStandaloneProgress "Installing app on target device..."
-
+      
       local tResult
       executeShellCommand pathToJava(), \
             "-jar", \
@@ -131,16 +131,24 @@ command deployDo pTargetStack, pTargetDevice
             "--apks", tTempApksFile, \
             "--device-id", tDeviceID, \
             "--adb", pathToAdb()
+      --      executeShellCommand pathToJava(), \
+      --            pathToBundleTool(), \
+      --            "install-apks", \
+      --            "--apks", tTempApksFile, \
+      --            "--device-id", tDeviceID, \
+      --            "--adb", pathToAdb()
       put the result into tResult
-
+      
       if not (tResult contains "The APKs have been extracted") then
-         put "Installation of app failed:" && the result into tError
+         put "Installation of app failed:" && tResult into tError
       end if
+   else
+      throw tError
    end if
-
+   
    if tError is empty then
       revStandaloneProgress "Launching app on target device..."
-
+      
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
@@ -152,15 +160,15 @@ command deployDo pTargetStack, pTargetDevice
          put "Launch of app failed:" && the result into tError
       end if
    end if
-
+   
    if "revStandaloneProgress" is among the lines of the openStacks then
       close stack "revStandaloneProgress"
    end if
-
+   
    if there is a file tTempApksFile then
       delete file tTempApksFile
    end if
-
+   
    return tError
 end deployDo
 
@@ -180,22 +188,28 @@ end __ABIArch
 
 command deployAutoconfigure
    local tSDK
-   put the cMobileSupport["android.sdk"] of stack "revPreferences" into tSDK
-   if tSDK is not empty and not deploy.IsValidSDK?(tSDK) then
+   #put the cMobileSupport["android.sdk"] of stack "revPreferences" into tSDK
+   dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.sdk"
+   put the result into tSDK
+   if tSDK is not empty and deploy.IsValidSDK?(tSDK) is not empty then
       put empty into tSDK
    end if
-   set the cMobileSupport["android.sdk"] of stack "revPreferences" to tSDK
+   #set the cMobileSupport["android.sdk"] of stack "revPreferences" to tSDK
+   dispatch "setMobilePreference" to stack "revPreferencesGUI" with "android.sdk", tSDK
    put tSDK into sAndroidRoot
-
+   
    if sAndroidRoot is not empty then
       local tJDK
-      put the cMobileSupport["android.jdk"] of stack "revPreferences" into tJDK
-      if tJDK is empty or not deploy.IsValidJDK?(tJDK) then
+      #put the cMobileSupport["android.jdk"] of stack "revPreferences" into tJDK
+      dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.jdk"
+      put the result into tJDK
+      if tJDK is empty or deploy.IsValidJDK?(tJDK) is not empty then
          deployAutoconfigureJDK
          put the result into tJDK
       end if
       if tJDK is not empty then
-         set the cMobileSupport["android.jdk"] of stack "revPreferences" to tJDK
+         #set the cMobileSupport["android.jdk"] of stack "revPreferences" to tJDK
+         dispatch "setMobilePreference" to stack "revPreferencesGUI" with "android.jdk", tJDK
          put tJDK into sJavaRoot
       end if
    else
@@ -218,7 +232,7 @@ command deployAutoconfigureJDK
          break
    end switch
 
-   if deploy.IsValidJDK?(tJDK) then
+   if deploy.IsValidJDK?(tJDK) is empty then
       return tJDK
    end if
 
@@ -250,22 +264,24 @@ TODO: fix this
 function deploy.IsValidJDK? pPath
    if there is no folder pPath then
       --answer error "could not find registered jdk at" && tJavaHome
-      answer error "could not find registered jdk at" && pPath
-      return false
+      return "could not find registered jdk at" && pPath
+      --return false
    end if
    
    if there is no file pathToJavaC(pPath) then
-      answer error "missing javac tool, make sure your JDK install has not become corrupted"
-      return false
+      --answer error "missing javac tool, make sure your JDK install has not become corrupted"
+      return "missing javac tool, make sure your JDK install has not become corrupted"
+      --return false
    end if
    
    // newer versions of SDK Tools require Java 8
    if pathToSDKClasses() contains "sdklib-" and not pPath contains "jdk1.8" then
-      answer error "The version of Java installed in your system is not compatible with the current version of Android SDK Tools. Please install Java 8 to continue."
-      return false
+      --answer error "The version of Java installed in your system is not compatible with the current version of Android SDK Tools. Please install Java 8 to continue."
+      return "The version of Java installed in your system is not compatible with the current version of Android SDK Tools. Please install Java 8 to continue."
+      --return false
    end if
    
-   return true
+   return empty
 end deploy.IsValidJDK?
 
 function deployTargetSdkVersion
@@ -284,43 +300,43 @@ function deploy.IsValidSDK? pPath
    if there is no folder (pPath & slash & "platforms") then
       return "could not find platforms folder at that path."
    end if
-   
+
    if there is no folder (pPath & slash & "platform-tools") then
       return "could not find platform-tools folder at that path."
    end if
-   
+
    if there is no folder (pPath & slash & "build-tools") then
       return "could not find build-tools folder at that path."
    end if
-   
+
    if there is no folder pathToRootPlatform(pPath) then
       return "could not find install of required target SDK, make sure it has been installed with the Android SDK Manager"
    end if
-   
+
    if there is no file pathToRootClasses(pPath) then
       return "missing root classes, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToAapt2(pPath) then
       return "missing aapt2 tool, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToAdb(pPath) then
       return "missing adb tool, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToSDKClasses(pPath) then
       --return "missing sdklib.jar, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToZipAlign(pPath) then
       return "missing zipalign tool, make sure your SDK install has not become corrupted"
    end if
-   
+
    if there is no file pathToD8(pPath) then
       return "missing d8 tool, make sure your SDK install has not become corrupted"
    end if
-   
+
    return empty
 end deploy.IsValidSDK?
 
@@ -392,7 +408,7 @@ private function doShellCommand pCommand, pArguments
    local tCommandPath
    set the itemDelimiter to slash
    put item 1 to -2 of pCommand into tCommandPath
-   
+
    local tOldPath
    put $PATH into tOldPath
    switch the platform
@@ -407,12 +423,12 @@ private function doShellCommand pCommand, pArguments
          put tCommandPath & ":" & sJavaRoot & "/bin" & ":" before $PATH
          break
    end switch
-   
+
    set the hideConsoleWindows to true
    get shell(item -1 of pCommand && pArguments)
-   
+
    put tOldPath into $PATH
-   
+
    return it
 end doShellCommand
 
@@ -436,7 +452,7 @@ private function pathToRootPlatform pRoot
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-   
+
    # get a list of the folder in the platforms folder
    # return the highest number of "android-<number>"
    return pRoot & slash & "platforms/android-" & kDeployAndroidTargetSDK
@@ -477,9 +493,9 @@ private function searchTools pRoot, pCommand
    // search the shared tools folder
    if there is a folder pRoot & slash & "tools" then
       local tPath
-      
+
       put pRoot & slash & "tools" & slash & pCommand into tPath
-      
+
       if there is a file tPath then
          return tPath
       end if
@@ -491,32 +507,32 @@ function searchBuildTools pRoot, pCommand
    // the build tools folder contains version subfolders containing the actual executables,
    // so we search through each of them starting with the most recent
    --put param(0) && pRoot && pCommand & cr after msg
-   
+
    if there is a folder pRoot & slash & "build-tools" then
       local tOldFolder, tSDKFolders, tOldItem
-      
+
       put the folder into tOldFolder
       set the folder to pRoot & slash & "build-tools"
-      
+
       put the folders into tSDKFolders
       filter tSDKFolders without ".*"
       set the folder to tOldFolder
-      
+
       --put param(0) && tSDKFolders & cr after msg
-      
+
       return searchSDKbuildtoolsVersionsFor(pCommand, pRoot, tSDKFolders)
       --      if tFolders is empty then return empty
-      
+
       --      put the itemdelimiter into tOldItem
       --      set the itemdelimiter to "."
-      
+
       --      // sort version folders descending by x.x.x version numbers
       --      sort lines of tFolders descending numeric by item 3 of each
       --      sort lines of tFolders descending numeric by item 2 of each
       --      sort lines of tFolders descending numeric by item 1 of each
-      
+
       --      set the itemdelimiter to tOldItem
-      
+
       --      local tPath
       --      repeat for each line tVersion in tFolders
       --         put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
@@ -532,14 +548,14 @@ private function searchSDKbuildtoolsVersionsFor pCommand, pRoot, pFolders
    local tOldItem
    put the itemdelimiter into tOldItem
    set the itemdelimiter to "."
-   
+
    // sort version folders descending by x.x.x version numbers
    sort lines of pFolders descending numeric by item 3 of each
    sort lines of pFolders descending numeric by item 2 of each
    sort lines of pFolders descending numeric by item 1 of each
-   
+
    set the itemdelimiter to tOldItem
-   
+
    local tPath
    repeat for each line tVersion in pFolders
       put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
@@ -574,47 +590,63 @@ private function executableName pCommand
    end if
 end executableName
 
-private function pathToPlatformTool pRoot, pCommand
+private function pathToBuildTool pRoot, pCommand
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-   
+
    -- IM-2013-05-21: Update to look in "build-tools/<version>" folder
    local tPath
    put searchBuildTools(pRoot, pCommand) into tPath
    if tPath is not empty then return tPath
-   
+
    local tOldFolder, tFolders, tOldItem
-   
+
    put the folder into tOldFolder
    set the folder to pRoot & slash & "build-tools"
-   
+
    put the folders into tFolders
-   
+
    set the folder to tOldFolder
    return searchSDKbuildtoolsVersionsFor(pCommand, pRoot, tFolders)
-   
+
    -- MM-2011-08-09: Update to look in platform-tools folder if not present in platforms/android-8/tools/
    if there is a file pRoot & slash & "platforms/android-8/tools/" & pCommand then
       return pRoot & slash & "platforms/android-8/tools/" & pCommand
    end if
-   
-   return pRoot & slash & "platform-tools/" & pCommand
-end pathToPlatformTool
 
-function pathToAapt2 pRoot
-   return pathToPlatformTool(pRoot, executableName("aapt2"))
-end pathToAapt2
+#   return pRoot & slash & "platform-tools/" & pCommand
+   return pathToPlatformTool(pRoot, pCommand)
+end pathToBuildTool
 
-function pathToAdb pRoot
+private function pathToPlatformTool pRoot, pCommand
    if pRoot is empty then
       put sAndroidRoot into pRoot
    end if
-   return pRoot & slash & "platform-tools" & slash & executableName("adb")
+   return pRoot & slash & "platform-tools" & slash & executableName(pCommand)
+end pathToPlatformTool
+
+private function pathToJavaExecutable pRoot, pCommand
+   if pRoot is empty then
+      put sJavaRoot into pRoot
+   end if
+   return pRoot & slash & "bin" & slash & pCommand
+end pathToJavaExecutable
+
+function pathToAapt2 pRoot
+   return pathToBuildTool(pRoot, executableName("aapt2"))
+end pathToAapt2
+
+function pathToAdb pRoot
+   return pathToPlatformTool(pRoot, executableName("adb"))
+#   if pRoot is empty then
+#      put sAndroidRoot into pRoot
+#   end if
+#   return pRoot & slash & "platform-tools" & slash & executableName("adb")
 end pathToAdb
 
 function pathToAPKSigner pRoot
-   return pathToPlatformTool(pRoot, executableName("apksigner"))
+   return pathToBuildTool(pRoot, executableName("apksigner"))
 end pathToAPKSigner
 
 function pathToDebugKey pRoot
@@ -623,74 +655,79 @@ end pathToDebugKey
 
 # pRoot here is ~/Android/Sdk
 function pathToZipAlign pRoot
-   return pathToPlatformTool(pRoot, executableName("zipalign"))
-   if pRoot is empty then
-      put sAndroidRoot into pRoot
-   end if
-   
-   local tExe
-   put executableName("zipalign") into tExe
-   
-   // IM-2014-07-11: [[ Bug 12719 ]] First search the tools folder
-   local tPath
-   put searchTools(pRoot, tExe) into tPath
-   if tPath is not empty then
-      return tPath
-   end if
-   
-   // IM-2014-07-11: [[ Bug 12719 ]] zipalign was moved into build-tools as of version 19.1.0 so search there as well
-   put searchBuildTools(pRoot, tExe) into tPath
-   if tPath is not empty then
-      return tPath
-   end if
-   
-   return pRoot & slash & "tools" & slash & tExe
+   return pathToBuildTool(pRoot, executableName("zipalign"))
+#   if pRoot is empty then
+#      put sAndroidRoot into pRoot
+#   end if
+
+#   local tExe
+#   put executableName("zipalign") into tExe
+
+#   // IM-2014-07-11: [[ Bug 12719 ]] First search the tools folder
+#   local tPath
+#   put searchTools(pRoot, tExe) into tPath
+#   if tPath is not empty then
+#      return tPath
+#   end if
+
+#   // IM-2014-07-11: [[ Bug 12719 ]] zipalign was moved into build-tools as of version 19.1.0 so search there as well
+#   put searchBuildTools(pRoot, tExe) into tPath
+#   if tPath is not empty then
+#      return tPath
+#   end if
+
+#   return pRoot & slash & "tools" & slash & tExe
 end pathToZipAlign
 
 function pathToD8 pRoot
-   return pathToPlatformTool(pRoot, executableName("d8"))
+   return pathToBuildTool(pRoot, executableName("d8"))
 end pathToD8
 
 # pRoot should be "android-studio/jbr"
 function pathToJavaC pRoot
-   if pRoot is empty then
-      put sJavaRoot into pRoot
-   end if
-   return pRoot & slash & "bin" & slash & executableName("javac")
+   return pathToJavaExecutable(pRoot, executableName("javac"))
+#   if pRoot is empty then
+#      put sJavaRoot into pRoot
+#   end if
+#  return pRoot & slash & "bin" & slash & executableName("javac")
 end pathToJavaC
 
 function pathToJava pRoot
-   if pRoot is empty then
-      put sJavaRoot into pRoot
-   end if
-   return pRoot & slash & "bin" & slash & executableName("java")
+   return pathToJavaExecutable(pRoot, executableName("java"))
+#   if pRoot is empty then
+#      put sJavaRoot into pRoot
+#   end if
+#   return pRoot & slash & "bin" & slash & executableName("java")
 end pathToJava
 
 function pathToJarSigner pRoot
-   if pRoot is empty then
-      put sJavaRoot into pRoot
-   end if
-   return pRoot & slash & "bin" & slash & executableName("jarsigner")
+  return pathToJavaExecutable(pRoot, executableName("jarsigner"))
+#   if pRoot is empty then
+#      put sJavaRoot into pRoot
+#   end if
+#   return pRoot & slash & "bin" & slash & executableName("jarsigner")
 end pathToJarSigner
 
 function pathToJar pRoot
-   if pRoot is empty then
-      put sJavaRoot into pRoot
-   end if
-   return pRoot & slash & "bin" & slash & executableName("jar")
+  return pathToJavaExecutable(pRoot, executableName("jar"))
+#   if pRoot is empty then
+#      put sJavaRoot into pRoot
+#   end if
+#   return pRoot & slash & "bin" & slash & executableName("jar")
 end pathToJar
 
 function pathToKeytool pRoot
-   if pRoot is empty then
-      put sJavaRoot into pRoot
-   end if
-   return pRoot & slash & "bin" & slash & executableName("keytool")
+  return pathToJavaExecutable(pRoot, executableName("keytool"))
+#   if pRoot is empty then
+#      put sJavaRoot into pRoot
+#   end if
+#   return pRoot & slash & "bin" & slash & executableName("keytool")
 end pathToKeytool
 
 // BundleTool
 // https://github.com/google/bundletool/releases/download/1.8.0/bundletool-all-1.8.0.jar
 constant kBundleToolDownloadURL = "https://github.com/google/bundletool/releases/download"
-constant kBundleToolVersion = "1.8.0"
+constant kBundleToolVersion = "1.18.1"
 
 function pathToBundleTool
    local tCacheDir, tBundleToolJar
@@ -1248,10 +1285,10 @@ private command configureJavaRootWindows
       put false into tIs64Bit
       put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit", "CurrentVersion", tIs64Bit) into tVersion
    end if
-   
+
    local tJavaHome
    put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit\" & tVersion, "JavaHome", tIs64Bit) into tJavaHome
-   
+
    return tJavaHome
 end configureJavaRootWindows
 
@@ -1266,10 +1303,10 @@ private function getRegistryValue pKey, pValue, pUse64Bit
       put "reg.exe" into tRegCmd
    end if
    set the hideConsoleWindows to true
-   
+
    // IM 12/05/2011 - added check for error return from reg.exe
    // reg.exe returns an error if the key or value is not found
-   
+
    //return word 3 to -1 of the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/v" && quote & pValue & quote))
    put the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/v" && quote & pValue & quote)) into tValue
    if word 1 of tValue is "ERROR:" then

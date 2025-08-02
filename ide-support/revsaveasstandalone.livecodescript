@@ -118,21 +118,21 @@ end suppressDialogs?
 */
 on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
    global gREVStackStatus
-   
+
    try
       if pStack = empty then
          put the short name of the topStack into pStack
       end if
-      
+
       if the fileName of stack pStack = empty then
          put "edited" into gREVStackStatus[pStack]
       end if
-      
+
       # OK-2008-03-13 : Bug 5874. Do a complete check to see if the stack needs to be saved here
       # so we can remove the later check from closeOpenStacks.
       local tEdited
       put false into tEdited
-      
+
       # Find out if the stack or any substack has been edited
       if gREVStackStatus[the short name of stack pStack] is "edited" then
          put true into tEdited
@@ -145,11 +145,11 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
             end if
          end repeat
       end if
-      
+
       local tSettings
       dispatch function "revSBGetSettings" to stack "revSBLibrary" with pStack
       put the result into tSettings
-      
+
       -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all mac builds to now be Intel.
       if tSettings["MacOSX"] then
          delete variable tSettings["MacOSX"]
@@ -182,7 +182,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          put true into tSettings["Android"]
          put true into tEdited
       end if
-      
+
       -- Make sure there is actually something to build..
       dispatch function "revSBNoPlatforms?" to stack "revSBLibrary" with tSettings
       if the result is true then
@@ -196,7 +196,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          end if
          exit revSaveAsStandalone
       end if
-      
+
       # OK-2010-03-31: Ensure that the standalone name doesn't contain stuff that is not allowed in folder names,
       # otherwise this could cause problems. In particular a return char at the end of the name causes the cleanup
       # routines to try and delete the parent folder, which can result in data loss. The data loss potential has also
@@ -208,7 +208,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          put true into tEdited
          revStandaloneAddWarning "Standalone name was changed because it contained illegal characters"
       end if
-      
+
       # OK-2009-05-22 : Added ability to remember default folder. We now do the folder check before saving the stack,
       # so that if the user chose a different folder, it can be remembered for next time.
       local tFolder
@@ -216,21 +216,21 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
       if tFolder is empty then
          exit to top
       end if
-      
+
       # If the folder was changed, then we flag the stack as edited so it gets remembered
       if tSettings["defaultBuildFolder"] is not tFolder then
          put tFolder into tSettings["defaultBuildFolder"]
          put true into tEdited
       end if
-      
+
       put tFolder into pFolder
-      
+
       # If any have been edited, force the save dialog by setting edited on the mainstack
       if tEdited then
          revIDESetEdited pStack
          revSBSetSettings pStack, tSettings
       end if
-      
+
       local tError
       # Do the check and continue building as normal.
       if revSaveCheck?(pStack) then
@@ -241,7 +241,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          answer warning "Saving as standalone application was canceled"
          exit revSaveAsStandalone
       end if
-      
+
       if revStandaloneGetWarnings() is not empty and tError is empty then
          --         if not revSBSuppressDialogs() then
          --            set the cWarnings of stack "revBuildResults" \
@@ -251,7 +251,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          if not suppressDialogs?() and pSuppressSuccessMsg is not true and tError is empty then
             answer information "Standalone application saved successfully."
          end if
-         
+
          if pPreview is not "false" and sStubPath is not empty then
             launch document sStubPath
          end if
@@ -1027,7 +1027,7 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
                into tXMLTemplateSourceFolder
       end if
 
-      /* Manifest sections are split into separate template files. */
+      # Manifest sections are split into separate template files.
       local tManifestData, tManifestPath, tManifestNeeded
       put empty into tManifestData
       put false into tManifestNeeded
@@ -1043,8 +1043,8 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
          put url ("file:" & tManifestPath) into tManifestData
       end if
 
-      /* If the user has chosen something other than "default" from the UAC
-      * execution level drop-down then the manifest is needed */
+      # If the user has chosen something other than "default" from the UAC
+      # execution level drop-down then the manifest is needed
       local tExecutionLevel
       put sStandaloneSettingsA["Windows,uacExecutionLevel"] into tExecutionLevel
 
@@ -1223,19 +1223,19 @@ end __ReloadOriginalStackFile
 private command closeOpenStacks pStackFileList, pStack
    local tStackFile,tSubList,tStack,tSubStack
    revStandaloneProgress "Closing open stacks..."
-   
+
    # OK-2008-03-13 : Bug 5874. Filter out the stack being built from the list as we have
    # already done the save checking on it.
    local tCheckList
    put pStackFileList["full"] into tCheckList
-   
+
    local tLineNumber
    set the wholeMatches to true
    put lineOffset(the effective filename of stack pStack, tCheckList) into tLineNumber
    if tLineNumber <> 0 then
       delete line tLineNumber of tCheckList
    end if
-   
+
    repeat for each line tStackFile in tCheckList
       if the short name of stack tStackFile is among the lines of the mainStacks then
          put the subStacks of stack tStackFile into tSubList
@@ -1266,10 +1266,10 @@ private command closeOpenStacks pStackFileList, pStack
          repeat for each line tSubStack in tSubList
             if the short name of stack tSubStack is among the lines of openstacks() then
                put the long name of stack tSubStack & cr after sResetA["Reopen"]
-               
+
                # OK-2008-11-10 : Bug 7382 - Remember if stacks were in message path
                put stackIsInGlobalMessagePath(the long name of stack tSubStack) & return after sResetA["Restore Message Path"]
-               
+
             end if
             #LG-2008-01-24
             #Bug 5110:  Changed code so substacks are closed instead of deleted.
@@ -1277,7 +1277,7 @@ private command closeOpenStacks pStackFileList, pStack
          end repeat
          if the short name of stack tStack is among the lines of openstacks() then
             put the long name of stack tStack & cr after sResetA["Reopen"]
-            
+
             # OK-2008-11-10 : Bug 7382 - Remember if stacks were in message path
             put stackIsInGlobalMessagePath(the long name of stack tStack) & return after sResetA["Restore Message Path"]
          end if
@@ -1686,11 +1686,11 @@ private command copyIcons pStack
       set the destroyStack of stack "revCopiedIcons" to true
       set the mainStack of stack "revCopiedIcons" to pStack
       -- get the icon libraries
-      
+
       put revAbsoluteFolderListing(revEnvironmentResourcesPath("Icon Libraries")) into tEnvironmentIcons
       put revAbsoluteFolderListing(revEnvironmentUserResourcesPath("Icon Libraries")) into tUserIcons
       put revCombineFilePaths(tUserIcons,tEnvironmentIcons) into tFiles
-      
+
       put "revGeneralIcons" & return & "revCompatibilityIcons1" & return & "revGeneralPatterns" & return & "revCompatibilityPatterns1" & return & "revCompatibilityPatterns2" & return & "revCustomCursors" into tStacksList
       set the itemDel to slash
       local tIconA
@@ -2538,21 +2538,21 @@ end copyCEFResources
 private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalonePath
    local tExternalRes, tColors, tCursorName, tCurrentLocation, tExternalPath, tExternals, tExternalLibrary
    local tCopyFiles, tOrigVisible, tPath, tExternalFile, x, tColor, tPattern, tExternalName
-   
+
    local tScriptLibraries
    put sStandaloneSettingsA["scriptLibraries"] into tScriptLibraries
-   
+
    local tAppBundle, tCEFFramework, tCEFResources, tCEFDest
-   
+
    revStandaloneProgress "Copying externals..."
-   
+
    lock screen
    -- good time to do the platform specific resource moving
    -- because we need to resave the mainstack anyway
    set the itemDel to "/"
    put item 1 to -2 of pStandalonePath into tCurrentLocation
    set the itemDel to ","
-   
+
    local tSupportFolder, tExtension, tSharedExtension, tPlatform, tArch
    local tDetailsA
    put standalonePlatformDetails(pPlatform) into tDetailsA
@@ -2566,8 +2566,8 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
    end if
    put tDetailsA["platform"] into tPlatform
    put tDetailsA["architecture"] into tArch
-   
-   
+
+
    # OK-2010-04-26: Bug 8539 - PDF Printer not included
    if sStandaloneSettingsA["pdfPrinter"] then
       copyModule tPlatform, "revpdfprinter", "revpdfprinter" & tExtension, tSupportFolder, tCurrentLocation, "", tPlatform is "MacOSX"
@@ -2582,7 +2582,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          end if
       end if
    end if
-   
+
    -- MM-2014-01-29: [[ OpenSSL ]] We now build our own version of OpenSSL.
    if "SSL & Encryption" is among the lines of sStandaloneSettingsA["scriptLibraries"] then
       copyModule tPlatform, "revsecurity", "revsecurity" & tSharedExtension, tSupportFolder, tCurrentLocation, "", false
@@ -2594,7 +2594,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          end if
       end if
    end if
-   
+
    switch
       case pPlatform contains "MacOSX"
          if sStandaloneSettingsA["cursors"] then put "revMacCursors" & return after tCopyFiles
@@ -2621,10 +2621,10 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          break
    end switch
    delete char -1 of tCopyFiles
-   
+
    -- copy the resources into the standalone mainstack
    local tWaitCount
-   
+
    # OK-2009-12-16 : Bug 8470 - Messages need to be locked here to prevent the IDE going crazy
    lock messages
    repeat for each line tLine in tCopyFiles
@@ -2643,10 +2643,10 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
    end repeat
    unlock messages
    unlock screen
-   
+
    -- sanitise raw list of externals from inclusions pane
    revSBSanitiseExternalsList pPlatform, sStandaloneSettingsA["externals"]
-   
+
    -- create list of externals and paths
    local tExternalPathsA
    repeat for each line tExternalName in sStandaloneSettingsA["externals"]
@@ -2654,24 +2654,24 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
       put the result into tExternalPathsA[tExternalName]
       #put revSBIncludedExternalPath(pPlatform, tExternalName) into tExternalPathsA[tExternalName]
    end repeat
-   
+
    -- check externals that are added to the 'scriptLibraries' key
    repeat for each line tExternalName in revExternalsList()
       -- check this item is selected for installation
       if tExternalName is not among the lines of tScriptLibraries then
          next repeat
       end if
-      
+
       -- get the path to the external
       put revExternalPath(tExternalName, tPlatform, tArch) into tExternalPathsA[tExternalName]
    end repeat
-   
+
    if tExternalPath is not empty then
       if there is not a folder (tCurrentLocation & slash & "Externals") then
          create folder (tCurrentLocation & slash & "Externals")
       end if
    end if
-   
+
    set the itemDel to slash
    repeat for each key tExternalName in tExternalPathsA
       put tExternalPathsA[tExternalName] into tExternalPath
@@ -2681,14 +2681,14 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          revStandaloneAddWarning tPlatform && tArch & ", external" && "No externals.txt config file found for" &&tExternalName
          next repeat
       end if
-      
+
       local tSourceExternal
       put item -1 of tExternalPath into tSourceExternal
-      
+
       // AL-2015-05-07: [[ Bug 15320 ]] Make sure universal external name is used.
       local tExternal
       put revSBExternalNameFromFile(tPlatform, tSourceExternal) into tExternal
-      
+
       copyModule tPlatform, tExternal, tSourceExternal, item 1 to -2 of tExternalPath, tCurrentLocation, "Externals", tPlatform is "MacOSX"
       if the result is not empty then
          revStandaloneAddWarning tPlatform && tArch & ", external" && the result & ":" && q(tExternalPath)
@@ -2708,25 +2708,25 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
       end if
       addExternal tExternal
    end repeat
-   
+
    local tSourceFile, tSourceFolder, tTargetFolder, tDestFolder
    repeat for each line tLib in sStandaloneSettingsA["jarFiles"]
       set the itemdelimiter to slash
       put item -1 of tLib into tSourceFile
       put item 1 to -2 of tLib into tSourceFolder
       put tCurrentLocation & slash & "Externals/JVM" into tDestFolder
-      
+
       revSBEnsureFolder tDestFolder
       copyModule tPlatform, tSourceFile, tSourceFile, \
             tSourceFolder, tCurrentLocation, "Externals/JVM", false
    end repeat
-   
+
    repeat for each line tLib in sStandaloneSettingsA["extension_code_resources"]
       set the itemdelimiter to slash
       put item -1 of tLib into tSourceFile
       put item 1 to -2 of tLib into tSourceFolder
       put tCurrentLocation & slash & "Externals" into tDestFolder
-      
+
       revSBEnsureFolder tDestFolder
       set the itemDelimiter to "."
       copyModule tPlatform, item 1 to -2 of tSourceFile, tSourceFile, \
@@ -2737,13 +2737,13 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
                sStandaloneSettingsA
       end if
    end repeat
-   
+
    // SN-2015-07-01: [[ Bug 15259 ]] We don't want the saving to be trapped by
    //  a saveStackRequest handler in the standalone stack
    lock messages
    save stack pStackFilePath
    unlock messages
-   
+
    -- MM-2013-04-05: [[ Bug 10756 ]] Make sure we're allowed to delete the stack before deleteing.
    set the cantDelete of stack pStackFilePath to false
    delete stack pStackFilePath
