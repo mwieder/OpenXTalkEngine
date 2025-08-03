@@ -120,7 +120,7 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    end if
    
    # Make sure all dependencies are included
-   revSBUpdateForDependencies "emscripten",,, pSettings
+   SBUpdateForDependencies "emscripten",,, pSettings
    
    revSBUpdateSettingsForExtensions "emscripten", pSettings
    
@@ -271,7 +271,7 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    end if
    
    -- Make sure all dependencies are included
-   revSBUpdateForDependencies "emscripten",,, pSettings
+   SBUpdateForDependencies "emscripten",,, pSettings
    
    /* Emscripten wasm module resources are placed in `/boot/standalone` so we must
    * set the resources path appropriately. */

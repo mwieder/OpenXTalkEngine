@@ -3,8 +3,8 @@ local sAndroidRoot
 local sJavaRoot
 
 local sAvailableDevices
-constant kDeployAndroidTargetSDK = "34"
-#constant kDeployAndroidTargetSDK = "36"
+#constant kDeployAndroidTargetSDK = "34"
+constant kDeployAndroidTargetSDK = "36"
 
 ////////////////////////////////////////////////////////////////////////////////
 

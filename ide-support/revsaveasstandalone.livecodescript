@@ -105,8 +105,9 @@ private function getBuildFolder pStack, pFolder, pSettings
 end getBuildFolder
 
 private function suppressDialogs?
-   dispatch function "revSBSuppressDialogs" to stack "revSBLibrary"
-   return the result
+   --dispatch function "revSBSuppressDialogs" to stack "revSBLibrary"
+   --return the result
+   return SBSuppressDialogs?()
 end suppressDialogs?
 /*
 * revSaveAsStandalone
@@ -268,13 +269,13 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    put 0 into sGenericNumber
    lock cursor
    set cursor to watch
-
+   
    put empty into sUserScriptLibraries
    put empty into sStubPath
-
+   
    put the directory into sResetA["Directory"]
    put the fileType into sResetA["FileType"]
-
+   
    if pSettings is not an array then
       dispatch function "revSBGetSettings" to stack "revSBLibrary" with pStack
       put the result into sStandaloneSettingsA
@@ -282,15 +283,15 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    else
       put pSettings into sStandaloneSettingsA
    end if
-
+   
    put the mainStack of stack pStack into pStack
    set the defaultStack to pStack
    revStandaloneResetWarnings
-
+   
    local tError, tStandaloneFolder
-
+   
    revStandaloneProgress "Preparing to build standalone..."
-
+   
    -- pre build message
    local tHasDesktopTarget?
    repeat for each item tTarget in revSBDesktopTargets()
@@ -299,7 +300,7 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
          exit repeat
       end if
    end repeat
-
+   
    local tStackFileName, tRestoreFileName
    if tHasDesktopTarget? then
       put the effective filename of stack pStack into tStackFileName
@@ -307,11 +308,11 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
          put the long name of stack pStack & return after sResetA["Reopen"]
       end if
       issueSavingStandaloneMessage pStack
-
+      
       --Save copy of stack in its post-savingStandalone message state
       __SaveCopyOfStackInTemporaryLocation pStack, tRestoreFileName
    end if
-
+   
    try
       -- Create an appropriate output dir
       local tOutputFolder
@@ -323,24 +324,24 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
             throw format("Cannot create a folder '%s'", tOutputFolder)
          end if
       end if
-
+      
       local tBuildPlatforms, tPlatform
-      repeat for each item tTarget in revSBDesktopTargets() & comma & revSBAdditionalTargets()
+      repeat for each item tTarget in revSBDesktopTargets() & comma & SBMobileTargets()
          if sStandaloneSettingsA[tTarget] then
             put revSBTargetToPlatform(tTarget) into tPlatform
             put true into tBuildPlatforms[tPlatform]
          end if
       end repeat
-
+      
       -- If we're searching for inclusions, do it here
       searchForInclusions pStack, sStandaloneSettingsA
-
+      
       -- keep a copy of the standalone settings to restore after each build
       local tStandaloneSettingsA
       put sStandaloneSettingsA into tStandaloneSettingsA
       repeat for each key tPlatform in tBuildPlatforms
          put tStandaloneSettingsA into sStandaloneSettingsA
-
+         
          local tTargetFolder
          -- If we are building for multiple platforms, then build in a platform-specific subfolder
          if sPlatformCount > 1 then
@@ -348,12 +349,12 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
          else
             put tOutputFolder into tTargetFolder
          end if
-
+         
          -- Make sure folder exists
          if tStandaloneSettingsA[tPlatform] then
             revSBEnsureFolder tTargetFolder
          end if
-
+         
          switch tPlatform
             case "iOS"
                if not (the platform begins with "MacOS") then
@@ -389,13 +390,13 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
                break
          end switch
       end repeat
-
+      
       -- post build message
       if tHasDesktopTarget? then
          __ReloadOriginalStackFile tStackFileName, pStack
          issueStandaloneSavedMessage pStack, tOutputFolder
       end if
-
+      
    catch tError
       abortBuild
       if word 1 of tError = "Standalone:" then
@@ -410,24 +411,11 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
       end if
       return tError
    end try
-
+   
    buildReset
-
+   
    return empty
 end doSaveAsStandalone
-
-# these are in revSBLibrary
---private function folderNameIllegalChars
---   return revFolderNameIllegalChars()
---end folderNameIllegalChars
-
---private function folderNameIsIllegal? pName
---   return folderNameIsIllegal?(pName)
---end folderNameIsIllegal?
-
---private function folderNameMakeLegal pName
---   return revFolderNameMakeLegal(pName)
---end folderNameMakeLegal
 
 private function standalonePlatformDetails pTarget
    local tPlatform
@@ -534,8 +522,8 @@ private command standalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackNa
    revStandaloneProgress "Loading settings..."
 
    -- Make sure all dependencies are included
-   revSBUpdateForDependencies pPlatform, pArchs, , sStandaloneSettingsA
-   revSBEnsurePerExtensionSettings pPlatform, sStandaloneSettingsA
+   SBUpdateForDependencies pPlatform, pArchs, , sStandaloneSettingsA
+   SBEnsurePerExtensionSettings pPlatform, sStandaloneSettingsA
    if the result is not empty then
       return the result
    end if
@@ -1352,7 +1340,7 @@ private command outputBuildDirectories pFolder
    put 0 into tPlatforms
    local tTargets
    put revSBDesktopTargets() into tTargets
-   repeat for each item tTarget in tTargets & comma & revSBAdditionalTargets()
+   repeat for each item tTarget in tTargets & comma & SBMobileTargets()
       if sStandaloneSettingsA[tTarget] = true then
          if tTarget contains "MacOSX" then
             add 1 to tOSXCount
@@ -2353,7 +2341,7 @@ private command copyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, 
                put "BNDL????" into URL ("binfile:" & tStandaloneFolder & "Externals/revdb.bundle/Contents/PkgInfo")
             end if
             if pPlatform contains "MacOSX" then
-               revSBRemoveUnneededSlicesFromMacCode \
+               SBRemoveUnneededSlicesFromMacCode \
                      tStandaloneFolder & "/Externals/database_drivers/" & (item -1 of tLine) & \
                      "/Contents/MacOS/db" & tResourceName, \
                      sStandaloneSettingsA
@@ -2394,7 +2382,7 @@ private command addMapping pPlatform, pName, pLocation
    if pName is among the items of "sqlite,postgresql,odbc,mysql,oracle" then
       put "db" before pName
    end if
-   revSBAddLibraryMapping pPlatform, pName, pLocation, sStandaloneSettingsA
+   SBAddLibraryMapping pPlatform, pName, pLocation, sStandaloneSettingsA
 end addMapping
 
 # AL-2015-01-29: [[ Scriptify IDE ]] Factor out external copy function to ensure external is included in deploy params
@@ -2578,7 +2566,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          local tRevPdfPrinterExecutable
          put tCurrentLocation & "/revpdfprinter.bundle/Contents/MacOS/revpdfprinter" into tRevPdfPrinterExecutable
          if pPlatform contains "MacOSX" then
-            revSBRemoveUnneededSlicesFromMacCode tRevPdfPrinterExecutable, sStandaloneSettingsA
+            SBRemoveUnneededSlicesFromMacCode tRevPdfPrinterExecutable, sStandaloneSettingsA
          end if
       end if
    end if
@@ -2590,7 +2578,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
          revStandaloneAddWarning tPlatform && tArch & ", Support, revsecurity" & tSharedExtension && the result & ": required for SSL."
       else
          if pPlatform contains "MacOSX" then
-            revSBRemoveUnneededSlicesFromMacCode tCurrentLocation & "/revsecurity.dylib", sStandaloneSettingsA
+            SBRemoveUnneededSlicesFromMacCode tCurrentLocation & "/revsecurity.dylib", sStandaloneSettingsA
          end if
       end if
    end if
@@ -2700,7 +2688,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
             end if
          end if
          if pPlatform contains "MacOSX" then
-            revSBRemoveUnneededSlicesFromMacCode \
+            SBRemoveUnneededSlicesFromMacCode \
                   tCurrentLocation & "/Externals/" & (item -1 of tExternalPath) & \
                   "/Contents/MacOS/" & tExternal, \
                   sStandaloneSettingsA
@@ -2732,7 +2720,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
       copyModule tPlatform, item 1 to -2 of tSourceFile, tSourceFile, \
             tSourceFolder, tCurrentLocation, "Externals", there is a folder tLib
       if pPlatform contains "MacOSX" then
-         revSBRemoveUnneededSlicesFromMacCode \
+         SBRemoveUnneededSlicesFromMacCode \
                tCurrentLocation & "/Externals/" & tSourceFile, \
                sStandaloneSettingsA
       end if

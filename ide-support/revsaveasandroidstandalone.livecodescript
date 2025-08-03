@@ -263,8 +263,8 @@ private command saveAsMobileStandaloneMain \
    end if
    
    -- Make sure all dependencies are included
-   revSBUpdateForDependencies "android", tArchs, , pSettings
-   revSBEnsurePerExtensionSettings "android", pSettings
+   SBUpdateForDependencies "android", tArchs, , pSettings
+   SBEnsurePerExtensionSettings "android", pSettings
    put the result into tResult
    if tResult is not empty then
       throw tResult
@@ -1381,7 +1381,7 @@ private command saveAsMobileStandaloneMain \
    
    ------- Signing the Package
    --if not (pTarget contains "test")  then
-   if false then
+   if pSettings["android,signing"] is not "Do not sign" then
       revStandaloneProgress "Signing package..."
       
       executeShellCommand \

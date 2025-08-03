@@ -36,8 +36,8 @@ on extensionFinalize
    if the target is me then
 
       if the environment is "development" then
-#      revSBRemoveDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url"
-         dispatch "revSBRemoveDependencyForInclusion" to stack "revsblibrary" with "scriptLibraries", "Internet", "scriptLibraries", "html5url"
+      SBRemoveDependencyForInclusion "scriptLibraries", "Internet", "scriptLibraries", "html5url"
+         #dispatch "SBRemoveDependencyForInclusion" to stack "revsblibrary" with "scriptLibraries", "Internet", "scriptLibraries", "html5url"
       end if
 
       switch the platform
