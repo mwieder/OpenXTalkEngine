@@ -40,6 +40,7 @@ on revSBCopyFileToFolder pSourceFile, pTargetFolder, pCallback, pCallbackTarget
 end revSBCopyFileToFolder
 
 # copied from LC10-rc1
+# save as Emscripten calls this
 on SBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallback, pCallbackTarget
    if there is no folder pTargetFolder then
       return "target folder not found"
@@ -56,10 +57,10 @@ on revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    return the result
 end revSBCopyFile
 
-on revSBCopyFileToFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
+on SBCopyFileToFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    return the result
-end revSBCopyFileToFile
+end SBCopyFileToFile
 
 on revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget
    __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget
@@ -67,17 +68,18 @@ on revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget
 end revSBCopyFolder
 
 # Slightly unfortunate naming, perhaps, but what do I call it folderToFolder?!
-on revSBCopyFolderToDestination pSourceFolder, pDestinationFolder, pCallback, pCallbackTarget, pSettings
+on SBCopyFolderToDestinationFolder pSourceFolder, pDestinationFolder, pCallback, pCallbackTarget, pSettings
    if there is no folder pDestinationFolder then
-      return "destination folder not found"
+      return "destination folder" && pDestinationFolder && "not found"
    end if
    set the itemDelimiter to "/"
    local tTargetFolder
    put pDestinationFolder & "/" & item -1 of pSourceFolder into tTargetFolder
    __revSBCopyFolder pSourceFolder, tTargetFolder, pCallback, pCallbackTarget, pSettings
    return the result
-end revSBCopyFolderToDestination
+end SBCopyFolderToDestinationFolder
 
+constant kREADBUFFERSIZE = 524288
 on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
    local tResult
    
@@ -115,7 +117,7 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
          dispatch pCallback to pCallbackTarget
       end if
       repeat forever
-         read from file pFile for 524288
+         read from file pFile for kREADBUFFERSIZE
          if the result is not empty and the result is not "eof" then
             put the result into tResult
             exit repeat
@@ -124,7 +126,7 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
          if the result is "eof" or it is empty then
             exit repeat
          end if
-         add 524288 to tAmountRead
+         add kREADBUFFERSIZE to tAmountRead
          if pCallbackTarget is not empty and there is a pCallbackTarget then
             dispatch pCallback to pCallbackTarget with tAmountRead, tTotalSize
          end if
@@ -143,76 +145,73 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
    return tResult
 end revSBReadFile
 
-
 local sLog = "false"
 
 private command log pMessage
    put pMessage & cr after msg
 end log
 
-
-
 # This handler has not been tested..
-on revSBWriteFile pFile, pMode, @pData, pCallback, pCallbackTarget, pLog
-   local tResult
-   
-   put pLog into sLog
-   
-   if tResult is empty then
-      if "binary" is in pMode then
-         if "update" is in pMode then
-            open file pFile for binary update
-         else
-            open file pFile for binary write
-         end if
-      else
-         if "update" is in pMode then
-            open file pFile for text update
-         else
-            open file pFile for text write
-         end if
-      end if
-   end if
-   put the result into tResult
-   
-   log "Result of opening file: " & tResult
-   
-   local tTotalSize
-   local tCurrentCount
-   if tResult is empty then
-      put the number of chars of pData into tTotalSize
-      put 1 into tCurrentCount
-      if pCallbackTarget is not empty and there is a pCallbackTarget then
-         dispatch pCallback to pCallbackTarget
-      end if
-      repeat forever
-         get char tCurrentCount to (tCurrentCount + 524288 - 1) of pData
-         if it is empty then
-            exit repeat
-         end if
-         write it to file pFile
-         if the result is not empty then
-            put the result into tResult
-            exit repeat
-         end if
-         add 524288 to tCurrentCount
-         if pCallbackTarget is not empty and there is a pCallbackTarget then
-            dispatch pCallback to pCallbackTarget with tCurrentCount, tTotalSize
-         end if
-      end repeat
-   end if
-   if tResult is not empty then
-      if pCallbackTarget is not empty and there is a pCallbackTarget then
-         dispatch pCallback to pCallbackTarget with tTotalSize, tTotalSize
-      end if
-   end if
-   
-   if tResult is empty then
-      close file pFile
-   end if
-   
-   return tResult
-end revSBWriteFile
+--on revSBWriteFile pFile, pMode, @pData, pCallback, pCallbackTarget, pLog
+--   local tResult
+
+--   put pLog into sLog
+
+--   if tResult is empty then
+--      if "binary" is in pMode then
+--         if "update" is in pMode then
+--            open file pFile for binary update
+--         else
+--            open file pFile for binary write
+--         end if
+--      else
+--         if "update" is in pMode then
+--            open file pFile for text update
+--         else
+--            open file pFile for text write
+--         end if
+--      end if
+--   end if
+--   put the result into tResult
+
+--   log "Result of opening file: " & tResult
+
+--   local tTotalSize
+--   local tCurrentCount
+--   if tResult is empty then
+--      put the number of chars of pData into tTotalSize
+--      put 1 into tCurrentCount
+--      if pCallbackTarget is not empty and there is a pCallbackTarget then
+--         dispatch pCallback to pCallbackTarget
+--      end if
+--      repeat forever
+--         get char tCurrentCount to (tCurrentCount + 524288 - 1) of pData
+--         if it is empty then
+--            exit repeat
+--         end if
+--         write it to file pFile
+--         if the result is not empty then
+--            put the result into tResult
+--            exit repeat
+--         end if
+--         add 524288 to tCurrentCount
+--         if pCallbackTarget is not empty and there is a pCallbackTarget then
+--            dispatch pCallback to pCallbackTarget with tCurrentCount, tTotalSize
+--         end if
+--      end repeat
+--   end if
+--   if tResult is not empty then
+--      if pCallbackTarget is not empty and there is a pCallbackTarget then
+--         dispatch pCallback to pCallbackTarget with tTotalSize, tTotalSize
+--      end if
+--   end if
+
+--   if tResult is empty then
+--      close file pFile
+--   end if
+
+--   return tResult
+--end revSBWriteFile
 
 
 ---
@@ -417,7 +416,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          if tResult is empty then
             open file pSourceFile for binary read
             if the result is not empty then
-               put "cannot read from source file", the result into tResult
+               put "cannot read from source file:" && the result into tResult
             end if
          end if
          
@@ -752,9 +751,9 @@ end revSBReadLink
 
 local sWarnings
 
-command revStandaloneResetWarnings
+command SBResetWarnings
    put empty into sWarnings
-end revStandaloneResetWarnings
+end SBResetWarnings
 
 function revStandaloneGetWarnings
    return sWarnings
@@ -762,7 +761,7 @@ end revStandaloneGetWarnings
 
 command revStandaloneAddWarning pWarning
    if pWarning is not among the lines of sWarnings then
-      put pWarning & return after sWarnings
+      put pWarning & cr after sWarnings
    end if
 end revStandaloneAddWarning
 
@@ -1070,7 +1069,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
    local tPlatform, tProcessor, tLicensedPlatform, tLicensedTargets, tInitialTargets
    put the platform into tPlatform
    put the processor into tProcessor
-   put revSBPlatformToLicensedPlatform(tPlatform) into tLicensedPlatform
+   put SBPlatformToLicensedPlatform(tPlatform) into tLicensedPlatform
    --put line 5 of revLicenseInfo into tLicensedTargets
    put tLicensedPlatform into tInitialTargets
    switch tInitialTargets
@@ -1085,7 +1084,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
          end if
          break
       default
-         put revSBLicensedPlatformToTargetPlatform(tInitialTargets) \
+         put SBLicensedPlatformToTargetPlatform(tInitialTargets) \
                into tInitialTargets
          break
    end switch
@@ -1130,7 +1129,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
    --end if
 end SBDefaultStandaloneSettings
 
-function revSBPlatformToLicensedPlatform pPlatform
+private function SBPlatformToLicensedPlatform pPlatform
    local tLicensedPlatform
    switch pPlatform
       case "Win32"
@@ -1148,9 +1147,9 @@ function revSBPlatformToLicensedPlatform pPlatform
    end switch
 
    return tLicensedPlatform
-end revSBPlatformToLicensedPlatform
+end SBPlatformToLicensedPlatform
 
-function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
+private function SBLicensedPlatformToTargetPlatform pLicensedPlatform
    local tTargetPlatform
    switch pLicensedPlatform
       case "Mac OS X"
@@ -1175,7 +1174,7 @@ function revSBLicensedPlatformToTargetPlatform pLicensedPlatform
    end switch
 
    return tTargetPlatform
-end revSBLicensedPlatformToTargetPlatform
+end SBLicensedPlatformToTargetPlatform
 
 function revSBRemoveUnlicensedTargetsFromSettings @xSettingsA
    return empty
@@ -3560,13 +3559,13 @@ end revSBEnginePath
 
 # TODO: move this to revSaveAsStandalone ?
 function revSBNoPlatforms? pSettings
+   #breakpoint
    repeat for each item tTarget in revSBDesktopTargets(),SBMobileTargets()
       if pSettings[tTarget] then
          return false
       end if
    end repeat
    # make sure at least one standalone platform was selected
-   breakpoint
    return true
 end revSBNoPlatforms?
 

@@ -1667,7 +1667,7 @@ end linkResources
 private command prepareBundle pBuildFolder, pArchLibsBuildFolders, pAssetArchive
    local tBundleDir
    put pBuildFolder & slash & "aab-bundle" into tBundleDir
-
+   
    // Move created manifest file into correct location for bundle
    local tManifestFile, tManifestDir
    put tBundleDir & slash & "AndroidManifest.xml" into tManifestFile
@@ -1675,22 +1675,22 @@ private command prepareBundle pBuildFolder, pArchLibsBuildFolders, pAssetArchive
    revSBEnsureFolder tManifestDir
    revSBCopyFileToFolder tManifestFile, tManifestDir
    if there is a file tManifestFile then delete file tManifestFile
-
+   
    // Copy classes into bundle
    local tClassesFile, tClassesDir
    put pBuildFolder & slash & "classes.dex" into tClassesFile
    put tBundleDir & slash & "dex" into tClassesDir
    revSBEnsureFolder tClassesDir
    revSBCopyFileToFolder tClassesFile, tClassesDir
-
+   
    // Copy libs into bundle
    local tArch, tLibDir
    put tBundleDir & slash & "lib" into tLibDir
    revSBEnsureFolder tLibDir
    repeat for each key tArch in pArchLibsBuildFolders
-      revSBCopyFolderToDestination pArchLibsBuildFolders[tArch], tLibDir
+      SBCopyFolderToDestinationFolder pArchLibsBuildFolders[tArch], tLibDir
    end repeat
-
+   
    // Open the assets archive and copy them into the app bundle directory
    set the itemDel to slash
    revZipOpenArchive pAssetArchive, "read"
@@ -1705,14 +1705,14 @@ private command prepareBundle pBuildFolder, pArchLibsBuildFolders, pAssetArchive
       end repeat
       revZipCloseArchive pAssetArchive
    end if
-
+   
    // Generate config file for bundle-tool which prevents compression of assets
    local tBundleConfig, tBundleConfigFile
    put pBuildFolder & slash & "BundleConfig.json" into tBundleConfigFile
    put "{" & quote & "compression" & quote & ": {" & quote & "uncompressedGlob" & quote & ": "& \
-      "[" & quote & "assets/**" & quote & "]}}" into tBundleConfig
+         "[" & quote & "assets/**" & quote & "]}}" into tBundleConfig
    put tBundleConfig into url ("binfile:" & tBundleConfigFile)
-
+   
    return empty
 end prepareBundle
 

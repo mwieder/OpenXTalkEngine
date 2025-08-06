@@ -112,7 +112,7 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    local tName
    put pSettings["name"] into tName
    
-   revStandaloneResetWarnings
+   SBResetWarnings
    
    # If we're searching for inclusions, do it here
    if pSettings["inclusions"] is "search" then
@@ -212,7 +212,7 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
       put tBuildFolder & slash & tName & ".html" into tHtmlFile
       logDebug "html", "Creating" && tHtmlFile
       logDebug "html", "Copying" && getHtmlTemplateFile("js")
-      revSBCopyFileToFile mapBinPath("js", getHtmlTemplateFile("js")), tHtmlFile, \
+      SBCopyFileToFile mapBinPath("js", getHtmlTemplateFile("js")), tHtmlFile, \
             "revStandaloneProgressCallback", the long id of me
       
    catch tError
@@ -263,7 +263,7 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    local tName
    put pSettings["name"] into tName
    
-   revStandaloneResetWarnings
+   SBResetWarnings
    
    -- If we're searching for inclusions, do it here
    if pSettings["inclusions"] is "search" then
@@ -396,7 +396,7 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
             put tHtmlTemplateText into url("binfile:" & tHtmlFile)
          else
             logDebug "html", "Copying" && tHtmlTemplate
-            revSBCopyFileToFile mapBinPath(tArch, tHtmlTemplate), tHtmlFile, \
+            SBCopyFileToFile mapBinPath(tArch, tHtmlTemplate), tHtmlFile, \
                   "revStandaloneProgressCallback", the long id of me
          end if
       end repeat
@@ -446,7 +446,7 @@ private command createHTMLPage pArch, pBuildFolder, pName, pCustomFiles
       put tHtmlTemplateText into url("binfile:" & tHtmlFile)
    else
       logDebug "html", "Copying" && tHtmlTemplate
-      revSBCopyFileToFile mapBinPath(pArch, tHtmlTemplate), tHtmlFile, \
+      SBCopyFileToFile mapBinPath(pArch, tHtmlTemplate), tHtmlFile, \
             "revStandaloneProgressCallback", the long id of me
    end if
 end createHTMLPage

@@ -286,7 +286,7 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    
    put the mainStack of stack pStack into pStack
    set the defaultStack to pStack
-   revStandaloneResetWarnings
+   SBResetWarnings
    
    local tError, tStandaloneFolder
    
@@ -1721,7 +1721,7 @@ private command copyBuildFiles pTarget, pDirectory, pStackPath
    local tFileData
    revSBUpdateSettingsForExtensions pTarget, sStandaloneSettingsA
    revSBResolveCopyFilesList pStackPath, pTarget, sStandaloneSettingsA, tFileData
-
+   
    local tName,tDir
    revStandaloneProgress "Copying files..."
    set the itemDelimiter to slash
@@ -1729,10 +1729,10 @@ private command copyBuildFiles pTarget, pDirectory, pStackPath
       if resourceExists?(tFile["resolved"]) then
          revSBEnsureFolder pDirectory & slash & item 1 to -2 of tFile["name"]
          if there is a file tFile["resolved"] then
-            revSBCopyFileToFile tFile["resolved"], pDirectory & slash & tFile["name"], \
+            SBCopyFileToFile tFile["resolved"], pDirectory & slash & tFile["name"], \
                   "revStandaloneProgressCallback", the long id of me
          else
-            revSBCopyFolderToDestination tFile["resolved"], pDirectory, \
+            SBCopyFolderToDestinationFolder tFile["resolved"], pDirectory, \
                   "revStandaloneProgressCallback", the long id of me
          end if
       else
@@ -2135,20 +2135,20 @@ end copyReferencedFiles
 private command copyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFolderNewRelative, pRefFilesDestination, pDirectory
    local tFileName, tRelativeFilename
    set the itemDelimiter to "/"
-
+   
    put the filename of pObject into tFileName
-
+   
    local tDestinationFolder
    put pDirectory into tDestinationFolder
    local tStackOwnerFolderNew
    put tDestinationFolder & pStackOwnerFolderNewRelative into tStackOwnerFolderNew
    local tReferencedFilesDestination
    put tDestinationFolder & pRefFilesDestination into tReferencedFilesDestination
-
+   
    if revSBPathType(tFilename) is "relative" then
       put revSBCalculateAbsolutePath(pStackOwnerFolderOld, tFilename) into tFileName
    end if
-
+   
    -- tFilename now holds the absolute path to the file to include..
    local tNewFilename, tLength
    put length(pStackOwnerFolderOld) into tLength
@@ -2156,7 +2156,7 @@ private command copyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFol
       -- The +2 offset skips a "/".
       put tStackOwnerFolderNew & (char tLength + 2 to -1 of tFilename) into tNewFilename
       revSBEnsureFolder (item 1 to -2 of tNewFilename)
-      revSBCopyFileToFile tFilename, tNewFilename, "revStandaloneProgressCallback", the long id of me
+      SBCopyFileToFile tFilename, tNewFilename, "revStandaloneProgressCallback", the long id of me
    else
       local tCount
       put empty into tCount
@@ -2173,9 +2173,9 @@ private command copyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFol
          add 1 to tCount
       end repeat
       revSBEnsureFolder tReferencedFilesDestination
-      revSBCopyFileToFile tFilename, tNewFilename, "revStandaloneProgressCallback", the long id of me
+      SBCopyFileToFile tFilename, tNewFilename, "revStandaloneProgressCallback", the long id of me
    end if
-
+   
    get revSBCalculateRelativePath(tStackOwnerFolderNew, tNewFilename)
    set the filename of pObject to it
 end copyReferencedFile
@@ -2262,16 +2262,16 @@ end standaloneDatabaseDriversPath
 private command copyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, pEnginePath
    local tOriginalDriverPath,tNewDriverPath,tHomePath,tStandaloneFolder,tPlatformFile,tCurrentFileType
    local tDriverPath,tLibPath,tResourceList,i,tDriver,tDriverFile
-
+   
    revStandaloneProgress "Copying database drivers..."
-
+   
    if sStandaloneSettingsA["databaseDrivers"] is empty then
       exit copyDatabaseDrivers
    end if
-
+   
    local tDBLibPath
    put standaloneDatabaseDriversPath(pPlatform) into tDBLibPath
-
+   
    local tExtension, tSharedExtension, tPlatform, tArch
    local tDetailsA
    put standalonePlatformDetails(pPlatform) into tDetailsA
@@ -2283,24 +2283,24 @@ private command copyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, 
    end if
    put tDetailsA["platform"] into tPlatform
    put tDetailsA["architecture"] into tArch
-
+   
    set the itemDel to "/"
    put pStandalonePath into tNewDriverPath
    put pStandalonePath into tStandaloneFolder
    put "" into item -1 of tStandaloneFolder
    put "Externals/database_drivers/" into item -1 of tNewDriverPath
-
+   
    if there is not a folder (tStandaloneFolder&"Externals") then
       create folder (tStandaloneFolder&"Externals")
    end if
-
+   
    if there is not a folder tNewDriverPath then
       create folder tNewDriverPath
    end if
-
+   
    -- loop over drivers
    repeat for each line tDriver in sStandaloneSettingsA["databaseDrivers"]
-
+      
       # OK-2010-01-13 : No Oracle support
       if tPlatform is "Linux" and tDriver is "Oracle" then
          revStandaloneAddWarning "Linux, Oracle is not currently supported on this platform"
@@ -2310,22 +2310,22 @@ private command copyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, 
          -- is not visible, and should simply be ignored as it will fail.
          next repeat
       end if
-
+      
       put revDBDriverPath(tDriver, tPlatform, tArch) into tDriverPath
       if tDriverPath is empty then
          revStandaloneAddWarning tPlatform && tArch & ", database driver not found:" & q(tDriver)
          next repeat
       end if
-
+      
       if not resourceExists?(line 1 of tDriverPath) then
          revStandaloneAddWarning tPlatform && tArch & ", database driver file not found:" & q(tDriverPath)
          next repeat
       end if
-
+      
       # Copy the resource for possible two lines of the associated driver path
       local tLineCount
       put 1 into tLineCount
-
+      
       local tResourceName
       put tolower(tDriver) into tResourceName
       repeat for each line tLine in tDriverPath
@@ -2348,11 +2348,11 @@ private command copyDatabaseDrivers pPlatform, pStackFilePath, pStandalonePath, 
             end if
          end if
       end repeat
-
+      
       # Special case MacOS Valentina driver
       if tPlatform is "MacOSX" and tDriver = "Valentina" then
          if there is not a folder (item 1 to -2 of tStandaloneFolder&"/Frameworks") then create folder (item 1 to -2 of tStandaloneFolder&"/Frameworks")
-         revSBCopyFolderToDestination (item 1 to -2 of tStandaloneFolder&"/MacOS/Externals/database_drivers/VXCMD_macho.bundle/Contents/Frameworks/VSDK.framework"),(item 1 to -2 of tStandaloneFolder&"/Frameworks"), "revStandaloneProgressCallback", the long id of me
+         SBCopyFolderToDestinationFolder (item 1 to -2 of tStandaloneFolder&"/MacOS/Externals/database_drivers/VXCMD_macho.bundle/Contents/Frameworks/VSDK.framework"),(item 1 to -2 of tStandaloneFolder&"/Frameworks"), "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
             revStandaloneAddWarning ("Mac x86-64, failed to copy Valentina framework")
          end if
@@ -2395,7 +2395,7 @@ private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, p
       put pSourceFile into tTargetModule
    end if
    put pStandaloneRoot & slash & tTargetModule into tTargetPath
-
+   
    if pIsFolder? then
       if there is no folder tSourcePath then
          return "not found"
@@ -2403,7 +2403,7 @@ private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, p
       if there is a folder pStandaloneRoot & slash & pTargetFolder then
          return empty
       end if
-      revSBCopyFolderToDestination tSourcePath, pStandaloneRoot & slash & pTargetFolder, "revStandaloneProgressCallback", the long id of me, sStandaloneSettingsA
+      SBCopyFolderToDestinationFolder tSourcePath, pStandaloneRoot & slash & pTargetFolder, "revStandaloneProgressCallback", the long id of me, sStandaloneSettingsA
    else
       if there is no file tSourcePath then
          return "not found"
@@ -2413,11 +2413,11 @@ private command copyModule pPlatform, pModuleName, pSourceFile, pSourceFolder, p
       end if
       revSBCopyFile tSourcePath, tTargetPath, "revStandaloneProgressCallback", the long id of me
    end if
-
+   
    if the result is not empty then
       return "failed to copy"
    end if
-
+   
    addMapping pPlatform, pModuleName, tTargetModule
 end copyModule
 
@@ -2426,7 +2426,7 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
       // No CEF resources required
       exit copyCEFResources
    end if
-
+   
    // IM-2014-08-14: [[ LibCef2062 ]] Reorganisation of libcef framework files
    local tDetails
    put standalonePlatformDetails(pPlatform) into tDetails
@@ -2440,12 +2440,12 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
       case pPlatform begins with "Windows"
          put (item 1 to -2 of tExternalPath) & "/CEF" into tCEFResources
          put tCurrentLocation & slash & "Externals/CEF" into tCEFDest
-
+         
          revSBEnsureFolder tCEFDest
          if the result is not empty then
             revStandaloneAddWarning "Windows, external failed to create folder:" && q(tCEFDest)
          end if
-
+         
          local tCEFFiles
          // make sure we only copy the required helper process executable
          put listFiles(tCEFResources) into tCEFFiles
@@ -2465,8 +2465,8 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
                revStandaloneAddWarning "Windows, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
-
-         revSBCopyFolderToDestination tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
+         
+         SBCopyFolderToDestinationFolder tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
             revStandaloneAddWarning "Windows, external failed to copy:" && q(tCefResources & slash & "locales")
          end if
@@ -2479,15 +2479,15 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
             put (item 1 to -2 of tExternalPath) & "/Externals/CEF" into tCEFResources
          end if
          put tCurrentLocation & slash & "Externals/CEF" into tCEFDest
-
+         
          revSBEnsureFolder tCEFDest
          if the result is not empty then
             revStandaloneAddWarning "Linux, external failed to create folder:" && q(tCEFDest)
          end if
-
+         
          // make sure we only copy the required helper process executable
          put listFiles(tCEFResources) into tCEFFiles
-
+         
          // Copy files to CEF resource folder.
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & tCEFFile, tCEFDest, "revStandaloneProgressCallback", the long id of me
@@ -2495,12 +2495,12 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
                revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
-
-         revSBCopyFolderToDestination tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
+         
+         SBCopyFolderToDestinationFolder tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
             revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & "locales")
          end if
-
+         
          // Copy files to standalone folder
          put empty into tCEFFiles
          if pCopyRevBrowserResources then
@@ -2509,7 +2509,7 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
          if pCopyLibBrowserResources then
             put "libbrowser-cefprocess" & return after tCEFFiles
          end if
-
+         
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & ".." & slash & ".." & slash & tCEFFile, tCurrentLocation, "revStandaloneProgressCallback", the long id of me
             if the result is not empty then
@@ -2644,7 +2644,7 @@ private command copyExternals pPlatform, pStackFilePath, pEnginePath, pStandalon
    end repeat
 
    -- check externals that are added to the 'scriptLibraries' key
-   repeat for each line tExternalName in revExternalsList()
+   repeat for each line tExternalName in ExternalsList()
       -- check this item is selected for installation
       if tExternalName is not among the lines of tScriptLibraries then
          next repeat

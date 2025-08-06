@@ -87,7 +87,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       throw "not supported on this platform"
    end if
    
-   revStandaloneResetWarnings
+   SBResetWarnings
    
    -- If we're searching for inclusions, do it here 
    local tConfirm
@@ -129,9 +129,9 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       
       -- Compute the list of archs in the fat binary
       local tRawArchs
-      put shell("otool -fv" && quote & mapFilePath(tSDKs["arm"]["runtime path"] & slash & "Standalone") & quote) into tRawArchs
+      put shell("otool -fv" && q(mapFilePath(tSDKs["arm"]["runtime path"] & slash & "Standalone"))) into tRawArchs
       if tRawArchs is empty then
-         put shell("otool -hv" && quote & mapFilePath(tSDKs["arm"]["runtime path"] & slash & "Standalone") & quote) into tRawArchs
+         put shell("otool -hv" && q(mapFilePath(tSDKs["arm"]["runtime path"] & slash & "Standalone"))) into tRawArchs
       end if
       
       local tArchs
@@ -221,7 +221,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    
    -- Make sure the app-bundle isn't already there
    if there is a folder pAppBundle then
-      get shell("rm -r" && quote & pAppBundle & quote)
+      get shell("rm -r" && q(pAppBundle))
       if it is not empty or there is a folder pAppBundle then
          throw "unable to remove existing app-bundle"
       end if
@@ -317,10 +317,10 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       else
          --!TODO Add support for static libraries and frameworks by linking the engine for a simulator build
          if there is a file tLib then
-            revSBCopyFileToFile tLib, pAppBundle & slash & tSourceFile, "revStandaloneProgressCallback", the long id of me
+            SBCopyFileToFile tLib, pAppBundle & slash & tSourceFile, "revStandaloneProgressCallback", the long id of me
          else
             -- framework
-            revSBCopyFolderToDestination tLib, pAppBundle & "/Frameworks", "revStandaloneProgressCallback", the long id of me
+            SBCopyFolderToDestinationFolder tLib, pAppBundle & "/Frameworks", "revStandaloneProgressCallback", the long id of me
          end if
          put "extension-code-resource" into tCopiedExternals[tSourceName]["type"]
          put tLib into tCopiedExternals[tSourceName]["sim"]
@@ -391,7 +391,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          put empty into tLinkCommand
          
          -- Standard g++ options to create an executable output file
-         put "-isysroot " & quote & tSdkPath & quote & return after tLinkCommand
+         put "-isysroot " & q(tSdkPath) & cr after tLinkCommand
          
          -- MW-2013-06-26: [[ CloneAndRun ]] Only strip global symbols if an installed env.
          if revEnvironmentIsInstalled() then
@@ -410,10 +410,10 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          --put "-miphoneos-version-min=" & tVersion["armv7"] & return after tLinkCommand
          
          -- SN-2015-02-23: [[ Bug 14625 ]] Use a iOS 5.1/iOS 7.0 consistent stdlib
-         put "-stdlib=libc++" & return after tLinkCommand
+         put "-stdlib=libc++" & cr after tLinkCommand
          
          -- Add reference to the partially linked standalone engine
-         put quote & mapFilePath(tSDKs[tInstSet]["runtime path"] & slash & "Standalone") & quote & space after tLinkCommand
+         put q(mapFilePath(tSDKs[tInstSet]["runtime path"] & slash & "Standalone")) & space after tLinkCommand
          
          -- Loop through the copied files list, extracting anything that needs to be
          -- linked with the engine
@@ -435,8 +435,8 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
                   end repeat 
                   break
                case "a"
-                  put quote & tCopiedExternals[tLinkExt][tInstSet] & quote & return after tLinkCommand
-                  put "-force_load" && quote & tCopiedExternals[tLinkExt][tInstSet] & quote & return after tLinkCommand
+                  put q(tCopiedExternals[tLinkExt][tInstSet]) & cr after tLinkCommand
+                  put "-force_load" && q(tCopiedExternals[tLinkExt][tInstSet]) & cr after tLinkCommand
                   break
                case "bundle"
                case "framework"
@@ -446,21 +446,21 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
                   put the last item of tCopiedExternals[tLinkExt][tInstSet] into tFileName
                   set the itemDelimiter to "."
                   delete the last item of tFileName
-                  get shell("file" && quote & tCopiedExternals[tLinkExt][tInstSet] & "/" & tFileName & quote)
+                  get shell("file" && q(tCopiedExternals[tLinkExt][tInstSet] & "/" & tFileName))
                   if it contains "ar archive" then
                      -- static frameworks are just a package for a static library
-                     put quote & tCopiedExternals[tLinkExt][tInstSet] & "/" & tFileName & quote & return after tLinkCommand
-                     put "-force_load" && quote & tCopiedExternals[tLinkExt][tInstSet] & "/" & tFileName & quote & return after tLinkCommand
+                     put q(tCopiedExternals[tLinkExt][tInstSet] & "/" & tFileName) & cr after tLinkCommand
+                     put "-force_load" && q(tCopiedExternals[tLinkExt][tInstSet] & "/" & tFileName) & cr after tLinkCommand
                   else
                      -- dynamic framework iOS 8+
-                     revSBCopyFolderToDestination tCopiedExternals[tLinkExt][tInstSet], pAppBundle & "/Frameworks", "revStandaloneProgressCallback", the long id of me
+                     SBCopyFolderToDestinationFolder tCopiedExternals[tLinkExt][tInstSet], pAppBundle & "/Frameworks", "revStandaloneProgressCallback", the long id of me
                      if tCopiedExternals[tLinkExt][tInstSet] ends with ".framework" then
                         -- remove simulator slices
                         -- if we are copying a bundle these can only be used for resources
                         local tCopiedFrameworkBinary
-                        put quote & pAppBundle & "/Frameworks/" & tFileName & ".framework/" & tFileName  & quote into tCopiedFrameworkBinary
+                        put q(pAppBundle & "/Frameworks/" & tFileName & ".framework/" & tFileName) into tCopiedFrameworkBinary
                         repeat for each word tArch in "i386 x86_64"
-                           get shell("lipo -remove" && quote & tArch & quote && "-output" && tCopiedFrameworkBinary && tCopiedFrameworkBinary)
+                           get shell("lipo -remove" && q(tArch) && "-output" && tCopiedFrameworkBinary && tCopiedFrameworkBinary)
                         end repeat
                      end if
                   end if
@@ -496,7 +496,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
                   end repeat 
                   
                   -- Add references to each partially linked extension file
-                  put quote & tLinkExts[tLinkExt] & quote & return after tLinkCommand
+                  put q(tLinkExts[tLinkExt]) & cr after tLinkCommand
                   break
             end switch
          end repeat
@@ -510,11 +510,11 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          -- Add references to each dependency
          repeat for each key tLinkDep in tLinkDeps
             if word 1 of tLinkDep is "library" then
-               put "-l" & word 2 of tLinkDep & return after tLinkCommand
+               put "-l" & word 2 of tLinkDep & cr after tLinkCommand
             else if word 1 of tLinkDep is "framework" then
-               put "-framework" && word 2 of tLinkDep & return after tLinkCommand
+               put "-framework" && word 2 of tLinkDep & cr after tLinkCommand
             else if word 1 of tLinkDep is "weak-framework" then
-               put "-weak_framework" && word 2 of tLinkDep & return after tLinkCommand
+               put "-weak_framework" && word 2 of tLinkDep & cr after tLinkCommand
             end if
          end repeat
          
@@ -528,7 +528,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
             put tempName() into tLinkOptionsFile
             
             put tempName() into tArchSpecificEngineFile
-            put tLinkCommand & "-o" && quote & tArchSpecificEngineFile & quote & return into url ("binfile:" & tLinkOptionsFile)
+            put tLinkCommand & "-o" && q(tArchSpecificEngineFile) & cr into url ("binfile:" & tLinkOptionsFile)
             
             local tiPhoneMinVersion
             put revGetMinimumOSByArch(pSettings["ios,minimum version"]) into tiPhoneMinVersion
@@ -536,7 +536,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
             -- MM-2013-09-23: [[ iOS7 Support ]] Use g++ instead of llvm-g++-4.2. XCode 5.0 uses llvm 5.0.
             -- g++ appears to be sym-linked to the appropriate compiler in all SDKS.
             -- SN-2015-02-19: [[ Bug 14625 ]] The minimum iOS version is bound to the architecture
-            get shell("g++ -arch " & tArch && "-miphoneos-version-min=" & tiPhoneMinVersion[tArch] && " -w " & quote & "@" & tLinkOptionsFile & quote)
+            get shell("g++ -arch " & tArch && "-miphoneos-version-min=" & tiPhoneMinVersion[tArch] && " -w " & q("@" & tLinkOptionsFile))
             
             put tArchSpecificEngineFile & space after tArchSpecificEngineList
             delete file tLinkOptionsFile
@@ -549,7 +549,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          --
          put tempName() into tSDKs[tInstSet]["engine file"]
          -- SN-2015-02-19: [[ Bug 14625 ]] Make the fat binary with the architecture-specific engines
-         get shell("lipo -create " & tArchSpecificEngineList & " -output " & quote & tSDKs[tInstSet]["engine file"] & quote)
+         get shell("lipo -create " & tArchSpecificEngineList & " -output " & q(tSDKs[tInstSet]["engine file"]))
          
          if it is not empty or there is no file tSDKs[tInstSet]["engine file"] then
             throw "linking for" && tInstSet && "failed with " & it
@@ -704,7 +704,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          put 0 into $MallocNanoZone
       end if
       
-      get shell("dsymutil" && quote & tDeploy["output"] & quote)
+      get shell("dsymutil" && q(tDeploy["output"]))
       if it is not empty then
          revStandaloneProgress "Extracting debug symbols failed"
       end if
@@ -783,7 +783,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       local tEntitlementsFile
       put tempName() into tEntitlementsFile
       put tEntitlements into url ("binfile:" & tEntitlementsFile)
-      put "--entitlements" && quote & tEntitlementsFile & quote into tEntitlementsOption
+      put "--entitlements" && q(tEntitlementsFile) into tEntitlementsOption
       -- MW-2011-03-17: Make sure the certificate is encoded appropriately
       put uniDecode(uniEncode(tCertificate, "UTF8")) into tCertificate
    else
@@ -801,13 +801,13 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    end if
    
    -- make sure you have permission to clear extended attributes from bundle files
-   get shell("chmod -R u+w" && quote & pAppBundle & quote)
+   get shell("chmod -R u+w" && q(pAppBundle))
    if the result is not 0 then
       throw "setting permissions failed with error:" && it
    end if
    
    -- clear extended attributes from bundle files
-   get shell("xattr -cr" && quote & pAppBundle & quote)
+   get shell("xattr -cr" && q(pAppBundle))
    if the result is not 0 then
       throw "clearing extended attributes failed with error:" && it
    end if
@@ -816,8 +816,8 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    -- Perform the codesigning of the main bundle
    local tResult
    __CodesignFrameworks pAppBundle & "/Frameworks", tCertificate
-   put shell("/usr/bin/codesign --deep --verbose -f -s" && quote & tCertificate & quote && \
-         tEntitlementsOption && quote & pAppBundle & quote) into tResult
+   put shell("/usr/bin/codesign --deep --verbose -f -s" && q(tCertificate) && \
+         tEntitlementsOption && q(pAppBundle)) into tResult
    -- MM-2012-10-25: [[ Bug ]] try catch finally oddness meant that any errors here were being ignored.
    if there is a file tEntitlementsFile then
       delete file tEntitlementsFile
@@ -836,7 +836,7 @@ private command __CodesignFrameworks pPath, pCertificate
       __CodesignFrameworks pPath & "/" & tFramework & "/Frameworks", pCertificate
       
       local tResult
-      put shell("/usr/bin/codesign --deep --verbose -f -s" && quote & pCertificate & quote && \
+      put shell("/usr/bin/codesign --deep --verbose -f -s" && q(pCertificate) && \
             quote & pPath & "/" & tFramework & quote) into tResult
       if not (tResult contains "signed bundle" or tResult contains "signed app bundle") then
          throw "codesigning failed with" && tResult
@@ -880,17 +880,17 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
    */
    local sIconsList 
    put  \
-         "appstore icon,ios-marketing,1024x1024,1x,ItunesArtwork@2x.png" & return & \
-         "iphone icon,iphone,57x57,1x,Icon-App-57x57@1x.png" & return & \
-         "retina icon,iphone,57x57,2x,Icon-App-57x57@2x.png" & return & \
-         "iOS 7 retina icon,iphone,60x60,2x,Icon-App-60x60@2x.png" & return & \
-         "iphone 6 plus icon,iphone,60x60,3x,Icon-App-60x60@3x.png" & return & \
-         "iphone X icon,iphone,60x60,3x,Icon-App-60x60@3x.png" & return & \
-         "ipad icon,ipad,72x72,1x,Icon-App-72x72@1x.png" & return & \
-         "ipad retina icon,ipad,72x72,2x,Icon-App-72x72@2x.png" & return & \
-         "iOS 7 ipad icon,ipad,76x76,1x,Icon-App-76x76@1x.png" & return & \
-         "iOS 7 ipad retina icon,ipad,76x76,2x,Icon-App-76x76@2x.png" & return & \
-         "iPad Pro 12.9 icon,ipad,83.5x83.5,2x,Icon-App-83.5x83.5@2x.png" & return & \
+         "appstore icon,ios-marketing,1024x1024,1x,ItunesArtwork@2x.png" & cr & \
+         "iphone icon,iphone,57x57,1x,Icon-App-57x57@1x.png" & cr & \
+         "retina icon,iphone,57x57,2x,Icon-App-57x57@2x.png" & cr & \
+         "iOS 7 retina icon,iphone,60x60,2x,Icon-App-60x60@2x.png" & cr & \
+         "iphone 6 plus icon,iphone,60x60,3x,Icon-App-60x60@3x.png" & cr & \
+         "iphone X icon,iphone,60x60,3x,Icon-App-60x60@3x.png" & cr & \
+         "ipad icon,ipad,72x72,1x,Icon-App-72x72@1x.png" & cr & \
+         "ipad retina icon,ipad,72x72,2x,Icon-App-72x72@2x.png" & cr & \
+         "iOS 7 ipad icon,ipad,76x76,1x,Icon-App-76x76@1x.png" & cr & \
+         "iOS 7 ipad retina icon,ipad,76x76,2x,Icon-App-76x76@2x.png" & cr & \
+         "iPad Pro 12.9 icon,ipad,83.5x83.5,2x,Icon-App-83.5x83.5@2x.png" & cr & \
          "iPad Pro 11 icon,ipad,83.5x83.5,2x,Icon-App-83.5x83.5@2x.png" \
          into sIconsList
    
@@ -900,7 +900,7 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
    
    local tContentsJSON
    local tEntry
-   put "{" & CR & quote & "images" & quote & ":[" & CR into tContentsJSON
+   put "{" & CR & q("images") & ":[" & CR into tContentsJSON
    
    repeat for each line tType in sIconsList
       get pSettings["ios," & item 1 of tType]
@@ -914,10 +914,10 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
          end if
          -- add an entry in the Contents.json file
          put "{" & CR into tEntry
-         put quote & "idiom" & quote & ":" & quote & item 2 of tType & quote & comma & CR after tEntry
-         put quote & "size" & quote & ":" & quote & item 3 of tType & quote & comma & CR after tEntry
-         put quote & "scale" & quote & ":" & quote & item 4 of tType & quote & comma & CR after tEntry
-         put quote & "filename" & quote & ":" & quote & item 5 of tType & quote  & CR after tEntry
+         put q("idiom") & ":" & q(item 2 of tType) & comma & CR after tEntry
+         put q("size") & ":" & q(item 3 of tType) & comma & CR after tEntry
+         put q("scale") & ":" & q(item 4 of tType) & comma & CR after tEntry
+         put q("filename") & ":" & q(item 5 of tType)  & CR after tEntry
          put "}" & comma & CR after tEntry
          put tEntry after tContentsJSON
       end if
@@ -937,7 +937,7 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
    
    local tDimensions
    
-   put "{" & CR & quote & "images" & quote & ":[" & CR into tContentsJSON
+   put "{" & CR & q("images") & ":[" & CR into tContentsJSON
    
    repeat for each item tAppearance in "light,dark"
       repeat for each item tScale in "1x,2x,3x"
@@ -967,14 +967,14 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
          put url ("binfile:" & tFile) into url ("binfile:" & tImageFolder & "/" & tFileName)
          
          put "{" & CR into tEntry
-         put quote & "idiom" & quote & ":" & quote & "universal" & quote & comma & CR after tEntry
-         put quote & "scale" & quote & ":" & quote & tScale & quote & comma & CR after tEntry
+         put q("idiom") & ":" & q("universal") & comma & CR after tEntry
+         put q("scale") & ":" & q(tScale) & comma & CR after tEntry
          if tAppearance is "dark" then
-            put quote & "appearances" & quote & ": [{" & \
-                  quote & "appearance" & quote & ":" & quote & "luminosity" & quote, \
-                  quote & "value" & quote & ":" & quote & "dark"& quote & "}]" & comma & CR after tEntry
+            put q("appearances") & ": [{" & \
+                  q("appearance") & ":" & q("luminosity"), \
+                  q("value") & ":" & q("dark") & "}]" & comma & CR after tEntry
          end if
-         put quote & "filename" & quote & ":" & quote & tFileName & quote  & CR after tEntry
+         put q("filename") & ":" & q(tFileName) & CR after tEntry
          put "}" & comma & CR after tEntry
          put tEntry after tContentsJSON
          
@@ -1099,8 +1099,8 @@ private command revCompileStoryboardFiles pTarget, pSettings, pMinVersion, pImag
          "--target-device ipad" && \
          "--minimum-deployment-target" && pMinVersion && \
          "--output-format" && "human-readable-text" && \
-         "--compilation-directory" && quote & pAppBundle & quote &&  \
-         quote & tLaunchScreenStoryboardFile & quote)
+         "--compilation-directory" && q(pAppBundle) &&  \
+         q(tLaunchScreenStoryboardFile))
    
    if the result is not 0 then
       throw format("failed to create launch screen: %s", it)
@@ -1163,18 +1163,18 @@ private command addToManifest pFile, pName, pAppBundle, @xManifest, @xRedirects
    if pName contains "//" or pName contains tab then
       local tWarning
       put "File/folder to include in standalone contains invalid chars (tab or //):" into tWarning
-      revStandaloneAddWarning tWarning && quote & pFile & quote
+      revStandaloneAddWarning tWarning && q(pFile)
       exit addToManifest
    end if
    
    if there is a file pFile or (there is a folder pFile and pFile ends with ".lcextd") then
       put pAppBundle & slash & pName & tab & pFile & return after xManifest
-      put pName & "//" & pFile & return after xRedirects
+      put pName & "//" & pFile & cr after xRedirects
    else if there is a folder pFile then
       revCopyMobileFilesComputeFolderManifest xManifest, pFile, pAppBundle & slash & pName
-      put pName & "//" & pFile & return after xRedirects
+      put pName & "//" & pFile & cr after xRedirects
    else
-      revStandaloneAddWarning "File/folder to include in standalone not found:" && quote & pFile & quote
+      revStandaloneAddWarning "File/folder to include in standalone not found:" && q(pFile)
    end if
 end addToManifest
 
@@ -1249,8 +1249,8 @@ private command revCopyMobileFiles pSettings, pBaseFolder, pAppBundle, pAppTarge
       
       -- If the file is a font, then just copy and record as such
       if SBFileIsFontFile?(tSource) then
-         revSBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
-         put "font", tTarget & return after rFonts
+         SBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
+         put "font", tTarget & cr after rFonts
          next repeat
       end if
       
@@ -1277,7 +1277,7 @@ private command revCopyMobileFiles pSettings, pBaseFolder, pAppBundle, pAppTarge
                put "external" into rExternals[tName]["type"]
                put tName & ".lcextd" into rExternals[tName]["location"]
                put pAppBundle & slash & rExternals[tName]["location"] into tTarget
-               revSBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
+               SBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
             end if
          else
             put "external" into rExternals[tName]["type"]        
@@ -1357,7 +1357,7 @@ private command revCopyMobileFiles pSettings, pBaseFolder, pAppBundle, pAppTarge
       
       -- Otherwise its just a file
       if not tUseRedirects then
-         revSBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
+         SBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
       end if
    end repeat
 end revCopyMobileFiles
@@ -1415,7 +1415,7 @@ private command revCopyMobileExternals pExternals, pAppBundle, pTarget, pSDKs, @
             put mapFilePath(pSDKs[tInstSet]["runtime path"] & slash & tLine) into tFile
             if there is a file tFile then
                if pTarget is not "device" then
-                  revSBCopyFileToFile tFile, pAppBundle & slash & tLine & ".dylib", "revStandaloneProgressCallback", the long id of me
+                  SBCopyFileToFile tFile, pAppBundle & slash & tLine & ".dylib", "revStandaloneProgressCallback", the long id of me
                end if
                put tFile into rExternals[tLine][tInstSet]
                put "external" into rExternals[tLine]["type"]
@@ -1439,7 +1439,7 @@ private command revCopyMobileDrivers pDrivers, pAppBundle, pTarget, pSDKs, @rExt
             put mapFilePath(pSDKs[tInstSet]["runtime path"] & slash & tLine) into tFile
             if there is a file tFile then
                if pTarget is not "device" then
-                  revSBCopyFileToFile tFile, pAppBundle & slash & tLine & ".dylib", "revStandaloneProgressCallback", the long id of me
+                  SBCopyFileToFile tFile, pAppBundle & slash & tLine & ".dylib", "revStandaloneProgressCallback", the long id of me
                end if
                put tFile into rExternals[tLine][tInstSet]
                put "dylib" into rExternals[tLine]["type"]
@@ -1470,14 +1470,16 @@ end revCopyMobileStackFiles
 
 ################################################################################
 
+# TODO: Update the minimum
+constant kMINIMUMOSVERSION = "6.0"
 private function revGetMinimumOSByArch pMinimumOS 
    local tMinimumOSByArch  
    -- SN-2015-02-02: [[ Bug 14422 ]] Minimum OS version is the
    --  same for all archs
    -- We only support version >= 6.0
    --
-   if pMinimumOS is empty or pMinimumOS < "6.0" then
-      put "6.0" into tMinimumOSByArch["i386"]
+   if pMinimumOS is empty or pMinimumOS < kMINIMUMOSVERSION then
+      put kMINIMUMOSVERSION into tMinimumOSByArch["i386"]
    else
       put pMinimumOS after tMinimumOSByArch["i386"]
    end if
@@ -1891,7 +1893,9 @@ private function revGetMobileProfileInfo pProfileId
    local tContents
    put url ("file:~/Library/MobileDevice/Provisioning Profiles/" & pProfileId & ".mobileprovision") into tContents
    
-   local tAppId, tName, tIsDist, tIdentities
+   local tAppId, tName, tIsDist?, tIdentities
+   
+   ## Identities
    
    get lineOffset("<key>DeveloperCertificates</key>", tContents)
    if it is 0 then
@@ -1914,10 +1918,10 @@ private function revGetMobileProfileInfo pProfileId
    repeat for each element tCert in tCerts
       put the base64Decode of tCert into tCert
       if tCert contains "Apple Distribution:" then
-         put true into tIsDist
+         put true into tIsDist?
          get offset("Apple Distribution:", tCert)
       else if tCert contains "iPhone Distribution:" then
-         put true into tIsDist
+         put true into tIsDist?
          get offset("iPhone Distribution:", tCert)
       else if tCert Contains "iOS Development:" then
          get offset("iOS Development:", tCert)
@@ -1926,34 +1930,118 @@ private function revGetMobileProfileInfo pProfileId
       else
          get offset("iPhone Developer:", tCert)
       end if
-      put char it to it + charToNum(char it - 1 of tCert) - 1 of tCert & return after tIdentities
+      put char it to it + charToNum(char it - 1 of tCert) - 1 of tCert & cr after tIdentities
    end repeat
    delete the last char of tIdentities
    
-   get lineOffset("<key>ApplicationIdentifierPrefix</key>", tContents)
+   # TODO: this needs to set tIsDist?
+   --put identitiesFromContents(tContents) into tIdentities
+   
+   # AppId
+   
+   --   get lineOffset("<key>ApplicationIdentifierPrefix</key>", tContents)
+   --   if it is 0 then
+   --      throw "invalid provisioning profile"
+   --   end if
+   --   get word 1 to -1 of line it + 2 of tContents
+   --   get char 9 to -10 of it
+   --   put it into tAppId
+   
+   put appIdFromContents(tContents) into tAppId
+   
+   # name
+   
+   --   get lineOffset("<key>Name</key>", tContents)
+   --   if it is 0 then
+   --      throw "invalid provisioning profile"
+   --   end if
+   --   get word 1 to -1 of line it + 1 of tContents
+   --   put char 9 to -10 of it into tName
+   
+   put nameFromContents(tContents) into tName
+   --   local tInfo
+   --   put pProfileId into tInfo["id"]
+   --   put tName into tInfo["name"]
+   --   put tAppId into tInfo["appid"]
+   --   put tIdentities into tInfo["identities"]
+   --   put tIsDist into tInfo["store"]
+   
+   --   return tInfo
+   return stuffInfo(pProfileId, tName, tAppId, tIdentities, tIsDist?)
+end revGetMobileProfileInfo
+
+private function identitiesFromContents pContents
+   local tIdentities
+   local tCertIndex, tCerts
+   get lineOffset("<key>DeveloperCertificates</key>", pContents)
    if it is 0 then
       throw "invalid provisioning profile"
    end if
-   get word 1 to -1 of line it + 2 of tContents
+   get line it + 2 to it + (lineOffset("</array>", pContents, it) - 1) of pContents
+   repeat for each line tLine in it
+      if tLine contains "<data>" and tLine contains "</data>" then
+         add 1 to tCertIndex
+         put char (offset("<data>", tLine) + 6) to  offset("</data>", tLine) of tLine into tCerts[tCertIndex]
+      else if tLine contains "<data>" then
+         add 1 to tCertIndex
+      else if not (tLine contains "</data>") then
+         put tLine & return after tCerts[tCertIndex]
+      end if
+   end repeat
+   local tIsDist?
+   repeat for each element tCert in tCerts
+      put the base64Decode of tCert into tCert
+      if tCert contains "Apple Distribution:" then
+         put true into tIsDist?
+         get offset("Apple Distribution:", tCert)
+      else if tCert contains "iPhone Distribution:" then
+         put true into tIsDist?
+         get offset("iPhone Distribution:", tCert)
+      else if tCert Contains "iOS Development:" then
+         get offset("iOS Development:", tCert)
+      else if tCert Contains "Apple Development:" then
+         get offset("Apple Development:", tCert)
+      else
+         get offset("iPhone Developer:", tCert)
+      end if
+      put char it to it + charToNum(char it - 1 of tCert) - 1 of tCert & cr after tIdentities
+   end repeat
+   delete the last char of tIdentities
+   return tIdentities
+end identitiesFromContents
+
+private function appIdFromContents pContents
+   local tAppId
+   get lineOffset("<key>ApplicationIdentifierPrefix</key>", pContents)
+   if it is 0 then
+      throw "invalid provisioning profile"
+   end if
+   get word 1 to -1 of line it + 2 of pContents
    get char 9 to -10 of it
    put it into tAppId
-   
-   get lineOffset("<key>Name</key>", tContents)
+   return tAppId
+end appIdFromContents
+
+private function nameFromContents pContents
+   local tName
+   get lineOffset("<key>Name</key>", pContents)
    if it is 0 then
       throw "invalid provisioning profile"
    end if
-   get word 1 to -1 of line it + 1 of tContents
+   get word 1 to -1 of line it + 1 of pContents
    put char 9 to -10 of it into tName
-   
+   return tName
+end nameFromContents
+
+private function stuffInfo pProfileId, pName, pAppId, pIdentities, pIsDist?
    local tInfo
    put pProfileId into tInfo["id"]
-   put tName into tInfo["name"]
-   put tAppId into tInfo["appid"]
-   put tIdentities into tInfo["identities"]
-   put tIsDist into tInfo["store"]
-   
+   put pName into tInfo["name"]
+   put pAppId into tInfo["appid"]
+   put pIdentities into tInfo["identities"]
+   put pIsDist? into tInfo["store"]
    return tInfo
-end revGetMobileProfileInfo
+end stuffInfo
 
 ################################################################################
 private function revMobileRuntimeFolder pTarget, pVersion
@@ -2123,7 +2211,7 @@ private command symlinkRedirect pSource, pTarget
       set the folder to pSource      
       set the itemDel to slash
       local tFiles
-      put the files & return & the folders into tFiles
+      put the files & cr & the folders into tFiles
       repeat for each line tFile in tFiles
          if tFile is not empty and not (tFile begins with ".") then
             symlinkRedirect pSource & slash & tFile, pTarget & slash & tFile
