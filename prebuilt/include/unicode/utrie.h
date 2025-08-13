@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 ******************************************************************************
@@ -8,7 +8,7 @@
 *
 ******************************************************************************
 *   file name:  utrie.h
-*   encoding:   UTF-8
+*   encoding:   US-ASCII
 *   tab size:   8 (not used)
 *   indentation:4
 *
@@ -21,6 +21,7 @@
 
 #include "unicode/utypes.h"
 #include "unicode/utf16.h"
+#include "udataswp.h"
 
 U_CDECL_BEGIN
 
@@ -555,7 +556,7 @@ struct UNewTrie {
      * Index values at build-time are 32 bits wide for easier processing.
      * Bit 31 is set if the data block is used by multiple index values (from utrie_setRange()).
      */
-    int32_t index[UTRIE_MAX_INDEX_LENGTH+UTRIE_SURROGATE_BLOCK_COUNT];
+    int32_t index[UTRIE_MAX_INDEX_LENGTH];
     uint32_t *data;
 
     uint32_t leadUnitValue;
@@ -731,12 +732,16 @@ utrie_serialize(UNewTrie *trie, void *data, int32_t capacity,
                 UBool reduceTo16Bits,
                 UErrorCode *pErrorCode);
 
-/* serialization ------------------------------------------------------------ */
+/**
+ * Swap a serialized UTrie.
+ * @internal
+ */
+U_CAPI int32_t U_EXPORT2
+utrie_swap(const UDataSwapper *ds,
+           const void *inData, int32_t length, void *outData,
+           UErrorCode *pErrorCode);
 
-// UTrie signature values, in platform endianness and opposite endianness.
-// The UTrie signature ASCII byte values spell "Trie".
-#define UTRIE_SIG       0x54726965
-#define UTRIE_OE_SIG    0x65697254
+/* serialization ------------------------------------------------------------ */
 
 /**
  * Trie data structure in serialized form:

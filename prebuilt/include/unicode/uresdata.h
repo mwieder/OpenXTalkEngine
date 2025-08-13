@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 ******************************************************************************
@@ -6,7 +6,7 @@
 *                Corporation and others. All Rights Reserved.
 ******************************************************************************
 *   file name:  uresdata.h
-*   encoding:   UTF-8
+*   encoding:   US-ASCII
 *   tab size:   8 (not used)
 *   indentation:4
 *
@@ -475,7 +475,7 @@ U_NAMESPACE_BEGIN
 
 class ResourceDataValue : public ResourceValue {
 public:
-    ResourceDataValue() : pResData(NULL), res(static_cast<Resource>(URES_NONE)) {}
+    ResourceDataValue() : pResData(NULL), res(URES_NONE) {}
     virtual ~ResourceDataValue();
 
     void setData(const ResourceData *data) { pResData = data; }

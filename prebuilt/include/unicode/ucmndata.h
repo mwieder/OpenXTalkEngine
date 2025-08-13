@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 ******************************************************************************
@@ -52,11 +52,7 @@ typedef struct {
 
 typedef struct {
     uint32_t count;
-    /**
-     * Variable-length array declared with length 1 to disable bounds checkers.
-     * The actual array length is in the count field.
-     */
-    UDataOffsetTOCEntry entry[1];
+    UDataOffsetTOCEntry entry[2];    /* Actual size of array is from count. */
 } UDataOffsetTOC;
 
 /**

@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 *****************************************************************************************
@@ -44,12 +44,14 @@ enum UDisplayContextType {
      * @stable ICU 54
      */
     UDISPCTX_TYPE_DISPLAY_LENGTH = 2,
+#ifndef U_HIDE_DRAFT_API
     /**
      * Type to retrieve the substitute handling setting, e.g.
      * UDISPCTX_SUBSTITUTE, UDISPCTX_NO_SUBSTITUTE.
-     * @stable ICU 58
+     * @draft ICU 58
      */
     UDISPCTX_TYPE_SUBSTITUTE_HANDLING = 3
+#endif /* U_HIDE_DRAFT_API */
 };
 /**
 *  @stable ICU 51
@@ -141,6 +143,7 @@ enum UDisplayContext {
      * @stable ICU 54
      */
     UDISPCTX_LENGTH_SHORT = (UDISPCTX_TYPE_DISPLAY_LENGTH<<8) + 1,
+#ifndef U_HIDE_DRAFT_API
     /**
      * ================================
      * SUBSTITUTE_HANDLING can be set to one of UDISPCTX_SUBSTITUTE or
@@ -151,15 +154,16 @@ enum UDisplayContext {
      * A possible setting for SUBSTITUTE_HANDLING:
      * Returns a fallback value (e.g., the input code) when no data is available.
      * This is the default value.
-     * @stable ICU 58
+     * @draft ICU 58
      */
     UDISPCTX_SUBSTITUTE = (UDISPCTX_TYPE_SUBSTITUTE_HANDLING<<8) + 0,
     /**
      * A possible setting for SUBSTITUTE_HANDLING:
      * Returns a null value when no data is available.
-     * @stable ICU 58
+     * @draft ICU 58
      */
     UDISPCTX_NO_SUBSTITUTE = (UDISPCTX_TYPE_SUBSTITUTE_HANDLING<<8) + 1
+#endif /* U_HIDE_DRAFT_API */
 
 };
 /**

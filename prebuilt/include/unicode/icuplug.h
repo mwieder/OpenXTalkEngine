@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 ******************************************************************************
@@ -110,7 +110,7 @@
 #include "unicode/utypes.h"
 
 
-#if UCONFIG_ENABLE_PLUGINS || defined(U_IN_DOXYGEN)
+#if UCONFIG_ENABLE_PLUGINS
 
 
 

@@ -58,6 +58,8 @@ if [ ! -d "$ICU_SRC" ] ; then
 		ICU_MD5_URL="SHASUM512.txt"
 	elif [ "${ICU_VERSION_MAJOR}" == "63" ] ; then
 		ICU_MD5_URL="icu4c-SHASUM512.txt.asc"
+	elif [ "${ICU_VERSION_MAJOR}" == "58" ] ; then
+		ICU_MD5_URL="icu4c-SHASUM512.txt.asc"
 	else
 		echo "bad shasum url for icu version ${ICU_VERSION}"
 	fi

@@ -861,7 +861,7 @@ command licenseUnlock pLicense
 
    put true into sUnlocked
 
-   do "set the revLicenseLimits to tSettings"
+   --do "set the revLicenseLimits to tSettings"
    set the revLicenseLimits to tSettings
    return "licensed"
 end licenseUnlock

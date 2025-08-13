@@ -1,4 +1,4 @@
-// © 2016 and later: Unicode, Inc. and others.
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 /*
 ******************************************************************************
@@ -19,14 +19,9 @@
 #include "unicode/utypes.h"
 #include "unicode/unistr.h"
 
-U_NAMESPACE_BEGIN
+#ifndef U_HIDE_DRAFT_API
 
-// Forward declaration:
-namespace number {
-namespace impl {
-class SimpleModifier;
-}
-}
+U_NAMESPACE_BEGIN
 
 /**
  * Formats simple patterns like "{1} was born in {0}".
@@ -54,15 +49,15 @@ class SimpleModifier;
  *
  * @see MessageFormat
  * @see UMessagePatternApostropheMode
- * @stable ICU 57
+ * @draft ICU 57
  */
 class U_COMMON_API SimpleFormatter U_FINAL : public UMemory {
 public:
     /**
      * Default constructor.
-     * @stable ICU 57
+     * @draft ICU 57
      */
-    SimpleFormatter() : compiledPattern((char16_t)0) {}
+    SimpleFormatter() : compiledPattern((UChar)0) {}
 
     /**
      * Constructs a formatter from the pattern string.
@@ -71,7 +66,7 @@ public:
      * @param errorCode ICU error code in/out parameter.
      *                  Must fulfill U_SUCCESS before the function call.
      *                  Set to U_ILLEGAL_ARGUMENT_ERROR for bad argument syntax.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     SimpleFormatter(const UnicodeString& pattern, UErrorCode &errorCode) {
         applyPattern(pattern, errorCode);
@@ -89,7 +84,7 @@ public:
      *                  Must fulfill U_SUCCESS before the function call.
      *                  Set to U_ILLEGAL_ARGUMENT_ERROR for bad argument syntax and
      *                  too few or too many arguments.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     SimpleFormatter(const UnicodeString& pattern, int32_t min, int32_t max,
                     UErrorCode &errorCode) {
@@ -98,20 +93,20 @@ public:
 
     /**
      * Copy constructor.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     SimpleFormatter(const SimpleFormatter& other)
             : compiledPattern(other.compiledPattern) {}
 
     /**
      * Assignment operator.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     SimpleFormatter &operator=(const SimpleFormatter& other);
 
     /**
      * Destructor.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     ~SimpleFormatter();
 
@@ -123,7 +118,7 @@ public:
      *                  Must fulfill U_SUCCESS before the function call.
      *                  Set to U_ILLEGAL_ARGUMENT_ERROR for bad argument syntax.
      * @return TRUE if U_SUCCESS(errorCode).
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UBool applyPattern(const UnicodeString &pattern, UErrorCode &errorCode) {
         return applyPatternMinMaxArguments(pattern, 0, INT32_MAX, errorCode);
@@ -142,14 +137,14 @@ public:
      *                  Set to U_ILLEGAL_ARGUMENT_ERROR for bad argument syntax and
      *                  too few or too many arguments.
      * @return TRUE if U_SUCCESS(errorCode).
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UBool applyPatternMinMaxArguments(const UnicodeString &pattern,
                                       int32_t min, int32_t max, UErrorCode &errorCode);
 
     /**
      * @return The max argument number + 1.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     int32_t getArgumentLimit() const {
         return getArgumentLimit(compiledPattern.getBuffer(), compiledPattern.length());
@@ -165,7 +160,7 @@ public:
      * @param errorCode ICU error code in/out parameter.
      *                  Must fulfill U_SUCCESS before the function call.
      * @return appendTo
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UnicodeString &format(
             const UnicodeString &value0,
@@ -182,7 +177,7 @@ public:
      * @param errorCode ICU error code in/out parameter.
      *                  Must fulfill U_SUCCESS before the function call.
      * @return appendTo
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UnicodeString &format(
             const UnicodeString &value0,
@@ -201,7 +196,7 @@ public:
      * @param errorCode ICU error code in/out parameter.
      *                  Must fulfill U_SUCCESS before the function call.
      * @return appendTo
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UnicodeString &format(
             const UnicodeString &value0,
@@ -226,7 +221,7 @@ public:
      * @param errorCode ICU error code in/out parameter.
      *                  Must fulfill U_SUCCESS before the function call.
      * @return appendTo
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UnicodeString &formatAndAppend(
             const UnicodeString *const *values, int32_t valuesLength,
@@ -252,7 +247,7 @@ public:
      * @param errorCode ICU error code in/out parameter.
      *                  Must fulfill U_SUCCESS before the function call.
      * @return result
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UnicodeString &formatAndReplace(
             const UnicodeString *const *values, int32_t valuesLength,
@@ -262,7 +257,7 @@ public:
     /**
      * Returns the pattern text with none of the arguments.
      * Like formatting with all-empty string values.
-     * @stable ICU 57
+     * @draft ICU 57
      */
     UnicodeString getTextWithNoArguments() const {
         return getTextWithNoArguments(compiledPattern.getBuffer(), compiledPattern.length());
@@ -280,24 +275,23 @@ private:
      */
     UnicodeString compiledPattern;
 
-    static inline int32_t getArgumentLimit(const char16_t *compiledPattern,
+    static inline int32_t getArgumentLimit(const UChar *compiledPattern,
                                               int32_t compiledPatternLength) {
         return compiledPatternLength == 0 ? 0 : compiledPattern[0];
     }
 
-    static UnicodeString getTextWithNoArguments(const char16_t *compiledPattern, int32_t compiledPatternLength);
+    static UnicodeString getTextWithNoArguments(const UChar *compiledPattern, int32_t compiledPatternLength);
 
     static UnicodeString &format(
-            const char16_t *compiledPattern, int32_t compiledPatternLength,
+            const UChar *compiledPattern, int32_t compiledPatternLength,
             const UnicodeString *const *values,
             UnicodeString &result, const UnicodeString *resultCopy, UBool forbidResultAsValue,
             int32_t *offsets, int32_t offsetsLength,
             UErrorCode &errorCode);
-
-    // Give access to internals to SimpleModifier for number formatting
-    friend class number::impl::SimpleModifier;
 };
 
 U_NAMESPACE_END
+
+#endif /* U_HIDE_DRAFT_API */
 
 #endif  // __SIMPLEFORMATTER_H__
