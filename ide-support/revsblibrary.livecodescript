@@ -7,7 +7,7 @@
 on extensionInitialize
    if the target is me then
       insert the script of me into back
-      
+
       __InitialiseScriptLibraries
       __InitialiseInclusionDependencies
       __InitialiseBuiltInInclusions
@@ -39,7 +39,7 @@ on revSBCopyFileToFolder pSourceFile, pTargetFolder, pCallback, pCallbackTarget
    return the result
 end revSBCopyFileToFolder
 
-# copied from LC10-rc1
+# adapted from LC10-rc1
 # save as Emscripten calls this
 on SBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallback, pCallbackTarget
    if there is no folder pTargetFolder then
@@ -52,15 +52,21 @@ on SBCopyFileToFileInFolder pSourceFile, pTargetFolder, pTargetFile, pCallback, 
    return the result
 end SBCopyFileToFileInFolder
 
-on revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
-   __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
-   return the result
-end revSBCopyFile
+---------------------------------
+# these two are the same code
+# TODO: get rid of one??
+
+--on revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
+--   __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
+--   return the result
+--end revSBCopyFile
 
 on SBCopyFileToFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTarget
    return the result
 end SBCopyFileToFile
+
+------------------------------------
 
 on revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget
    __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget
@@ -82,13 +88,13 @@ end SBCopyFolderToDestinationFolder
 constant kREADBUFFERSIZE = 524288
 on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
    local tResult
-   
+
    if tResult is empty then
       if there is no file pFile then
          put "file not found" into tResult
       end if
    end if
-   
+
    local tTotalSize
    if tResult is empty then
       local tOldFolder
@@ -101,7 +107,7 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
       put item 2 of it into tTotalSize
       set the defaultFolder to tOldFolder
    end if
-   
+
    if tResult is empty then
       if pMode is "binary" then
          open file pFile for binary read
@@ -110,7 +116,7 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
       end if
    end if
    put the result into tResult
-   
+
    local tAmountRead
    if tResult is empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
@@ -137,11 +143,11 @@ on revSBReadFile pFile, pMode, @rData, pCallback, pCallbackTarget
          dispatch pCallback to pCallbackTarget with tAmountRead, tTotalSize
       end if
    end if
-   
+
    if tResult is empty then
       close file pFile
    end if
-   
+
    return tResult
 end revSBReadFile
 
@@ -226,30 +232,30 @@ end log
 private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, pSettings
    local tResourceList
    local tResult
-   
+
    put revSBReadLink(pSource) into pSource
-   
+
    local tOldFolder
    put the defaultfolder into tOldFolder
    if there is no folder pSource then
       put "no such source folder found" into tResult
    end if
-   
+
    # OK-2008-09-10 : Bug 7147
    set the defaultFolder to pSource
    if the defaultFolder is not pSource then
       put "can't enter source folder" into tResult
    end if
-   
+
    local tTotalNumber
    put __EnumerateFolder(pSource) into tResourceList
    put the number of lines of tResourceList into tTotalNumber
-   
+
    if there is no folder pTarget then
       __revSBEnsureFolder pTarget -- create it and all its parents as required...
       put the result into tResult
    end if
-   
+
    local tNumberCopied
    put 0 into tNumberCopied
    if tResult is empty then
@@ -278,7 +284,7 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
                set the itemDelimiter to ","
                put item 8 of it into tUser
                put item 9 of it into tGroup
-               
+
                local tTargetUser, tTargetGroup
                set the itemDelimiter to slash
                get folders(item 1 to -2 of tSubFolder, "detailed")
@@ -307,20 +313,20 @@ private command __revSBCopyFolder pSource, pTarget, pCallback, pCallbackTarget, 
          end if
       end repeat
    end if
-   
+
    -- make sure we finish on a "full" callback
    if tResult is empty then
       if pCallbackTarget is not empty and there is a pCallbackTarget then
          dispatch pCallback to pCallbackTarget with tTotalNumber, tTotalNumber
       end if
    end if
-   
+
    set the defaultFolder to tOldFolder
-   
+
    if tResult is not empty then
       revStandaloneAddWarning tResult & ":" && q(pSource)
    end if
-   
+
    return tResult
 end __revSBCopyFolder
 
@@ -333,12 +339,12 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
    -- Stat the source file
    local tOldFolder, tSize, tPermissions, tUser, tGroup, tFileType
    local tResult
-   
+
    if tResult is empty then
       put the defaultFolder into tOldFolder
       set the itemDelimiter to "/"
       set the defaultFolder to item 1 to -2 of pSourceFile
-      
+
       get the detailed files
       filter it with (the urlEncode of item -1 of pSourceFile) & "*"
       set the itemDelimiter to ","
@@ -347,14 +353,14 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
       put item 9 of it into tGroup
       put item 10 of it into tPermissions
       put item 11 of it into tFileType
-      
+
       if there is a file pTargetFile then
          delete file pTargetFile
          if the result is not empty then
             put "cannot overwrite existing target file" into tResult
          end if
       end if
-      
+
       local tOldFileType
       if tResult is empty and tFileType is not "rhapslnk" then
          put the fileType into tOldFileType
@@ -365,7 +371,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          end if
       end if
    end if
-   
+
    local tSourceFileIsLink
    if tResult is empty then
       if the platform is "macos" then
@@ -376,7 +382,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          put "cannot find source file" into tResult
       end if
    end if
-   
+
    if tSourceFileIsLink then
       if tResult is empty then
          # __readlink only works for MacOS and Linux so no need for a switch here
@@ -397,7 +403,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
                put "cannot read from source file:" && the result into tResult
             end if
          end if
-         
+
          if tResult is empty then
             put tSource into url("binfile:" & pTargetFile)
             if the result is not empty then
@@ -412,14 +418,14 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
                put "cannot create target file" into tResult
             end if
          end if
-         
+
          if tResult is empty then
             open file pSourceFile for binary read
             if the result is not empty then
                put "cannot read from source file:" && the result into tResult
             end if
          end if
-         
+
          local tAmountCopied
          if tResult is empty then
             if pCallbackTarget is not empty and there is a pCallbackTarget then
@@ -445,7 +451,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
                end if
             end repeat
          end if
-         
+
          if pTargetFile is among the lines of the openFiles then
             close file pTargetFile
          end if
@@ -454,7 +460,7 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          end if
       end if
    end if
-   
+
    # OK-2007-11-30 : Modified to work for Linux too
    if tResult is empty and the platform is "macos" or the platform is "Linux" then
       local tTargetUser, tTargetGroup, tTargetPermissions
@@ -473,19 +479,19 @@ private command __revSBCopyFile pSourceFile, pTargetFile, pCallback, pCallbackTa
          get shell("chown" && tUser & ":" & tGroup && q(pTargetFile))
       end if
    end if
-   
+
    if tOldFolder is not empty then
       set the defaultFolder to tOldFolder
    end if
    if tOldFileType is not empty then
       set the fileType to tOldFileType
    end if
-   
+
    /* WORKAROUND: BUG 22255
    *
    * Multiple shell calls in a tight loop can cause a deadlock on macOS */
    wait 0 with messages
-   
+
    return tResult
 end __revSBCopyFile
 
@@ -504,7 +510,7 @@ command SBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    if pSettings is empty then
       exit SBRemoveUnneededSlicesFromMacCode
    end if
-   
+
    /* If running on macOS Sierra and below, then codesign will fail on arm64
    * slices, so we always remove them. */
    local tAppleArchSupported
@@ -515,7 +521,7 @@ command SBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    else
       put true into tAppleArchSupported
    end if
-   
+
    /* Work out which slices to keep. If the result cannot be codesigned then
    * we just keep intel. */
    local tKeepIntel, tKeepApple
@@ -530,12 +536,12 @@ command SBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
       put true into tKeepIntel
       put false into tKeepApple
    end if
-   
+
    /* If both slices are wanted, then there is nothing to do. */
    if tKeepIntel and tKeepApple then
       exit SBRemoveUnneededSlicesFromMacCode
    end if
-   
+
    /* We need to put the file on a diet, so first rename the existing file. As
    * we can't control what files might be alongside the original, we loop until
    * we find one which does not exist. */
@@ -548,7 +554,7 @@ command SBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
       end if
    end repeat
    rename file pTargetFile to tInput
-   
+
    /* Setup the params array for the internal diet command. */
    local tParams
    put tInput into tParams["input"]
@@ -558,12 +564,12 @@ command SBRemoveUnneededSlicesFromMacCode pTargetFile, pSettings
    else if tKeepApple then
       put true into tParams["keep_arm64"]
    end if
-   
+
    /* Execute the internal diet command.
    * Note: The only reason we use 'do' here is so that the linter doesn't
    * complain, as this is development engine-only syntax. */
    do "_internal diet macosx tParams"
-   
+
    /* Remove the original input file. */
    delete file tInput
 end SBRemoveUnneededSlicesFromMacCode
@@ -588,10 +594,10 @@ private function __EnumerateFolder pFolder, pPrefix, pRecursive
    local tRecursive
    -- recursive by default
    put pRecursive is not false into tRecursive
-   
+
    local tResult
    local tSubFolder
-   
+
    repeat for each line tSubFolder in folders(pFolder)
       if tSubFolder is among the items of ".,.." then
          next repeat
@@ -605,12 +611,12 @@ private function __EnumerateFolder pFolder, pPrefix, pRecursive
          end if
       end if
    end repeat
-   
+
    local tFile
    repeat for each line tFile in files(pFolder)
       appendToStringList pPrefix & tFile, tResult
    end repeat
-   
+
    return tResult
 end __EnumerateFolder
 
@@ -632,11 +638,11 @@ function revSBCalculateRelativePath pRoot, pFile
    end repeat
    put "./" before tResult
    put item tCount to -1 of pFile after tResult
-   
+
    if char -1 of tResult is "/" then
       delete char -1 of tResult
    end if
-   
+
    return tResult
 end revSBCalculateRelativePath
 
@@ -707,7 +713,7 @@ private function __readlink pPath
    if the platform is "Win32" then
       return empty
    end if
-   
+
    if the platform is "macOS" then
       local tFileType
       set the itemDelimiter to slash
@@ -719,7 +725,7 @@ private function __readlink pPath
          return empty
       end if
    end if
-   
+
    local tLink
    put shell("readlink " & q(pPath)) into tLink
    if the last char of tLink is cr then
@@ -733,16 +739,16 @@ private function revSBReadLink pPath
    repeat forever
       local tLink
       put __readlink(pPath) into tLink
-      
+
       if tLink is empty then
          return pPath
       end if
-      
+
       if the first char of tLink is not slash then
          set the itemdel to slash
          put revSBCalculateAbsolutePath(item 1 to -2 of pPath, tLink) into tLink
       end if
-      
+
       put tLink into pPath
    end repeat
 end revSBReadLink
@@ -799,24 +805,24 @@ function folderNameIsIllegal? pName
          return true
       end if
    end repeat
-   
+
    # This appears to be the max length from looking at older code. There was also a limit of
    # 27 chars on Mac, but i think this is left over from classic so removed it.
    if the length of pName > 246 then
       return true
    end if
-   
+
    return false
 end folderNameIsIllegal?
 
 function folderNameMakeLegal pName
    local tLegalName
    put pName into tLegalName
-   
+
    repeat for each char tChar in folderNameIllegalChars()
       replace tChar with space in tLegalName
    end repeat
-   
+
    return tLegalName
 end folderNameMakeLegal
 
@@ -999,7 +1005,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
       if xSettingsA["scriptLibraries"] = "" then
          put replaceText(kDefaultScriptLibraries,",",cr) into xSettingsA["scriptLibraries"]
       end if
-      
+
       put revEnvironmentRuntimePath() & "/Windows/x86-32/Support/Sample Icons" into tName
       if xSettingsA["Windows,iconFile"] is empty then
          put tName & "/genericapp.ico" into xSettingsA["Windows,iconFile"]
@@ -1060,7 +1066,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
    if xSettingsA["UNIX,fileSelector"] = "" then
       put true into xSettingsA["UNIX,fileSelector"]
    end if
-   
+
    /* - if IDE platform is in deployment targets, then default
    *   to IDE platform + IDE arch
    * - if there is a single deployment target, then default to
@@ -1088,7 +1094,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
                into tInitialTargets
          break
    end switch
-   
+
    repeat for each item tTarget in tInitialTargets
       if tTarget is "MacOSX x86-64" then
          if xSettingsA["MacOSX x86-32"] then next repeat
@@ -1097,7 +1103,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
          put true into xSettingsA[tTarget]
       end if
    end repeat
-   
+
    -- copyright
    get the seconds
    convert it to dateItems
@@ -1113,14 +1119,14 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
    if xSettingsA["Windows,companyname"] is empty then
       put the cUserOrganisation of stack "Home" into xSettingsA["Windows,companyname"]
    end if
-   
+
    /* If an existing stack was configured to build for PowerPC, then default to MacOS 64bit */
    if xSettingsA["MacOSX PowerPC-32"] and \
          xSettingsA["MacOSX x86-64"] is empty and \
          xSettingsA["MacOSX x86-32"] is empty then
       put true into xSettingsA["MacOSX x86-64"]
    end if
-   
+
    -- Auto-remove stack passwords from community stacks
    --if not revEnvironmentEditionProperty("password_protection") then
    --if xSettingsA["password"] is not empty then
@@ -1915,21 +1921,21 @@ function revSBAdditionalExternalsList pPlatform
    if sExternalsLocationA[pPlatform] is empty then
       local tFolders
       put revSBAdditionalExternalFolders() into tFolders
-      
+
       -- For these externals we have to go by the file extensions that exist
       -- to check if the platform is supported
       repeat for each line tFolder in tFolders
          local tExternalFolder
          repeat for each line tExternalFolder in folders(tFolder)
             if tExternalFolder begins with "." then next repeat
-            
+
             if there is a file (tFolder & slash & tExternalFolder & slash & "ide_only") then
                next repeat
             end if
-            
+
             local tContents
             put __EnumerateFolder(tFolder & slash & tExternalFolder, tFolder & slash & tExternalFolder & slash, false) into tContents
-            
+
             local tRawList
             switch pPlatform
                case "ios"
@@ -1945,7 +1951,7 @@ function revSBAdditionalExternalsList pPlatform
                   put empty into tRawList
                   break
             end switch
-            
+
             split tRawList by return
             set the itemdelimiter to "."
             set the linedelimiter to slash
@@ -1953,7 +1959,7 @@ function revSBAdditionalExternalsList pPlatform
                local tExtension, tExternalName
                put item -1 of line -1 of tExtPath into tExtension
                put item 1 to -2 of line -1 of tExtPath into tExternalName
-               
+
                set the itemDelimiter to comma
                local tArchitectures
                if pPlatform is among the items of SBMobileTargets() then
@@ -1961,12 +1967,12 @@ function revSBAdditionalExternalsList pPlatform
                else
                   __ExternalArchitecture pPlatform, tExternalName, tArchitectures
                end if
-               
+
                local tArchitecture
                repeat for each item tArchitecture in tArchitectures
                   put tExtPath into sExternalsLocationA[pPlatform][tExternalName][tArchitecture]
                end repeat
-               
+
                set the itemDelimiter to "."
             end repeat
             set the linedelimiter to return
@@ -2348,18 +2354,18 @@ end revSBConvertSettingsForPlatform
 function SBIncludedExternalPath pTarget, pName
    local tPlatform
    put revSBTargetToPlatform(pTarget) into tPlatform
-   
+
    if sExternalsLocationA[tPlatform] is empty then
       get revSBExternalsList(tPlatform)
    end if
-   
+
    local tArchitecture
    if tPlatform is among the items of SBMobileTargets() then
       put tPlatform into tArchitecture
    else
       put __TargetArchitecture(pTarget) into tArchitecture
    end if
-   
+
    /* iOS can prefix external names for loading purposes, ensure this isn't
    * included */
    if pTarget is "ios" then
@@ -2367,7 +2373,7 @@ function SBIncludedExternalPath pTarget, pName
       put the last item of pName into pName
       set the itemDelimiter to comma
    end if
-   
+
    return sExternalsLocationA[tPlatform][pName][tArchitecture]
 end SBIncludedExternalPath
 
@@ -2477,7 +2483,7 @@ end prependToStringList
 private command __LoadStackOnStartup pStackName, @xAuxStackFiles, @xStartupScript, @xGeneratedStartupScript
    appendToStringList the effective filename of stack pStackName, xAuxStackFiles
    appendToStringList "revInternal__LoadLibrary" && q(pStackName), xStartupScript
-   
+
    -- allow libraries to generate some additional startup script
    dispatch "extensionStartupScript" to stack pStackName
    if it is not "unhandled" then
