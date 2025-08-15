@@ -641,10 +641,6 @@ end pathToAapt2
 
 function pathToAdb pRoot
    return pathToPlatformTool(pRoot, executableName("adb"))
-#   if pRoot is empty then
-#      put sAndroidRoot into pRoot
-#   end if
-#   return pRoot & slash & "platform-tools" & slash & executableName("adb")
 end pathToAdb
 
 function pathToAPKSigner pRoot
@@ -688,42 +684,22 @@ end pathToD8
 # pRoot should be "android-studio/jbr"
 function pathToJavaC pRoot
    return pathToJavaExecutable(pRoot, executableName("javac"))
-#   if pRoot is empty then
-#      put sJavaRoot into pRoot
-#   end if
-#  return pRoot & slash & "bin" & slash & executableName("javac")
 end pathToJavaC
 
 function pathToJava pRoot
    return pathToJavaExecutable(pRoot, executableName("java"))
-#   if pRoot is empty then
-#      put sJavaRoot into pRoot
-#   end if
-#   return pRoot & slash & "bin" & slash & executableName("java")
 end pathToJava
 
 function pathToJarSigner pRoot
   return pathToJavaExecutable(pRoot, executableName("jarsigner"))
-#   if pRoot is empty then
-#      put sJavaRoot into pRoot
-#   end if
-#   return pRoot & slash & "bin" & slash & executableName("jarsigner")
 end pathToJarSigner
 
 function pathToJar pRoot
   return pathToJavaExecutable(pRoot, executableName("jar"))
-#   if pRoot is empty then
-#      put sJavaRoot into pRoot
-#   end if
-#   return pRoot & slash & "bin" & slash & executableName("jar")
 end pathToJar
 
 function pathToKeytool pRoot
   return pathToJavaExecutable(pRoot, executableName("keytool"))
-#   if pRoot is empty then
-#      put sJavaRoot into pRoot
-#   end if
-#   return pRoot & slash & "bin" & slash & executableName("keytool")
 end pathToKeytool
 
 // BundleTool

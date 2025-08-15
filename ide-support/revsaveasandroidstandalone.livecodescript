@@ -1421,6 +1421,26 @@ if tError is not empty then
 end if
 end saveAsMobileStandaloneMain
 
+private command codesign pAppName, pUserName, pPassword, pOrganization, pUnit, pCity, pState, pCountry
+   local tCommand
+   
+   put pathToKeytool() && "-genkeypair -keystore pAppName.keystore -storepass pPassword -keypass pPassword -dname " into tCommand
+   put quote after tCommand
+   put "CN=" & pUserName after tCommand
+   put " OU=" & pUnit after tCommand
+   put " O=" & pOrganization after tCommand
+   put " L=" & pCity after tCommand
+   put " S=" & pState after tCommand
+   put " C=" & pCountry after tCommand
+   put quote after tCommand
+   put " -alias" && pAppName && "-keyalg RSA -keysize 2048 -validity 100000" after tCommand
+   executeShellCommand tCommand
+   if the result is not empty then
+      throw the result
+   end if
+   #keytool -genkeypair -keystore pAppName.keystore -storepass pPassword -keypass pPassword -dname "CN=pUserName, OU=pUnit, O=pOrganization, L=pCity,S=pState, C=pCountry" -alias pAppName -keyalg RSA -keysize 2048 -validity 100000
+end codesign
+
 private command deleteInclusionFile pResBuildFolder, pFileName
    local tFileName
    put pResBuildFolder & slash & pFileName into tFileName
