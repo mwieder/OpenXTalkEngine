@@ -148,9 +148,9 @@ command deployDo pTargetStack, pSimulator, pAppBundle
    put empty into tError
    
    local tSettings
-   dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
-   put the result into tSettings
-   --put revSBGetSettings(pTargetStack, true) into tSettings
+   --dispatch function "SBGetSettings" to stack "revSBLibrary" with pTargetStack, true
+   --put the result into tSettings
+   put SBGetSettings(pTargetStack, true) into tSettings
    
    put revTestEnvironment() into tRunningTest
    

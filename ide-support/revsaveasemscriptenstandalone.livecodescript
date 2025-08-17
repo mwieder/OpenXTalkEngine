@@ -55,7 +55,7 @@ end createZipFileIfNecessary
 */
 private function architectureListFromSettingsArray pSettingsArray
    local tArchs
-   repeat for each item tItem in revSBPlatformArchitectures("Emscripten")
+   repeat for each item tItem in SBPlatformArchitectures("Emscripten")
       if pSettingsArray["Emscripten"&tItem] then
          put true into tArchs[tItem]
       end if
@@ -806,7 +806,7 @@ logDebug "scanFolder", tCount
    return tFiles
 end scanFolder
 
-/*
+/**
 * Recursive function used by scanFolder()
 */
 private command scanFolder_recurse @xCount, @xFiles, pRelPath
@@ -844,7 +844,7 @@ private command scanFolder_recurse @xCount, @xFiles, pRelPath
    set the defaultFolder to tSaveFolder
 end scanFolder_recurse
 
-/*
+/**
 * Return a number-indexed array of engine files that need to be
 * copied into the standalone output folder.
 *  pArch : js or wasm
@@ -859,9 +859,13 @@ private function getEngineFiles pArch
    switch pArch
       case "js"
          # HTML5 engine JavaScript
-         put mapBinPath("js", "standalone.js") \
-               into tFilesArray["standalone.js"]
-         
+         local tStandalone
+         put mapBinPath("js", "standalone.js") into tStandalone
+         if there is a file tStandalone then
+         else
+            put mapBinPath("js", "standalone-"&kEdition&"-"&kStandaloneVersion&".js") into tStandalone
+         end if
+         put tStandalone into tFilesArray["standalone.js"]
          # HTML5 memory initialisation file
          --         put mapBinPath("js", "standalone-"&kEdition&"-"&kStandaloneVersion&".html.mem") \
          --               into tFilesArray["standalone"&".html.mem"]
@@ -886,7 +890,7 @@ private function getEngineFiles pArch
    return tFilesArray
 end getEngineFiles
 
-/*
+/**
 * mapCommonPath
 */
 private function mapCommonPath pDatFile
@@ -894,7 +898,7 @@ private function mapCommonPath pDatFile
    return slash & (item 2 to -2 of the address) & "/Runtime/Common/" & pDatFile
 end mapCommonPath
 
-/*
+/**
 * mapEmscriptenPath
 *  pArch : js or wasm
 */
@@ -903,7 +907,7 @@ private function mapEmscriptenPath pArch
    return slash & (item 2 to -2 of the address) & "/Runtime/Emscripten/" & pArch
 end mapEmscriptenPath
 
-/*
+/**
 * Get the filename of the Emscripten standalone template folder.
 * This is a folder that contains the default filesystem
 * initialisation data that's automatically included in all
@@ -915,7 +919,7 @@ private function HTML5.standaloneTemplateFolder pArch
    return mapBinPath(pArch, "emscripten-standalone-template")
 end HTML5.standaloneTemplateFolder
 
-/*
+/**
 * Return a number-indexed array of files in the Emscripten standalone
 * template folder.  The paths returned are relative to the path returned
 * by HTML5.standaloneTemplateFolder()
@@ -925,7 +929,7 @@ private function HTML5.StandaloneTemplateFiles
    return scanFolder(HTML5.standaloneTemplateFolder("js"))
 end HTML5.StandaloneTemplateFiles
 
-/*
+/**
 * Get the filename of the Emscripten standalone template HTML file.
 * This has some standalone-dependent JavaScript substituted into it to instantiate the engine.
 */
@@ -933,14 +937,14 @@ private function getHtmlTemplateFile pArch
    return mapBinPath(pArch, "standalone.html")
 end getHtmlTemplateFile
 
-/*
+/**
 * Get the filename of the Emscripten standalone startup script-only stack template.
 */
 private function getStartupTemplateFile pArch
    return mapBinPath(pArch, "emscripten-startup-template.livecodescript")
 end getStartupTemplateFile
 
-/*
+/**
 * Get the directory containing the Emscripten runtime
 */
 private function getRuntimeFolderFor pArch
@@ -976,7 +980,8 @@ private function getRuntimeFolderFor pArch
    return revEnvironmentRuntimePath() & tRelFolder
 end getRuntimeFolderFor
 
-/*
+/**
+* getRepoBinariesFolder
 * Get the directory where Emscripten binaries end up (specifically,
 * the engine's JavaScript file).
 * Get the directory where Emscripten development binaries and resources are installed to.
@@ -988,7 +993,8 @@ private function getRepoBinariesFolder pArch
    return mapEmscriptenPath(pArch)
 end getRepoBinariesFolder
 
-/*
+/**
+* getTemporaryBuildFile
 * Get a temporary filename in <pBuildFolder> with the extension <pExtension>
 */
 private function getTemporaryBuildFile pBuildFolder pExtension

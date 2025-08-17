@@ -61,44 +61,44 @@ end deployIsAvailable?
 command deployDo pTargetStack, pTargetDevice
    local tError
    put empty into tError
-
+   
    local tSettings
-   --dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
+   --dispatch function "SBGetSettings" to stack "revSBLibrary" with pTargetStack, true
    --put the result into tSettings
-   put revSBGetSettings(pTargetStack, true) into tSettings
-
+   put SBGetSettings(pTargetStack, true) into tSettings
+   
    local tIdentifier
    put tSettings["android,identifier"] into tIdentifier
    if tIdentifier is empty then
       put "com.yourcompany.yourapp" into tIdentifier
    end if
-
+   
    local tDeviceID
    put word 2 to -1 of pTargetDevice into tDeviceID
-
+   
    if tError is empty then
       revStandaloneProgress "Checking target device architecture..."
-
+      
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
             "shell", \
             "getprop", \
             "ro.product.cpu.abi"
-
+      
       local tABI
       put word 1 of line 1 of the result into tABI
       if not (tABI is among the items of "armeabi-v7a,arm64-v8a,x86,x86_64") then
          put "Checking target device architecture failed:" && the result into tError
       end if
-
+      
       local tArch
       put __ABIArch(tABI) into tArch
-      repeat for each item tItem in revSBPlatformArchitectures("Android")
+      repeat for each item tItem in SBPlatformArchitectures("Android")
          put tItem is tArch into tSettings["Android",tItem]
       end repeat
    end if
-
+   
    local tTempApksFile
    if tError is empty then
       /* revSaveAsMobileStandalone expects the full path to the target bundle */
@@ -114,15 +114,15 @@ command deployDo pTargetStack, pTargetDevice
                tSettings, \
                tStandalonePaths, \
                tDeviceID
-
+         
       catch tException
          put "Unable to build app for testing:" && tException into tError
       end try
    end if
-
+   
    if tError is empty then
       revStandaloneProgress "Installing app on target device..."
-
+      
       local tResult
       executeShellCommand pathToJava(), \
             "-jar", \
@@ -138,17 +138,17 @@ command deployDo pTargetStack, pTargetDevice
       --            "--device-id", tDeviceID, \
       --            "--adb", pathToAdb()
       put the result into tResult
-
+      
       if not (tResult contains "The APKs have been extracted") then
          put "Installation of app failed:" && tResult into tError
       end if
    else
       throw tError
    end if
-
+   
    if tError is empty then
       revStandaloneProgress "Launching app on target device..."
-
+      
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
@@ -160,15 +160,15 @@ command deployDo pTargetStack, pTargetDevice
          put "Launch of app failed:" && the result into tError
       end if
    end if
-
+   
    if "revStandaloneProgress" is among the lines of the openStacks then
       close stack "revStandaloneProgress"
    end if
-
+   
    if there is a file tTempApksFile then
       delete file tTempApksFile
    end if
-
+   
    return tError
 end deployDo
 

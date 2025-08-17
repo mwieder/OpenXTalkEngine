@@ -107,9 +107,9 @@ command deployDo pTargetStack, pBrowser
       revStandaloneProgress "Building standalone..."
       
       local tSettings
-      dispatch function "revSBGetSettings" to stack "revSBLibrary" with pTargetStack, true
-      put the result into tSettings
-      --put revSBGetSettings(pTargetStack, true) into tSettings
+      --dispatch function "SBGetSettings" to stack "revSBLibrary" with pTargetStack, true
+      --put the result into tSettings
+      put SBGetSettings(pTargetStack, true) into tSettings
       
       ----------------------------------------------
       # NOTE: from 10.0.0-dp8 : do we want/need this?
@@ -175,9 +175,9 @@ end deployDo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-private function q pString
-   return quote & pString & quote
-end q
+--private function q pString
+--   return quote & pString & quote
+--end q
 
 -- Returns a return delimited list of the form <browser>,<path to exe>
 -- Use an internal command on OSX, the registry in Windows and a static list on Linux.
@@ -338,12 +338,13 @@ private command __deployLaunchURLInBrowser pURL, pBrowser, pPrivateMode?
    end if
 end __deployLaunchURLInBrowser
 
--- Callback from the HTTP daemon.
--- In this case we just want to serve the requested file
--- if it exists in the temp file space.
--- POST requests to stdio.html are log messages from emscripten.
--- Display these in the message box.
---
+/**
+* Callback from the HTTP daemon.
+* In this case we just want to serve the requested file
+* if it exists in the temp file space.
+* POST requests to stdio.html are log messages from emscripten.
+* Display these in the message box.
+*/
 on deployEmscriptenNewHTTPRequest pSocketID, pRequest
    local tPath
    set the itemDel to slash
@@ -387,12 +388,12 @@ on deployEmscriptenNewHTTPRequest pSocketID, pRequest
          local tMsgType, tMsgTypeCount, tMsgBody
          put item 2 to -2 of pRequest["resource"] after msg
          if matchText(tContent, "^\^(.+)\^([0-9]+)\^(.*)$", tMsgType, tMsgTypeCount, tMsgBody) then
-            put " -" && tMsgType && "#" & tMsgTypeCount & return after msg
+            put " -" && tMsgType && "#" & tMsgTypeCount & cr after msg
             if tMsgBody is not empty then
                put tMsgBody & cr after msg
             end if
          else if matchText(tContent, "^\^(.+)\^(.*)$", tMsgType, tMsgBody) then
-            put " -" && tMsgType & return after msg
+            put " -" && tMsgType & cr after msg
             if tMsgBody is not empty then
                put tMsgBody & cr after msg
             end if

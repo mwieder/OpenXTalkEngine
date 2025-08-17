@@ -122,21 +122,21 @@ end suppressDialogs?
 */
 on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
    global gREVStackStatus
-
+   
    try
       if pStack = empty then
          put the short name of the topStack into pStack
       end if
-
+      
       if the fileName of stack pStack = empty then
          put "edited" into gREVStackStatus[pStack]
       end if
-
+      
       # OK-2008-03-13 : Bug 5874. Do a complete check to see if the stack needs to be saved here
       # so we can remove the later check from closeOpenStacks.
       local tEdited
       put false into tEdited
-
+      
       # Find out if the stack or any substack has been edited
       if gREVStackStatus[the short name of stack pStack] is "edited" then
          put true into tEdited
@@ -149,11 +149,10 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
             end if
          end repeat
       end if
-
+      
       local tSettings
-      dispatch function "revSBGetSettings" to stack "revSBLibrary" with pStack
-      put the result into tSettings
-
+      put SBGetSettings(pStack) into tSettings
+      
       -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all mac builds to now be Intel.
       if tSettings["MacOSX"] then
          delete variable tSettings["MacOSX"]
@@ -170,7 +169,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          put true into tSettings["MacOSX x86-64"]
          put true into tEdited
       end if
-
+      
       if tSettings["Android,x86_64"] then
          put true into tSettings["Android"]
          put true into tEdited
@@ -187,11 +186,11 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          put true into tSettings["Android"]
          put true into tEdited
       end if
-
+      
       -- Make sure there is actually something to build..
-      dispatch function "revSBNoPlatforms?" to stack "revSBLibrary" with tSettings
-      if the result is true then
-         --if revSBNoPlatforms?(tSettings) then
+      --dispatch function "revSBNoPlatforms?" to stack "revSBLibrary" with tSettings
+      --if the result is true then
+      if revSBNoPlatforms?(tSettings) then
          local tMessage
          put "You have not selected any platforms to build for. Please do so using Standalone Settings." into tMessage
          if suppressDialogs?() then
@@ -201,7 +200,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          end if
          exit revSaveAsStandalone
       end if
-
+      
       # OK-2010-03-31: Ensure that the standalone name doesn't contain stuff that is not allowed in folder names,
       # otherwise this could cause problems. In particular a return char at the end of the name causes the cleanup
       # routines to try and delete the parent folder, which can result in data loss. The data loss potential has also
@@ -213,7 +212,7 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          put true into tEdited
          revStandaloneAddWarning "Standalone name was changed because it contained illegal characters"
       end if
-
+      
       # OK-2009-05-22 : Added ability to remember default folder. We now do the folder check before saving the stack,
       # so that if the user chose a different folder, it can be remembered for next time.
       local tFolder
@@ -221,21 +220,21 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
       if tFolder is empty then
          exit to top
       end if
-
+      
       # If the folder was changed, then we flag the stack as edited so it gets remembered
       if tSettings["defaultBuildFolder"] is not tFolder then
          put tFolder into tSettings["defaultBuildFolder"]
          put true into tEdited
       end if
-
+      
       put tFolder into pFolder
-
+      
       # If any have been edited, force the save dialog by setting edited on the mainstack
       if tEdited then
          revIDESetEdited pStack
-         revSBSetSettings pStack, tSettings
+         SBSetSettings pStack, tSettings
       end if
-
+      
       local tError
       # Do the check and continue building as normal.
       if revSaveCheck?(pStack) then
@@ -246,17 +245,17 @@ on revSaveAsStandalone pStack, pFolder, pPreview, pSuppressSuccessMsg
          answer warning "Saving as standalone application was canceled"
          exit revSaveAsStandalone
       end if
-
-      if revStandaloneGetWarnings() is not empty and tError is empty then
+      
+      if SBStandaloneGetWarnings() is not empty and tError is empty then
          --         if not revSBSuppressDialogs() then
          --            set the cWarnings of stack "revBuildResults" \
-         --                  to revStandaloneGetWarnings()
+         --                  to SBStandaloneGetWarnings()
          --         end if
       else
          if not suppressDialogs?() and pSuppressSuccessMsg is not true and tError is empty then
             answer information "Standalone application saved successfully."
          end if
-
+         
          if pPreview is not "false" and sStubPath is not empty then
             launch document sStubPath
          end if
@@ -281,9 +280,9 @@ private command doSaveAsStandalone pStack, pFolder, pSettings, @xStandalonePaths
    put the fileType into sResetA["FileType"]
 
    if pSettings is not an array then
-      dispatch function "revSBGetSettings" to stack "revSBLibrary" with pStack
-      put the result into sStandaloneSettingsA
-      --put revSBGetSettings(pStack) into sStandaloneSettingsA
+      --dispatch function "SBGetSettings" to stack "revSBLibrary" with pStack
+      --put the result into sStandaloneSettingsA
+      put SBGetSettings(pStack) into sStandaloneSettingsA
    else
       put pSettings into sStandaloneSettingsA
    end if
@@ -2140,20 +2139,20 @@ end copyReferencedFiles
 private command copyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFolderNewRelative, pRefFilesDestination, pDirectory
    local tFileName, tRelativeFilename
    set the itemDelimiter to "/"
-
+   
    put the filename of pObject into tFileName
-
+   
    local tDestinationFolder
    put pDirectory into tDestinationFolder
    local tStackOwnerFolderNew
    put tDestinationFolder & pStackOwnerFolderNewRelative into tStackOwnerFolderNew
    local tReferencedFilesDestination
    put tDestinationFolder & pRefFilesDestination into tReferencedFilesDestination
-
-   if revSBPathType(tFilename) is "relative" then
-      put revSBCalculateAbsolutePath(pStackOwnerFolderOld, tFilename) into tFileName
+   
+   if SBPathTypeOf(tFilename) is "relative" then
+      put SBCalculateAbsolutePathOf(pStackOwnerFolderOld, tFilename) into tFileName
    end if
-
+   
    -- tFilename now holds the absolute path to the file to include..
    local tNewFilename, tLength
    put length(pStackOwnerFolderOld) into tLength
@@ -2180,7 +2179,7 @@ private command copyReferencedFile pObject, pStackOwnerFolderOld, pStackOwnerFol
       revSBEnsureFolder tReferencedFilesDestination
       SBCopyFileToFile tFilename, tNewFilename, "revStandaloneProgressCallback", the long id of me
    end if
-
+   
    get revSBCalculateRelativePath(tStackOwnerFolderNew, tNewFilename)
    set the filename of pObject to it
 end copyReferencedFile

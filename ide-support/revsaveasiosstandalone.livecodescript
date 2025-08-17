@@ -9,7 +9,9 @@
 --   destroyStack
 --   password
 
-# this is the only public handler in this script
+/**
+* this is the only public handler in this script
+*/
 command saveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    local tTargetType
    if pTarget contains "device" then
@@ -42,8 +44,8 @@ command saveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    end if
    
    -- SN-2014-01-31: [[ Bug 11124 ]] No warning when an external file is missing
-   if revStandaloneGetWarnings() is not empty and pTarget contains "Simulator" then
-      put revStandaloneGetWarnings() & cr after msg
+   if SBStandaloneGetWarnings() is not empty and pTarget contains "Simulator" then
+      put SBStandaloneGetWarnings() & cr after msg
    end if
 end saveAsMobileStandalone
 
@@ -58,7 +60,7 @@ private function getIosSdkInfo? pSDKVersion, @rInfo
    put (it & tSDKPath) into tSettings["sdk path"]
    replace "." with "_" in pSDKVersion
    put pSDKVersion into tSettings["suffix"]
-   put revMobileRuntimeFolder("Device", tSettings["suffix"]) into tSettings["runtime path"]
+   put iOS.MobileRuntimeFolder("Device", tSettings["suffix"]) into tSettings["runtime path"]
    put tSettings into rInfo
    return true
 end getIosSdkInfo?
@@ -80,7 +82,7 @@ private function linkingIsValid? pLinkingOutput
    
    return true
 end linkingIsValid?
-   
+
 constant kIosExternals = "revzip revxml dbsqlite dbmysql dbodbc dbpostgresql revpdfprinter revsecurity"
 private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSettings
    if the platform is not "macos" then
@@ -161,7 +163,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       
       replace "." with "_" in tSuffix
       put tSuffix into tSDKS["sim"]["suffix"]
-      put revMobileRuntimeFolder(pTarget, tSDKs["sim"]["suffix"]) into tSDKs["sim"]["runtime path"]
+      put iOS.MobileRuntimeFolder(pTarget, tSDKs["sim"]["suffix"]) into tSDKs["sim"]["runtime path"]
       
    end if
    
@@ -260,19 +262,19 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    -- MM-2012-09-25: A 4 inch splash screen is required for iphone apps to take up the whole iphone 5 screen space.
    --
    local tCFBundleIcons
-   revDecorateImageAssets pTarget, pSettings, tBaseFolder, pAppBundle, tCFBundleIcons
+   iOS.DecorateImageAssets pTarget, pSettings, tBaseFolder, pAppBundle, tCFBundleIcons
    
    local tPlist, tCustomEntitlements
    revSBUpdateSettingsForExtensions "ios", pSettings
-   revCopyMobileFiles pSettings, tBaseFolder, pAppBundle, pTarget, tSDKs, tRedirects, tCopiedExternals, tCopiedFonts, tPlist, tCustomEntitlements
-   revCopyMobileStackFiles tStackFiles, tBaseFolder, pAppBundle
+   iOS.CopyMobileFiles pSettings, tBaseFolder, pAppBundle, pTarget, tSDKs, tRedirects, tCopiedExternals, tCopiedFonts, tPlist, tCustomEntitlements
+   iOS.CopyMobileStackFiles tStackFiles, tBaseFolder, pAppBundle
    
    -- Copy in the appropriate externals and drivers
-   revCopyMobileExternals tExternals, pAppBundle, pTarget, tSDKs, tCopiedExternals
-   revCopyMobileDrivers tDrivers, pAppBundle, pTarget, tSDKs, tCopiedExternals
+   iOS.CopyMobileExternals tExternals, pAppBundle, pTarget, tSDKs, tCopiedExternals
+   iOS.CopyMobileDrivers tDrivers, pAppBundle, pTarget, tSDKs, tCopiedExternals
    
    -- Generate the plist
-   revCreateMobilePlist pSettings, pAppBundle, pTarget, tCopiedFonts, tPlist, tCFBundleIcons
+   iOS.CreateMobilePlist pSettings, pAppBundle, pTarget, tCopiedFonts, tPlist, tCFBundleIcons
    
    -- Generate the PkgInfo file
    put "APPL????" into url ("binfile:" & pAppBundle & slash & "PkgInfo")
@@ -406,7 +408,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          -- SN-2015-02-05: [[ Bug 14422 ]] The linker minimum iphoneOS version
          --   should be relevant with the desired minimum version.
          -- SN-2015-02-19: [[ Bug 14625 ]] Minimum version is architecture-specific
-         --put revGetMinimumOSByArch(pSettings["ios,minimum version"]) into tVersion
+         --put iOS.GetMinimumOSByArch(pSettings["ios,minimum version"]) into tVersion
          --put "-miphoneos-version-min=" & tVersion["armv7"] & return after tLinkCommand
          
          -- SN-2015-02-23: [[ Bug 14625 ]] Use a iOS 5.1/iOS 7.0 consistent stdlib
@@ -531,7 +533,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
             put tLinkCommand & "-o" && q(tArchSpecificEngineFile) & cr into url ("binfile:" & tLinkOptionsFile)
             
             local tiPhoneMinVersion
-            put revGetMinimumOSByArch(pSettings["ios,minimum version"]) into tiPhoneMinVersion
+            put iOS.GetMinimumOSByArch(pSettings["ios,minimum version"]) into tiPhoneMinVersion
             
             -- MM-2013-09-23: [[ iOS7 Support ]] Use g++ instead of llvm-g++-4.2. XCode 5.0 uses llvm 5.0.
             -- g++ appears to be sym-linked to the appropriate compiler in all SDKS.
@@ -632,7 +634,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    
    -- We want the repo version to be able to build iOS standalones with the fontmap
    if revEnvironmentIsInstalled() then
-      put mapFilePath(revMobileRuntimeFolder(pTarget)) into tStandardFontmapRoot
+      put mapFilePath(iOS.MobileRuntimeFolder(pTarget)) into tStandardFontmapRoot
    else
       local tOldDel
       put the itemdelimiter into tOldDel
@@ -720,7 +722,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    local tEntitlementsOption, tCertificate
    if pTarget is "Device" then
       local tEntitlements, tProfileInfo
-      put revGetMobileProfileInfo(pSettings["ios,profile"]) into tProfileInfo
+      put iOS.GetMobileProfileInfo(pSettings["ios,profile"]) into tProfileInfo
       
       -- Get the list of valid identities that are available
       local tValidIdentities
@@ -751,7 +753,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          throw "could not find a valid identity to use for the selected profile"
       end if
       
-      put url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "Entitlements.xcent")) into tEntitlements
+      put url ("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "Entitlements.xcent")) into tEntitlements
       
       -- Construct the entitlements file
       replace "${GET_TASK_ALLOW}" with not tProfileInfo["store"] in tEntitlements
@@ -762,9 +764,9 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       -- MM-2012-02-12: Added support for push notificaitons entitlements
       if pSettings["ios,push notifications"] then
          if tProfileInfo["store"] then
-            get url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "RemoteNotificationStoreEntitlements.xcent"))
+            get url ("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "RemoteNotificationStoreEntitlements.xcent"))
          else
-            get url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "RemoteNotificationEntitlements.xcent"))
+            get url ("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "RemoteNotificationEntitlements.xcent"))
          end if
          replace "${REMOTE_NOTIFICATIONS}" with it in tEntitlements
       else
@@ -774,7 +776,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       // SN-2015-09-17: [[ BetaApp ]] Add entitlement for beta apps
       local tBetaEntitlement
       if pSettings["ios,beta version"] then
-         put url("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "BetaReportEntitlement.xcent")) into tBetaEntitlement
+         put url("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "BetaReportEntitlement.xcent")) into tBetaEntitlement
       end if
       replace "${BETA_REPORT_ENTITLEMENT}" with tBetaEntitlement in tEntitlements
       
@@ -853,8 +855,8 @@ end __CodesignFrameworks
 --   put pAppName into tProperties["name"]
 --   put pAppId into tProperties["id"]
 --   put pAppExecutables into tProperties["executables"]
---   --put url ("binfile:" & revMobileRuntimeFolder(pTarget) & slash & "StoreEntitlements.xcent") into tProperties["store_entitlements"]
---   --put url ("binfile:" & revMobileRuntimeFolder(pTarget) & slash & "Entitlements.xcent") into tProperties["entitlements"]
+--   --put url ("binfile:" & iOS.MobileRuntimeFolder(pTarget) & slash & "StoreEntitlements.xcent") into tProperties["store_entitlements"]
+--   --put url ("binfile:" & iOS.MobileRuntimeFolder(pTarget) & slash & "Entitlements.xcent") into tProperties["entitlements"]
 --   --put the compress of the arrayEncode of tProperties into url ("binfile:" & pDeployAppBundle & slash & "Contents/MacOS/properties")
 
 --   local tDeploy
@@ -863,7 +865,7 @@ end __CodesignFrameworks
 
 ################################################################################
 
-private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBundle, @rCFBundleIcons
+private command iOS.DecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBundle, @rCFBundleIcons
    local tAssetsFolder
    put tempname() into tAssetsFolder
    create folder tAssetsFolder
@@ -1035,16 +1037,16 @@ private command revDecorateImageAssets pTarget, pSettings, pBaseFolder, pAppBund
       put url ("binfile:" & tCompiledAssetsFolder & slash & tFile) into url ("binfile:" & pAppBundle & slash &  tFile)
    end repeat
    
-   revCompileStoryboardFiles pTarget, pSettings, tMinVersion, tDimensions, pAppBundle
+   iOS.CompileStoryboardFiles pTarget, pSettings, tMinVersion, tDimensions, pAppBundle
    
    -- cleanup
    delete folder tCompiledAssetsFolder
    delete folder tAppIconFolder
    delete folder tAssetsFolder
    
-   -- store the icon-related part of the partial plist in a script local, to use it later in revCreateMobilePlist
+   -- store the icon-related part of the partial plist in a script local, to use it later in iOS.CreateMobilePlist
    put line 5 to -3 of tPartialPlist into rCFBundleIcons
-end revDecorateImageAssets
+end iOS.DecorateImageAssets
 
 private function imageDimensionsOf pImageFile
    local tDims
@@ -1054,17 +1056,17 @@ private function imageDimensionsOf pImageFile
    return tDims
 end imageDimensionsOf
 
-private command revCompileStoryboardFiles pTarget, pSettings, pMinVersion, pImageDimensions, pAppBundle
+private command iOS.CompileStoryboardFiles pTarget, pSettings, pMinVersion, pImageDimensions, pAppBundle
    revStandaloneProgress "Compiling storyboard files..."    
    local tStoryboard
-   put url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "template.storyboard")) into tStoryboard
-
+   put url ("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "template.storyboard")) into tStoryboard
+   
    replace "${LAUNCH_IMAGE_WIDTH}" \
-      with item 1 of pImageDimensions in tStoryboard
+         with item 1 of pImageDimensions in tStoryboard
    replace "${LAUNCH_IMAGE_HEIGHT}" \
-      with item 2 of pImageDimensions in tStoryboard
+         with item 2 of pImageDimensions in tStoryboard
    replace "${LAUNCH_IMAGE_X_ORIGIN}" \
-      with 1024 div 2 - item 1 of pImageDimensions div 2 in tStoryboard
+         with 1024 div 2 - item 1 of pImageDimensions div 2 in tStoryboard
    replace "${LAUNCH_IMAGE_Y_ORIGIN}" \
          with 1366 div 2 - item 2 of pImageDimensions div 2 in tStoryboard
    
@@ -1084,11 +1086,11 @@ private command revCompileStoryboardFiles pTarget, pSettings, pMinVersion, pImag
    put tStoryboard into tLaunchScreenStoryboard
    replace "${LAUNCH_SCREEN}" with "YES" in tLaunchScreenStoryboard
    replace "${CUSTOM_CLASS}" with empty in tLaunchScreenStoryboard
-
+   
    local tLaunchScreenStoryboardFile
    put pAppBundle & "/LaunchScreen.storyboard" into tLaunchScreenStoryboardFile
    put tLaunchScreenStoryboard into url ("file:" & tLaunchScreenStoryboardFile)
-
+   
    get shell("xcrun" && \
          "ibtool" && \
          "--errors" && \
@@ -1105,19 +1107,19 @@ private command revCompileStoryboardFiles pTarget, pSettings, pMinVersion, pImag
    if the result is not 0 then
       throw format("failed to create launch screen: %s", it)
    end if
-
+   
    delete file tLaunchScreenStoryboardFile
-
+   
    put tStoryboard into tStartupScreenStoryboard
    replace "${LAUNCH_SCREEN}" with "NO" in tStartupScreenStoryboard
    replace "${CUSTOM_CLASS}" with \
-      "customClass=" & quote & "com_runrev_livecode_MCIPhoneStartupViewController" & quote \
-      in tStartupScreenStoryboard
-
+         "customClass=" & quote & "com_runrev_livecode_MCIPhoneStartupViewController" & quote \
+         in tStartupScreenStoryboard
+   
    local tStartupScreenStoryboardFile
    put pAppBundle & "/StartupScreen.storyboard" into tStartupScreenStoryboardFile
    put tStartupScreenStoryboard into url ("file:" & tStartupScreenStoryboardFile)
-
+   
    get shell("xcrun" && \
          "ibtool" && \
          "--errors" && \
@@ -1134,28 +1136,28 @@ private command revCompileStoryboardFiles pTarget, pSettings, pMinVersion, pImag
    if the result is not 0 then
       throw format("failed to create startup screen: %s", it)
    end if
-
+   
    delete file tStartupScreenStoryboardFile
-end revCompileStoryboardFiles
+end iOS.CompileStoryboardFiles
 
-private function revModifyMobileImageFile pFile, pType
-   if pFile ends with ".png" then
-      delete char -4 to -1 of pFile
-   end if
-   
-   if pFile ends with "@2x" then
-      delete char -3 to -1 of pFile
-   end if
-   
-   repeat for each item tSuffix in "-Landscape,-Portrait,-72,-114"
-      if pFile ends with tSuffix then
-         delete char -(the number of chars of tSuffix) to -1 of pFile
-         exit repeat
-      end if
-   end repeat
-   
-   return pFile & pType & ".png"
-end revModifyMobileImageFile
+--private function iOS.ModifyMobileImageFile pFile, pType
+--   if pFile ends with ".png" then
+--      delete char -4 to -1 of pFile
+--   end if
+
+--   if pFile ends with "@2x" then
+--      delete char -3 to -1 of pFile
+--   end if
+
+--   repeat for each item tSuffix in "-Landscape,-Portrait,-72,-114"
+--      if pFile ends with tSuffix then
+--         delete char -(the number of chars of tSuffix) to -1 of pFile
+--         exit repeat
+--      end if
+--   end repeat
+
+--   return pFile & pType & ".png"
+--end iOS.ModifyMobileImageFile
 
 ################################################################################
 
@@ -1171,7 +1173,7 @@ private command addToManifest pFile, pName, pAppBundle, @xManifest, @xRedirects
       put pAppBundle & slash & pName & tab & pFile & return after xManifest
       put pName & "//" & pFile & cr after xRedirects
    else if there is a folder pFile then
-      revCopyMobileFilesComputeFolderManifest xManifest, pFile, pAppBundle & slash & pName
+      iOS.CopyMobileFilesComputeFolderManifest xManifest, pFile, pAppBundle & slash & pName
       put pName & "//" & pFile & cr after xRedirects
    else
       revStandaloneAddWarning "File/folder to include in standalone not found:" && q(pFile)
@@ -1187,7 +1189,7 @@ end addToManifest
 --   foobar/baz -> <base>/foobar/baz
 --   C:/foobar/baz -> <base>/baz
 --
-private command revCopyMobileFiles pSettings, pBaseFolder, pAppBundle, pAppTarget, pSDKs, @rRedirects, @rExternals, @rFonts, @rPlist, @rCustomEntitlements
+private command iOS.CopyMobileFiles pSettings, pBaseFolder, pAppBundle, pAppTarget, pSDKs, @rRedirects, @rExternals, @rFonts, @rPlist, @rCustomEntitlements
    revStandaloneProgress "Copying files..."
    
    -- Only use redirects in simulator 4.x
@@ -1360,9 +1362,9 @@ private command revCopyMobileFiles pSettings, pBaseFolder, pAppBundle, pAppTarge
          SBCopyFileToFile tSource, tTarget, "revStandaloneProgressCallback", the long id of me
       end if
    end repeat
-end revCopyMobileFiles
+end iOS.CopyMobileFiles
 
-private command revCopyMobileFilesComputeFolderManifest @xManifest, pSource, pTarget
+private command iOS.CopyMobileFilesComputeFolderManifest @xManifest, pSource, pTarget
    -- Record the folder that is needed
    put pTarget & return after xManifest
    
@@ -1380,11 +1382,11 @@ private command revCopyMobileFilesComputeFolderManifest @xManifest, pSource, pTa
          next repeat
       end if
       
-      revCopyMobileFilesComputeFolderManifest xManifest, pSource & slash & tFolder, pTarget & slash & tFolder
+      iOS.CopyMobileFilesComputeFolderManifest xManifest, pSource & slash & tFolder, pTarget & slash & tFolder
    end repeat
    
    set the folder to tOldFolder
-end revCopyMobileFilesComputeFolderManifest
+end iOS.CopyMobileFilesComputeFolderManifest
 
 ################################################################################
 
@@ -1407,7 +1409,7 @@ end lcextExtractExternal
 -- MM-2012-09-18: Updated to use the new copied externals array instead of the copy files,
 -- where we extract the appropraite external for the instruciton set(s) we are building for.
 --
-private command revCopyMobileExternals pExternals, pAppBundle, pTarget, pSDKs, @rExternals 
+private command iOS.CopyMobileExternals pExternals, pAppBundle, pTarget, pSDKs, @rExternals 
    repeat for each word tInstSet in "sim armv6 armv7 arm64 arm"
       if pSDKs[tInstSet]["suffix"] is not empty then
          repeat for each line tLine in pExternals      
@@ -1426,12 +1428,12 @@ private command revCopyMobileExternals pExternals, pAppBundle, pTarget, pSDKs, @
          end repeat
       end if             
    end repeat     
-end revCopyMobileExternals
+end iOS.CopyMobileExternals
 
 -- MM-2012-09-18: Updated to use the new copied externals array instead of the copy files,
 -- where we extract the appropraite external for the instruciton set(s) we are building for.
 --
-private command revCopyMobileDrivers pDrivers, pAppBundle, pTarget, pSDKs, @rExternals
+private command iOS.CopyMobileDrivers pDrivers, pAppBundle, pTarget, pSDKs, @rExternals
    repeat for each word tInstSet in "sim armv6 armv7 arm64 arm"
       if pSDKs[tInstSet]["suffix"] is not empty then
          repeat for each line tLine in pDrivers
@@ -1450,7 +1452,7 @@ private command revCopyMobileDrivers pDrivers, pAppBundle, pTarget, pSDKs, @rExt
          end repeat
       end if             
    end repeat
-end revCopyMobileDrivers
+end iOS.CopyMobileDrivers
 
 -- Helper function to convert the Xcode version to the format the plist expects. Examples:
 -- 7.2 --> 0720
@@ -1465,14 +1467,14 @@ end convertXcodeVersion
 
 ################################################################################
 
-private command revCopyMobileStackFiles pStackFiles, pBaseFolder, pAppBundle
-end revCopyMobileStackFiles
+private command iOS.CopyMobileStackFiles pStackFiles, pBaseFolder, pAppBundle
+end iOS.CopyMobileStackFiles
 
 ################################################################################
 
 # TODO: Update the minimum
 constant kMINIMUMOSVERSION = "6.0"
-private function revGetMinimumOSByArch pMinimumOS 
+private function iOS.GetMinimumOSByArch pMinimumOS 
    local tMinimumOSByArch  
    -- SN-2015-02-02: [[ Bug 14422 ]] Minimum OS version is the
    --  same for all archs
@@ -1493,13 +1495,13 @@ private function revGetMinimumOSByArch pMinimumOS
    put tMinimumOSByArch["i386"] into tMinimumOSByArch["arm64"]
    put tMinimumOSByArch["i386"] into tMinimumOSByArch["x86-64"]
    return tMinimumOSByArch
-end revGetMinimumOSByArch
+end iOS.GetMinimumOSByArch
 
-private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPlist, pCFBundleIcons
+private command iOS.CreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPlist, pCFBundleIcons
    local tTemplateFile
    
    if pPlist is empty then
-      put mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "Settings.plist") into tTemplateFile
+      put mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "Settings.plist") into tTemplateFile
       if there is no file tTemplateFile then
          throw "could not find plist template for" && tolower(pTarget) && "target"
       end if
@@ -1560,7 +1562,7 @@ private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPl
       put tExeName into tDisplayName
    end if
    
-   put revGetMinimumOSByArch(tMinimumOS) into tMinimumOSByArch
+   put iOS.GetMinimumOSByArch(tMinimumOS) into tMinimumOSByArch
    if tDeviceFamily is empty then
       put "1" into tDeviceFamily
    end if
@@ -1584,7 +1586,7 @@ private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPl
    
    // SN-2015-02-11: [[ Bug 16299 ]] Add ${DISABLE_ATS} in the Plist template
    if pSettings["ios,disable ATS"] then
-      put URL("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "DisableATS.plist")) into tDisableATS
+      put URL("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "DisableATS.plist")) into tDisableATS
    end if
    
    
@@ -1792,7 +1794,7 @@ private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPl
    -- MM-2012-02-12: Added support for push notificaitons and custom URL schemes
    
    if pSettings["ios,push notifications"] then
-      replace "${REMOTE_NOTIFICATION_TYPES}" with URL ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "RemoteNotificationSettings.plist")) in pPlist      
+      replace "${REMOTE_NOTIFICATION_TYPES}" with URL ("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "RemoteNotificationSettings.plist")) in pPlist      
    else
       replace "${REMOTE_NOTIFICATION_TYPES}" with empty in pPlist
    end if
@@ -1807,7 +1809,7 @@ private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPl
    replace "${USES_LOCAL_NOTIFICATIONS}" with "<" & tUsesLocalNotifications & "/>" in pPlist
    
    if pSettings["ios,url name"] is not empty then
-      get URL ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & "URLSchemeSettings.plist"))
+      get URL ("binfile:" & mapFilePath(iOS.MobileRuntimeFolder(pTarget) & slash & "URLSchemeSettings.plist"))
       replace "${BUNDLE_IDENTIFIER}" with tBundleId in it
       replace "${URL_NAME}" with pSettings["ios,url name"] in it
       replace "${URL_TYPES}" with it in pPlist
@@ -1885,11 +1887,11 @@ private command revCreateMobilePlist pSettings, pAppBundle, pTarget, pFonts, pPl
    ----------   
    
    put pPlist into url ("binfile:" & pAppBundle & slash & "Info.plist")   
-end revCreateMobilePlist
+end iOS.CreateMobilePlist
 
 ################################################################################
 
-private function revGetMobileProfileInfo pProfileId
+private function iOS.GetMobileProfileInfo pProfileId
    local tContents
    put url ("file:~/Library/MobileDevice/Provisioning Profiles/" & pProfileId & ".mobileprovision") into tContents
    
@@ -1968,7 +1970,7 @@ private function revGetMobileProfileInfo pProfileId
    
    --   return tInfo
    return stuffInfo(pProfileId, tName, tAppId, tIdentities, tIsDist?)
-end revGetMobileProfileInfo
+end iOS.GetMobileProfileInfo
 
 private function identitiesFromContents pContents
    local tIdentities
@@ -2044,7 +2046,7 @@ private function stuffInfo pProfileId, pName, pAppId, pIdentities, pIsDist?
 end stuffInfo
 
 ################################################################################
-private function revMobileRuntimeFolder pTarget, pVersion
+private function iOS.MobileRuntimeFolder pTarget, pVersion
    local tStub
    if pTarget is "Device" then
       if pVersion is empty then
@@ -2078,7 +2080,7 @@ private function revMobileRuntimeFolder pTarget, pVersion
    end if
    
    return revEnvironmentRuntimePath() & slash & "iOS/" & tStub
-end revMobileRuntimeFolder
+end iOS.MobileRuntimeFolder
 
 ################################################################################
 
