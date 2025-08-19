@@ -1033,7 +1033,7 @@ on SBDefaultStandaloneSettings pStack, @xSettingsA
          put replaceText(kDefaultScriptLibraries,",",cr) into xSettingsA["scriptLibraries"]
       end if
       
-      put revEnvironmentRuntimePath() & "/Windows/x86-32/Support/Sample Icons" into tName
+      put environment.RuntimePath() & "/Windows/x86-32/Support/Sample Icons" into tName
       if xSettingsA["Windows,iconFile"] is empty then
          put tName & "/genericapp.ico" into xSettingsA["Windows,iconFile"]
       end if
@@ -1279,18 +1279,18 @@ end __RecursiveStackFileList
 
 function revEngineCheck? pEngine
    -- MW-2013-06-13: [[ CloneAndRun ]] Assume appropriate things are there if not installed.
-   if not revEnvironmentIsInstalled() then
+   if not environment.IsInstalled?() then
       return true
    end if
-
+   
    -- MW-2013-11-06: [[ LinuxX64 ]] Make sure we check both runtime and user runtime paths
    local tPaths
-   put revEnvironmentRuntimePath() & cr & revEnvironmentUserRuntimePath() into tPaths
+   put environment.RuntimePath() & cr & revEnvironmentUserRuntimePath() into tPaths
    repeat for each line tPath in tPaths
       if tPath is empty then
          next repeat
       end if
-
+      
       -- MM-2014-03-21: [[ PPC Support Dropped ]] Assume all OSX builds to be Intel.
       switch pEngine
          --         case "MacOSX PowerPC-32"
@@ -1470,14 +1470,14 @@ private function __ScriptLibraries
    local tLibs
    put kScriptLibraries into tLibs
    replace comma with return in tLibs
-
+   
    -- user script libraries
    local tEnvironmentScripts
-   put revAbsoluteFolderListing(revEnvironmentResourcesPath("Script Libraries")) into tEnvironmentScripts
-
+   put revAbsoluteFolderListing(environment.ResourcesPath("Script Libraries")) into tEnvironmentScripts
+   
    local tUserScripts
    put revAbsoluteFolderListing(revEnvironmentUserResourcesPath("Script Libraries")) into tUserScripts
-
+   
    local tFiles
    put revCombineFilePaths(tUserScripts,tEnvironmentScripts) into tFiles
    repeat for each line tLine in tFiles
@@ -1485,7 +1485,7 @@ private function __ScriptLibraries
          put return & the short name of stack tLine after tLibs
       end if
    end repeat
-
+   
    return tLibs
 end __ScriptLibraries
 
@@ -1613,7 +1613,7 @@ private function SBDesktopExternalsList pPlatform
    local tListA
    
    local tTargetFolder
-   put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
+   put environment.RuntimePath() & slash & tPlatformFolder into tTargetFolder
    union tListA with SBDesktopExternalsFromFolder(tTargetFolder)
    
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
@@ -1625,24 +1625,24 @@ end SBDesktopExternalsList
 private function SBMobileExternalsFromFolder pFolder
    local tFilesList
    put revSBEnumerateFolder(pFolder) into tFilesList
-
+   
    -- Trim down to the actual files
    local tFilesA
    set the itemdelimiter to slash
    repeat for each line tLine in tFilesList
       put true into tFilesA[item -1 of tLine]
    end repeat
-
+   
    local tFixedExternals
    put revSBExternalsMapping() into tFixedExternals
-
+   
    local tListA
    repeat for each item tItem in tFixedExternals
       if tFilesA[word 1 of tItem] then
          put true into tListA[word 2 to -1 of tItem]
       end if
    end repeat
-
+   
    return tListA
 end SBMobileExternalsFromFolder
 
@@ -1655,7 +1655,7 @@ private function SBMobileExternalsList pPlatform
    local tListA
    
    local tTargetFolder
-   put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
+   put environment.RuntimePath() & slash & tPlatformFolder into tTargetFolder
    union tListA with SBMobileExternalsFromFolder(tTargetFolder)
    
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
@@ -1667,10 +1667,10 @@ end SBMobileExternalsList
 -- Check in the IDE and user-defined externals locations for
 -- Externals.txt files
 function revSBExternalsList pPlatform
-   if not revEnvironmentIsInstalled() then
+   if not environment.IsInstalled?() then
       return SBExternalsBuildList(pPlatform)
    end if
-
+   
    switch pPlatform
       case "MacOSX"
       case "Linux"
@@ -1735,7 +1735,7 @@ private function SBDesktopDatabaseDriversList pPlatform
    local tListA
    
    local tTargetFolder
-   put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
+   put environment.RuntimePath() & slash & tPlatformFolder into tTargetFolder
    union tListA with SBDesktopDatabaseDriversFromFolder(tTargetFolder)
    
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
@@ -1778,7 +1778,7 @@ private function SBMobileDatabaseDriversList pPlatform
    local tListA
    
    local tTargetFolder
-   put revEnvironmentRuntimePath() & slash & tPlatformFolder into tTargetFolder
+   put environment.RuntimePath() & slash & tPlatformFolder into tTargetFolder
    union tListA with SBMobileDatabaseDriversFromFolder(tTargetFolder)
    
    put revEnvironmentUserRuntimePath() & slash & tPlatformFolder into tTargetFolder
@@ -1788,10 +1788,10 @@ private function SBMobileDatabaseDriversList pPlatform
 end SBMobileDatabaseDriversList
 
 function revSBDatabaseDriversList pPlatform
-   if not revEnvironmentIsInstalled() then
+   if not environment.IsInstalled?() then
       return SBDatabaseDriversBuildList(pPlatform)
    end if
-
+   
    switch pPlatform
       case "MacOSX"
       case "Linux"
@@ -2160,7 +2160,7 @@ end SBAvailableResources
 
 -- Additional in-IDE external paths can be added here
 private function SBAdditionalExternalFolders
-   return revEnvironmentExtPath()
+   return environment.ExtPath()
 end SBAdditionalExternalFolders
 
 -- Use the specified getter to fetch all the data about the inclusions
@@ -2195,7 +2195,7 @@ private function revSBAvailablePerPlatformInclusions pGetter, pType
 end revSBAvailablePerPlatformInclusions
 
 private function SBAdditionalExternals
-   if revEnvironmentIsInstalled() then
+   if environment.IsInstalled?() then
       return revSBAvailablePerPlatformInclusions("revSBAdditionalExternalsList", "external")
    else
       return revSBAvailablePerPlatformInclusions("revSBExtExternalsMapping", "external")
@@ -2348,7 +2348,7 @@ end SBInclusionToMobileKey
 command revSBConvertSettingsForPlatform @xSettings, pPlatform
    -- Sanitise the list of externals and route through copy files mechanism
    local tAvailableExternals
-   if revEnvironmentIsInstalled() then
+   if environment.IsInstalled?() then
       put revSBAdditionalExternalsList(pPlatform) into tAvailableExternals
       repeat for each line tLine in xSettings["externals"]
          if tLine is among the lines of tAvailableExternals then
@@ -2363,16 +2363,16 @@ command revSBConvertSettingsForPlatform @xSettings, pPlatform
          end if
       end repeat
    end if
-
+   
    -- Convert from desktop specific keys to mobile
    if xSettings["pdfPrinter"] then
       put "true" into xSettings[SBInclusionToMobileKey("pdfPrinter", "", pPlatform)]
    end if
-
+   
    repeat for each line tLine in xSettings["databaseDrivers"]
       put "true" into xSettings[SBInclusionToMobileKey(tLine, "database driver", pPlatform)]
    end repeat
-
+   
    repeat for each line tLine in xSettings["scriptLibraries"]
       put "true" into xSettings[SBInclusionToMobileKey(tLine, "external", pPlatform)]
    end repeat
@@ -2881,7 +2881,7 @@ end revSBListWidgetsInUse
 
 function SBSuppressDialogs?
    if the environment begins with "development" then
-      return revTestEnvironment()
+      return isTestEnvironment?()
    end if
    return true
 end SBSuppressDialogs?
@@ -3062,8 +3062,8 @@ private command SBUpdateExtensionCodeInclusions pExtension, pPlatform, pArchs, p
       __UpdateSettingsFromCodeFolder tExtCodeFolder, tCodeFolder, pPlatform, pArchs, pSDK, xSettings
    end repeat
    
-   if not revEnvironmentIsInstalled() and \
-         tExtCodeFolder begins with revEnvironmentExtensionsPath() then
+   if not environment.IsInstalled?() and \
+         tExtCodeFolder begins with environment.ExtensionsPath() then
       -- include builds for other platforms
       local tPlatforms
       if pPlatform is "android" then
@@ -3202,7 +3202,7 @@ command revSBSanitiseExternalsList pTarget, @xExternals
    local tAvailableExternals, tFixedExternals, tValidExternals, tPlatform
    put revSBTargetToPlatform(pTarget) into tPlatform
    
-   if revEnvironmentIsInstalled() then
+   if environment.IsInstalled?() then
       put revSBAdditionalExternalsList(tPlatform) into tAvailableExternals
    else
       put revSBExtExternalsMapping() into tAvailableExternals
@@ -3363,7 +3363,7 @@ private command smartChecking pStackFilesList, @xSettings
       put empty into tNewSettings["databaseDrivers"]
       put empty into tNewSettings["externals"]
       
-      put revAbsoluteFolderListing(revEnvironmentResourcesPath("Script Libraries")) into tEnvironmentIcons
+      put revAbsoluteFolderListing(environment.ResourcesPath("Script Libraries")) into tEnvironmentIcons
       put revAbsoluteFolderListing(revEnvironmentUserResourcesPath("Script Libraries")) into tUserIcons
       
    end if
@@ -3548,6 +3548,36 @@ private command revCheckObject pObject,pUserLibraries, @xSettings, @xWidgetKinds
 end revCheckObject
 
 constant kSTANDALONEBINARY = "Standalone"
+
+/**
+* Path to the installed Runtime standalone engine file
+*/
+private function engineBinaryFromInstalledPath pPath
+   local tRunTimePath, tSavedFolder, tFiles
+   
+   put environment.RuntimePath() into tRuntimePath
+   put the folder into tSavedFolder
+   set the folder to tRuntimePath & pPath
+   put the files into tFiles
+   filter tFiles with kSTANDALONEBINARY&"*"
+   set the folder to tSavedFolder
+   return tRuntimePath & slash & pPath & slash & line 1 of tFiles
+   --return tRuntimePath & slash & pPath & slash & kSTANDALONEBINARY
+end engineBinaryFromInstalledPath
+
+private function engineBinaryFromRepoPath pPlatform, pPath
+   local tBinariesPath
+   
+   if pPlatform contains "MacOSX" and the platform is not "macos" or \
+         pPlatform contains "Linux" and the platform is not "linux" or \
+         pPlatform is "Windows" and the platform is not "win32" then
+      put revEnvironmentNonNativeBinariesPath(pPlatform) into tBinariesPath
+   else
+      put revEnvironmentBinariesPath() into tBinariesPath
+   end if
+   return tBinariesPath & slash & pPath & slash & kSTANDALONEBINARY
+end engineBinaryFromRepoPath
+
 /**
 * 
 */
@@ -3563,35 +3593,41 @@ function revSBEnginePath pPlatform
    put "community" into tEdition
    
    -- MW-2013-06-13: [[ CloneAndRun ]] If not installed, then fetch the engine locally.
-   if revEnvironmentIsInstalled() then
+   if environment.IsInstalled?() then
       # MW-2009-06-24: For Mac OS X, engine source is two lines, first is PPC (if any), second
       #   is x86 (if any). Both implies universal build.
       -- MM-2014-03-21: [[ PPC Support Dropped ]] We now only support intel Mac builds. Assume all mac builds to be intel.
       local tRuntimePath
-      put revEnvironmentRuntimePath() into tRuntimePath
+      put environment.RuntimePath() into tRuntimePath
       switch pPlatform
          case "MacOSX"
          case "MacOSX x86-32"
          case "MacOSX x86-64"
          case "MacOSX arm64"
-            return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/" & kSTANDALONEBINARY
+            --return tRuntimePath & "/Mac OS X/x86-64/Standalone.app/Contents/MacOS/" & kSTANDALONEBINARY
+            return engineBinaryFromInstalledPath("Mac OS X/x86-64/Standalone.app/Contents/MacOS")
             break
          case "Windows"
-            return tRuntimePath & "/Windows/x86-32/" & kSTANDALONEBINARY
+            --return tRuntimePath & "/Windows/x86-32/" & kSTANDALONEBINARY
+            return engineBinaryFromInstalledPath("Windows/x86-32")
             break
          case "Windows x86-64"
-            return tRuntimePath & "/Windows/x86-64/" & kSTANDALONEBINARY
+            --return tRuntimePath & "/Windows/x86-64/" & kSTANDALONEBINARY
+            return engineBinaryFromInstalledPath("Windows/x86-64")
             break
          case "Linux"
-            return tRuntimePath & "/Linux/x86-32/" & kSTANDALONEBINARY
+            --return tRuntimePath & "/Linux/x86-32/" & kSTANDALONEBINARY
+            return engineBinaryFromInstalledPath("Linux/x86-32")
             break
             -- MW-2013-11-06: [[ LinuxX64 ]] Compute the correct path for 64-bit linux.
          case "Linux x64"
-            return tRuntimePath & "/Linux/x86-64/" & kSTANDALONEBINARY
+            --return tRuntimePath & "/Linux/x86-64/" & kSTANDALONEBINARY
+            return engineBinaryFromInstalledPath("Linux/x86-64")
             break
             -- FG-2014-08-19: [[ RPi ]] Compute the correct path for ARMv6 Linux
          case "Linux armv6-hf"
-            return tRuntimePath & "/Linux/armv6-hf/" & kSTANDALONEBINARY
+            --return tRuntimePath & "/Linux/armv6-hf/" & kSTANDALONEBINARY
+            return engineBinaryFromInstalledPath("Linux/armv6-hf")
             break
          default
             return "error"
@@ -3616,16 +3652,16 @@ function revSBEnginePath pPlatform
             return tBinariesPath & "/Standalone.app/Contents/MacOS/" & kSTANDALONEBINARY
             break;
          case "Windows"
-            return tBinariesPath & slash & "standalone-" & tEdition & ".exe"
+            return tBinariesPath & slash & toLower(kSTANDALONEBINARY) & "-" & tEdition & ".exe"
             break
          case "Linux"
-            return tBinariesPath & slash & toLower("standalone-" & tEdition)
+            return tBinariesPath & slash & toLower(kSTANDALONEBINARY & "-" & tEdition)
             break
          default
             return empty
             break
       end switch
-   end if # revEnvironmentIsInstalled
+   end if # environment.IsInstalled?
 end revSBEnginePath
 
 # TODO: move this to revSaveAsStandalone ?

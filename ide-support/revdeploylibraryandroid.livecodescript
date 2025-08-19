@@ -572,10 +572,10 @@ function searchMobileRuntimeFolder pCommand
    local tPath
    put revEnvironmentUserRuntimePath() & slash & "Android" & slash & pCommand into tPath
    if there is a file tPath then return tPath
-
-   put revEnvironmentRuntimePath() & slash & "Android" & slash & pCommand into tPath
+   
+   put environment.RuntimePath() & slash & "Android" & slash & pCommand into tPath
    if there is a file tPath then return tPath
-
+   
    return empty
 end searchMobileRuntimeFolder
 
@@ -721,7 +721,7 @@ end pathToBundleTool
 
 private function pathToBundleToolDir
    local tCachePath
-   put revEnvironmentUserCachePath() & slash & "Android" & slash & "bundletool" into tCachePath
+   put environment.UserCachePath() & slash & "Android" & slash & "bundletool" into tCachePath
    ensureFolderPath tCachePath
    return tCachePath
 end pathToBundleToolDir
@@ -799,12 +799,12 @@ end pathToLocalDependency
 
 private function pathToDependencyCache
    local tCachePath
-   put revEnvironmentUserCachePath() & slash & "Android" & slash & "Repository" into tCachePath
+   put environment.UserCachePath() & slash & "Android" & slash & "Repository" into tCachePath
    ensureFolderPath tCachePath
    if there is not a folder tCachePath then
       return empty
    end if
-
+   
    return tCachePath
 end pathToDependencyCache
 

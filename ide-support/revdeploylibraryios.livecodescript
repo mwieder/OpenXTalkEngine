@@ -144,7 +144,7 @@ end revIDEDeployIOSGetSDKVersionFromSimulatorVersion
 -- Invoked when the Deploy/Simulate button is clicked on the menubar
 command deployDo pTargetStack, pSimulator, pAppBundle
    -- The error that occurred (if any)
-   local tError, tRunningTest
+   local tError, tRunningTest?
    put empty into tError
    
    local tSettings
@@ -152,7 +152,7 @@ command deployDo pTargetStack, pSimulator, pAppBundle
    --put the result into tSettings
    put SBGetSettings(pTargetStack, true) into tSettings
    
-   put revTestEnvironment() into tRunningTest
+   put isTestEnvironment?() into tRunningTest?
    
    -- First attempt to rebuild the current top-stack
    local tTempFolder
@@ -391,7 +391,7 @@ command deployDo pTargetStack, pSimulator, pAppBundle
          -- Now see if the runaway timer has elapsed
          
          -- If running in the test system do not show warning dialog
-         if not tRunningTest then
+         if not tRunningTest? then
             if the millisecs > tRunawayTimer then
                answer "The simulator seems to be taking a long time to launch the application. Do you wish to continue trying?" with "Yes" and "No"
                if it is "No" then

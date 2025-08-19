@@ -765,8 +765,8 @@ private function mapBinPath pArch, pPath
    if there is a file pPath then
       return pPath
    end if
-
-   if revEnvironmentIsInstalled() then
+   
+   if environment.IsInstalled?() then
       # We're running from an installed version of LiveCode
       return getRuntimeFolderFor(pArch) & slash & pPath
    else
@@ -855,13 +855,22 @@ end scanFolder_recurse
 */
 private function getEngineFiles pArch
    local tFilesArray
+   local tSavedFolder, tFiles
+   local tStandaloneMem
    
    switch pArch
       case "js"
          # HTML5 engine JavaScript
          local tStandalone
-         put mapBinPath("js", "standalone.js") into tStandalone
+         put the folder into tSavedFolder
+         set the folder to mapBinPath("js")
+         put the files into tFiles
+         filter tFiles with "standalone*.js"
+         sort tFiles ascending
+         put line 1 of tFiles into tStandalone
+         --put mapBinPath("js", "standalone.js") into tStandalone
          if there is a file tStandalone then
+            put the folder & "/" & line 1 of tFiles into tStandalone
          else
             put mapBinPath("js", "standalone-"&kEdition&"-"&kStandaloneVersion&".js") into tStandalone
          end if
@@ -869,21 +878,56 @@ private function getEngineFiles pArch
          # HTML5 memory initialisation file
          --         put mapBinPath("js", "standalone-"&kEdition&"-"&kStandaloneVersion&".html.mem") \
          --               into tFilesArray["standalone"&".html.mem"]
-         put mapBinPath("js", "standalone.html.mem") \
-               into tFilesArray["standalone.html.mem"]
+         put the files into tFiles
+         filter tFiles with "standalone*.html.mem"
+         sort tFiles ascending
+         put line 1 of tFiles into tStandaloneMem
+         if there is a file tStandaloneMem then
+            put the folder & "/" & tStandaloneMem into tFilesArray["standalone.html.mem"]
+         else
+            put mapBinPath("js", "standalone.html.mem") \
+                  into tFilesArray["standalone.html.mem"]
+         end if
+         set the folder to tSavedFolder
          break
       case "wasm"
       default
          # WASM engine JavaScript
-         put mapBinPath("wasm", "standalone.js") \
-               into tFilesArray["standalone.js"]
+         put the folder into tSavedFolder
+         set the folder to mapBinPath("wasm")
+         put the files into tFiles
+         filter tFiles with "standalone*.js"
+         sort tFiles ascending
+         put line 1 of tFiles into tStandalone
+         if there is a file tStandalone then
+            put the folder & "/" & line 1 of tFiles into tStandalone
+         else
+            put mapBinPath("js", "standalone-"&kEdition&"-"&kStandaloneVersion&".js") into tStandalone
+         end if
+         put tStandalone into tFilesArray["standalone.js"]
+         
+         --         put mapBinPath("wasm", "standalone.js") \
+         --               into tFilesArray["standalone.js"]
          # WASM engine WebAssembly binary
-         put mapBinPath("wasm", "standalone.wasm") \
-               into tFilesArray["standalone.wasm"]
+         
+         put the files into tFiles
+         filter tFiles with "standalone*.wasm"
+         sort tFiles ascending
+         put line 1 of tFiles into tStandaloneMem
+         if there is a file tStandaloneMem then
+            put the folder & "/" & tStandaloneMem into tFilesArray["standalone.wasm"]
+         else
+            put mapBinPath("wasm", "standalone.wasm") \
+                  into tFilesArray["standalone.wasm"]
+         end if
+         
+         --         put mapBinPath("wasm", "standalone.wasm") \
+         --               into tFilesArray["standalone.wasm"]
          # ICU data
          put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
          put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
          put mapCommonPath("icu-coll.dat") into tFilesArray["icu-coll.dat"]
+         set the folder to tSavedFolder
          break
    end switch
    
@@ -948,9 +992,9 @@ end getStartupTemplateFile
 * Get the directory containing the Emscripten runtime
 */
 private function getRuntimeFolderFor pArch
-
+   
    local tRelFolder, tOverridePath, tUserPath
-
+   
    switch pArch
       case "wasm"
       case "js"
@@ -958,17 +1002,17 @@ private function getRuntimeFolderFor pArch
       default
          throw param(0) && "pArch should be js or wasm but is" && pArch
    end switch
-
+   
    put slash & "Emscripten" & slash & pArch into tRelFolder
-
-   put revOverrideRuntimePath() into tOverridePath
+   
+   put overrideRuntimePath() into tOverridePath
    if tOverridePath is not empty then
       put tRelFolder after tOverridePath
       if there is a folder tOverridePath then
          return tOverridePath
       end if
    end if
-
+   
    put revEnvironmentUserRuntimePath() into tUserPath
    if tUserPath is not empty then
       put tRelFolder after tUserPath
@@ -976,8 +1020,8 @@ private function getRuntimeFolderFor pArch
          return tUserPath
       end if
    end if
-
-   return revEnvironmentRuntimePath() & tRelFolder
+   
+   return environment.RuntimePath() & tRelFolder
 end getRuntimeFolderFor
 
 /**

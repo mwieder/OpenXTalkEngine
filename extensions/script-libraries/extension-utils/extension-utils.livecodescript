@@ -353,7 +353,7 @@ end extensionOrderByDependency
 
 private function __extensionResourcePath
    if the environment begins with "development" then
-      if revEnvironmentIsInstalled() is false then
+      if environment.IsInstalled?() is false then
          return revEnvironmentBinariesPath()
       else
          return revIDESpecialFolderPath("Toolchain")
@@ -712,27 +712,27 @@ command extensionExtractDocs pDocsParser, pOutputDir
    if there is not a stack pDocsParser then
       exit extensionExtractDocs
    end if
-
+   
    start using stack pDocsParser
-
+   
    __EnsurePath pOutputDir
-
+   
    if there is not a folder pOutputDir then
       throw "Error: could not create output directory: " & pOutputDir
    end if
-
+   
    # Items 3 onwards in 'the params' are quoted full paths to source files
    local tSourceFiles
    repeat for each item tItem in item 3 to -1 of the params
       appendToStringList tSourceFiles, char 2 to -2 of tItem
    end repeat
-
+   
    repeat for each line tSourceFile in tSourceFiles
       local tName, tSource, tContent, tDocs
-
+      
       if tSourceFile ends with "lcb" then
          put "api" into tName
-         put revDocsGenerateDocsFileFromModularFile(tSourceFile) into tDocs
+         put docs.GenerateDocsFileFromModularFile(tSourceFile) into tDocs
       else
          if there is a stack tSourceFile then
             put "api" into tName
@@ -751,13 +751,13 @@ command extensionExtractDocs pDocsParser, pOutputDir
          else
             throw "Error: stack not found: " & tSourceFile
          end if
-         put revDocsGenerateDocsFileFromText(tContent, tSource) into tDocs
+         put docs.GenerateDocsFile.FromText(tContent, tSource) into tDocs
       end if
-
+      
       put textEncode(tDocs, "UTF-8") into tDocs
-
+      
       replace numToByte(13) with numToByte(10) in tDocs
-
+      
       put tDocs into url ("binfile:" & pOutputDir & "/" & tName & ".lcdoc")
    end repeat
 end extensionExtractDocs

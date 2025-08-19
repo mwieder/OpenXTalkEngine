@@ -423,7 +423,7 @@ end doSaveAsStandalone
 private function standalonePlatformDetails pTarget
    local tPlatform
    put revSBTargetToPlatform(pTarget) into tPlatform
-
+   
    local tDetailsA
    -- SN-2015-03-04: [[ IDE Restructure ]] Externals folder contains the externals,
    --  and Support contains support libraries (revpdfprinter and revsecurity):
@@ -478,11 +478,11 @@ private function standalonePlatformDetails pTarget
       default
          throw "invalid target" && pTarget
    end switch
-
+   
    -- SN-2015-03-04: [[ CloneAndRun ]] Refactor the setting of externals / support location
    local tRuntimeFolder
-   if revEnvironmentIsInstalled() then
-      put revEnvironmentRuntimePath() & slash & tArchFolder into tRuntimeFolder
+   if environment.IsInstalled?() then
+      put environment.RuntimePath() & slash & tArchFolder into tRuntimeFolder
       put tRuntimeFolder & slash & "Support" into tDetailsA["support_folder"]
       put tRuntimeFolder & slash & "Externals" into tDetailsA["externals_folder"]
    else
@@ -503,8 +503,8 @@ private function getIcuBundleNames
 end getIcuBundleNames
 
 private function mapCommonPath pPath
-   if revEnvironmentIsInstalled() then
-      return revEnvironmentRuntimePath() & slash & "Common" & slash & pPath
+   if environment.IsInstalled?() then
+      return environment.RuntimePath() & slash & "Common" & slash & pPath
    else
       return revEnvironmentBinariesPath() & slash & pPath
    end if
@@ -654,17 +654,17 @@ private command saveAsStandalone.Mac pStack, pRestoreFileName, pFolder, @xStanda
    local tStackFileList, tEngineSourceFile, tCount, tStackName, tStandalonePath
    local tDirectory, tStackSourceFile, tName, tOriginalFileName, tStackPath
    local tTargetDir
-
+   
    set the itemDelimiter to slash
    put the effective filename of stack pStack into tOriginalFileName
    put item 1 to -2 of tOriginalFileName into tStackPath
    set the itemDelimiter to comma
-
+   
    -- icon and resource file relative path handling
    if there is a file (tStackPath&"/" & sStandaloneSettingsA["MacOS,includeResources"]) then
       put tStackPath & "/" before sStandaloneSettingsA["MacOS,includeResources"]
    end if
-
+   
    -- OK-2008-03-24 : Bug 6171. Restructured a little to ensure that the icon can be either relative or absolute.
    -- If the icon cannot be found at the exact location, assume its relative to the stack and put the stack path before it.
    if sStandaloneSettingsA["OSX,iconFile"] is not empty then
@@ -674,23 +674,23 @@ private command saveAsStandalone.Mac pStack, pRestoreFileName, pFolder, @xStanda
          put tStackPath & "/" before sStandaloneSettingsA["OSX,iconFile"]
       end if
    end if
-
+   
    -- If the icon cannot be found (and we are building for OS X and its not empty) then add a warning.
    if sStandaloneSettingsA["MACOSX"] is true and there is no file sStandaloneSettingsA["OSX,iconFile"] and sStandaloneSettingsA["OSX,iconFile"] is not empty then
       revStandaloneAddWarning "Icon does not exist:" & tStackPath & "/" & sStandaloneSettingsA["OSX,iconFile"]
    end if
-
+   
    if there is a file (tStackPath & "/" & sStandaloneSettingsA["OSX,documenticonFile"]) then
       put tStackPath & "/" before sStandaloneSettingsA["OSX,documenticonFile"]
    end if
    if there is a file (tStackPath & "/" & sStandaloneSettingsA["OSX,plist"]) then
       put tStackPath & "/" before sStandaloneSettingsA["OSX,plist"]
    end if
-
+   
    -- Architectures
    local tArchitectures
    if sStandaloneSettingsA["MacOSX x86-64"] then put "x86-64," after tArchitectures
-
+   
    /* Building for arm64 is not supported on macOS < 10.13 as codesign does
    * not have the required support for the arm64 slice. */
    set the itemDelimiter to "."
@@ -698,54 +698,54 @@ private command saveAsStandalone.Mac pStack, pRestoreFileName, pFolder, @xStanda
       put "arm64," after tArchitectures
    end if
    set the itemDelimiter to comma
-
+   
    delete char -1 of tArchitectures
-
+   
    -- keep a copy of the standalone settings to restore after each build
    local tStandaloneSettingsA
    put sStandaloneSettingsA into tStandaloneSettingsA
    repeat for each key tTarget in sPlatformDirectoriesA["MacOSX"]
       put sPlatformDirectoriesA["MacOSX"][tTarget] into tTargetDir
       put tTargetDir & normalizeForDisk(sStandaloneSettingsA["name"]) & ".app/Contents/MacOS/" into tDirectory
-
+      
       -- Ensure standalone settings script local is reset when building for subsequent targets
       put tStandaloneSettingsA into sStandaloneSettingsA
-
+      
       standalonePreBuild pStack, pFolder, "macosx", tArchitectures, tStackName, tStackFileList
       if the result is not empty then
          return the result
       end if
-
+      
       -- copy files to each directory
       -- put the path to the engine into tEngineSourceFile
       put revSBEnginePath(tTarget) into tEngineSourceFile
-
+      
       -- Allows the test system to build a standalone against any version
-      if revOverrideRuntimePath() is not empty then
-         put revOverrideRuntimePath() into tEngineSourceFile
+      if overrideRuntimePath() is not empty then
+         put overrideRuntimePath() into tEngineSourceFile
       end if
-
+      
       -- Ensure executable is at the expected location
       if there is not a file tEngineSourceFile then
          throw "Standalone: Ensure that you have not renamed the main XTalk executable file: " \
                & cr & tTarget && tEngineSourceFile
       end if
-
+      
       put tDirectory & normalizeForDisk(sStandaloneSettingsA["name"]) into tStandalonePath
-
+      
       put tStandalonePath into xStandalonePaths[tTarget]
-
+      
       put tDirectory & tStackName into tStackSourceFile
-
+      
       standaloneCopyInclusions pStack, tStackFileList, tStackSourceFile, \
             tTarget, tDirectory, tStackPath, tStandalonePath, tEngineSourceFile
-
+      
       local tDeployInfo
       put standaloneInitialDeployParams(tTarget, tStackSourceFile, \
             tStandalonePath, tEngineSourceFile) into tDeployInfo
-
+      
       put tArchitectures into tDeployInfo["architectures"]
-
+      
       # AL-2015-01-29: [[ Scriptify IDE ]] Add OSX App icons to deploy parameters
       if sStandaloneSettingsA["OSX,appicon"]  is not empty then
          put cr & "revInternal__SetAppIcon" && sStandaloneSettingsA["OSX,appicon"] after tDeployInfo["startup_script"]
@@ -753,21 +753,21 @@ private command saveAsStandalone.Mac pStack, pRestoreFileName, pFolder, @xStanda
       if sStandaloneSettingsA["OSX,smallappicon"]  is not empty then
          put cr & "revInternal__SetSmallAppIcon" && sStandaloneSettingsA["OSX,smallappicon"] after tDeployInfo["startup_script"]
       end if
-
+      
       -- Add a random uuid to use in the executable's uuid load command.
       put uuid() into tDeployInfo["uuid"]
-
+      
       standaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
-
+      
       -- Make sure we finish off the bundle contents
       setMacOS tStandalonePath, tTarget, tEngineSourceFile
-
+      
       redirectMacOSResources tStandalonePath
-
+      
       --Restore stack to its post-savingStandalone message state
       __RestoreStackFromTemporaryLocation pStack, pRestoreFileName, tOriginalFileName
    end repeat
-
+   
    if the platform is "MacOS" then
       local tAppBundle
       set the itemDel to slash
@@ -776,9 +776,9 @@ private command saveAsStandalone.Mac pStack, pRestoreFileName, pFolder, @xStanda
       clearExtendedAttributes tAppBundle
       performAdHocCodesign tAppBundle
    end if
-
+   
    standalonePostBuild pStack, pFolder
-
+   
    return empty
 end saveAsStandalone.Mac
 
@@ -797,8 +797,8 @@ end performAdHocCodesign
 
 private function getPathToEntitlementsFile
    local tEntitlementsFilePath
-   if revEnvironmentIsInstalled() then
-      put revEnvironmentRuntimePath() & "/Mac OS X/x86-64/entitlements.plist" \
+   if environment.IsInstalled?() then
+      put environment.RuntimePath() & "/Mac OS X/x86-64/entitlements.plist" \
             into tEntitlementsFilePath
    else
       put revEnvironmentRepositoryPath() & "/engine/rsrc/entitlements.plist" \
@@ -824,27 +824,27 @@ private command clearExtendedAttributes pAppBundle
 end clearExtendedAttributes
 
 private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xStandalonePaths
-
+   
    local tOriginalFileName
    put the effective filename of stack pStack into tOriginalFileName
-
+   
    local tStackPath
    set the itemDelimiter to slash
    put item 1 to -2 of tOriginalFileName into tStackPath
    set the itemDelimiter to comma
-
+   
    local tSampleIconFolder
-   put revEnvironmentRuntimePath() & "/Windows/x86-32/Support/Sample Icons" \
+   put environment.RuntimePath() & "/Windows/x86-32/Support/Sample Icons" \
          into tSampleIconFolder
-
+   
    local tIconFile
    put sStandaloneSettingsA["Windows,iconFile"] into tIconFile
-
-   if not revEnvironmentIsInstalled() and \
+   
+   if not environment.IsInstalled?() and \
          tIconFile contains "genericapp.ico" then
       put empty into tIconFile
    end if
-
+   
    if tIconFile is not empty then
       /* Check if the icon path given is relative to the stack path, and use
       * that if so */
@@ -855,9 +855,9 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
          put empty into tIconFile
       end if
    end if
-
+   
    if tIconFile is empty then
-      if revEnvironmentIsInstalled() then
+      if environment.IsInstalled?() then
          put tSampleIconFolder & "/genericapp.ico" into tIconFile
       else
          /* Use the icon from 'rsrc' by default if running from source */
@@ -865,17 +865,17 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
                into tIconFile
       end if
    end if
-
+   
    put tIconFile into sStandaloneSettingsA["Windows,iconFile"]
-
+   
    local tDocIconFile
    put sStandaloneSettingsA["Windows,documenticonFile"] into tDocIconFile
-
-   if not revEnvironmentIsInstalled() and \
+   
+   if not environment.IsInstalled?() and \
          tDocIconFile contains "genericdoc.ico" then
       put empty into tDocIconFile
    end if
-
+   
    if tDocIconFile is not empty then
       /* Check if the icon path given is relative to the stack path, and use
       * that if so */
@@ -886,9 +886,9 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
          put empty into tDocIconFile
       end if
    end if
-
+   
    if tDocIconFile is empty then
-      if revEnvironmentIsInstalled() then
+      if environment.IsInstalled?() then
          put tSampleIconFolder & "/genericdoc.ico" into tDocIconFile
       else
          /* Use the icon from 'rsrc' by default if running from source */
@@ -896,21 +896,21 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
                into tDocIconFile
       end if
    end if
-
+   
    put tDocIconFile into sStandaloneSettingsA["Windows,documenticonFile"]
-
+   
    /* Keep a copy of the standalone settings to restore after each build */
    local tStandaloneSettingsA
    put sStandaloneSettingsA into tStandaloneSettingsA
-
+   
    repeat for each key tTarget in sPlatformDirectoriesA["Windows"]
       local tDirectory
       put sPlatformDirectoriesA["Windows"][tTarget] into tDirectory
-
+      
       /* Ensure standalone settings script local is reset when building for
       * subsequent targets */
       put tStandaloneSettingsA into sStandaloneSettingsA
-
+      
       local tArch, tRuntimeDir
       if word 2 of tTarget is among the items of "x64,x86-64,x86_64" then
          put "x86_64" into tArch
@@ -922,7 +922,7 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
          put "x86" into tArch
          put "x86-32" into tRuntimeDir
       end if
-
+      
       local tStackFileList, tStackName
       standalonePreBuild \
             pStack, \
@@ -934,29 +934,29 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
       if the result is not empty then
          return the result
       end if
-
+      
       local tEngineSourceFile
       put revSBEnginePath(tTarget) into tEngineSourceFile
-
+      
       /* Allows the test system to build a standalone against any version */
-      if revOverrideRuntimePath() is not empty then
-         put revOverrideRuntimePath() into tEngineSourceFile
+      if overrideRuntimePath() is not empty then
+         put overrideRuntimePath() into tEngineSourceFile
       end if
-
+      
       /* Ensure executable is at the expected location */
       if there is not a file tEngineSourceFile then
          throw "Standalone: Ensure that you have not renamed the main" && \
                "XTalk executable file: " & cr & tEngineSourceFile
       end if
-
+      
       local tStandalonePath
       put format("%s%s.exe", tDirectory, sStandaloneSettingsA["name"]) \
             into tStandalonePath
       put tStandalonePath into xStandalonePaths[tTarget]
-
+      
       local tStackSourceFile
       put tDirectory & tStackName into tStackSourceFile
-
+      
       standaloneCopyInclusions \
             pStack, \
             tStackFileList, \
@@ -966,7 +966,7 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
             tStackPath, \
             tStandalonePath, \
             tEngineSourceFile
-
+      
       local tDeployInfo
       put standaloneInitialDeployParams( \
             tTarget, \
@@ -974,19 +974,19 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
             tStandalonePath, \
             tEngineSourceFile) \
             into tDeployInfo
-
+      
       /* Make sure we include the app icon if any */
       if sStandaloneSettingsA["Windows,iconFile"] is not empty then
          put sStandaloneSettingsA["Windows,iconFile"] \
                into tDeployInfo["appIcon"]
       end if
-
+      
       /* Make sure we include the doc icon if any */
       if sStandaloneSettingsA["Windows,documentIconFile"] is not empty then
          put sStandaloneSettingsA["Windows,documentIconFile"] \
                into tDeployInfo["docIcon"]
       end if
-
+      
       /* Make sure we use the user's version info data */
       put format( \
             "%s.%s.%s.%s", \
@@ -995,7 +995,7 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
             sStandaloneSettingsA["Windows,fileversion3"], \
             sStandaloneSettingsA["Windows,fileversion4"]) \
             into sStandaloneSettingsA["Windows,FileVersion"]
-
+      
       put format( \
             "%s.%s.%s.%s", \
             sStandaloneSettingsA["Windows,productversion1"], \
@@ -1003,26 +1003,26 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
             sStandaloneSettingsA["Windows,productversion3"], \
             sStandaloneSettingsA["Windows,productversion4"]) \
             into sStandaloneSettingsA["Windows,ProductVersion"]
-
+      
       repeat for each item tField in kVersionFlds
          put sStandaloneSettingsA["Windows", tField] \
                into tDeployInfo["version"][tField]
       end repeat
-
+      
       local tXMLTemplateSourceFolder
-      if revEnvironmentIsInstalled() then
-         put revEnvironmentRuntimePath() &  "/Windows/" & tRuntimeDir \
+      if environment.IsInstalled?() then
+         put environment.RuntimePath() &  "/Windows/" & tRuntimeDir \
                into tXMLTemplateSourceFolder
       else
          put revEnvironmentRepositoryPath() & "/engine/rsrc" \
                into tXMLTemplateSourceFolder
       end if
-
+      
       # Manifest sections are split into separate template files.
       local tManifestData, tManifestPath, tManifestNeeded
       put empty into tManifestData
       put false into tManifestNeeded
-
+      
       put tXMLTemplateSourceFolder & "/w32-manifest-template.xml" \
             into tManifestPath
       if there is not a file tManifestPath then
@@ -1033,12 +1033,12 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
       else
          put url ("file:" & tManifestPath) into tManifestData
       end if
-
+      
       # If the user has chosen something other than "default" from the UAC
       # execution level drop-down then the manifest is needed
       local tExecutionLevel
       put sStandaloneSettingsA["Windows,uacExecutionLevel"] into tExecutionLevel
-
+      
       local tManifestTrustInfo
       put empty into tManifestTrustInfo
       if tExecutionLevel is not empty and \
@@ -1046,7 +1046,7 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
          local tManifestTrustInfoPath
          put tXMLTemplateSourceFolder & "/w32-manifest-template-trustinfo.xml" \
                into tManifestTrustInfoPath
-
+         
          if there is not a file tManifestTrustInfoPath then
             revStandaloneAddWarning \
                   format( \
@@ -1059,18 +1059,18 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
             put true into tManifestNeeded
          end if
       end if
-
+      
       /* If DPI scaling is enabled then then the manifest is needed */
       local tUsePixelScaling
       put sStandaloneSettingsA["Windows,usePixelScaling"] into tUsePixelScaling
-
+      
       local tManifestApplication
       if tUsePixelScaling is empty or \
             tUsePixelScaling is true then
          local tManifestApplicationPath
          put tXMLTemplateSourceFolder & "/w32-manifest-template-dpiaware.xml" \
                into tManifestApplicationPath
-
+         
          if there is not a file tManifestApplicationPath then
             revStandaloneAddWarning \
                   format( \
@@ -1082,54 +1082,54 @@ private command saveAsStandalone.Windows pStack, pRestoreFileName, pFolder, @xSt
             put true into tManifestNeeded
          end if
       end if
-
+      
       if tManifestNeeded and tManifestData is not empty then
          replace "[[trustInfo]]" with tManifestTrustInfo in tManifestData
          replace "[[application]]" with tManifestApplication in tManifestData
-
+         
          local tManifestFile
          put the tempName into tManifestFile
          put tManifestData into url ("binfile:" & tManifestFile)
          put tManifestFile into tDeployInfo["manifest"]
       end if
-
+      
       /* If console mode has been requested, then set the option. */
       if sStandaloneSettingsA["Windows,console"] then
          put true into tDeployInfo["console"]
       end if
-
+      
       standaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
-
+      
       /* Restore stack to its post-savingStandalone message state */
       __RestoreStackFromTemporaryLocation \
             pStack, \
             pRestoreFileName, \
             tOriginalFileName
    end repeat
-
+   
    standalonePostBuild pStack, pFolder
-
+   
    return empty
 end saveAsStandalone.Windows
 
 private command saveAsStandalone.Linux pStack, pRestoreFileName, pFolder, @xStandalonePaths
    local tStackFileList, tEngineSourceFile, tCount, tStackName, tStandalonePath
    local tDirectory, tStackSourceFile, tName, tStackPath, tOriginalFileName
-
+   
    set the itemDelimiter to slash
    put the effective filename of stack pStack into tOriginalFileName
    put item 1 to -2 of tOriginalFileName into tStackPath
    set the itemDelimiter to comma
-
+   
    -- keep a copy of the standalone settings to restore after each build
    local tStandaloneSettingsA
    put sStandaloneSettingsA into tStandaloneSettingsA
    repeat for each key tTarget in sPlatformDirectoriesA["Linux"]
       put sPlatformDirectoriesA["Linux"][tTarget] into tDirectory
-
+      
       -- Ensure standalone settings script local is reset when building for subsequent targets
       put tStandaloneSettingsA into sStandaloneSettingsA
-
+      
       local tArch
       if word 2 of tTarget is among the items of "x64,x86-64,x86_64" then
          put "x86_64" into tArch
@@ -1142,48 +1142,48 @@ private command saveAsStandalone.Linux pStack, pRestoreFileName, pFolder, @xStan
       if the result is not empty then
          return the result
       end if
-
+      
       -- Always add print dialogs to linux standalones when searching for inclusions
       if sStandaloneSettingsA["inclusions"] = "search" then
          put true into sStandaloneSettingsA["revolutionPrintDialogs"]
       end if
-
+      
       -- copy files to each directory
       -- put the path to the engine into tEngineSourceFile
       put revSBEnginePath(tTarget) into tEngineSourceFile
-
+      
       -- Allows the test system to build a standalone against any version
-      if revOverrideRuntimePath() is not empty then
-         put revOverrideRuntimePath() into tEngineSourceFile
+      if overrideRuntimePath() is not empty then
+         put overrideRuntimePath() into tEngineSourceFile
       end if
-
+      
       -- Ensure executable is at the expected location
       if there is not a file tEngineSourceFile then
          throw "Standalone: Ensure that you have not renamed the main XTalk executable file: " \
                & cr & tEngineSourceFile
       end if
-
+      
       put tDirectory & sStandaloneSettingsA["name"] into tStandalonePath
-
+      
       put tStandalonePath into xStandalonePaths[tTarget]
-
+      
       put tDirectory & tStackName into tStackSourceFile
-
+      
       standaloneCopyInclusions pStack, tStackFileList, tStackSourceFile, \
             tTarget, tDirectory, tStackPath, tStandalonePath, tEngineSourceFile
-
+      
       local tDeployInfo
       put standaloneInitialDeployParams(tTarget, tStackSourceFile, \
             tStandalonePath, tEngineSourceFile) into tDeployInfo
-
+      
       standaloneDeployWithParams tTarget, tStackSourceFile, tDeployInfo
-
+      
       --Restore stack to its post-savingStandalone message state
       __RestoreStackFromTemporaryLocation pStack, pRestoreFileName, tOriginalFileName
    end repeat
-
+   
    standalonePostBuild pStack, pFolder
-
+   
    return empty
 end saveAsStandalone.Linux
 
@@ -1678,11 +1678,11 @@ private command copyIcons pStack
       set the destroyStack of stack "revCopiedIcons" to true
       set the mainStack of stack "revCopiedIcons" to pStack
       -- get the icon libraries
-
-      put revAbsoluteFolderListing(revEnvironmentResourcesPath("Icon Libraries")) into tEnvironmentIcons
+      
+      put revAbsoluteFolderListing(environment.ResourcesPath("Icon Libraries")) into tEnvironmentIcons
       put revAbsoluteFolderListing(revEnvironmentUserResourcesPath("Icon Libraries")) into tUserIcons
       put revCombineFilePaths(tUserIcons,tEnvironmentIcons) into tFiles
-
+      
       put "revGeneralIcons" & return & "revCompatibilityIcons1" & return & "revGeneralPatterns" & return & "revCompatibilityPatterns1" & return & "revCompatibilityPatterns2" & return & "revCustomCursors" into tStacksList
       set the itemDel to slash
       local tIconA
@@ -1926,7 +1926,7 @@ private command setMacOS pWhatFile, pPlatformCode, pEnginePath
       
       -- MM-2014-03-21: [[ PPC Support Dropped ]] We no longer include universal builds so set icon prefix to intel standalone.
       local tIconPrefix
-      put  revEnvironmentRuntimePath() & "/Mac OS X/x86-64/Standalone.app/Contents/Resources/Standalone" into tIconPrefix
+      put  environment.RuntimePath() & "/Mac OS X/x86-64/Standalone.app/Contents/Resources/Standalone" into tIconPrefix
       
       if sStandaloneSettingsA["OSX,iconFile"] is not empty then
          SBCopyFileToFile sStandaloneSettingsA["OSX,iconFile"], item 1 to -3 of pWhatFile & "/Resources/Standalone.icns", "revStandaloneProgressCallback", the long id of me
@@ -2430,7 +2430,7 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
       // No CEF resources required
       exit copyCEFResources
    end if
-
+   
    // IM-2014-08-14: [[ LibCef2062 ]] Reorganisation of libcef framework files
    local tDetails
    put standalonePlatformDetails(pPlatform) into tDetails
@@ -2444,12 +2444,12 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
       case pPlatform begins with "Windows"
          put (item 1 to -2 of tExternalPath) & "/CEF" into tCEFResources
          put tCurrentLocation & slash & "Externals/CEF" into tCEFDest
-
+         
          revSBEnsureFolder tCEFDest
          if the result is not empty then
             revStandaloneAddWarning "Windows, external failed to create folder:" && q(tCEFDest)
          end if
-
+         
          local tCEFFiles
          // make sure we only copy the required helper process executable
          put listFilesOf(tCEFResources) into tCEFFiles
@@ -2469,7 +2469,7 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
                revStandaloneAddWarning "Windows, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
-
+         
          SBCopyFolderToDestinationFolder tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
             revStandaloneAddWarning "Windows, external failed to copy:" && q(tCefResources & slash & "locales")
@@ -2477,21 +2477,21 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
          addMapping pPlatform, "CEF/libcef", "Externals/CEF/libcef"
          break
       case pPlatform contains "Linux"
-         if revEnvironmentIsInstalled() then
+         if environment.IsInstalled?() then
             put (item 1 to -2 of tExternalPath) & "/CEF" into tCEFResources
          else
             put (item 1 to -2 of tExternalPath) & "/Externals/CEF" into tCEFResources
          end if
          put tCurrentLocation & slash & "Externals/CEF" into tCEFDest
-
+         
          revSBEnsureFolder tCEFDest
          if the result is not empty then
             revStandaloneAddWarning "Linux, external failed to create folder:" && q(tCEFDest)
          end if
-
+         
          // make sure we only copy the required helper process executable
          put listFilesOf(tCEFResources) into tCEFFiles
-
+         
          // Copy files to CEF resource folder.
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & tCEFFile, tCEFDest, "revStandaloneProgressCallback", the long id of me
@@ -2499,12 +2499,12 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
                revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & tCEFFile)
             end if
          end repeat
-
+         
          SBCopyFolderToDestinationFolder tCefResources & slash & "locales", tCEFDest, "revStandaloneProgressCallback", the long id of me
          if the result is not empty then
             revStandaloneAddWarning "Linux, external failed to copy:" && q(tCefResources & slash & "locales")
          end if
-
+         
          // Copy files to standalone folder
          put empty into tCEFFiles
          if pCopyRevBrowserResources then
@@ -2513,7 +2513,7 @@ private command copyCEFResources pPlatform, pStandalonePath, pCopyRevBrowserReso
          if pCopyLibBrowserResources then
             put "libbrowser-cefprocess" & return after tCEFFiles
          end if
-
+         
          repeat for each line tCEFFile in tCEFFiles
             revSBCopyFileToFolder tCefResources & slash & ".." & slash & ".." & slash & tCEFFile, tCurrentLocation, "revStandaloneProgressCallback", the long id of me
             if the result is not empty then

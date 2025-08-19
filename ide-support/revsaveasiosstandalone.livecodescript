@@ -11,6 +11,13 @@
 
 /**
 * this is the only public handler in this script
+* saveAsMobileStandalone
+*
+* parameters
+*  pStack
+*  pAppBundle
+*  pTarget
+*  pSettings
 */
 command saveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    local tTargetType
@@ -27,7 +34,7 @@ command saveAsMobileStandalone pStack, pAppBundle, pTarget, pSettings
    try
       saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSettings
    catch tError
-      if revTestEnvironment() then
+      if isTestEnvironment?() then
          return tError
       end if
    end try
@@ -202,13 +209,13 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       if pSettings["ios,include" && tExternal] then
          if tExternal begins with "db" then 
             if "revdb" is not among the lines of tExternals then
-               put "revdb" & return after tExternals
+               put "revdb" & cr after tExternals
             end if
-            put tExternal & return after tDrivers
+            put tExternal & cr after tDrivers
          else if tExternal is among the words of "revpdfprinter revsecurity" then
-            put tExternal & return after tDrivers
+            put tExternal & cr after tDrivers
          else
-            put tExternal & return after tExternals
+            put tExternal & cr after tExternals
          end if
       end if
    end repeat
@@ -340,10 +347,10 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
       local tExternalRec
       put tCopiedExternals[tExternalName] into tExternalRec
       if tExternalRec["type"] is among the words of "external external-tmp" then
-         put tExternalName & return after tDeployExternals
+         put tExternalName & cr after tDeployExternals
       end if
       if tLibraryMappings is not empty then
-         put return after tLibraryMappings
+         put cr after tLibraryMappings
       end if
       if not (tExternalRec["location"] ends with ".lcm" or \
             tExternalRec["location"] ends with ".a" or \
@@ -396,7 +403,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
          put "-isysroot " & q(tSdkPath) & cr after tLinkCommand
          
          -- MW-2013-06-26: [[ CloneAndRun ]] Only strip global symbols if an installed env.
-         if revEnvironmentIsInstalled() then
+         if environment.IsInstalled?() then
             -- FG-2015-01-21: [[ Widgets ]] We need to keep all exported symbols
             -- Make sure the only exported symbol is "main"
             --put "-Wl,-x -Wl,-exported_symbol -Wl,_main" & return after tLinkCommand
@@ -633,7 +640,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    local tFontmapFiles,tStandardFontmapRoot
    
    -- We want the repo version to be able to build iOS standalones with the fontmap
-   if revEnvironmentIsInstalled() then
+   if environment.IsInstalled?() then
       put mapFilePath(iOS.MobileRuntimeFolder(pTarget)) into tStandardFontmapRoot
    else
       local tOldDel
@@ -694,7 +701,7 @@ private command saveAsMobileStandaloneMain pStack, pAppBundle, pTarget, pSetting
    
    -- MW-2013-06-26: [[ CloneAndRun ]] If not installed and creating a device build
    --    then create the dSYM debug info within the app bundle.
-   if pTarget is "Device" and not revEnvironmentIsInstalled() then
+   if pTarget is "Device" and not environment.IsInstalled?() then
       revStandaloneProgress "Extracting debug symbols..."
       
       // SN-2015-09-10: [[ Xcode 7.0 ]] Xcode 7.0 sets the env var MallocNanoZone to 1
@@ -2069,7 +2076,7 @@ private function iOS.MobileRuntimeFolder pTarget, pVersion
    
    local tUserPath, tOverridePath
    
-   put revOverrideRuntimePath() & slash & "iOS/" & tStub into tOverridePath
+   put overrideRuntimePath() & slash & "iOS/" & tStub into tOverridePath
    if there is a folder tOverridePath then
       return tOverridePath
    end if
@@ -2079,7 +2086,7 @@ private function iOS.MobileRuntimeFolder pTarget, pVersion
       return tUserPath
    end if
    
-   return revEnvironmentRuntimePath() & slash & "iOS/" & tStub
+   return environment.RuntimePath() & slash & "iOS/" & tStub
 end iOS.MobileRuntimeFolder
 
 ################################################################################
@@ -2087,7 +2094,7 @@ end iOS.MobileRuntimeFolder
 -- MW-2013-06-13: [[ CloneAndRun ]] Map a file path from where the sb expects them to be to local
 --   files in the build folder.
 private function mapFilePath pPath
-   if revEnvironmentIsInstalled() then
+   if environment.IsInstalled?() then
       return pPath
    end if
    
@@ -2109,9 +2116,9 @@ private function mapFilePath pPath
    end if
    
    --if the editionType is "community" then
-      --put "community" into tSuffix
+   --put "community" into tSuffix
    --else
-      put "commercial" into tSuffix
+   put "commercial" into tSuffix
    --end if
    
    local tPath
