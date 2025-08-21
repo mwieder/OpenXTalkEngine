@@ -83,12 +83,12 @@ Please see the following table, which shows which target platforms are supported
 | [android](docs/development/build-android.md)               | mac, linux        |
 | [emscripten (html5)](docs/development/build-emscripten.md) | linux             |
 
-## Note: to build Web standalone apps,
+## Note: to build standalone apps,
 
-Copy the Runtime folder from any installed LiveCode.
-Place the folder into the main project folder.
-Rename three files to remove the edition and versioning information.
-i.e., standalone-community-9.6.3.js -> standalone.js
+* Copy the Runtime folder from any installed LiveCode.
+* Place the folder into the main project folder.
+* *  i.e., if you're running from the compiled version, you should end up with livecode/linux-x86_64-bin/Runtime/
+
 
 ## Getting help
 
