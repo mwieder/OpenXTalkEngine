@@ -1,5 +1,5 @@
 ﻿script "revDocsParser"
-/*
+/**
 Tests the features of the inline documentation parser & display
 
 Synonyms: none
@@ -56,7 +56,7 @@ Tags: documentation, meta
 --end docs.InlineDocsParsingTest
 
 /**
-* 
+* docs.GetBuiltinModuleList
 */
 function docs.GetBuiltinModuleList pModuleInterfacePath, pRepoPath
    local tModulePath, tEngine, tScript, tListA
@@ -375,9 +375,9 @@ function docs.GenerateDocsFile.FromText pText, pSource
    local tEntryType
    put empty into tEntryType
    
-   local tInComment, tInEntry, tEntryEnded
-   put false into tInComment
-   put false into tInEntry
+   --local tInComment?, tInEntry?, tEntryEnded?
+   --put false into tInComment?
+   --put false into tInEntry?
    
    local tFirstWord, tEntryData
    local tComment, tData
@@ -408,7 +408,7 @@ function docs.GenerateDocsFile.FromText pText, pSource
       if tFormatted is empty then
          logWarning "No docs for element" && tKey, pSource
       else
-         put tFormatted & return & return after tOutput
+         put tFormatted & cr & cr after tOutput
       end if
    end repeat
    return tOutput
@@ -447,8 +447,8 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
    put false into tIsWidget?
 
    # If the source is an object, then we are parsing script
-   local tIsScript
-   put there is a pSource into tIsScript
+   local tIsScript?
+   put there is a pSource into tIsScript?
 
    local tIsLCIDL? = false
 
@@ -603,7 +603,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
 
                   # If this is script, and this is an initial block of comments,
                   # then treat as the library description
-                  if tIsScript and tAPIData is empty and tComment is not empty then
+                  if tIsScript? and tAPIData is empty and tComment is not empty then
                      put "library" into tLibraryData["type"]
                      put tComment into tLibraryData["comments"]
                      put the short name of pSource into tLibraryData["name"]
@@ -1154,7 +1154,7 @@ private function docs.ExtractElementsWithRegex pText, pRegex
    return tElementsA
 end docs.ExtractElementsWithRegex
 
-/*
+/**
 Utility function to extract any elements matching the docs element style
 */
 private function docs.ExtractElements pText
@@ -1455,6 +1455,10 @@ constant kInheritedElements = "author,version,associations,tags,requires,uses,os
 # Elements that should be in the library's actual docs entry
 constant kLibraryEntryElements = "name,display name,summary,description,type,example,references,edition,os,platforms,associations"
 
+/**
+* docs.ParseDocText
+* 
+*/
 function docs.ParseDocText pText, pFilename, pDefaults, pOverrides
    local tElementsA
    put docs.ExtractElements(pText) into tElementsA
@@ -1770,12 +1774,13 @@ private command docs.UpdateModularSyntaxDocBlocks pData, pComment, pHandlersA, p
    put tEntryName into xDataA[tEntryName]["name"]
 end docs.UpdateModularSyntaxDocBlocks
 
-private command docs.UpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
+private command docs.UpdateDocBlocks pModular?, pType, pLine, pComment, @xDataA
    if pComment is empty then
       exit docs.UpdateDocBlocks
    end if
 
    get word 1 of pLine
+   # don't document private handlers
    if it is "private" then
       exit docs.UpdateDocBlocks
    end if
@@ -1785,7 +1790,7 @@ private command docs.UpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
    end if
 
    local tEntryName, tHandlerParams
-   if pModular then
+   if pModular? then
       get matchText(pLine, "(\w*)\((.*)\)", tEntryName, tHandlerParams)
    else
       put word 2 of pLine into tEntryName
@@ -1795,7 +1800,7 @@ private command docs.UpdateDocBlocks pModular, pType, pLine, pComment, @xDataA
    local tParam, tParams
    # Get handler params w/out spaces
    repeat for each item tParam in tHandlerParams
-      if pModular then
+      if pModular? then
          put word 2 of tParam & comma after tParams
       else
          put word 1 of tParam & comma after tParams
@@ -1852,15 +1857,15 @@ private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment,
       split tLine by "//"
 
       if word 1 of tLine[1] is not "return" then
-         local tOptional
-         put word 1 of tLine[1] is "optional" into tOptional
+         local tOptional?
+         put word 1 of tLine[1] is "optional" into tOptional?
 
-         if tOptional then
+         if tOptional? then
             delete word 1 of tLine[1]
          end if
          put word 2 of tLine[1] into tParam
 
-         if tOptional then
+         if tOptional? then
             put "[<" & tParam & ">], " after tParamsSyntax
          else
             put "<" & tParam & ">, " after tParamsSyntax
@@ -1879,7 +1884,7 @@ private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment,
             put word 4 of tLine[1] into tParamArray[it]["type"]
          end if
 
-         if tOptional then
+         if tOptional? then
             put "optional " before tParamArray[it]["type"]
          end if
          put word 1 to -1 of tLine[2] into tParamArray[it]["description"]
@@ -1958,7 +1963,7 @@ private function docs.ParseKeyValuePair pToParse
 
    local tElementsA, tToParse
    repeat with x = 1 to 2
-      put word 1 to -1 of line x of pToParse & return after tToParse
+      put word 1 to -1 of line x of pToParse & cr after tToParse
    end repeat
    put docs.ExtractElementsWithRegex(tToParse, __arrayElementRegex()) into tElementsA
 
@@ -2058,7 +2063,7 @@ private function docs.ParseSubArray pToParse
    return tArray
 end docs.ParseSubArray
 
-/*
+/**
 Parses a parameter description according to the rules of documenting an array
 
 pDescription (string) : The description to be formatted for an array type
@@ -2151,7 +2156,7 @@ private function __tabs pNum
 end __tabs
 
 /**
-* 
+* docs.FormatLibraryDocArray.AsJSON
 */
 function docs.FormatLibraryDocArray.AsJSON pLibraryA
    local tJSON, tCount, tDocA
@@ -2171,7 +2176,7 @@ function docs.FormatLibraryDocArray.AsJSON pLibraryA
 end docs.FormatLibraryDocArray.AsJSON
 
 /**
-* 
+* docs.CreateAPIJSON
 */
 function docs.CreateAPIJSON pLibraryTitle, pLibraryName, pAuthor, pDocContentJSON
    local tJSON
@@ -2231,7 +2236,7 @@ private function docs.ArrayParamToJSON pParamA, pDepth
       return empty
    end if
    local tOutput, tPrefix
-   put return & __tabs(pDepth) after tPrefix
+   put cr & __tabs(pDepth) after tPrefix
    put escape("array") & ":[" after tOutput
    repeat for each element tKeyValue in pParamA
       put "{" after tOutput
@@ -2243,7 +2248,6 @@ private function docs.ArrayParamToJSON pParamA, pDepth
       put docs.TypedParamToJSON(tKeyValue["value"], pDepth + 2) & "}" after tOutput
       put tPrefix & "}" & comma  after tOutput
    end repeat
-   --delete the last char of tOutput
    put "]" into the last char of tOutput
    return tOutput
 end docs.ArrayParamToJSON
@@ -2259,12 +2263,11 @@ private function docs.EnumParamToJSON pParamA
       put tPrefix & tab & "{" & keyValue("value", tKeyValue["value"]) & comma after tOutput
       put tPrefix & tab & keyValue("description", tKeyValue["description"]) & "}" & comma after tOutput
    end repeat
-   --delete the last char of tOutput
    put "]" into the last char of tOutput
    return tOutput
 end docs.EnumParamToJSON
 
-private function docs.TypedParamToJSON pParamA, pDepth, pRef
+private function docs.TypedParamToJSON pParamA, pDepth, pRef?
    if the keys of pParamA is empty then
       return empty
    end if
@@ -2272,7 +2275,7 @@ private function docs.TypedParamToJSON pParamA, pDepth, pRef
    put cr & __tabs(pDepth) after tPrefix
    put tPrefix & keyValue("name", pParamA["name"]) & comma into tOutput
    put tPrefix & keyValue("type", pParamA["type"]) & comma after tOutput
-   if pRef is not false then
+   if pRef? is not false then
       put tPrefix & keyValue("refparam", pParamA["refparam"]) & comma after tOutput
    end if
    put tPrefix & keyValue("description", pParamA["description"]) after tOutput
@@ -2307,7 +2310,6 @@ private function __revDocsFormatParamArrayAsJSON pParamA
       put docs.TypedParamToJSON(pParamA[x], 4, true) after tOutput
       put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
-   --delete the last char of tOutput
    put "]" into the last char of tOutput
    return tOutput
 end __revDocsFormatParamArrayAsJSON
@@ -2327,7 +2329,6 @@ private function __revDocsFormatValuesArrayAsJSON pParamA
       put docs.TypedParamToJSON(pParamA[tReturn], 4, false) after tOutput
       put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
-   --delete the last char of tOutput
    put "]" into the last char of tOutput
    return tOutput
 end __revDocsFormatValuesArrayAsJSON
@@ -2339,7 +2340,6 @@ private function __revDocsFormatExamplesArrayAsJSON pExampleA
       put "{" & cr & __tabs(4) & keyValue("script", tExample) after tOutput
       put cr & __tabs(3) & "}" & comma after tOutput
    end repeat
-   --delete the last char of tOutput
    put "]" into the last char of tOutput
    return tOutput
 end __revDocsFormatExamplesArrayAsJSON
@@ -2359,7 +2359,7 @@ private function docs.ItemListToJSONArray pArray, pKey, pTabs
       put 3 into pTabs
    end if
 
-   return __tabs(pTabs) & escape(pKey) & ":[" & tTagList & "]" & comma & return
+   return __tabs(pTabs) & escape(pKey) & ":[" & tTagList & "]" & comma & cr
 end docs.ItemListToJSONArray
 
 private function __formatParamsAsItalic pText
@@ -2371,7 +2371,7 @@ private function __formatParamsAsItalic pText
    return pText
 end __formatParamsAsItalic
 
-private function __revDocsFormatDisplaySyntaxArrayAsJSON pSyntaxA
+private function docs.FormatDisplaySyntaxArrayAsJSON pSyntaxA
    local tOutput
    put "[" into tOutput
    repeat for each element tExample in pSyntaxA
@@ -2380,7 +2380,7 @@ private function __revDocsFormatDisplaySyntaxArrayAsJSON pSyntaxA
    delete the last char of tOutput
    put cr & __tabs(3) & "]" after tOutput
    return tOutput
-end __revDocsFormatDisplaySyntaxArrayAsJSON
+end docs.FormatDisplaySyntaxArrayAsJSON
 
 private function __revDocsFormatSyntaxArrayAsJSON pSyntaxA
    local tOutput
@@ -2469,7 +2469,7 @@ private function __revDocsFormatCustomArrayAsJSON pKey, pArray
       case "syntax"
          return tab & tab & tab & escape("syntax") & ":" & __revDocsFormatSyntaxArrayAsJSON(pArray["syntax"]) & comma & cr
       case "display syntax"
-         return tab & tab & tab & escape("display syntax") & ":" & __revDocsFormatDisplaySyntaxArrayAsJSON(pArray["display syntax"]) & comma & cr
+         return tab & tab & tab & escape("display syntax") & ":" & docs.FormatDisplaySyntaxArrayAsJSON(pArray["display syntax"]) & comma & cr
       case "params"
          return tab & tab & tab & escape("parameters") & ":" & __revDocsFormatParamArrayAsJSON(pArray["params"]) & comma & cr
       case "example"
@@ -2482,7 +2482,7 @@ private function __revDocsFormatCustomArrayAsJSON pKey, pArray
    end switch
 end __revDocsFormatCustomArrayAsJSON
 
-/*
+/**
 Format the library array data as a JSON array as needed by the docs viewer
 */
 
@@ -2691,7 +2691,7 @@ private command docs.UpdateLibrary pConnection, pAPI, pName, pDocDataA
    return empty
 end docs.UpdateLibrary
 
-/*
+/**
 on revDocsRemoveLibrary pConnection, pAPI, pName
    # Find the library id
    local tSQL, tAPIID
@@ -2714,7 +2714,7 @@ end revDocsRemoveLibrary
 */
 
 
-/*
+/**
 Guide files can have a YAML-like metadata block at the start. The block
 is delimited by lines of exactly three hyphens "---", and every line in
 between *must* be blank or contain a "key: value" pair.  For example:
@@ -2741,7 +2741,7 @@ private command docs.SplitMetadata pText, @rMarkdown, @rMetadata
    put line (tMetadataEnd + 2) to -1 of pText into rMarkdown
 end docs.SplitMetadata
 
-/*
+/**
 Parse yaml into a structured array.
 At the moment, we only deal with key value pairs, where the value is
 either a string or a list.

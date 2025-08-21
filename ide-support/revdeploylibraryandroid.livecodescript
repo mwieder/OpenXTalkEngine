@@ -61,44 +61,42 @@ end deployIsAvailable?
 command deployDo pTargetStack, pTargetDevice
    local tError
    put empty into tError
-   
+
    local tSettings
-   --dispatch function "SBGetSettings" to stack "revSBLibrary" with pTargetStack, true
-   --put the result into tSettings
    put SBGetSettings(pTargetStack, true) into tSettings
-   
+
    local tIdentifier
    put tSettings["android,identifier"] into tIdentifier
    if tIdentifier is empty then
       put "com.yourcompany.yourapp" into tIdentifier
    end if
-   
+
    local tDeviceID
    put word 2 to -1 of pTargetDevice into tDeviceID
-   
+
    if tError is empty then
       revStandaloneProgress "Checking target device architecture..."
-      
+
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
             "shell", \
             "getprop", \
             "ro.product.cpu.abi"
-      
+
       local tABI
       put word 1 of line 1 of the result into tABI
       if not (tABI is among the items of "armeabi-v7a,arm64-v8a,x86,x86_64") then
          put "Checking target device architecture failed:" && the result into tError
       end if
-      
+
       local tArch
       put __ABIArch(tABI) into tArch
       repeat for each item tItem in SBPlatformArchitectures("Android")
          put tItem is tArch into tSettings["Android",tItem]
       end repeat
    end if
-   
+
    local tTempApksFile
    if tError is empty then
       /* revSaveAsMobileStandalone expects the full path to the target bundle */
@@ -114,15 +112,15 @@ command deployDo pTargetStack, pTargetDevice
                tSettings, \
                tStandalonePaths, \
                tDeviceID
-         
+
       catch tException
          put "Unable to build app for testing:" && tException into tError
       end try
    end if
-   
+
    if tError is empty then
       revStandaloneProgress "Installing app on target device..."
-      
+
       local tResult
       executeShellCommand pathToJava(), \
             "-jar", \
@@ -138,17 +136,17 @@ command deployDo pTargetStack, pTargetDevice
       --            "--device-id", tDeviceID, \
       --            "--adb", pathToAdb()
       put the result into tResult
-      
+
       if not (tResult contains "The APKs have been extracted") then
          put "Installation of app failed:" && tResult into tError
       end if
    else
       throw tError
    end if
-   
+
    if tError is empty then
       revStandaloneProgress "Launching app on target device..."
-      
+
       executeShellCommand \
             pathToAdb(), \
             "-s", tDeviceID, \
@@ -160,15 +158,15 @@ command deployDo pTargetStack, pTargetDevice
          put "Launch of app failed:" && the result into tError
       end if
    end if
-   
+
    if "revStandaloneProgress" is among the lines of the openStacks then
       close stack "revStandaloneProgress"
    end if
-   
+
    if there is a file tTempApksFile then
       delete file tTempApksFile
    end if
-   
+
    return tError
 end deployDo
 
@@ -572,10 +570,10 @@ function searchMobileRuntimeFolder pCommand
    local tPath
    put revEnvironmentUserRuntimePath() & slash & "Android" & slash & pCommand into tPath
    if there is a file tPath then return tPath
-   
+
    put environment.RuntimePath() & slash & "Android" & slash & pCommand into tPath
    if there is a file tPath then return tPath
-   
+
    return empty
 end searchMobileRuntimeFolder
 
@@ -654,27 +652,6 @@ end pathToDebugKey
 # pRoot here is ~/Android/Sdk
 function pathToZipAlign pRoot
    return pathToBuildTool(pRoot, executableName("zipalign"))
-#   if pRoot is empty then
-#      put sAndroidRoot into pRoot
-#   end if
-
-#   local tExe
-#   put executableName("zipalign") into tExe
-
-#   // IM-2014-07-11: [[ Bug 12719 ]] First search the tools folder
-#   local tPath
-#   put searchTools(pRoot, tExe) into tPath
-#   if tPath is not empty then
-#      return tPath
-#   end if
-
-#   // IM-2014-07-11: [[ Bug 12719 ]] zipalign was moved into build-tools as of version 19.1.0 so search there as well
-#   put searchBuildTools(pRoot, tExe) into tPath
-#   if tPath is not empty then
-#      return tPath
-#   end if
-
-#   return pRoot & slash & "tools" & slash & tExe
 end pathToZipAlign
 
 function pathToD8 pRoot
@@ -744,33 +721,65 @@ private function downloadBundleTool
    put kBundleToolDownloadURL & slash & kBundleToolVersion & slash & \
       "bundletool-all-" & kBundleToolVersion & ".jar" into tUrl
 
+   return fetchTool(tUrl)
+
+#   local tFileData
+#   load url tUrl
+#   local tDownloading? = true
+#   local tFailed? = false
+#   repeat while tDownloading?
+#      wait 0 milliseconds with messages
+#      local tStatus
+#      put the urlstatus of tUrl into tStatus
+#      switch tStatus
+#         case "cached"
+#            put false into tDownloading?
+#            break
+#         case "error"
+#         case "timeout"
+#            put false into tDownloading?
+#            put true into tFailed?
+#            break
+#      end switch
+#   end repeat
+
+#   if tFailed? then
+#      return empty
+#   end if
+
+#   put url tUrl into tFileData
+#   return tFileData
+end downloadBundleTool
+
+private function fetchTool pUrl
    local tFileData
-   load url tUrl
-   local tDownloading = true
-   local tFailed = false
-   repeat while tDownloading
+   load url pUrl
+   local tDownloading? = true
+   local tFailed? = false
+   repeat while tDownloading?
       wait 0 milliseconds with messages
       local tStatus
-      put the urlstatus of tUrl into tStatus
+      put the urlstatus of pUrl into tStatus
       switch tStatus
          case "cached"
-            put false into tDownloading
+            put false into tDownloading?
             break
          case "error"
          case "timeout"
-            put false into tDownloading
-            put true into tFailed
+            put false into tDownloading?
+            put true into tFailed?
             break
       end switch
    end repeat
 
-   if tFailed then
+   if tFailed? then
       return empty
    end if
 
-   put url tUrl into tFileData
+   put url pUrl into tFileData
    return tFileData
-end downloadBundleTool
+end fetchTool
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -804,7 +813,7 @@ private function pathToDependencyCache
    if there is not a folder tCachePath then
       return empty
    end if
-   
+
    return tCachePath
 end pathToDependencyCache
 
@@ -837,32 +846,35 @@ end _fechMavenFileCallback
 private function fetchMavenFile pRepo, pPath
    local tUrl
    put pRepo & slash & pPath into tUrl
-   local tFileData
-   load url tUrl with message "_fetchMavenFileCallback"
-   local tDownloading = true
-   local tFailed = false
-   repeat while tDownloading
-      wait 0 milliseconds with messages
-      local tStatus
-      put the urlstatus of tUrl into tStatus
-      switch tStatus
-         case "cached"
-            put false into tDownloading
-            break
-         case "error"
-         case "timeout"
-            put false into tDownloading
-            put true into tFailed
-            break
-      end switch
-   end repeat
 
-   if tFailed then
-      return empty
-   end if
+   return fetchTool(tUrl)
 
-   put url tUrl into tFileData
-   return tFileData
+#   local tFileData
+#   load url tUrl with message "_fetchMavenFileCallback"
+#   local tDownloading? = true
+#   local tFailed? = false
+#   repeat while tDownloading?
+#      wait 0 milliseconds with messages
+#      local tStatus
+#      put the urlstatus of tUrl into tStatus
+#      switch tStatus
+#         case "cached"
+#            put false into tDownloading?
+#            break
+#         case "error"
+#         case "timeout"
+#            put false into tDownloading?
+#            put true into tFailed?
+#            break
+#      end switch
+#   end repeat
+
+#   if tFailed? then
+#      return empty
+#   end if
+
+#   put url tUrl into tFileData
+#   return tFileData
 end fetchMavenFile
 
 constant kMavenRepo = "https://repo1.maven.org/maven2"
