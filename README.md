@@ -83,6 +83,13 @@ Please see the following table, which shows which target platforms are supported
 | [android](docs/development/build-android.md)               | mac, linux        |
 | [emscripten (html5)](docs/development/build-emscripten.md) | linux             |
 
+## Note: to build standalone apps,
+
+* Copy the Runtime folder from any installed LiveCode.
+* Place the folder into the main project folder.
+* *  i.e., if you're running from the compiled version, you should end up with livecode/linux-x86_64-bin/Runtime/
+
+
 ## Getting help
 
 There are several ways to get help with installing and using LiveCode:
