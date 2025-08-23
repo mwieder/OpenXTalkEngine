@@ -1,6 +1,6 @@
 #!
- 
-send "doPackage" to me
+
+dispatch "doPackage" to me
 
 private function pathFromNative pPath
    if the platform is "win32" then
@@ -12,20 +12,20 @@ end pathFromNative
 on doPackage
    local tArgs
    put the commandArguments into tArgs
-   
+
    local tEngine
    put the commandName into tEngine
-   
+
    local tPackagerFilename
    put pathFromNative(the filename of me) into tPackagerFilename
-   
+
    set the itemdelimiter to slash
    put "extension-utils.livecodescript" \
       into item -2 to -1 of tPackagerFilename
 
    start using stack tPackagerFilename
 
-   local tSendCmd   
+   local tSendCmd
    switch tArgs[2]
    case "buildlcbextensions"
       -- Resolve dependency order of list of extensions
@@ -37,7 +37,7 @@ on doPackage
       break
    case "buildextension"
       put "extensionBuildPackageAndExtract" into tSendCmd
-      break 
+      break
    default
       write "invalid mode" && tArgs[2] to stderr
       quit 1
@@ -49,7 +49,7 @@ on doPackage
       put " tArgs[" & x & "]," after tSendCmd
    end repeat
    delete the last char of tSendCmd
-   
+
    try
       send tSendCmd to stack tPackagerFilename
    catch tError

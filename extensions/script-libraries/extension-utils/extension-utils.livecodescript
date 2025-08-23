@@ -621,7 +621,7 @@ pDocsParser: The path to the docs parser script.
 pSourceFolder: The folder containing the extension
 pSourceFileName: The extension file name
 pTargetFolder: The target folder to extract the extension to
-pIsCommercialExtension: Whether the extension source should be removed
+pIsCommercialExtension?: Whether the extension source should be removed
 pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
@@ -635,11 +635,11 @@ A list of paths to look for extra module interface files.
 command extensionBuildPackageAndExtract pProtectifyScript, \
       pProtectifyOutput, pGitHash, pDocsParser, \
       pSourceFolder, pSourceFileName, pTargetFolder, \
-      pIsCommercialExtension, pLCCompile, pLCIPath, pExtraLCIPaths
+      pIsCommercialExtension?, pLCCompile, pLCIPath, pExtraLCIPaths
 
 put false into pIsCommercialExtension
 
-#   if pIsCommercialExtension is true and \
+#   if pIsCommercialExtension? is true and \
 #         not (pSourceFileName ends with ".lcb") then
 #      extensionProtectStack pProtectifyScript, pSourceFolder, \
 #            pSourceFileName, pProtectifyOutput, pGitHash
@@ -652,10 +652,10 @@ put false into pIsCommercialExtension
    if not (pSourceFileName ends with ".lcb") then
       extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
       extensionPackageScriptExtension pSourceFolder, \
-     pTargetFolder, pIsCommercialExtension
+     pTargetFolder, pIsCommercialExtension?
    else
       extensionPackageBuilderExtension pSourceFolder, \
-            pTargetFolder, pIsCommercialExtension, pLCCompile, \
+            pTargetFolder, pIsCommercialExtension?, pLCCompile, \
             pLCIPath, pExtraLCIPaths
    end if
    put the result into tPackage
@@ -712,24 +712,24 @@ command extensionExtractDocs pDocsParser, pOutputDir
    if there is not a stack pDocsParser then
       exit extensionExtractDocs
    end if
-   
+
    start using stack pDocsParser
-   
+
    __EnsurePath pOutputDir
-   
+
    if there is not a folder pOutputDir then
       throw "Error: could not create output directory: " & pOutputDir
    end if
-   
+
    # Items 3 onwards in 'the params' are quoted full paths to source files
    local tSourceFiles
    repeat for each item tItem in item 3 to -1 of the params
       appendToStringList tSourceFiles, char 2 to -2 of tItem
    end repeat
-   
+
    repeat for each line tSourceFile in tSourceFiles
       local tName, tSource, tContent, tDocs
-      
+
       if tSourceFile ends with "lcb" then
          put "api" into tName
          put docs.GenerateDocsFileFromModularFile(tSourceFile) into tDocs
@@ -753,11 +753,11 @@ command extensionExtractDocs pDocsParser, pOutputDir
          end if
          put docs.GenerateDocsFile.FromText(tContent, tSource) into tDocs
       end if
-      
+
       put textEncode(tDocs, "UTF-8") into tDocs
-      
+
       replace numToByte(13) with numToByte(10) in tDocs
-      
+
       put tDocs into url ("binfile:" & pOutputDir & "/" & tName & ".lcdoc")
    end repeat
 end extensionExtractDocs
@@ -787,7 +787,7 @@ constant kInterfaceKey = "interface"
 constant kDefaultScriptFileKey = "defaultscript_file"
 constant kEditorsKey = "editors"
 
-private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemoveSource, @rBuiltLocation
+private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemoveSource?, @rBuiltLocation
    local tFullPath
    put pFolder & slash & pDetailsA[kFileKey] into tFullPath
 
@@ -844,10 +844,10 @@ private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemo
 
    # Don't include source if not required
    local tSourceFile, tSupportFiles
-#   if not pRemoveSource then
+   if not pRemoveSource? then
       put tFullPath into tSourceFile
       put pDetailsA[kSupportFilesKey] into tSupportFiles
-#   end if
+   end if
 
    local tError
    put __extensionAddFilesToPackage(\
@@ -1163,12 +1163,12 @@ Package an extension
 Parameters:
 pSourceFolder: The folder containing the extension
 pTargetFolder: The output location of the package
-pRemoveSource: Whether to remove the source code from the package or not
+pRemoveSource?: Whether to remove the source code from the package or not
 
 The result: Any error that occurred when packaging
 It: The location of the build package, or empty if there was an error.
 */
-command extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
+command extensionPackage pSourceFolder, pTargetFolder, pRemoveSource?
    __EnsureExternal "revzip"
    local tDetailsA
 
@@ -1179,8 +1179,9 @@ command extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
    put pTargetFolder & slash & tTargetDir into tBuildTarget
 
    __extensionBuildPackage tDetailsA, pSourceFolder, pTargetFolder, \
-         pRemoveSource, tZip
+         pRemoveSource?, tZip
    if the result is not empty then
+      --throw the executionContexts
       return the result for error
    end if
 
@@ -1258,12 +1259,12 @@ Package a LiveCode Script extension
 Parameters:
 pSourceFolder: The folder containing the extension
 pTargetFolder: The folder to output the extension package
-pRemoveSource: Whether to remove the source files or not
+pRemoveSource?: Whether to remove the source files or not
 */
 command extensionPackageScriptExtension pSourceFolder, \
-      pTargetFolder, pRemoveSource
+      pTargetFolder, pRemoveSource?
 
-   extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
+   extensionPackage pSourceFolder, pTargetFolder, pRemoveSource?
    if the result is not empty then
       throw the result
    end if
@@ -1276,7 +1277,7 @@ Package a LiveCode Builder extension
 Parameters:
 pSourceFolder: The folder containing the extension
 pTargetFolder: The folder to output the extension package
-pRemoveSource: Whether to remove the source files or not
+pRemoveSource?: Whether to remove the source files or not
 pLCCompile:
 The path to the lc-compile program. If empty, this will be computed.
 
@@ -1288,7 +1289,7 @@ pExtraLCIPaths:
 A list of paths to look for extra module interface files.
 */
 command extensionPackageBuilderExtension pSourceFolder, \
-      pTargetFolder, pRemoveSource, pLCCompile, \
+      pTargetFolder, pRemoveSource?, pLCCompile, \
       pLCIPath, pExtraLCIPaths
    if pLCCompile is empty then
       put __extensionCompilerPath() into pLCCompile
@@ -1350,7 +1351,7 @@ command extensionPackageBuilderExtension pSourceFolder, \
       throw "subprocess error when compiling extension" && tSource & ":" && tShellOutput
    end if
 
-   extensionPackage pSourceFolder, pTargetFolder, pRemoveSource
+   extensionPackage pSourceFolder, pTargetFolder, pRemoveSource?
    if the result is not empty then
       throw the result
    end if
@@ -1386,7 +1387,7 @@ command extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
 
    # Get library metadata from the docs, in lieu of a manifest
    local tDocA, tDataA
-   dispatch function "revDocsParseDocFileToLibraryArray" to stack pDocsParser \
+   dispatch function "docs.ParseDocFile.ToLibraryArray" to stack pDocsParser \
          with (pSourceFolder & slash & "api.lcdoc")
    put the result into tDocA
 
