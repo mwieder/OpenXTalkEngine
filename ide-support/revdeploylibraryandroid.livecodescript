@@ -102,6 +102,7 @@ command deployDo pTargetStack, pTargetDevice
       /* revSaveAsMobileStandalone expects the full path to the target bundle */
       local tTempName
       put tempName() into tTempName
+      create folder tTempName
       put tTempName & ".apks" into tTempApksFile
       try
          local tStandalonePaths
@@ -129,12 +130,6 @@ command deployDo pTargetStack, pTargetDevice
             "--apks", tTempApksFile, \
             "--device-id", tDeviceID, \
             "--adb", pathToAdb()
-      --      executeShellCommand pathToJava(), \
-      --            pathToBundleTool(), \
-      --            "install-apks", \
-      --            "--apks", tTempApksFile, \
-      --            "--device-id", tDeviceID, \
-      --            "--adb", pathToAdb()
       put the result into tResult
 
       if not (tResult contains "The APKs have been extracted") then

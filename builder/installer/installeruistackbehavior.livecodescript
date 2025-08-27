@@ -6,23 +6,23 @@ on relaunch
 end relaunch
 
 on preOpenStack
-   // PM-2016-02-27: [[ Bug 13723]] Use a card border 
+   // PM-2016-02-27: [[ Bug 13723]] Use a card border
    if the platform is "win32" or the platform contains "linux" then
       local tCards, tCurrentCard, tControlsA
-      
+
       put the cardNames of stack "InstallerUI" of stack "Installer" into tCards
       repeat with tCardIndex = 1 to the number of lines in tCards
          put line tCardIndex of tCards into tCurrentCard
          set the showBorder of card tCurrentCard of stack "InstallerUI" of stack "Installer" to true
       end repeat
    end if
-   
+
    -- Sort out fonts and sizes
    configureFonts the short name of me
-   
+
    -- Make sure there's no error state
    set the uError of card "Finish" to empty
-   
+
    if $2 is "-update" then
       perfromUpdateCheck
    else if $2 is "-foregroundupdate" then
@@ -81,7 +81,7 @@ command perfromUpdateCheck
    go card "UpdateCheck"
 end perfromUpdateCheck
 
-command perfromForegroundUpdateCheck 
+command perfromForegroundUpdateCheck
    set the uMode of card "UpdateCheck" to "foreground"
    set the loc of this stack to the screenloc
    go card "UpdateCheck"
@@ -133,11 +133,11 @@ function settingsTarget
    if sInstallTypeSetting is not "custom" then
       return settingsInstallType()
    end if
-   
+
    if sCustomTargetSetting is empty then
       put "all users" into sCustomTargetSetting
    end if
-   
+
    return sCustomTargetSetting
 end settingsTarget
 
@@ -145,11 +145,11 @@ function settingsLocation
    if settingsInstallType() is not "custom" then
       return defaultLocationSetting()
    end if
-   
+
    if sCustomLocationSetting is empty then
       put defaultLocationSetting() into sCustomLocationSetting
    end if
-   
+
    return sCustomLocationSetting
 end settingsLocation
 
@@ -157,7 +157,7 @@ function settingsDesktopShortcut
    if  settingsInstallType() is not "custom" then
       return true
    end if
-   
+
    if sCustomDesktopShortcutSetting is empty then
       if the platform is "win32" then
          put true into sCustomDesktopShortcutSetting
@@ -165,7 +165,7 @@ function settingsDesktopShortcut
          put false into sCustomDesktopShortcutSetting
       end if
    end if
-   
+
    return sCustomDesktopShortcutSetting
 end settingsDesktopShortcut
 
@@ -173,7 +173,7 @@ function settingsStartMenuShortcuts
    if  settingsInstallType() is not "custom" then
       return true
    end if
-   
+
    if sCustomStartMenuShortcutsSetting is empty then
       if the platform is not "macos" then
          put true into sCustomStartMenuShortcutsSetting
@@ -181,7 +181,7 @@ function settingsStartMenuShortcuts
          put false into sCustomStartMenuShortcutsSetting
       end if
    end if
-   
+
    return sCustomStartMenuShortcutsSetting
 end settingsStartMenuShortcuts
 
@@ -265,8 +265,8 @@ end getUpdateFolderLocation
 -- This function returns 'true' if the current settings will require admin privileges.
 -- Originally this was done just by divining 'accessibility' of the location property, but
 -- in actuality it is a function of platform and install type (this user/all users).
-function settingsRequireAdminPrivileges
-   
+function settingsRequireAdminPrivileges?
+
    -- On Linux we require admin to install 'all user' start menu shortcuts, regardless
    -- of target location.
    if the platform is "linux" then
@@ -274,49 +274,49 @@ function settingsRequireAdminPrivileges
          return true
       end if
    end if
-   
+
    -- On Windows, the same is true
    if the platform is "win32" then
       if settingsTarget() is "all users" and (settingsStartMenuShortcuts() or settingsDesktopShortcut()) then
          return true
       end if
    end if
-   
+
    -- As there seems a rather unpleasant bug in 'open elevated process' on Mac OS X, we
    -- don't try and elevate there!
    --if the platform is "macos" then
    --return true
    --end if
-   
+
    -- If we are not 'all users' or do not install any shortcuts *then* admin requirement is
    -- based on target location.
-   return requiresAdminPrivileges(settingsLocation())
-end settingsRequireAdminPrivileges
+   return requiresAdminPrivileges?(settingsLocation())
+end settingsRequireAdminPrivileges?
 
 ######################################################################
 
 -- A target folder is suitable for installation if it doesn't contain a sub-folder which
 -- we want to use. Or, that sub-folder is a rev install.
-function locationIsSuitable pLocation
+function locationIsSuitable? pLocation
    if there is no folder pLocation then
       return true
    end if
-   
-   if locationIsExistingInstall(pLocation) then
+
+   if locationIsExistingInstall?(pLocation) then
       return true
    end if
-   
+
    return false
-end locationIsSuitable
+end locationIsSuitable?
 
 -- On linux and windows, a target folder is an existing install if it contains '.setup.txt',
 -- '.setup.exe' and a rev engine. On macosx, if it contains a rev app bundle of the same
 -- name.
-function locationIsExistingInstall pLocation
+private function locationIsExistingInstall? pLocation
    if there is no folder pLocation then
       return false
    end if
-   
+
    if the platform is not "macos" then
       if there is no file (pLocation & "/.setup.txt") or \
             (there is no file (pLocation & "/.setup.exe") and \
@@ -325,13 +325,13 @@ function locationIsExistingInstall pLocation
             there is no file (pLocation & "/setup.x86_64")) then
          return false
       end if
-      
+
       local tFiles, tOldFolder
       put the defaultfolder into tOldFolder
       set the defaultFolder to pLocation
       put the files into tFiles
       set the defaultFolder to tOldFolder
-      
+
       repeat for each line tFile in tFiles
          // Case sensitive
          if matchText(tFile, "LiveCode.*\.(exe|x86|x86_64)") or \
@@ -339,23 +339,23 @@ function locationIsExistingInstall pLocation
             return true
          end if
       end repeat
-      
+
       return false
    else
       if there is no folder pLocation then
          return false
       end if
    end if
-   
+
    return true
-end locationIsExistingInstall
+end locationIsExistingInstall?
 
 -- An install requires admin privileges if it needs them to:
 --   a) if the location doesn't exist then to create it
 --   b) if the location does exist, then to create a file inside it
 --   c) if the location is an existing install, then to delete all files in it
 --
-function requiresAdminPrivileges pLocation
+private function requiresAdminPrivileges? pLocation
    if there is no folder pLocation then
       -- Find the first folder that does exist
       set the itemDelimiter to slash
@@ -364,47 +364,47 @@ function requiresAdminPrivileges pLocation
             exit repeat
          end if
       end repeat
-      
+
       -- Now try to create the next level
       create folder (item 1 to x + 1 of pLocation)
       if there is no folder (item 1 to x + 1 of pLocation) then
          return true
       end if
-      
+
       -- We successfully created it, so delete it and continue.
       delete folder (item 1 to x + 1 of pLocation)
       return false
    end if
-   
+
    -- If the location is empty, make sure we can create something inside it
-   if folderIsEmpty(pLocation) then
+   if folderIsEmpty?(pLocation) then
       create folder (pLocation & slash & "lctestfolder")
       if there is no folder (pLocation & slash & "lctestfolder") then
          return true
       end if
-      
+
       delete folder (pLocation & slash & "lctestfolder")
       return false
    end if
-   
+
    -- Finally, if we get here then the target folder must be an existing install. Thus
    -- recursively check to see if we can delete all files (and folders) in it.
    local tCanDelete
-   put canDeleteFolder(pLocation) into tCanDelete
+   put canDeleteFolder?(pLocation) into tCanDelete
    return not tCanDelete
-end requiresAdminPrivileges
+end requiresAdminPrivileges?
 
 ######################################################################
 
-function canDeleteFolder pLocation
+private function canDeleteFolder? pLocation
    if the environment is not "installer" then
       return false
    end if
-   
+
    local tOldFolder
    put the folder into tOldFolder
    set the folder to pLocation
-   
+
    repeat for each line tFile in the files
       do "_internal canDeleteFile (pLocation & slash & tFile)"
       if not the result then
@@ -412,26 +412,26 @@ function canDeleteFolder pLocation
          return false
       end if
    end repeat
-   
+
    repeat for each line tFolder in the folders
       if tFolder is ".." then
          next repeat
       end if
-      
-      if not canDeleteFolder(pLocation & slash & tFolder) then
+
+      if not canDeleteFolder?(pLocation & slash & tFolder) then
          set the folder to tOldFolder
          return false
       end if
    end repeat
-   
-   set the folder to tOldFolder
-   
-   return true
-end canDeleteFolder
 
-function folderIsEmpty pLocation
+   set the folder to tOldFolder
+
+   return true
+end canDeleteFolder?
+
+private function folderIsEmpty? pLocation
    local tIsEmpty
-   
+
    local tOldFolder
    put the folder into tOldFolder
    set the folder to pLocation
@@ -443,9 +443,9 @@ function folderIsEmpty pLocation
       put true into tIsEmpty
    end if
    set the folder to tOldFolder
-   
+
    return tIsEmpty
-end folderIsEmpty
+end folderIsEmpty?
 
 ######################################################################
 
@@ -453,10 +453,10 @@ command runFaceless
    local tOptions
    parseOptions tOptions
    if the result is not empty then
-      write "Usage: <exe> -ui [-location <path>] [-allusers] [-desktopshortcut] [-startmenu]" & return to stderr
+      write "Usage: <exe> -ui [-location <path>] [-allusers] [-desktopshortcut] [-startmenu]" & cr to stderr
       quit 1
-   end if 
-   
+   end if
+
    -- Compute the target location based on install type, if non specified
    if tOptions["location"] is empty then
       if tOptions["allusers"] then
@@ -465,14 +465,14 @@ command runFaceless
          put defaultThisUserLocation() into tOptions["location"]
       end if
    end if
-   
+
    -- Make the log path absolute, if specific
    if tOptions["log"] is not empty then
       if char 1 of tOptions["log"] is not "/" and char 2 of tOptions["log"] is not ":" then
          put the folder & slash before tOptions["log"]
       end if
    end if
-   
+
    actionInstall tOptions["location"], tOptions["location"] & slash & ".setup.txt", tOptions
 end runFaceless
 
@@ -485,7 +485,7 @@ private command parseOptions @rOptions
       if tIndex >= $# then
          exit repeat
       end if
-      
+
       local tParam, tNextParam
       put value("$" & tIndex) into tParam
       if tIndex < $# - 1 then
@@ -505,7 +505,7 @@ private command parseOptions @rOptions
          return "syntax error"
       end if
    end repeat
-   
+
    return empty
 end parseOptions
 

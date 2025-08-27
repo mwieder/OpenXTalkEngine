@@ -6,7 +6,7 @@
 
 on startup
    local tAction
-   
+
    if $1 is "install" then
       put "install" into tAction
    else if $1 is "doinstall" then
@@ -23,7 +23,7 @@ on startup
          put "install" into tAction
       end if
    end if
-   
+
    switch tAction
       case "install"
          if the environment is "installer command line" then
@@ -97,10 +97,10 @@ end setTitleField
 
 on errorDialog pError
    if the environment is "installer command line" then
-      write "[" && the internet date && "]" && ": ERROR " && pError & return to stdout
+      write "[" && the internet date && "]" && ": ERROR " && pError & cr to stdout
       quit 1
    else
-      answer error "An error occurred when running the installer. Please submit a screenshot of this dialog to http://quality.livecode.com" & return & pError
+      answer error "An error occurred when running the installer. Please submit a screenshot of this dialog to http://quality.livecode.com" & cr & pError
       quit 1
    end if
 end errorDialog

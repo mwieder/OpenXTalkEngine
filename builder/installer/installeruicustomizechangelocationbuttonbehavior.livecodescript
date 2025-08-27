@@ -4,7 +4,7 @@ on mouseUp
       answer folder "Please choose a folder to install into:"
       if it is not empty then
          put slash & thisProductFolder() after it
-         if not locationIsSuitable(it)  then
+         if not locationIsSuitable?(it)  then
             answer "The location you have chosen is not suitable for the installation. Please choose either an empty folder, or an existing revEnterprise installation folder." with "Okay" and "Cancel"
             if it is "cancel" then
                exit mouseUp

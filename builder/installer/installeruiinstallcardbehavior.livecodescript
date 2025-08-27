@@ -7,13 +7,13 @@ local sDidCancel
 
 on preOpenCard
    setTitleField the long id of field "Page Title", "Installation in Progress", "LiveCode Installer"
-   
+
    put empty into field "Page Description"
-   
+
    set the uProgress of control "Progress" to 0
-   
+
    put "Starting installation" into field "Phase"
-   
+
    hide control "Next"
    hide control "Back"
    set the uEnabled of control "Cancel" to true
@@ -23,20 +23,20 @@ end preOpenCard
 on openCard
    local tLocation
    put settingsLocation() into tLocation
-   
+
    local tOptions
    put settingsDesktopShortcut() into tOptions["-desktopshortcut"]
    put settingsStartMenuShortcuts() into tOptions["-startmenu"]
    if settingsTarget() is "all users" then
       put true into tOptions["-allusers"]
    end if
-   
+
    put "up" into sProgressDirection
    put 0 into sProgressPeak
-   
+
    try
       put false into sDidCancel
-      installerRun tLocation, tLocation & slash & ".setup.txt", tOptions, not settingsRequireAdminPrivileges()
+      installerRun tLocation, tLocation & slash & ".setup.txt", tOptions, not settingsRequireAdminPrivileges?()
    catch tError
       installerFinished tError
    end try
@@ -77,11 +77,11 @@ on installerProgressChanged pProgress, pMessage
    if pProgress > sProgressPeak then
       put pProgress into sProgressPeak
    end if
-   
+
    if sProgressDirection is "down"  then
       put (100 - pProgress) * sProgressPeak / 100.0 into pProgress
    end if
-   
+
    updateProgress pProgress, pMessage
 end installerProgressChanged
 
@@ -104,7 +104,7 @@ local sLastUpdate
 command updateProgress pNewPercentage, pMessage
    if sLastUpdate is not empty and (the millisecs - sLastUpdate < 25) then
       exit updateProgress
-   end if 
+   end if
    put the millisecs into sLastUpdate
    set the uProgress of control "Progress" of me to pNewPercentage
 end updateProgress
