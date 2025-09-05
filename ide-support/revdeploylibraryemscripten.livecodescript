@@ -42,14 +42,13 @@ command deployInitialize
    if not (there is a folder sHTTPFileSpace) then
       create folder sHTTPFileSpace
    end if
-# NOTE: got this from 10.0.0-dp8
    revIDEDeployTargetsChanged
 end deployInitialize
 
-function deployIsAvailable?
-	# never empty, so
-   return true
-end deployIsAvailable?
+--function deployIsAvailable?
+--	# never empty, so
+--   return true
+--end deployIsAvailable?
 
 function deployListTargets
    local tTargets
@@ -72,15 +71,15 @@ end deployListTargets
 command deployDo pTargetStack, pBrowser
    local tError
    put empty into tError
-   
+
    if tError is empty then
       revStandaloneProgress "Configuring HTTP server..."
-      
+
       if sServerPort is not empty and sServerPort is not among the lines of the openSockets then
          httpdStop sServerPort
          put empty into sServerPort
       end if
-      
+
       if sServerPort is empty then
          httpdStart "deployEmscriptenNewHTTPRequest", 0
          if the result is not empty or it is not an integer then
@@ -90,7 +89,7 @@ command deployDo pTargetStack, pBrowser
          end if
       end if
    end if
-   
+
    /* Ensure the temporary folder used to build emscripten standalones for testing exists. */
    if tError is empty and sHTTPFileSpace is empty then
       put the temporary folder & slash & "livecode-emscripten-builds" into sHTTPFileSpace
@@ -101,41 +100,22 @@ command deployDo pTargetStack, pBrowser
          end if
       end if
    end if
-   
+
    local tBuildFolder, tStandalonePath
    if tError is empty then
       revStandaloneProgress "Building standalone..."
-      
+
       local tSettings
-      --dispatch function "SBGetSettings" to stack "revSBLibrary" with pTargetStack, true
-      --put the result into tSettings
       put SBGetSettings(pTargetStack, true) into tSettings
-      
-      ----------------------------------------------
-      # NOTE: from 10.0.0-dp8 : do we want/need this?
-      # Set WASM output explicitly if no arch target specified
-      if tSettings["Emscripten"] and not (tSettings["EmscriptenWASM"] or tSettings["EmscriptenJS"]) then
-         put true into tSettings["EmscriptenWASM"]
-      end if
-      
-      # Only use js output if wasm is not specified
-      if tSettings["EmscriptenWASM"] then
-         put false into tSettings["EmscriptenJS"]
-      else
-         put true into tSettings["EmscriptenJS"]
-      end if
-      
-      ----------------------------------------------
-      
+
       put sHTTPFileSpace & slash & tSettings["name"] into tBuildFolder
       if there is a folder tBuildFolder then
          revDeleteFolder tBuildFolder
       end if
       create folder tBuildFolder
-      
+
       put urlencode(tSettings["name"]) & slash & urlencode(tSettings["name"]) & ".html" into tStandalonePath
-      #      replace "+" with "%20" in tStandalonePath
-      
+
       try
          if tSettings["EmscriptenWASM"] is true then
             dispatch "saveAsEmscriptenWASMStandalone" to stack "revsaveasEmscriptenStandalone" with \
@@ -148,36 +128,32 @@ command deployDo pTargetStack, pBrowser
          put "Unable to build app for testing:" && tException into tError
       end try
    end if
-   
+
    if tError is empty then
       revStandaloneProgress "Launching URL..."
-      
+
       local tPrivateMode
       put pBrowser ends with kPrivateModeSuffix into tPrivateMode
-      
+
       --__deployLaunchURLInBrowser "http://localhost:" & sServerPort & slash & tStandalonePath, sBrowsers[pBrowser], tPrivateMode
       __deployLaunchURLInBrowser "http://localhost:" & sServerPort & slash & tStandalonePath, word 1 of pBrowser, tPrivateMode
       if the result is not empty then
          put "Could not open URL" && the result into tError
       end if
    end if
-   
+
    if tError is not empty and there is a folder tBuildFolder then
       revDeleteFolder tBuildFolder
    end if
-   
+
    if "revStandaloneProgress" is among the lines of the openStacks then
       close stack "revStandaloneProgress"
    end if
-   
+
    return tError
 end deployDo
 
 ////////////////////////////////////////////////////////////////////////////////
-
---private function q pString
---   return quote & pString & quote
---end q
 
 -- Returns a return delimited list of the form <browser>,<path to exe>
 -- Use an internal command on OSX, the registry in Windows and a static list on Linux.

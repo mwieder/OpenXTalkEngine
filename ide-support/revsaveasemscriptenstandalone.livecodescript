@@ -97,64 +97,64 @@ end updateEmscriptenSettingsFrom
 */
 command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
    logDebug "top", "----- Begin Emscripten HTML5 standalone"
-   
+
    ---------- Pre-compute standalone build parametersArch
-   
+
    -- Initial stack file
    local tStackFile
    put the effective filename of stack pStack into tStackFile
-   
+
    -- Base directory
    local tBaseFolder
    put baseDirectoryFromStackFile(tStackFile) into tBaseFolder
-   
+
    -- Other parameters
    local tName
    put pSettings["name"] into tName
-   
+
    SBResetWarnings
-   
+
    # If we're searching for inclusions, do it here
    if pSettings["inclusions"] is "search" then
       revSBSearchForInclusions pStack, pSettings
    end if
-   
+
    # Make sure all dependencies are included
    SBUpdateForDependencies "emscripten",,, pSettings
-   
+
    --revSBUpdateSettingsForExtensions "emscripten", pSettings
    updateEmscriptenSettingsFrom pSettings
-   
+
    local tResolvedFileData
    revSBResolveCopyFilesList tBaseFolder, "emscripten", pSettings, tResolvedFileData
-   
+
    local tDeploy
    # Update the deploy params with script library and extension inclusions
    revSBUpdateDeployParams pStack, "emscripten", pSettings, tDeploy
-   
+
    local tError
    try
       ---------- Create a working directory
       local tBuildFolder
-      
+
       # TODO : Is this necessary?
       replace space with "_" in pOutputFolder
       put pOutputFolder into tBuildFolder
       create folder tBuildFolder # if it doesn't already exist
-      
+
       logDebug "top", "Output folder: " && pOutputFolder
-      
+
       ---------- Create new zip archive
       revStandaloneProgress "Creating standalone archive..."
-      
+
       local tBuildZip # destination path for the zip file
       put createZipArchiveFromFolder(tBuildFolder) into tBuildZip
-      
+
       -- Store template files
       local tZipTemplateFolder
       put HTML5.standaloneTemplateFolder("js") into tZipTemplateFolder
       logDebug "top", "zipTemplateFolder:" && tZipTemplateFolder
-      
+
       local tZipTemplatePath
       repeat for each element tZipTemplateFile in HTML5.StandaloneTemplateFiles()
          put tZipTemplateFolder & slash & tZipTemplateFile into tZipTemplatePath
@@ -164,64 +164,64 @@ command saveAsEmscriptenHTML5Standalone pStack, pOutputFolder, pSettings
             throw "could not store template files in standalone archive"
          end if
       end repeat
-      
+
       # Define some paths within the zip archive
       local tBootPath, tStandalonePath
       local tDeployedStackPath
       put "boot" into tBootPath
       put tBootPath & slash & "__startup.data" into tDeployedStackPath
       put tBootPath & slash & "standalone" into tStandalonePath
-      
+
       # Deploy the standalone application data into /boot/__startup.data
       storeDeployedStack "js", tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
-      
+
       # Store extra, copied files into /boot/standalone
       storeAssets tBuildZip, tResolvedFileData, tStandalonePath, tBaseFolder
-      
+
       # Close zip file
       revZipCloseArchive tBuildZip
       if the result is not empty then
          throw "could not create standalone archive:" && the result
       end if
-      
+
       if there is no file tBuildZip then
          throw "could not create standalone archive: no zip file"
       end if
-      
+
       ---------- Copy the engine into the build folder
       revStandaloneProgress "Preparing engine files..."
       local tEngineFile
       local tEngineFiles
-      
+
       put getEngineFiles("js") into tEngineFiles
       repeat for each key tEngineFile in tEngineFiles
          logDebug "engine", "Copying" && tEngineFiles[tEngineFile]
          SBCopyFileToFileInFolder tEngineFiles[tEngineFile], tBuildFolder, tEngineFile, "revStandaloneProgressCallback", the long id of me
-         
+
          if the result is not empty then
             throw "could not copy engine file" && tEngineFiles[tEngineFile] && the result
          end if
       end repeat
-      
+
       ---------- Create HTML page
-      
+
       local tCustomFiles
       revStandaloneProgress "Preparing HTML page..."
       createHTMLPage "js", tBuildFolder, tName, tCustomFiles, pSettings
-      
+
    catch tError
       put cleanupOnFailure(tError, pOutputFolder) into tError
    end try
-   
+
    local tOutcome
    if tError is not empty then
       put "FAILURE" into tOutcome
    else
       put "SUCCESS" into tOutcome
    end if
-   
+
    logDebug "top", "----- (" & tOutcome & ") Emscripten HTML5 Standalone"
-   
+
    if tError is not empty then
       throw tError
    end if
@@ -232,51 +232,51 @@ end saveAsEmscriptenHTML5Standalone
 *  pSettings : array of assets to encapsulate
 */
 command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
-   
+
    logDebug "top", "----- Begin Emscripten WASM standalone"
-   
+
    -- FIXME
    dispatch "revIDEDeployEmscriptenInitialize" to stack "revDeployLibrary"
-   
+
    local tArchs
    put architectureListFromSettingsArray(pSettings) into tArchs
-   
+
    ----------------------------------------------------------------
    ---------- Pre-compute standalone build parameters
    ----------------------------------------------------------------
-   
+
    # Initial stack file
    local tStackFile
    put the effective filename of stack pStack into tStackFile
-   
+
    # Base directory
    local tBaseFolder
    put baseDirectoryFromStackFile(tStackFile) into tBaseFolder
-   
+
    -- Other parameters
    local tName
    put pSettings["name"] into tName # use the stack name to build <stackname>.html
-   
+
    SBResetWarnings
-   
+
    -- If we're searching for inclusions, do it here
    if pSettings["inclusions"] is "search" then
       revSBSearchForInclusions pStack, pSettings
    end if
-   
+
    -- Make sure all dependencies are included
    SBUpdateForDependencies "emscripten",,, pSettings
-   
+
    /* Emscripten wasm module resources are placed in `/boot/standalone` so we must
    * set the resources path appropriately. */
    put "/boot/standalone" into pSettings["resources_path"]
    updateEmscriptenSettingsFrom pSettings
-   
+
    local tResolvedFileData
    revSBResolveCopyFilesList tBaseFolder, "emscripten", pSettings, tResolvedFileData
-   
+
    logDebug "tArch[wasm]", tArchs
-   
+
    # Process the resolved files, separating the custom standalone and fonts files if available
    local tCustomFiles
    local tFilesArray
@@ -287,11 +287,11 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
    set the itemDelimiter to comma
    put "emscripten-web-fonts.txt" into tFilesArray[2]
    WASM.ProcessCustomFiles tResolvedFileData, tFilesArray, tCustomFiles
-   
+
    local tDeploy
    # Update the deploy params with script library and extension inclusions
    revSBUpdateDeployParams pStack, "emscripten", pSettings, tDeploy
-   
+
    local tError
    try
       repeat for each item tArch in tArchs
@@ -304,108 +304,108 @@ command saveAsEmscriptenWASMStandalone pStack, pOutputFolder, pSettings
          else
             put pOutputFolder into tBuildFolder
          end if
-         
+
          if there is not a folder tBuildFolder then
             create folder tBuildFolder
             if the result is not empty then
                throw "could not create build folder for" && tArch && "target"
             end if
          end if
-         
+
          logDebug "top", "Output folder: " && pOutputFolder
-         
+
          ----------------------------------------------------------------
          ---------- Create new zip archive
          ----------------------------------------------------------------
          revStandaloneProgress "Creating standalone archive..."
-         
+
          local tBuildZip
          put createZipArchiveFromFolder(tBuildFolder) into tBuildZip
-         
+
          # Define some paths within the zip archive
          local tBootPath, tStandalonePath
          local tDeployedStackPath
          put "boot" into tBootPath
          put tBootPath & slash & "__startup.data" into tDeployedStackPath
          put tBootPath & slash & "standalone" into tStandalonePath
-         
+
          # Deploy the standalone application data
-         
+
          logDebug "stack", tStackFile
-         
+
          storeDeployedStack tArch, tBuildZip, tDeployedStackPath, tBuildFolder, tStackFile, tDeploy
-         
+
          # Store extra, copied files
          storeAssets tBuildZip, tResolvedFileData, tStandalonePath, tBaseFolder
-         
+
          # Close zip file
          revZipCloseArchive tBuildZip
          if the result is not empty then
             throw "could not create standalone archive:" && the result
          end if
-         
+
          ----------------------------------------------------------------
          ---------- Copy the engine into the build folder
          ----------------------------------------------------------------
-         
+
          revStandaloneProgress "Preparing engine files..."
          local tEngineFiles
          put getEngineFiles(tArch) into tEngineFiles
          repeat for each key tEngineFile in tEngineFiles
             logDebug "engine", "Copying" && tEngineFiles[tEngineFile]
             SBCopyFileToFileInFolder tEngineFiles[tEngineFile], tBuildFolder, tEngineFile, "revStandaloneProgressCallback", the long id of me
-            
+
             if the result is not empty then
                throw "could not copy engine file" && tEngineFiles[tEngineFile] && the result
             end if
          end repeat
-         
+
          ----------------------------------------------------------------
          ---------- Create HTML page
          ----------------------------------------------------------------
-         
-         createHTMLPage tArch, tBuildFolder, tName, tCustomFiles, pSettings
-         
+
          revStandaloneProgress "Preparing HTML page..."
-         
-         local tHtmlFile
-         put tBuildFolder & slash & tName & ".html" into tHtmlFile
-         logDebug "html", "Creating" && tHtmlFile
-         
-         local tHtmlTemplate
-         put tCustomFiles["standalone.html"] into tHtmlTemplate
-         if tHtmlTemplate is empty then
-            /* Load the contents of the default or custom webfonts file */
-            local tWebFontsText
-            put webFontsFileContents(tArch, tCustomFiles) into tWebFontsText
-            
-            /* Read and merge the webfonts contents with the HTML template and write it */
-            local tHtmlTemplateText
-            put getHtmlTemplateFile(tArch) into tHtmlTemplate
-            put url("binfile:" & tHtmlTemplate) into tHtmlTemplateText
-            replace "${OXT_WEB_FONTS}" with tWebFontsText in tHtmlTemplateText
-            replace "${LIVECODE_WEB_FONTS}" with tWebFontsText in tHtmlTemplateText
-            
-            put tHtmlTemplateText into url("binfile:" & tHtmlFile)
-         else
-            logDebug "html", "Copying" && tHtmlTemplate
-            SBCopyFileToFile mapBinPath(tArch, tHtmlTemplate), tHtmlFile, \
-                  "revStandaloneProgressCallback", the long id of me
-         end if
+
+         createHTMLPage tArch, tBuildFolder, tName, tCustomFiles, pSettings
+
+#         local tHtmlFile
+#         put tBuildFolder & slash & tName & ".html" into tHtmlFile
+#         logDebug "html", "Creating" && tHtmlFile
+
+#         local tHtmlTemplate
+#         put tCustomFiles["standalone.html"] into tHtmlTemplate
+#         if tHtmlTemplate is empty then
+#            /* Load the contents of the default or custom webfonts file */
+#            local tWebFontsText
+#            put webFontsFileContents(tArch, tCustomFiles) into tWebFontsText
+
+#            /* Read and merge the webfonts contents with the HTML template and write it */
+#            local tHtmlTemplateText
+#            put getHtmlTemplateFile(tArch) into tHtmlTemplate
+#            put url("binfile:" & tHtmlTemplate) into tHtmlTemplateText
+#            replace "${OXT_WEB_FONTS}" with tWebFontsText in tHtmlTemplateText
+#            replace "${LIVECODE_WEB_FONTS}" with tWebFontsText in tHtmlTemplateText
+#
+#            put tHtmlTemplateText into url("binfile:" & tHtmlFile)
+#         else
+#            logDebug "html", "Copying" && tHtmlTemplate
+#            SBCopyFileToFile mapBinPath(tArch, tHtmlTemplate), tHtmlFile, \
+#                  "revStandaloneProgressCallback", the long id of me
+#         end if
       end repeat
    catch tError
       put cleanupOnFailure(tError, pOutputFolder) into tError
    end try
-   
+
    local tOutcome
    if tError is not empty then
       put "FAILURE" into tOutcome
    else
       put "SUCCESS" into tOutcome
    end if
-   
+
    logDebug "end", "----- (" & tOutcome & ") Emscripten WASM Standalone"
-   
+
    if tError is not empty then
       throw tError
    end if
@@ -445,14 +445,14 @@ end createHTMLPage
 private function webFontsFileContents pArch, pCustomFiles
    local tHtmlTemplate
    put getHtmlTemplateFile(pArch) into tHtmlTemplate
-   
+
    /* Load the contents of the default or custom webfonts file */
    local tWebFontsFile
    put pCustomFiles["web-fonts.txt"] into tWebFontsFile
    if tWebFontsFile is empty then
       put mapBinPath(pArch, "emscripten-web-fonts.txt") into tWebFontsFile
    end if
-   
+
    local tWebFontsText
    put url("binfile:" & tWebFontsFile) into tWebFontsText
    return tWebFontsText
@@ -641,7 +641,7 @@ private command _storeAssetsR pFolder, pName, @xFilesA, @xCount
 end _storeAssetsR
 
 /*
-* WASMProcessCustomFiles
+* WASM.ProcessCustomFiles
 *  @xResolvedFileData
 *  pCustomFiles : standalone.html, emscripten-web-fonts.txt
 *  @rCustomFiles
@@ -779,8 +779,8 @@ private function mapBinPath pArch, pPath
 end mapBinPath
 
 /*
--- Scan a directory, returning a number-indexed array of files found.
--- The returned paths are relative to the specified directory.
+* Scan a directory, returning a number-indexed array of files found.
+* The returned paths are relative to the specified directory.
 */
 private function scanFolder pFolder
    local tTemplateRoot, tFiles, tCount, tError
@@ -882,14 +882,14 @@ end standaloneJSFile
 */
 private function getEngineFiles pArch
    local tFilesArray, tPath, tFileName
-   
+
    set the itemDelimiter to "/"
-   
+
    # Get the proper JavaScript file for the architecture
    put standaloneJSFile(pArch, "js") into tPath
    put item -1 of tPath into tFileName
    put tPath into tFilesArray[tFileName]
-   
+
    switch pArch
       case "js"
          # HTML5 memory initialisation file
@@ -897,21 +897,21 @@ private function getEngineFiles pArch
          put item -1 of tPath into tFileName
          put tPath into tFilesArray[tFileName]
          break
-         
+
       case "wasm"
       default
          # WASM engine WebAssembly binary
          put standaloneJSFile(pArch, "wasm") into tPath
          put item -1 of tPath into tFileName
          put tPath into tFilesArray[tFileName]
-         
+
          # ICU data
          put mapCommonPath("icu-core.dat") into tFilesArray["icu-core.dat"]
          put mapCommonPath("icu-iter.dat") into tFilesArray["icu-iter.dat"]
          put mapCommonPath("icu-coll.dat") into tFilesArray["icu-coll.dat"]
          break
    end switch
-   
+
    return tFilesArray
 end getEngineFiles
 

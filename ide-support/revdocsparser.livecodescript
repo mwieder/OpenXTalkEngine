@@ -361,53 +361,53 @@ Tags: Package building
 function docs.GenerateDocsFileFromModularFile pFile
    local tContents
    put docs.Utf8FileContents(pFile) into tContents
-   return docs.GenerateDocsFile.FromModular(tContents, pFile)
+   return lcb.docs.GenerateDocsFile.FromModular(tContents, pFile)
 end docs.GenerateDocsFileFromModularFile
 
 /*
 Convert inline docs to the standard format (that can be parsed without code blocks)
 */
 
-private function docs.GenerateDocsFile.FromModular pText, pFilename
+private function lcb.docs.GenerateDocsFile.FromModular pText, pFilename
    return docs.GenerateDocsFile.FromText(pText, pFilename)
-end docs.GenerateDocsFile.FromModular
+end lcb.docs.GenerateDocsFile.FromModular
 
 function docs.GenerateDocsFile.FromText pText, pSource
-   local tEntryType
-   put empty into tEntryType
-   
-   local tFirstWord, tEntryData
-   local tComment, tData
-   local tHandlerData, tPhraseData
-   
    local tLibraryData, tAPIData
+   local tOutput
+   
+   # MDW 2025.09.02
+   if pText is empty then
+      return empty
+   end if
    docs.ExtractDocBlocksFrom pText, pSource, tAPIData, tLibraryData
    
    # Allow inline module description as valid docs
    if tAPIData is empty then
       logWarning "No handlers documented", pSource
-   end if
-   
-   if tLibraryData["name"] is empty then
-      logError "No extension name found", pSource
-   end if
-   
-   local tOutput
-   put docs.FormatInlineComments(tLibraryData, true) into tOutput
-   
-   if tOutput is empty then
-      logWarning "Invalid library-level docs", pSource
-   end if
-   
-   repeat for each key tKey in tAPIData
-      local tFormatted
-      put docs.FormatInlineComments(tAPIData[tKey], false) into tFormatted
-      if tFormatted is empty then
-         logWarning "No docs for element" && tKey, pSource
-      else
-         put tFormatted & cr & cr after tOutput
+      --end if
+   else
+      
+      if tLibraryData["name"] is empty then
+         logError "No extension name found", pSource
       end if
-   end repeat
+      
+      put docs.FormatInlineComments(tLibraryData, true) into tOutput
+      
+      if tOutput is empty then
+         logWarning "Invalid library-level docs", pSource
+      end if
+      
+      repeat for each key tKey in tAPIData
+         local tFormatted
+         put docs.FormatInlineComments(tAPIData[tKey], false) into tFormatted
+         if tFormatted is empty then
+            logWarning "No docs for element" && tKey, pSource
+         else
+            put tFormatted & cr & cr after tOutput
+         end if
+      end repeat
+   end if
    return tOutput
 end docs.GenerateDocsFile.FromText
 
@@ -532,7 +532,7 @@ private command docs.ExtractDocBlocksFrom pText, pSource, @rAPIData, @rLibraryDa
                      # If we have a widget, then public handlers are not in the message path and so don't need docs.
                      put not tIsWidget? into tEntryData["need_docs"]
                   end if
-               else
+               else # not a public handler... some other public object
                   put true into tEntryData["private"]
                   if word 2 of tLine is "foreign" then
                      if word 3 of tLine is "handler" then
@@ -601,17 +601,18 @@ private command docs.ExtractDocBlocksFrom pText, pSource, @rAPIData, @rLibraryDa
                   
                   # If this is script, and this is an initial block of comments,
                   # then treat as the library description
-                  if tIsScript? and tAPIData is empty and tComment is not empty then
-                     put "library" into tLibraryData["type"]
-                     put tComment into tLibraryData["comments"]
-                     put the short name of pSource into tLibraryData["name"]
+                  if tAPIData is empty and tComment is not empty then
+                     if tIsScript? then
+                        put "library" into tLibraryData["type"]
+                        put tComment into tLibraryData["comments"]
+                        put the short name of pSource into tLibraryData["name"]
+                     end if
+                     
+                     if tIsLCIDL? then
+                        put tEntryData into tLibraryData
+                        put tComment into tLibraryData["comments"]
+                     end if
                   end if
-                  
-                  if tIsLCIDL? and tAPIData is empty and tComment is not empty then
-                     put tEntryData into tLibraryData
-                     put tComment into tLibraryData["comments"]
-                  end if
-                  
                   # Discard any previous comments
                   put empty into tComment
                   put true into tInComment?
@@ -710,13 +711,13 @@ private command docs.ExtractDocBlocksFrom pText, pSource, @rAPIData, @rLibraryDa
                case "property"
                   docs.UpdateDocBlocksForProperty tData, tComment, tAPIData
                   break
-            end switch
+            end switch # tEntryData["type"]
             
          else
             if tEntryData["need_docs"] then
                logError "Required documentation not found for" && tEntryData["type"] && tEntryData["name"], pSource
             end if
-         end if
+         end if # tComment is not empty
          put empty into tEntryData
          put empty into tComment
          put empty into tData
@@ -807,8 +808,8 @@ private function docs.FormatInlineComments pDataA, pIsLibrary?
 
    local tHasA
 
-   local tParamsFound
-   put false into tParamsFound
+   local tParamsFound?
+   put false into tParamsFound?
 
    local tDocData
 
@@ -870,9 +871,9 @@ private function docs.FormatInlineComments pDataA, pIsLibrary?
             repeat for each element tVariant in pDataA["variants"]
                repeat for each element tParam in tVariant
                   if tParam["name"] is tElement then
-                     if not tParamsFound then
-                        put "Parameters:" & return after tEntryDoc
-                        put true into tParamsFound
+                     if not tParamsFound? then
+                        put "Parameters:" & cr after tEntryDoc
+                        put true into tParamsFound?
                      end if
                      if tElementA["type"] is empty then
                         # add the param details if they were not included
@@ -894,7 +895,7 @@ private function docs.FormatInlineComments pDataA, pIsLibrary?
          put tElementA["name"] into tElement
 
          if tElementA["type"] is not empty then
-            put tElement & "(" & tElementA["type"] & "):" && tElementA["content"] & return after tEntryDoc
+            put tElement & "(" & tElementA["type"] & "):" && tElementA["content"] & cr after tEntryDoc
          else
             if the number of lines in tElementA["content"] > 1 then
                local tDeleteTab
@@ -907,19 +908,19 @@ private function docs.FormatInlineComments pDataA, pIsLibrary?
                   if tDeleteTab and tLine begins with tab then
                      delete char 1 of tLine
                   end if
-                  put tLine & return after tEntryDoc
+                  put tLine & cr after tEntryDoc
                end repeat
             else
-               put tElement & ":" && tElementA["content"] & return after tEntryDoc
+               put tElement & ":" && tElementA["content"] & cr after tEntryDoc
             end if
          end if
-         put return after tEntryDoc
+         put cr after tEntryDoc
       end repeat
       if tHasA["Syntax"] is not true then
          put pDataA["syntax"] into tSyntax
       end if
       repeat with z = 1 to the number of elements in tSyntax
-         put "Syntax:" && tSyntax[z] & cr & return before tEntryDoc
+         put "Syntax:" && tSyntax[z] & cr & cr before tEntryDoc
       end repeat
 
       if tHasA["Type"] is not true then
@@ -931,9 +932,9 @@ private function docs.FormatInlineComments pDataA, pIsLibrary?
          put pDataA["name"] into tName
       end if
       if pIsLibrary? and x = 0 then
-         put "Library:" && tName & return & return before tEntryDoc
+         put "Library:" && tName & cr & cr before tEntryDoc
       else
-         put "Name:" && tName & return & return before tEntryDoc
+         put "Name:" && tName & cr & cr before tEntryDoc
       end if
 
       if tHasA["Parameters"] is not true and pDataA["params"] is an array then
@@ -1840,40 +1841,40 @@ private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment,
    if pComment is empty then
       exit docs.UpdateDocBlocksForLCIDL
    end if
-
+   
    local tSyntax
    local tParamArray
    local tParamsSyntax
    local tValue
-
+   
    local tParam
    repeat for each line tLine in line 2 to -1 of pData
       if the number of words of tLine is 0 then
          next repeat
       end if
-
+      
       split tLine by "//"
-
+      
       if word 1 of tLine[1] is not "return" then
          local tOptional?
          put word 1 of tLine[1] is "optional" into tOptional?
-
+         
          if tOptional? then
             delete word 1 of tLine[1]
          end if
          put word 2 of tLine[1] into tParam
-
+         
          if tOptional? then
             put "[<" & tParam & ">], " after tParamsSyntax
          else
             put "<" & tParam & ">, " after tParamsSyntax
          end if
-
+         
          get the number of elements of tParamArray + 1
-
+         
          put "out" is in word 1 of tLine[1] into tParamArray[it]["refparam"]
          put tParam into tParamArray[it]["name"]
-
+         
          if word 4 of tLine[1] contains "string" then
             put "string" into tParamArray[it]["type"]
          else if word 4 of tLine[1] contains "data" then
@@ -1881,7 +1882,7 @@ private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment,
          else
             put word 4 of tLine[1] into tParamArray[it]["type"]
          end if
-
+         
          if tOptional? then
             put "optional " before tParamArray[it]["type"]
          end if
@@ -1892,15 +1893,15 @@ private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment,
       end if
    end repeat
    delete char -2 to -1 of tParamsSyntax
-
+   
    if pType is "function" then
-      put "(" before tParamsSyntax
-      put ")" after tParamsSyntax
-      put pEntryName & tParamsSyntax into tSyntax
+      --put "(" before tParamsSyntax
+      --put ")" after tParamsSyntax
+      put pEntryName & "(" & tParamsSyntax & ")" into tSyntax
    else
       put pEntryName && tParamsSyntax into tSyntax
    end if
-
+   
    put tSyntax into xDataA[pEntryName]["syntax"][1]
    put tParamArray into xDataA[pEntryName]["params"]
    put pType into xDataA[pEntryName]["type"]
@@ -1911,10 +1912,10 @@ private command docs.UpdateDocBlocksForLCIDL pEntryName, pType, pData, pComment,
       put tValue into xDataA[pEntryName]["the result"]
    end if
    put empty into tValue
-
+   
    # Output the comments that preceded this function definition
    put pComment into xDataA[pEntryName]["comments"]
-
+   
    # Distinguish from syntax
    put "handler" into xDataA[pEntryName]["kind"]
 end docs.UpdateDocBlocksForLCIDL

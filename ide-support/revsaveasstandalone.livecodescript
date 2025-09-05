@@ -550,7 +550,7 @@ private command standalonePreBuild pStack, pFolder, pPlatform, pArchs, @rStackNa
    set the itemdelimiter to "."
    put item -1 of tStackName into tExtension
    set the itemdelimiter to comma
-   if tExtension is not among the items of revIDELiveCodeFileExtensions() then
+   if tExtension is not among the items of ide.LiveCodeFileExtensions() then
       put ".livecode" after tStackName
    end if
 

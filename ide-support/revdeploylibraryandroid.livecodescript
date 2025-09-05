@@ -46,17 +46,17 @@ function deployListTargets
    return tTargets
 end deployListTargets
 
-function deployIsAvailable?
-   local tEnabled?
+--function deployIsAvailable?
+--   local tEnabled?
 
-   if sAvailableDevices is not an array then
-      put false into tEnabled?
-   else
-      put true into tEnabled?
-   end if
+--   if sAvailableDevices is not an array then
+--      put false into tEnabled?
+--   else
+--      put true into tEnabled?
+--   end if
 
-   return tEnabled?
-end deployIsAvailable?
+--   return tEnabled?
+--end deployIsAvailable?
 
 command deployDo pTargetStack, pTargetDevice
    local tError
@@ -181,19 +181,16 @@ end __ABIArch
 
 command deployAutoconfigure
    local tSDK
-   #put the cMobileSupport["android.sdk"] of stack "revPreferences" into tSDK
    dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.sdk"
    put the result into tSDK
    if tSDK is not empty and deploy.IsValidSDK?(tSDK) is not empty then
       put empty into tSDK
    end if
-   #set the cMobileSupport["android.sdk"] of stack "revPreferences" to tSDK
    dispatch "setMobilePreference" to stack "revPreferencesGUI" with "android.sdk", tSDK
    put tSDK into sAndroidRoot
 
    if sAndroidRoot is not empty then
       local tJDK
-      #put the cMobileSupport["android.jdk"] of stack "revPreferences" into tJDK
       dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.jdk"
       put the result into tJDK
       if tJDK is empty or deploy.IsValidJDK?(tJDK) is not empty then
@@ -201,7 +198,6 @@ command deployAutoconfigure
          put the result into tJDK
       end if
       if tJDK is not empty then
-         #set the cMobileSupport["android.jdk"] of stack "revPreferences" to tJDK
          dispatch "setMobilePreference" to stack "revPreferencesGUI" with "android.jdk", tJDK
          put tJDK into sJavaRoot
       end if
@@ -257,7 +253,7 @@ TODO: fix this... is Java 8 still correct?
 /**
 * deploy.IsValidJDK?
 * parameter:
-*  pPath
+*  pPath : full path to the jdk
 * returns
 *  empty if no error, otherwise an error string
 */
@@ -271,7 +267,7 @@ function deploy.IsValidJDK? pPath
       return "missing javac tool, make sure your JDK install has not become corrupted"
    end if
 
-   // newer versions of SDK Tools require Java 8
+   // newer versions of SDK Tools require at least Java 8
    if pathToSDKClasses() contains "sdklib-" and not pPath contains "jdk1.8" then
       return "The version of Java installed in your system is not compatible with the current version of Android SDK Tools. Please install Java 8 to continue."
    end if
@@ -291,6 +287,20 @@ function deploy.RequiredSDK
    return format("%s (API %s)", tAndroidVersion, kDeployAndroidTargetSDK)
 end deploy.RequiredSDK
 
+/**
+* deploy.IsValidSDK?
+* Return empty if all the proper tools are available.
+* Return an error string if any of the following conditions are wrong:
+*  no platforms folder
+*  no platform-tools folder
+*  no build-tools folder
+*  no sdk for the specified version
+*  no aapt2 in the path
+*  no adb in the path
+*  no sdklib.jar in the path
+*  no zipalign in the path
+*  no d8 in the path
+*/
 function deploy.IsValidSDK? pPath
    if there is no folder (pPath & slash & "platforms") then
       return "could not find platforms folder at that path."
@@ -388,7 +398,7 @@ private command executeShellCommand
    local tShell
    repeat with i = 2 to the paramCount
       if param(i) contains space and not (param(i) begins with "-") then
-         put quote & param(i) & quote & space after tShell
+         put q(param(i)) & space after tShell
       else
          put param(i) & space after tShell
       end if
@@ -982,7 +992,7 @@ private function parsePOMFile pPomFile
    local tTreeId, tDependencies
    put revXMLCreateTreeFromFile(pPomFile, false, true, false) into tTreeId
    if tTreeId begins with "xmlerr" then
-      throw "Error parsing POM file " & quote & pPomFile & quote & " - " & tTreeId
+      throw "Error parsing POM file " & q(pPomFile) & " - " & tTreeId
    end if
 
    try
@@ -1292,8 +1302,8 @@ private function getRegistryValue pKey, pValue, pUse64Bit
    // IM 12/05/2011 - added check for error return from reg.exe
    // reg.exe returns an error if the key or value is not found
 
-   //return word 3 to -1 of the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/v" && quote & pValue & quote))
-   put the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/v" && quote & pValue & quote)) into tValue
+   //return word 3 to -1 of the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && q(pKey)) && "/v" && q(pValue)))
+   put the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && q(pKey) && "/v" && q(pValue))) into tValue
    if word 1 of tValue is "ERROR:" then
       return empty
    end if
@@ -1313,7 +1323,7 @@ private function listRegistryRecursive pKey, pUse64Bit
    end if
 
    local tKeys
-   put word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/s") into tKeys
+   put word 1 to -1 of shell(tRegCmd && "QUERY" && q(pKey) && "/s") into tKeys
 
    local tCurrentKey, tKeyArray
    repeat for each line tLine in tKeys

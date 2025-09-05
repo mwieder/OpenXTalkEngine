@@ -22,7 +22,7 @@ function deployUsableIosSdk
 end deployUsableIosSdk
 
 // SN-2015-05-01: Return the pair iOS SDK / Xcode for the current MacOS version
-function deployGetIphoneOSes
+private function deployGetIphoneOSes
    // tList will be an array with elements of the form:
    // SDK_version,Xcode_version,Simulator_version
    local tList, tMacVersion
@@ -75,19 +75,19 @@ command deployInitialize
 end deployInitialize
 
 -- Invoked to check whether the platform is available for deployment
-function deployIsAvailable?
-   local tEnabled?
-   
-   if the platform is not "macos" then
-      put false into tEnabled?
-   else if sDeploySimulators is not an array then
-      put false into tEnabled?
-   else
-      put true into tEnabled?
-   end if
-   
-   return tEnabled?
-end deployIsAvailable?
+--function deployIsAvailable?
+--   local tEnabled?
+
+--   if the platform is not "macos" then
+--      put false into tEnabled?
+--   else if sDeploySimulators is not an array then
+--      put false into tEnabled?
+--   else
+--      put true into tEnabled?
+--   end if
+
+--   return tEnabled?
+--end deployIsAvailable?
 
 -- Invoked to fetch the list of targets for this simulation platform
 function deployListTargets
@@ -100,7 +100,7 @@ function deployListTargets
    repeat for each key tKey in sDeploySimulators
       if tKey is among the items of tAvailableSimEngines then
          local tSimVersion
-         put revIDEDeployIOSGetSimulatorVersionFromSDKVersion(tKey) into tSimVersion
+         put deploy.IOS.GetSimulatorVersionFromSDKVersion(tKey) into tSimVersion
          put "iPad Simulator" && tSimVersion & return after tTargets
          put "iPhone Simulator" && tSimVersion & return after tTargets
       end if
@@ -112,7 +112,7 @@ function deployListTargets
    return tTargets
 end deployListTargets
 
-private function revIDEDeployIOSGetSimulatorVersionFromSDKVersion pSDkVersion
+private function deploy.IOS.GetSimulatorVersionFromSDKVersion pSDkVersion
    local tTriplet
    put deployGetIphoneOSes() into tTriplet 
    // tTriplet is an array with elements of the form:
@@ -124,9 +124,9 @@ private function revIDEDeployIOSGetSimulatorVersionFromSDKVersion pSDkVersion
    end repeat
    
    return pSDkVersion
-end revIDEDeployIOSGetSimulatorVersionFromSDKVersion
+end deploy.IOS.GetSimulatorVersionFromSDKVersion
 
-private function revIDEDeployIOSGetSDKVersionFromSimulatorVersion pSimVersion
+private function deploy.IOS.GetSDKVersionFromSimulatorVersion pSimVersion
    local tTriplet
    put deployGetIphoneOSes() into tTriplet 
    // tTriplet is an array with elements of the form:
@@ -138,7 +138,7 @@ private function revIDEDeployIOSGetSDKVersionFromSimulatorVersion pSimVersion
    end repeat
    
    return pSimVersion
-end revIDEDeployIOSGetSDKVersionFromSimulatorVersion
+end deploy.IOS.GetSDKVersionFromSimulatorVersion
 
 
 -- Invoked when the Deploy/Simulate button is clicked on the menubar
@@ -208,7 +208,7 @@ command deployDo pTargetStack, pSimulator, pAppBundle
       if pAppBundle is empty then
          put tTempFolder & slash & tSettings["name"] & ".app" into tTempAppBundle
          try
-            put revIDEDeployIOSGetSdkVersionFromSimulatorVersion(tVersion) into tVersion
+            put deploy.IOS.GetSDKVersionFromSimulatorVersion(tVersion) into tVersion
             dispatch "saveAsMobileStandalone" to stack "revSaveAsIOSStandalone" with \
                   pTargetStack, tTempAppBundle, "Simulator" && tVersion, tSettings
          catch tException
@@ -241,7 +241,7 @@ command deployDo pTargetStack, pSimulator, pAppBundle
       -- *other* running simulators first
       get sDeploySimulators[tVersion]
       if it is not sDeploySimulatorToolset then
-         revIDEDeployIOSKillOtherSimulators it
+         deploy.IOS.KillOtherSimulators it
          try
             -- MW-2012-03-01: [[ Bug ]] If the developer root is inside the Xcode bundle then we must
             --   set the DYLD_FRAMEWORK_PATH to the app's OtherFrameworks folder.
@@ -262,7 +262,7 @@ command deployDo pTargetStack, pSimulator, pAppBundle
       -- Next try to switch the sdk
       try
          local tSimVersion
-         put revIDEDeployIOSGetSimulatorVersionFromSDKVersion(tVersion) into tSimVersion
+         put deploy.IOS.GetSimulatorVersionFromSDKVersion(tVersion) into tSimVersion
          revIPhoneSetSimulatorSDK tSimVersion
       catch tException
          put "Unable to start simulator:" && tException into tError
@@ -439,7 +439,7 @@ end deployBuild
 -- Two iOS simulator versions can't be running at once as they interfere
 -- with each other in various unpleasant ways. This handler kills all the
 -- simulator versions apart from the one specified in 'pKeep'.
-private command revIDEDeployIOSKillOtherSimulators pKeep
+private command deploy.IOS.KillOtherSimulators pKeep
    get shell("ps ax")
    put "/Platforms/iPhoneSimulator.platform" after pKeep
    repeat for each line tProcess in it
@@ -449,7 +449,7 @@ private command revIDEDeployIOSKillOtherSimulators pKeep
          end if
       end if
    end repeat
-end revIDEDeployIOSKillOtherSimulators
+end deploy.IOS.KillOtherSimulators
 
 -- MM-2012-09-18: Update the internal list of simulators and SDKs.
 -- Replaced deployUpdateSimulators, since we now maintain more than a single device SDK.
@@ -520,7 +520,7 @@ command deployUpdateSDKs
    revIDEDeployTargetsChanged
 end deployUpdateSDKs
 
-function deployGetInvalidityMessage pIosXcodePairs
+private function deployGetInvalidityMessage pIosXcodePairs
    local tIosToInstall, tIosList
    
    // SN-2015-05-01: [[ Refactor iOS SDK version ]] We might have several iOS / Xcode
@@ -540,10 +540,10 @@ end deployGetInvalidityMessage
 -- card "Mobile" of stack "revpreferencesgui" here, to make any update
 -- after a new Xcode release more convenient
 -- MM-2013-10-08: We now only build for Arm v7, reducing the SDKs users now require.
-function deployCheckLatestSDKIsInstalled @rTooltip, @rAvailableSDKs
-   local tSDKStatus, tValid, tIosXcodePairs
+function deploy.IOS.CheckLatestSDKIsInstalled? @rTooltip, @rAvailableSDKs
+   local tSDKStatus, tValid?, tIosXcodePairs
    put empty into tSDKStatus   
-   put false into tValid
+   put false into tValid?
    
    put deployGetIphoneOSes() into tIosXcodePairs
    get deploy.GetSDKVersions()
@@ -552,25 +552,25 @@ function deployCheckLatestSDKIsInstalled @rTooltip, @rAvailableSDKs
    local tIostoInstall, tXcodeToInstall
    repeat for each element tIosXcodePair in tIosXcodePairs
       if item 1 of tIosXcodePair is in it then
-         put true into tValid
+         put true into tValid?
          exit repeat
       end if
    end repeat
    
-   if not tValid then
+   if not tValid? then
       put deployGetInvalidityMessage(tIosXcodePairs) into tSDKStatus
    end if
    
    if it is empty then
       get "(none)"
    else
-      replace return with comma & space in it
+      replace cr with comma & space in it
    end if
    
    put it into rAvailableSDKs
    
-   return tValid
-end deployCheckLatestSDKIsInstalled
+   return tValid?
+end deploy.IOS.CheckLatestSDKIsInstalled?
 
 -- Invoked to get the list of simulators available
 function deployGetSimulatorVersions
@@ -587,9 +587,9 @@ function deploy.GetSDKVersions
 end deploy.GetSDKVersions
 
 -- Invoked to get the list of devices valid for the given simulator
-function deployGetSimulatorFamilies pSimulator
+private function deployGetSimulatorFamilies pSimulator
    if pSimulator >= "4.2" then
-      return "iPhone" & return & "iPad"
+      return "iPhone" & cr & "iPad"
    end if
    return "iPhone"
 end deployGetSimulatorFamilies
@@ -610,7 +610,7 @@ end deployGetDeviceSDK
 --
 -- MM-2012-08-18: Updated to support the new list style SDKs.
 --
-command deployAutoconfigureSDKs
+private command deployAutoconfigureSDKs
    local tCurrent3_2, tCurrent4, tCurrent5, tCurrentList
    put the cMobileSupport["ios.sdk-3_2"] of stack "revPreferences" into tCurrent3_2
    put the cMobileSupport["ios.sdk-4"] of stack "revPreferences" into tCurrent4
@@ -620,22 +620,22 @@ command deployAutoconfigureSDKs
    set the wholeMatches to true
    get tCurrentList
    repeat for each line tSDK in it
-      if not deployIsValidSDK(tSDK) then
+      if not deployIsValidSDK?(tSDK) then
          delete line lineoffset(tSDK, tCurrentList) of tCurrentList
       end if
    end repeat
    
    if tCurrentList is empty then
-      if deployIsValidSDK(tCurrent5) then
+      if deployIsValidSDK?(tCurrent5) then
          put tCurrent5 after tCurrentList
       end if
-      if deployIsValidSDK(tCurrent4) and tCurrent4 is not among the lines of tCurrentList then
+      if deployIsValidSDK?(tCurrent4) and tCurrent4 is not among the lines of tCurrentList then
          if tCurrentList is not empty then
             put return after tCurrentList
          end if
          put tCurrent4 after tCurrentList
       end if
-      if deployIsValidSDK(tCurrent3_2) and tCurrent3_2 is not among the lines of tCurrentList then
+      if deployIsValidSDK?(tCurrent3_2) and tCurrent3_2 is not among the lines of tCurrentList then
          if tCurrentList is not empty then
             put return after tCurrentList
          end if
@@ -645,11 +645,11 @@ command deployAutoconfigureSDKs
    
    if tCurrentList is empty then
       get "/Applications/Xcode.app/Contents/Developer"
-      if deployIsValidSDK(it) then
+      if deployIsValidSDK?(it) then
          put it after tCurrentList
       end if
       get "/Developer"
-      if deployIsValidSDK(it) and it is not among the lines of tCurrentList then
+      if deployIsValidSDK?(it) and it is not among the lines of tCurrentList then
          if tCurrentList is not empty then
             put return after tCurrentList
          end if
@@ -666,25 +666,25 @@ end deployAutoconfigureSDKs
 -- MM-2012-09-18: Updated to support the new SDK list style preference.
 -- We now allow XCode versions that have sim support greater tha 4.3.
 --
-function deployIsValidSDK pSDK
+function deployIsValidSDK? pSDK
    if pSDK is empty then
       return false
    end if
    
-   local tOldFolder, tSDKVersion, tValidSDK, tSDKList
+   local tOldFolder, tSDKVersion, tValidSDK?, tSDKList
    put the defaultfolder into tOldFolder
    set the defaultfolder to pSDK & slash & "Platforms/iPhoneSimulator.platform/Developer/SDKs"
    
    put the files & LF & the folders into tSDKList
    
-   put false into tValidSDK
+   put false into tValidSDK?
    
    // SN-2015-03-24: [[ Bug 15037 ]] We accept any SDK having a simulator for
    //  which we provide an engine.
    repeat for each line tSDK in tSDKList
       if matchtext(tSDK, "iPhoneSimulator([0-9]+\.[0-9]+).sdk", tSDKVersion) and \
             tSDKVersion is among the items of deployUsableIosSdk() then
-         put true into tValidSDK
+         put true into tValidSDK?
          exit repeat
       end if
    end repeat
@@ -693,8 +693,8 @@ function deployIsValidSDK pSDK
    set the defaultFolder to tOldFolder
    
    -- Otherwise it must be invalid
-   return tValidSDK
-end deployIsValidSDK
+   return tValidSDK?
+end deployIsValidSDK?
 
 ////////////////////////////////////////////////////////////////////////////////
 

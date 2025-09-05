@@ -273,7 +273,7 @@ private function __dependencyOrder pDependencies, pList
    return tOrder
 end __dependencyOrder
 
-private function extensionIsBuiltin pID
+private function extensionIsBuiltin? pID
    switch pID
       case "com.livecode.widget"
       case "com.livecode.engine"
@@ -308,7 +308,7 @@ private function extensionIsBuiltin pID
       default
          return false
    end switch
-end extensionIsBuiltin
+end extensionIsBuiltin?
 
 /**
 Order extensions by dependency using requires info
@@ -333,14 +333,14 @@ function extensionOrderByDependency pExtensions, pRequiresA, \
    # Accumulate an array of dependencies
    local tDependencies, tRequirements, tExtensions
    repeat for each line tExtension in pExtensions
-      if not pIncludeBuiltin and extensionIsBuiltin(tExtension) then
+      if not pIncludeBuiltin and extensionIsBuiltin?(tExtension) then
          next repeat
       end if
       __addToList tExtension, tExtensions
 
       put pRequiresA[tExtension] into tRequirements
       repeat for each element tDependent in tRequirements
-         if not pIncludeBuiltin and extensionIsBuiltin(tDependent) then
+         if not pIncludeBuiltin and extensionIsBuiltin?(tDependent) then
             next repeat
          end if
          __addToDependencies tExtension, tDependent, tDependencies
@@ -573,29 +573,30 @@ Description:
 Any parameters after <pExtraLCIPaths> are the extension sources to
 build, package and extract.
 */
-command extensionBuildPackageAndExtractLCB pDocsParser, pTargetFolder, \
+# Not used?
+private command extensionBuildPackageAndExtractLCB pDocsParser, pTargetFolder, \
       pCommercialExtension, pLCCompile, pLCIPath, pExtraLCIPaths
    if pLCCompile is empty then
       put __extensionCompilerPath() into pLCCompile
    end if
-
-	put false into pCommercialExtension # don't remove source
-
+   
+   put false into pCommercialExtension # don't remove source
+   
    # Items 7 onwards in 'the params' are quoted full paths to ext files
    # Construct the list of extensions to build
    local tExtList
    repeat for each item tItem in item 7 to -1 of the params
       appendToStringList tExtList, char 2 to -2 of tItem
    end repeat
-
+   
    extensionDepsOrder pLCCompile, tExtList
    if the result is not empty then
       throw the result
       exit extensionBuildPackageAndExtractLCB
    end if
-
+   
    put word 1 to -1 of it into tExtList
-
+   
    set the itemdelimiter to slash
    repeat for each line tExtPath in tExtList
       local tSourceFileName, tSourceFolder
@@ -632,41 +633,37 @@ this will be computed.
 pExtraLCIPaths:
 A list of paths to look for extra module interface files.
 */
-command extensionBuildPackageAndExtract pProtectifyScript, \
+private command extensionBuildPackageAndExtract pProtectifyScript, \
       pProtectifyOutput, pGitHash, pDocsParser, \
       pSourceFolder, pSourceFileName, pTargetFolder, \
       pIsCommercialExtension?, pLCCompile, pLCIPath, pExtraLCIPaths
-
-put false into pIsCommercialExtension
-
-#   if pIsCommercialExtension? is true and \
-#         not (pSourceFileName ends with ".lcb") then
-#      extensionProtectStack pProtectifyScript, pSourceFolder, \
-#            pSourceFileName, pProtectifyOutput, pGitHash
-#   end if
-
+   
+   put false into pIsCommercialExtension?
+   
+   #   if pIsCommercialExtension? is true and \
+   #         not (pSourceFileName ends with ".lcb") then
+   #      extensionProtectStack pProtectifyScript, pSourceFolder, \
+   #            pSourceFileName, pProtectifyOutput, pGitHash
+   #   end if
+   
    extensionExtractDocs pDocsParser, pSourceFolder, \
          pSourceFolder & slash & pSourceFileName
-
+   
    local tPackage
    if not (pSourceFileName ends with ".lcb") then
       extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
       extensionPackageScriptExtension pSourceFolder, \
-     pTargetFolder, pIsCommercialExtension?
+            pTargetFolder, pIsCommercialExtension?
    else
       extensionPackageBuilderExtension pSourceFolder, \
             pTargetFolder, pIsCommercialExtension?, pLCCompile, \
             pLCIPath, pExtraLCIPaths
    end if
    put the result into tPackage
-
+   
    extractExtension tPackage, pSourceFolder, pTargetFolder
    delete file tPackage
 end extensionBuildPackageAndExtract
-
-private function q pParam
-   return quote & pParam & quote
-end q
 
 /**
 Protect a livecode stack using the provided script
@@ -680,19 +677,19 @@ pSourceFileName: The extension file name
 pOutput: The target filename for the protected livecode stack
 pGitHash: The hash to use when protecting the stack
 */
-command extensionProtectStack pProtectifyScript, pSourceFolder, pSourceFileName, pOutput, pGitHash
-   if there is not a stack pProtectifyScript then
-      throw "Error: could not load script protector:" && pProtectifyScript
-   end if
+--command extensionProtectStack pProtectifyScript, pSourceFolder, pSourceFileName, pOutput, pGitHash
+--   if there is not a stack pProtectifyScript then
+--      throw "Error: could not load script protector:" && pProtectifyScript
+--   end if
 
-   try
-      dispatch "protectifyStack" to stack pProtectifyScript with \
-            pSourceFolder & slash & pSourceFileName, pOutput, pGitHash
-   catch tError
-      throw "Error: could not protect stack:" && pSourceFolder & slash & pSourceFileName & \
-            return & tError
-   end try
-end extensionProtectStack
+--   try
+--      dispatch "protectifyStack" to stack pProtectifyScript with \
+--            pSourceFolder & slash & pSourceFileName, pOutput, pGitHash
+--   catch tError
+--      throw "Error: could not protect stack:" && pSourceFolder & slash & pSourceFileName & \
+--            cr & tError
+--   end try
+--end extensionProtectStack
 
 /**
 Extract docs from extension files

@@ -18,29 +18,30 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 on TestScriptStatus
    create stack "foo"
-   
+
    set the script of stack "foo" to \
          "on bar" & return & \
          "   ,fooBar" & return & \
          "end bar"
-   
+
    TestAssert "script status is error when script is bad", \
          the scriptStatus of stack "foo" is "error" and the result is not empty
-   
+
    set the script of stack "foo" to \
          "on bar" & return & \
          "   fooBar" & return & \
          "end bar"
-   
+
    TestAssert "script status is compiled when script is good", \
          the scriptStatus of stack "foo" is "compiled" and the result is empty
-   
+
    delete stack "foo"
-   
+
    TestSkipIfNot "ide"
-   
-   get the long id of stack (TestGetIDERepositoryPath() & "/Toolset/palettes/revaskdialog.rev")
-      
+
+#   get the long id of stack (TestGetIDERepositoryPath() & "/Toolset/palettes/revaskdialog.rev")
+   get the long id of stack (TestGetIDERepositoryPath() & "/Toolset/palettes/revaskdialog.livecodescript")
+
    TestAssert "script status is uncompiled when stack is only loaded", \
             the scriptStatus of card 1 of it is "uncompiled"
 end TestScriptStatus
