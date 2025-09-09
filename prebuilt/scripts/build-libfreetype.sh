@@ -9,7 +9,8 @@ source "${BASEDIR}/scripts/util.inc"
 
 THIS="libfreetype"
 # the version downloaded is 2.13.2 but in the tar file is 2.13.3
-ACTUAL_VERSION="2.13.3"
+#ACTUAL_VERSION="2.14.0"
+ACTUAL_VERSION=${libfreetype_VERSION}
 # should do this with sed
 UNTARRED="freetype-${ACTUAL_VERSION}"
 URL_ROOT="https://sourceforge.net/projects/freetype/files/latest/download"

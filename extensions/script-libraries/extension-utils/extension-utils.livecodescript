@@ -382,7 +382,7 @@ private function shellFormat pArg, pSwitch
       put "--" & pSwitch & " " into tOutput
    end if
 
-   return tOutput & q(pArg) & " "
+   return tOutput & quote & pArg & quote & " "
 end shellFormat
 
 private command pushList @xList, pValue
@@ -574,29 +574,29 @@ Any parameters after <pExtraLCIPaths> are the extension sources to
 build, package and extract.
 */
 # Not used?
-private command extensionBuildPackageAndExtractLCB pDocsParser, pTargetFolder, \
+command extensionBuildPackageAndExtractLCB pDocsParser, pTargetFolder, \
       pCommercialExtension, pLCCompile, pLCIPath, pExtraLCIPaths
    if pLCCompile is empty then
       put __extensionCompilerPath() into pLCCompile
    end if
-   
+
    put false into pCommercialExtension # don't remove source
-   
+
    # Items 7 onwards in 'the params' are quoted full paths to ext files
    # Construct the list of extensions to build
    local tExtList
    repeat for each item tItem in item 7 to -1 of the params
       appendToStringList tExtList, char 2 to -2 of tItem
    end repeat
-   
+
    extensionDepsOrder pLCCompile, tExtList
    if the result is not empty then
       throw the result
       exit extensionBuildPackageAndExtractLCB
    end if
-   
+
    put word 1 to -1 of it into tExtList
-   
+
    set the itemdelimiter to slash
    repeat for each line tExtPath in tExtList
       local tSourceFileName, tSourceFolder
@@ -633,22 +633,22 @@ this will be computed.
 pExtraLCIPaths:
 A list of paths to look for extra module interface files.
 */
-private command extensionBuildPackageAndExtract pProtectifyScript, \
+command extensionBuildPackageAndExtract pProtectifyScript, \
       pProtectifyOutput, pGitHash, pDocsParser, \
       pSourceFolder, pSourceFileName, pTargetFolder, \
       pIsCommercialExtension?, pLCCompile, pLCIPath, pExtraLCIPaths
-   
+
    put false into pIsCommercialExtension?
-   
+
    #   if pIsCommercialExtension? is true and \
    #         not (pSourceFileName ends with ".lcb") then
    #      extensionProtectStack pProtectifyScript, pSourceFolder, \
    #            pSourceFileName, pProtectifyOutput, pGitHash
    #   end if
-   
+
    extensionExtractDocs pDocsParser, pSourceFolder, \
          pSourceFolder & slash & pSourceFileName
-   
+
    local tPackage
    if not (pSourceFileName ends with ".lcb") then
       extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
@@ -660,7 +660,7 @@ private command extensionBuildPackageAndExtract pProtectifyScript, \
             pLCIPath, pExtraLCIPaths
    end if
    put the result into tPackage
-   
+
    extractExtension tPackage, pSourceFolder, pTargetFolder
    delete file tPackage
 end extensionBuildPackageAndExtract
@@ -784,7 +784,7 @@ constant kInterfaceKey = "interface"
 constant kDefaultScriptFileKey = "defaultscript_file"
 constant kEditorsKey = "editors"
 
-private command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemoveSource?, @rBuiltLocation
+command __extensionBuildPackage pDetailsA, pFolder, pTargetFolder, pRemoveSource?, @rBuiltLocation
    local tFullPath
    put pFolder & slash & pDetailsA[kFileKey] into tFullPath
 
@@ -1200,7 +1200,7 @@ private command __EnsurePath pPath
    end repeat
 end __EnsurePath
 
-private command extractExtension pZip, pSourceFolder, pTargetFolder
+command extractExtension pZip, pSourceFolder, pTargetFolder
    __EnsureExternal "revzip"
 
    local tDetailsA
