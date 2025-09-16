@@ -127,6 +127,18 @@ void send_command(const char* cmd) {
     }
 }
 
+char * read_command() {
+	char cmd[80];
+    int fdes = open(MPLAYER_CTRL, O_RDWR);
+    if (fdes != -1)
+	{
+        read(fdes, cmd, sizeof(cmd));
+        close(fdes);
+    }
+	return cmd;
+}
+
+#if true
 bool MPlayer::launch_player(void)
 {
     x11::Window t_xid = x11::gdk_x11_drawable_get_xid(m_window);
@@ -137,7 +149,7 @@ bool MPlayer::launch_player(void)
     pid_t pid = fork();
     if (0 == pid)
 	{
-		execlp("mplayer", "mplayer", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
+		execlp("mplayer", "mplayer", "-vo", "x11", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
 	}
 //	else
 //		return false;
@@ -145,7 +157,35 @@ bool MPlayer::launch_player(void)
     sleep(1);
 	return true;
 }
+#else
+bool MPlayer::launch_player(void)
+{
+    x11::Window t_xid = x11::gdk_x11_drawable_get_xid(m_window);
+	char t_widbuf[24];
+	snprintf(t_widbuf, 20, "%lu", t_xid);
 
+	mkfifo(MPLAYER_CTRL, 0666);
+	mkfifo(MPLAYER_CTRL2, 0666);
+
+    pid_t pid = fork();
+
+    if (pid == 0) // parent process
+	{
+// vo x11 works but x11 is slow
+// maybe try vo xv for hardware acceleration : nope... no video
+// trying without the -vo argument
+		execlp(C_PLAYER_CMD, "mplayer", "-vo", "x11", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
+
+// this works but gives a transparent background
+//		execlp("mplayer", "mplayer", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
+	}
+	else
+		return false;
+    // Wait for mplayer to start
+    sleep(1);
+	return true;
+}
+#endif
 
 bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect )
 {
@@ -278,10 +318,10 @@ void MPlayer::play ( bool p_play )
 	{
 		if ( m_playing != p_play )
 		{
-			send_command("pause\n"); // toggle pause on or off
+//			send_command("pause\n"); // toggle pause on or off
 			m_playing = !m_playing ;
 		}
-		else
+//		else
 			pause();
 	}
 	else
@@ -305,7 +345,7 @@ void MPlayer::play ( void )
 	char t_widbuf[256];
 	snprintf(t_widbuf, 255, "load %s\n", (char*)m_filename);
 	send_command(t_widbuf);
-	play(true);
+//	play(true);
 }
 
 void MPlayer::pause ( void )
@@ -322,7 +362,8 @@ void MPlayer::seek ( int4 p_amount )
 
 void MPlayer::seek(void)
 {
-	write_command(MCSTR("frame_step\n"));
+//	write_command(MCSTR("frame_step\n"));
+	send_command("frame_step\n");
 }
 
 void MPlayer::osd (uint4 p_level = 0)
@@ -334,7 +375,8 @@ void MPlayer::osd (uint4 p_level = 0)
 
 void MPlayer::osd(void)
 {
-	write_command(MCSTR("pausing_keep osd\n"));
+//	write_command(MCSTR("pausing_keep osd\n"));
+	send_command("pausing_keep osd\n");
 }
 
 void MPlayer::quit(void)
@@ -342,7 +384,7 @@ void MPlayer::quit(void)
 	send_command("quit\n");
 	if ( m_cpid > -1 && m_window != DNULL )
 	{
-		int t_status ;
+//		int t_status ;
 		shutdown();
 		m_window = DNULL ;
 		MClastvideowindow = DNULL ;
@@ -351,7 +393,7 @@ void MPlayer::quit(void)
 			delete m_filename ;
 			m_filename = NULL ;
 		}
-
+		unlink(MPLAYER_CTRL);
 	}
 }
 
