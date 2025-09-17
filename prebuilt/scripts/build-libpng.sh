@@ -10,8 +10,8 @@ source "${BASEDIR}/scripts/util.inc"
 ## URL_ROOT will grab the latest version on the website.
 ## This may be more recent than libpng_VERSION, so the version file
 ## may need to be updated.
-#libpng-1.6.48.tar.xz
-# https://sourceforge.net/projects/libpng/files/libpng16/1.6.48/libpng-1.6.48.tar.xz/download
+#libpng-1.6.50.tar.xz
+# https://sourceforge.net/projects/libpng/files/libpng16/1.6.50/libpng-1.6.50.tar.xz/download
 
 THIS="libpng"
 # remove the dots with sed
@@ -24,14 +24,14 @@ function unxzBinary
 {
 	echo "Untarring ${THIS}.tar"
 	unzip -o "${THIS}.tar" -d "lpng"
-	# retrieve the latest version number (1648)
-	PNG_LATEST=$(echo `ls lpng` | sed 's/[^0-9]//g') # 1648
+	# retrieve the latest version number (1650)
+	PNG_LATEST=$(echo `ls lpng` | sed 's/[^0-9]//g') # 1650
 	ARCHIVE_DESTINATION="${THIS}${PNG_LATEST}/lpng${PNG_LATEST}"
 	mv "libpng.tar" "libpng${PNG_LATEST}.tar"
 	echo "ARCHIVE_DESTINATION= ${ARCHIVE_DESTINATION}"
 	echo "Renaming lpng to ${THIS}${PNG_LATEST}"
 	mv lpng "${THIS}${PNG_LATEST}"
-	# now we should have a directory named libpng1648
+	# now we should have a directory named libpng1650
 }
 
 if [ ! -d "${BUILDDIR}/${THIS}${PNG_VERSION}" ] ; then

@@ -48,6 +48,9 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define READ 0
 #define WRITE 1
 
+// this is the fifo file for communicating with mplayer
+char MPLAYER_CTRL[] = "/tmp/mplayer-control";
+
 void send_command(const char* cmd);
 
 void handler(int sig)
@@ -93,10 +96,12 @@ MPlayer::~MPlayer(void)
 		free(m_filename);
 		m_filename = NULL ;
 	}
+	unlink(MPLAYER_CTRL);
 }
 
 bool MPlayer::shutdown(void)
 {
+	send_command("quit\n");
 	if ( m_window != DNULL)
 	{
 		gdk_window_destroy(m_window);
@@ -104,7 +109,6 @@ bool MPlayer::shutdown(void)
 		MClastvideowindow = DNULL ;
 	}
 
-	send_command("quit\n");
 	m_cpid = -1 ;
 	m_duration = -1 ;
 	m_timescale = -1 ;
@@ -114,9 +118,6 @@ bool MPlayer::shutdown(void)
 	return true;
 }
 
-
-// this is the fifo file for communicating with mplayer
-char MPLAYER_CTRL[] = "/tmp/mplayer-control";
 
 void send_command(const char* cmd) {
     int fdes = open(MPLAYER_CTRL, O_RDWR);
@@ -138,7 +139,6 @@ char * read_command() {
 	return cmd;
 }
 
-#if true
 bool MPlayer::launch_player(void)
 {
     x11::Window t_xid = x11::gdk_x11_drawable_get_xid(m_window);
@@ -149,43 +149,13 @@ bool MPlayer::launch_player(void)
     pid_t pid = fork();
     if (0 == pid)
 	{
-		execlp("mplayer", "mplayer", "-vo", "x11", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
+//		execlp("mplayer", "mplayer", "-vo", "x11", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
+		execlp("mplayer", "mplayer", "-vo", "x11", "-msglevel", "all=4", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
 	}
-//	else
-//		return false;
     // Wait for mplayer to start
     sleep(1);
 	return true;
 }
-#else
-bool MPlayer::launch_player(void)
-{
-    x11::Window t_xid = x11::gdk_x11_drawable_get_xid(m_window);
-	char t_widbuf[24];
-	snprintf(t_widbuf, 20, "%lu", t_xid);
-
-	mkfifo(MPLAYER_CTRL, 0666);
-	mkfifo(MPLAYER_CTRL2, 0666);
-
-    pid_t pid = fork();
-
-    if (pid == 0) // parent process
-	{
-// vo x11 works but x11 is slow
-// maybe try vo xv for hardware acceleration : nope... no video
-// trying without the -vo argument
-		execlp(C_PLAYER_CMD, "mplayer", "-vo", "x11", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
-
-// this works but gives a transparent background
-//		execlp("mplayer", "mplayer", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
-	}
-	else
-		return false;
-    // Wait for mplayer to start
-    sleep(1);
-	return true;
-}
-#endif
 
 bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect )
 {
@@ -243,7 +213,7 @@ bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect
 	}
 
 	// We will be playing at start by default, so mark it as such
-	m_playing = true ;
+	m_playing = false ;
 	// Start the media stopped
 	pause();
 
@@ -336,7 +306,7 @@ void MPlayer::play ( bool p_play )
 				play();
 			}
 			else
-				pause();
+				quit();
 		}
 }
 
@@ -382,19 +352,18 @@ void MPlayer::osd(void)
 void MPlayer::quit(void)
 {
 	send_command("quit\n");
-	if ( m_cpid > -1 && m_window != DNULL )
-	{
-//		int t_status ;
+//	if ( m_cpid > -1 && m_window != DNULL )
+//	{
 		shutdown();
-		m_window = DNULL ;
-		MClastvideowindow = DNULL ;
+//		m_window = DNULL ;
+//		MClastvideowindow = DNULL ;
 		if ( NULL != m_filename)
 		{
 			delete m_filename ;
 			m_filename = NULL ;
 		}
 		unlink(MPLAYER_CTRL);
-	}
+//	}
 }
 
 void MPlayer::set_property(const char * p_prop, MCPlayerPropertyType p_type, void *p_value)
