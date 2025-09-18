@@ -287,11 +287,12 @@ void MPlayer::play ( bool p_play )
 	if ( m_window != DNULL)
 	{
 		if ( m_playing != p_play )
+		// here we want to play if we're not already playing
+		// or we want to stop playing if we're already playing
 		{
-//			send_command("pause\n"); // toggle pause on or off
-			m_playing = !m_playing ;
+			m_playing = !m_playing ; // change the playing state
 		}
-//		else
+		if (! p_play)
 			pause();
 	}
 	else
@@ -313,14 +314,21 @@ void MPlayer::play ( bool p_play )
 void MPlayer::play ( void )
 {
 	char t_widbuf[256];
-	snprintf(t_widbuf, 255, "load %s\n", (char*)m_filename);
+//	snprintf(t_widbuf, 255, "load %s\n", (char*)m_filename);
+	snprintf(t_widbuf, 255, "run %s\n", (char*)m_filename);
 	send_command(t_widbuf);
 //	play(true);
 }
 
 void MPlayer::pause ( void )
 {
+//	send_command("pause\n");
 	send_command("pause\n");
+}
+
+void MPlayer::stop ( void )
+{
+	send_command("stop\n");
 }
 
 void MPlayer::seek ( int4 p_amount )
