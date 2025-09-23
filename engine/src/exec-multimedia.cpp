@@ -395,10 +395,10 @@ void MCMultimediaExecStopPlayingObject(MCExecContext& ctxt, MCObject *p_object)
 	if (p_object->gettype() == CT_PLAYER)
 	{
 		MCPlayer *player = (MCPlayer *)p_object;
-		if (player->isdisposable())
+//		if (player->isdisposable())
 			player->playstop();
-		else
-			player->playpause(True);
+//		else
+//			player->playpause(True);
 	}
 	else
 		MCU_play_stop();
@@ -741,10 +741,10 @@ void MCMultimediaExecPlayOperation(MCExecContext& ctxt, MCPlayer *p_player, int 
 				p_player->playstop();
 			break;
 		case PP_STOP:
-			if (p_player->isdisposable())
+//			if (p_player->isdisposable())
 				p_player->playstop();
-			else
-				p_player->playpause(True);
+//			else
+//				p_player->playpause(True);
 			break;
 		default:
 			break;

@@ -142,12 +142,12 @@ char * read_command() {
 bool MPlayer::launch_player(void)
 {
     x11::Window t_xid = x11::gdk_x11_drawable_get_xid(m_window);
-	char t_widbuf[20];
-	snprintf(t_widbuf, 24, "%lu", t_xid);
+	char t_widbuf[24];
+	snprintf(t_widbuf, 20, "%lu", t_xid);
 
 	mkfifo(MPLAYER_CTRL, 0666);
     pid_t pid = fork();
-    if (0 == pid)
+    if (0 >= pid)
 	{
 //		execlp("mplayer", "mplayer", "-vo", "x11", "-osdlevel","0", "-noconsolecontrols", "-msglevel", "all=4", "-nomouseinput", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
 		execlp("mplayer", "mplayer", "-vo", "x11", "-msglevel", "all=4", "-quiet", "-slave", "-idle", "-wid", t_widbuf, "-input", "file=/tmp/mplayer-control", (char*)m_filename, NULL);
@@ -163,7 +163,6 @@ bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect
 	if ( DNULL != m_window && NULL != m_filename )
 		quit();
 
-	GdkWindow* w ;
 	if ( NULL == p_stack )
 		return false ;
 
@@ -183,9 +182,10 @@ bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect
     t_wa.visual = ((MCScreenDC*)MCscreen)->getvisual();
     t_wa.window_type = GDK_WINDOW_CHILD;
 
+	GdkWindow* w ;
     w = gdk_window_new(stack_window, &t_wa, GDK_WA_X|GDK_WA_Y|GDK_WA_VISUAL);
 
-	if ( DNULL == w )
+	if ( DNULL == w )	// couldn't create a new gdk window
 		return False;
 
 	// Set-up our hints so that we have NO window decorations.
@@ -203,6 +203,7 @@ bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect
 	m_player_rect = p_rect ;
 	m_stack = p_stack ;
 
+	m_playing = false ;
 	if ( !launch_player() )
 	{
 		gdk_window_hide(m_window);
@@ -213,7 +214,7 @@ bool MPlayer::init(const char * p_filename, MCStack *p_stack, MCRectangle p_rect
 	}
 
 	// We will be playing at start by default, so mark it as such
-	m_playing = false ;
+//	m_playing = false ;
 	// Start the media stopped
 	pause();
 
@@ -282,6 +283,8 @@ bool MPlayer::read_command(MCStringRef p_ans, MCStringRef& r_ret)
 	return false;
 }
 
+// This is somewhat misnamed...
+// Resuming from a pause will come here as well.
 void MPlayer::play ( bool p_play )
 {
 	if ( m_window != DNULL)
@@ -292,7 +295,17 @@ void MPlayer::play ( bool p_play )
 		{
 			m_playing = !m_playing ; // change the playing state
 		}
-		if (! p_play)
+		if (p_play)
+		{
+// Resume from a pause
+//			char t_widbuf[256];
+//			m_playing = true;
+//			snprintf(t_widbuf, 255, "load %s\n", (char*)m_filename);
+//			send_command(t_widbuf);
+			// init(m_filename, m_stack, m_player_rect)
+			play();
+		}
+		else
 			pause();
 	}
 	else
@@ -303,32 +316,43 @@ void MPlayer::play ( bool p_play )
 		{
 			if (p_play)
 			{
-				init(m_filename, m_stack, m_player_rect);
-				play();
+			char t_widbuf[256];
+			m_playing = true;
+			snprintf(t_widbuf, 255, "load %s\n", (char*)m_filename);
+			send_command(t_widbuf);
+//				init(m_filename, m_stack, m_player_rect);
+				play(); // send the run command
 			}
 			else
-				quit();
+				stop();
 		}
 }
 
 void MPlayer::play ( void )
 {
 	char t_widbuf[256];
+	m_playing = true;
 //	snprintf(t_widbuf, 255, "load %s\n", (char*)m_filename);
+//	send_command(t_widbuf);
 	snprintf(t_widbuf, 255, "run %s\n", (char*)m_filename);
 	send_command(t_widbuf);
 //	play(true);
 }
 
+// pause toggles, so this is actually pause/resume
 void MPlayer::pause ( void )
 {
-//	send_command("pause\n");
 	send_command("pause\n");
+//    sleep(1);
+//	m_playing = !m_playing ; // change the playing state
 }
 
 void MPlayer::stop ( void )
 {
+		m_window = DNULL ;
+//		MClastvideowindow = DNULL ;
 	send_command("stop\n");
+	m_playing = false;
 }
 
 void MPlayer::seek ( int4 p_amount )
@@ -340,7 +364,6 @@ void MPlayer::seek ( int4 p_amount )
 
 void MPlayer::seek(void)
 {
-//	write_command(MCSTR("frame_step\n"));
 	send_command("frame_step\n");
 }
 
@@ -353,13 +376,12 @@ void MPlayer::osd (uint4 p_level = 0)
 
 void MPlayer::osd(void)
 {
-//	write_command(MCSTR("pausing_keep osd\n"));
 	send_command("pausing_keep osd\n");
 }
 
 void MPlayer::quit(void)
 {
-	send_command("quit\n");
+//	send_command("quit\n");
 //	if ( m_cpid > -1 && m_window != DNULL )
 //	{
 		shutdown();
@@ -418,8 +440,12 @@ bool MPlayer::get_property(const char* p_prop, MCPlayerPropertyType p_type, void
 	if ( m_window == DNULL )
 		return false;
 
+//	if (false == m_playing)
+//		return false;
+
 	MCAutoStringRef t_get_cmd;
-	if (!MCStringFormat(&t_get_cmd, "pausing_keep get_property %s\n", p_prop))
+//	if (!MCStringFormat(&t_get_cmd, "pausing_keep get_property %s\n", p_prop))
+	if (!MCStringFormat(&t_get_cmd, "get_property %s\n", p_prop))
 		return false;
 
 	write_command (*t_get_cmd);

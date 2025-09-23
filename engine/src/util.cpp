@@ -45,7 +45,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include "scriptpt.h"
 
 #if defined(_MACOSX)
-#include <mach-o/dyld.h>
+	#include <mach-o/dyld.h>
 #endif
 
 #include <algorithm>
@@ -152,7 +152,7 @@ void MCU_resetprops(Boolean update)
 			else
 				MCdefaultstackptr->resetcursor(True);
 		}
-		
+
 		// MW-2011-08-18: [[ Redraw ]] Update to use redraw.
 		MCRedrawForceUnlockScreen();
 
@@ -176,7 +176,7 @@ void MCU_resetprops(Boolean update)
 	MCdynamiccard = nil;
 	MCdynamicpath = False;
 	MCexitall = False;
-    
+
     // The clipboard lock is counted and needs to be balanced
     while (MCclipboardlockcount)
     {
@@ -243,7 +243,7 @@ bool MCU_getnumberformat(uint2 fw, uint2 trail, uint2 force, MCStringRef& r_stri
 	{
 		uint2 i = MCU_max(fw - trail - 1, 0);
 		while (t_success && i--)
-			t_success = MCStringAppendNativeChar(*t_buffer, '0');	
+			t_success = MCStringAppendNativeChar(*t_buffer, '0');
 		if (t_success && trail != 0)
 		{
 			t_success = MCStringAppendNativeChar(*t_buffer, '.');
@@ -586,7 +586,7 @@ real8 MCU_fwrap(real8 p_x, real8 p_y)
 		return (fmod(p_x - 1, t_y) + 1);
 	else
 		return -(fmod(-p_x - 1, t_y) + 1);
-		
+
 }
 
 bool MCU_r8tos(real8 n, uint2 fw, uint2 trailing, uint2 force, MCStringRef &r_string)
@@ -596,7 +596,7 @@ bool MCU_r8tos(real8 n, uint2 fw, uint2 trailing, uint2 force, MCStringRef &r_st
 	uint4 t_s = 0;
 	if (t_success)
 		t_success = (0 != MCU_r8tos(t_str, t_s, n, fw, trailing, force));
-	
+
 	MCAutoStringRef t_string;
 	if (t_success)
 		t_success = MCStringCreateWithCStringAndRelease(t_str, &t_string);
@@ -624,7 +624,7 @@ uint4 MCU_r8tos(char *&d, uint4 &s, real8 n,
 	}
 	if (n < 0.0 && n >= -MC_EPSILON)
 		n = 0.0;
-    
+
     if (MCS_isfinite(n))
     {
         sprintf(d, "%0*.*f", fw, trailing, n);
@@ -634,7 +634,7 @@ uint4 MCU_r8tos(char *&d, uint4 &s, real8 n,
     {
         sprintf(d, "%f", n);
     }
-	
+
 	// 2007-09-11: [[ Bug 5321 ]] If the first character is '-', we must check
 	//   to see if the value is actually '0', and if it is remove the '-'.
 	if (*d == '-')
@@ -810,12 +810,12 @@ Boolean MCU_stoi2x4(const MCString &s, int2 &d1, int2 &d2, int2 &d3, int2 &d4)
 	int32_t t_d1, t_d2, t_d3, t_d4;
 	if (!MCU_stoi4x4(s, t_d1, t_d2, t_d3, t_d4))
 		return False;
-	
+
 	d1 = t_d1;
 	d2 = t_d2;
 	d3 = t_d3;
 	d4 = t_d4;
-	
+
 	return True;
 }
 
@@ -923,11 +923,11 @@ bool MCU_stoui4x2(MCStringRef p_string, uint4 &r_d1, uint4 &r_d2)
 {
 	Boolean t_condition;
 	bool t_success;
-    
+
     MCAutoStringRefAsCString t_cstring;
     t_cstring . Lock(p_string);
 	t_success = True == MCU_stob(MCString(*t_cstring, strlen(*t_cstring)), t_condition);
-    
+
 	if (t_success)
 	{
 		r_condition = t_condition == True;
@@ -1168,12 +1168,12 @@ bool MCU_matchname(MCNameRef test, Chunk_term type, MCNameRef name)
 {
 	if (name == nil || MCNameIsEmpty(name) || MCNameIsEmpty(test))
 		return false;
-    
+
 	if (MCNameIsEqualToCaseless(name, test))
 		return true;
 
 	MCAssert(type - CT_STACK < (sizeof(nametable) / sizeof(nametable[0])));
-	
+
     bool match = false;
 
     MCStringRef t_name, t_test;
@@ -1181,7 +1181,7 @@ bool MCU_matchname(MCNameRef test, Chunk_term type, MCNameRef name)
     t_test = MCNameGetString(test);
     uindex_t t_offset, t_name_length;
     t_name_length = MCStringGetLength(t_name);
-    
+
 	if (MCStringFirstIndexOfChar(t_test, '"', 0, kMCCompareExact, t_offset) &&
         MCStringGetLength(t_test) - t_offset > t_name_length + 1 &&
         MCStringGetNativeCharAtIndex(t_test, t_offset + t_name_length + 1) == '"' &&
@@ -1212,7 +1212,7 @@ bool MCU_roundrect(MCPoint *&r_points, uindex_t &r_point_count,
 	MCAutoArray<MCPoint> t_points;
 	if (!t_points.New(4 * QA_NPOINTS + 1))
 		return false;
-	
+
 	MCRectangle tr = rect;
 	tr . width--;
 	tr . height--;
@@ -1226,7 +1226,7 @@ bool MCU_roundrect(MCPoint *&r_points, uindex_t &r_point_count,
 		rr_height = radius;
 	else
 		rr_height = tr.height >> 1;
-	
+
 	uint2 origin_horiz, origin_vert;
 	int2 arc, arclength;
     arc = 0;
@@ -1250,7 +1250,7 @@ bool MCU_roundrect(MCPoint *&r_points, uindex_t &r_point_count,
 	{
 		ignore = false;
 		// open wedge segment
-		if ((count < startAngle && arclength > 0 && count > arclength) || 
+		if ((count < startAngle && arclength > 0 && count > arclength) ||
 			(arclength < 0 && count < startAngle) ||
 			(arclength < 0 && count > arcAngle+startAngle) )
 		{
@@ -1302,7 +1302,7 @@ bool MCU_roundrect(MCPoint *&r_points, uindex_t &r_point_count,
 		if (k > QA_NPOINTS)
 			k = 1;
 	}
-	
+
 	t_points.Shrink(i);
 	t_points.Take(r_points, r_point_count);
 	return true;
@@ -1312,7 +1312,7 @@ Boolean MCU_parsepoints(MCPoint *&points, uindex_t &noldpoints, MCStringRef data
 {
     // This method will parse as much as it can from the string, so we need to
     // nativize first.
-    
+
 	Boolean allvalid = True;
 	uindex_t npoints = 0;
 	uint4 l = MCStringGetLength(data);
@@ -1362,7 +1362,7 @@ Boolean MCU_parsepoint(MCPoint &point, MCStringRef data)
     // if the string isn't native.
     if (!MCStringCanBeNative(data))
         return false;
-    
+
     MCAutoPointer<char> t_data;
     /* UNCHECKED */ MCStringConvertToCString(data, &t_data);
     const char *sptr = *t_data;
@@ -1420,8 +1420,8 @@ bool MCU_line_intersect_rect(const MCRectangle& srect, const MCRectangle& line)
 {
     MCRectangle t_test_rect;
     t_test_rect = line;
-    
-    
+
+
     // If the line is zero-width or zero-height, adjust the test rect
     //  so that we can just use MCU_intersect_rect.
     if (t_test_rect . width == 0)
@@ -1430,7 +1430,7 @@ bool MCU_line_intersect_rect(const MCRectangle& srect, const MCRectangle& line)
         if (srect . x > t_test_rect . x)
             t_test_rect . x--;
     }
-    
+
     if (t_test_rect . height == 0)
     {
         t_test_rect . height++;
@@ -1880,24 +1880,24 @@ void MCU_choose_tool(MCExecContext& ctxt, MCStringRef p_input, Tool p_tool)
 		MCstacks->restartidle();
 	if (MCtopstackptr)
 		MCtopstackptr->updatemenubar();
-    
+
     MCStacknode *t_node, *t_first_node;
     t_node = t_first_node = MCstacks->topnode();
     while (t_node)
     {
         t_node->getstack()->toolchanged(MCcurtool);
-        
+
         if (t_node->next() == t_first_node)
             t_node = nil;
         else
             t_node = t_node->next();
     }
-    
+
     // MW-2014-04-24: [[ Bug 12249 ]] Prod each player to make sure its buffered correctly for the new tool.
     MCPlayer::SyncPlayers(nil, nil);
-    
+
     MCdispatcher -> foreachstack(_MCStackNotifyToolChange, nil);
-    
+
 	ctxt . GetObject()->message_with_valueref_args(MCM_new_tool, *t_tool_name);
 }
 
@@ -1919,9 +1919,9 @@ Exec_stat MCU_dofrontscripts(Handler_type htype, MCNameRef mess, MCParameter *pa
 				// PASS STATE FIX
 				Exec_stat oldstat = stat;
 				stat = optr->getobject()->handle(htype, mess, params, nil);
-				
+
 				MCdynamicpath = olddynamic;
-				
+
 				if (stat != ES_NOT_HANDLED && stat != ES_PASS)
 					break;
 
@@ -2049,7 +2049,7 @@ inline index_t strmove(unichar_t *p_dest, const unichar_t *p_src, bool p_same_st
 	while(*p_src != 0)
 		*p_dest++ = *p_src++;
 	*p_dest = 0;
-    
+
     if (p_same_string)
         return p_src - p_dest;
     else
@@ -2062,7 +2062,7 @@ void MCU_fix_path(MCStringRef in, MCStringRef& r_out)
     unichar_t *t_unicode_str;
     uindex_t t_length;
     t_length = MCStringGetLength(in);
-    
+
     t_unicode_str = new (nothrow) unichar_t[t_length + 1];
     t_length = MCStringGetChars(in, MCRangeMake(0, t_length), t_unicode_str);
     t_unicode_str[t_length] = 0;
@@ -2090,7 +2090,7 @@ void MCU_fix_path(MCStringRef in, MCStringRef& r_out)
                             fptr += 3;
                             break;
                         }
-                        
+
                         /* Delete "/xxx/.." component */
                         t_length -= strmove(bptr, fptr + 3, true);
                         fptr = bptr;
@@ -2105,7 +2105,7 @@ void MCU_fix_path(MCStringRef in, MCStringRef& r_out)
                             fptr += 3;
                             break;
                         }
-                        
+
                         /* Delete "xxx/../" component */
 						t_length -= strmove (bptr, fptr + 4, true);
 						fptr = bptr;
@@ -2130,7 +2130,7 @@ void MCU_fix_path(MCStringRef in, MCStringRef& r_out)
 				else
 					fptr++;
 	}
-    
+
     /* UNCHECKED */ MCStringCreateWithChars(t_unicode_str, t_length, r_out);
     delete[] t_unicode_str;
 }
@@ -2259,7 +2259,7 @@ void MCU_geturl(MCExecContext& ctxt, MCStringRef p_url, MCValueRef &r_output)
 		Exec_stat t_stat = ctxt . GetObject() -> message(MCM_get_url, &p1, True, True);
 		MClockmessages = oldlock;
 
-		switch (t_stat) 
+		switch (t_stat)
 		{
 		case ES_NOT_HANDLED:
 		case ES_PASS:
@@ -2511,14 +2511,14 @@ bool MCU_multibytetounicode(MCDataRef p_input, uinteger_t p_charset, MCDataRef &
 	uint4 t_mb_length, t_uc_length;
 	const char *t_mb = (const char*)MCDataGetBytePtr(p_input);
 	t_mb_length = MCDataGetLength(p_input);
-	
+
 	// How much storage is required for this conversion?
 	MCU_multibytetounicode(t_mb, t_mb_length, NULL, 0, t_uc_length, p_charset);
 	t_buffer.Resize(t_uc_length);
-	
+
 	// Convert the data
 	MCU_multibytetounicode(t_mb, t_mb_length, (char*)t_buffer.Ptr(), t_uc_length, t_uc_length, p_charset);
-	
+
 	return MCDataCreateWithBytes(t_buffer.Ptr(), t_uc_length, r_output);
 }
 
@@ -2528,14 +2528,14 @@ bool MCU_unicodetomultibyte(MCDataRef p_input, uinteger_t p_charset, MCDataRef &
 	uint4 t_mb_length, t_uc_length;
 	const char *t_uc = (const char*)MCDataGetBytePtr(p_input);
 	t_uc_length = MCDataGetLength(p_input);
-	
+
 	// How much storage is required for this conversion?
 	MCU_unicodetomultibyte(t_uc, t_uc_length, NULL, 0, t_mb_length, p_charset);
 	t_buffer.Resize(t_mb_length);
-	
+
 	// Convert the data
 	MCU_unicodetomultibyte(t_uc, t_uc_length, (char*)t_buffer.Ptr(), t_mb_length, t_mb_length, p_charset);
-	
+
 	return MCDataCreateWithBytes(t_buffer.Ptr(), t_mb_length, r_output);
 }
 
@@ -2547,7 +2547,7 @@ bool MCU_disjointrangeinclude(MCInterval*& x_ranges, int& x_count, int p_from, i
 	t_new_ranges = (MCInterval *)malloc(sizeof(MCInterval) * (x_count + 1));
 	if (t_new_ranges == NULL)
 		return false;
-	
+
 	int t_new_count;
 	t_new_count = 0;
 
@@ -2658,14 +2658,14 @@ bool MCString::split(char p_char, MCString& r_head, MCString& r_tail)
 	t_length = length;
 
 	if (!MCU_strchr(t_string, t_length, p_char, False))
-	{		
+	{
 		r_head = *this;
 		r_tail . set(NULL, 0);
 	}
 
 	r_head . set(sptr, t_string - sptr);
 	r_tail . set(t_string + 1, t_length);
-	
+
 	return true;
 }
 
@@ -2726,7 +2726,7 @@ void MCDictionary::Pickle(void*& r_buffer, uint4& r_length)
 
 	char *t_buffer;
 	t_buffer = new (nothrow) char[t_size];
-	
+
 	char *t_buffer_ptr;
 	t_buffer_ptr = t_buffer;
 	((uint4 *)t_buffer_ptr)[0] = MCSwapInt32HostToNetwork('QDCT');
@@ -2790,7 +2790,7 @@ bool MCDictionary::Unpickle(const void* p_buffer, uint4 p_length)
 
 		if (t_size < t_node_size)
 			return false;
-		
+
 		Set(t_node_key, MCString(t_buffer, t_node_size));
 
 		t_buffer += (t_node_size + 3) & ~3;
@@ -2813,18 +2813,18 @@ uint32_t MCDictionary::Checksum(const void *p_data, uint32_t p_length)
 	uint32_t t_a, t_b;
 	t_a = 1;
 	t_b = 0;
-	
+
 	uint8_t *t_data;
 	t_data = (uint8_t *)p_data;
-	
+
 	for(uint32_t t_i = 0; t_i < p_length; t_i++, t_data++)
 	{
 		t_a += *t_data;
 		t_b += t_a;
-		
+
 		if (t_a > 0xFFFFFF00)
 			t_a %= 65521;
-		
+
 		if (t_b > 0xFFFFFF00)
 			t_b %= 65521;
 	}
@@ -2844,7 +2844,7 @@ MCU_path_is_absolute(MCStringRef p_path)
         return true;
     }
 #endif
-    
+
     return MCStringGetCharAtIndex(p_path,
                                   0) == '/';
 }
@@ -2861,7 +2861,7 @@ MCU_path_has_extension(MCStringRef p_path)
     {
         t_sep = 0;
     }
-    
+
     uindex_t t_ext;
     return MCStringFirstIndexOfChar(p_path,
                                     '.',
@@ -2914,7 +2914,7 @@ MCU_path_compute_split_win32(MCStringRef p_path,
                                  kMCStringOptionCompareExact))
     {
         /* UNC */
-        
+
         uindex_t t_end_of_share = 0;
         uindex_t t_end_of_folder = 0;
         if (MCStringFirstIndexOfChar(p_path,
@@ -2936,7 +2936,7 @@ MCU_path_compute_split_win32(MCStringRef p_path,
         {
             t_end_of_folder = UINDEX_MAX;
         }
-        
+
         if (t_end_of_folder >= p_split_at)
         {
             x_dir_end = t_end_of_folder;
@@ -2949,7 +2949,7 @@ MCU_path_compute_split_win32(MCStringRef p_path,
                 x_base_start = UINDEX_MAX;
             }
         }
-        
+
         /* Trim any slashes down to the end of the UNC folder component */
         while(x_dir_end > t_end_of_folder &&
               MCStringGetCharAtIndex(p_path, x_dir_end - 1) == '/')
@@ -2961,12 +2961,12 @@ MCU_path_compute_split_win32(MCStringRef p_path,
              MCStringGetCharAtIndex(p_path, 1) == ':')
     {
         /* DRIVE */
-    
+
         if (MCStringGetLength(p_path) > 2 &&
             MCStringGetCharAtIndex(p_path, 2) == '/')
         {
             /* DRIVE:/ (absolute) */
-        
+
             if (p_split_at == 2)
             {
                 /* Make sure we include the / after the drive in the dir */
@@ -2976,7 +2976,7 @@ MCU_path_compute_split_win32(MCStringRef p_path,
         else
         {
             /* DRIVE: (DRIVE relative) */
-        
+
             if (p_split_at == 0)
             {
                 /* Make sure dir is DRIVE: and base is everything after */
@@ -2984,7 +2984,7 @@ MCU_path_compute_split_win32(MCStringRef p_path,
                 x_base_start = 2;
             }
         }
-        
+
         /* Trim any trailing slashes, down to one in the third position */
         while(x_dir_end > 3 &&
               MCStringGetCharAtIndex(p_path, x_dir_end - 1) == '/')
@@ -3016,7 +3016,7 @@ MCU_path_split(MCStringRef p_path,
     {
         t_split_at = 0;
     }
-    
+
     uindex_t t_dir_end = t_split_at;
     uindex_t t_base_start = t_split_at + 1;
 
@@ -3044,7 +3044,7 @@ MCU_path_split(MCStringRef p_path,
             return false;
         }
     }
-    
+
     if (r_base != nullptr)
     {
         if (!MCStringCopySubstring(p_path,
@@ -3054,7 +3054,7 @@ MCU_path_split(MCStringRef p_path,
             return false;
         }
     }
-    
+
     return true;
 }
 
@@ -3097,7 +3097,7 @@ __MCU_library_load_verbatim(MCStringRef p_path,
         MCLog("MCU_library_load failed for %@", p_path);
         return false;
     }
-    
+
     return true;
 }
 
@@ -3130,7 +3130,7 @@ __MCU_library_map_path(MCStringRef p_path,
         r_mapped_library_path = MCValueRetain(p_path);
         return true;
     }
-    
+
     // Extract the base path (i.e. remove the ./)
     MCAutoStringRef t_base_path;
     if (!MCStringCopySubstring(p_path,
@@ -3139,7 +3139,7 @@ __MCU_library_map_path(MCStringRef p_path,
     {
         return false;
     }
-    
+
     // Apply any mappings which are present.
     MCAutoStringRef t_mapped_path;
     if (MCdispatcher == nullptr ||
@@ -3150,14 +3150,14 @@ __MCU_library_map_path(MCStringRef p_path,
         // if it was there.
         t_mapped_path = p_path;
     }
-    
+
     // If the mapped path does not begin with './', then we just resolve.
     MCAutoStringRef t_unresolved_library_path;
     if (MCStringBeginsWithCString(*t_mapped_path,
                                   reinterpret_cast<const char_t *>("./"),
                                   kMCStringOptionCompareExact))
     {
-        
+
         // Concatenate the mapped path onto the app code path
         if (!MCStringFormat(&t_unresolved_library_path,
                             "%@/%@",
@@ -3171,7 +3171,7 @@ __MCU_library_map_path(MCStringRef p_path,
     {
         t_unresolved_library_path = *t_mapped_path;
     }
-    
+
     // resolve the oath to ensure that all '.' and '..' type components are
     // removed. (otherwise things might go awry if we have a //?/ type path on
     // Windows).
@@ -3180,7 +3180,7 @@ __MCU_library_map_path(MCStringRef p_path,
     {
         return false;
     }
-    
+
     return true;
 }
 
@@ -3201,7 +3201,7 @@ MCSLibraryRef MCU_library_load(MCStringRef p_path)
     MCLog("MCU_library_load %@ -> %@",
         p_path,
         *t_library_path);
-    
+
     // If the path already has an extension, we don't need to add one. Otherwise
     // we try the various appropriate extensions per-platform.
     MCSAutoLibraryRef t_library;
@@ -3236,7 +3236,7 @@ MCSLibraryRef MCU_library_load(MCStringRef p_path)
 #       error MCU_library_load not implemented for this platform
 #endif
     }
-    
+
     return t_library.Take();
 }
 
@@ -3278,12 +3278,12 @@ void *MCSupportLibraryLoad(const char *p_name_cstr)
             &t_module = MCU_library_load(*t_relative_filename);
         }
     }
-    
+
     if (!t_module.IsSet())
     {
         return nullptr;
     }
-    
+
     return t_module.Take();
 }
 
@@ -3330,7 +3330,7 @@ void *MCSupportLibraryLookupSymbol(void *p_handle,
     {
         return nullptr;
     }
- 
+
     return MCU_library_lookup(static_cast<MCSLibraryRef>(p_handle),
                               *t_symbol);
 }

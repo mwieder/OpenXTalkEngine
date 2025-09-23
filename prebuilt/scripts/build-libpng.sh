@@ -20,6 +20,11 @@ URL_ROOT="https://sourceforge.net/projects/${THIS}/files/latest/download"
 ARCHIVE_DESTINATION=${THIS}
 FILE_DIRECTORY="../../thirdparty/${THIS}/src"
 
+# read line 1 of
+# https://sourceforge.net/p/libpng/code/ci/master/tree/README
+# that should give something like
+# README for libpng version 1.6.51.git
+
 function unxzBinary
 {
 	echo "Untarring ${THIS}.tar"
