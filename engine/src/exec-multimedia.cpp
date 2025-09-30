@@ -54,24 +54,24 @@ struct MCMultimediaRecordFormatDataState
 static bool get_record_format_id(void *context, intenum_t p_id, MCStringRef p_label)
 {
     auto *t_state = static_cast<MCMultimediaRecordFormatDataState *>(context);
-    
+
     if (MCStringIsEqualTo(t_state -> label, p_label, kMCCompareCaseless))
     {
         t_state -> format = p_id;
     }
-    
+
     return true;
 }
 
 static bool get_record_format_label(void *context, intenum_t p_id, MCStringRef p_label)
 {
     auto *t_state = static_cast<MCMultimediaRecordFormatDataState *>(context);
-    
+
     if (t_state -> format == p_id)
     {
         t_state -> label = p_label;
     }
-    
+
     return true;
 }
 
@@ -81,10 +81,10 @@ static void MCMultimediaRecordFormatParse(MCExecContext& ctxt, MCStringRef p_inp
     intenum_t t_format = 0;
 #ifdef FEATURE_PLATFORM_RECORDER
     extern MCPlatformSoundRecorderRef MCrecorder;
-    
+
     if (MCrecorder == nil)
         MCPlatformSoundRecorderCreate(MCrecorder);
-    
+
     if (MCrecorder != nil)
     {
         MCMultimediaRecordFormatDataState t_state = { 0, p_input };
@@ -95,7 +95,7 @@ static void MCMultimediaRecordFormatParse(MCExecContext& ctxt, MCStringRef p_inp
     extern intenum_t MCQTGetRecordFormatId(MCStringRef);
     t_format = MCQTGetRecordFormatId(p_input);
 #endif
-    
+
     r_format.format = t_format;
 }
 
@@ -104,10 +104,10 @@ static void MCMultimediaRecordFormatFormat(MCExecContext& ctxt, const MCMultimed
     MCStringRef t_label = kMCEmptyString;
 #ifdef FEATURE_PLATFORM_RECORDER
     extern MCPlatformSoundRecorderRef MCrecorder;
-    
+
     if (MCrecorder == nil)
         MCPlatformSoundRecorderCreate(MCrecorder);
-    
+
     if (MCrecorder != nil)
     {
         MCMultimediaRecordFormatDataState t_state = { p_format.format, nil };
@@ -118,7 +118,7 @@ static void MCMultimediaRecordFormatFormat(MCExecContext& ctxt, const MCMultimed
     extern MCStringRef MCQTGetRecordFormatLabel(intenum_t);
     t_label = MCQTGetRecordFormatLabel(p_format.format);
 #endif
-    
+
     r_output = MCValueRetain(t_label);
 }
 
@@ -172,16 +172,16 @@ void MCMultimediaEvalQTEffects(MCExecContext& ctxt, MCStringRef& r_result)
 static bool list_compressors_callback(void *context, unsigned int id, const char *label)
 {
     MCListRef *t_state = static_cast<MCListRef *>(context);
-    
+
     uint32_t t_id;
     t_id = MCSwapInt32NetworkToHost(id);
-    
+
     char t_code[] = "????";
     memcpy(t_code, (char *)&t_id, 4);
-    
+
     MCAutoStringRef t_compressor_info;
     MCStringFormat(&t_compressor_info, "%s,%s", label, t_code);
-    
+
     MCListAppend(*t_state, *t_compressor_info);
     return true;
 }
@@ -198,17 +198,17 @@ void MCMultimediaEvalRecordCompressionTypes(MCExecContext& ctxt, MCStringRef& r_
 {
 #ifdef FEATURE_PLATFORM_RECORDER
     extern MCPlatformSoundRecorderRef MCrecorder;
-    
+
     if (MCrecorder == nil)
         MCPlatformSoundRecorderCreate(MCrecorder);
-    
+
     if (MCrecorder != nil)
     {
         MCListRef t_state;
         MCListCreateMutable('\n', t_state);
-        
+
         MCPlatformSoundRecorderListCompressors(MCrecorder, list_compressors_callback, &t_state);
-        
+
         MCListCopyAsString(t_state, r_string);
         MCValueRelease(t_state);
     }
@@ -225,16 +225,16 @@ void MCMultimediaEvalRecordFormats(MCExecContext& ctxt, MCStringRef& r_string)
 {
 #ifdef FEATURE_PLATFORM_RECORDER
     extern MCPlatformSoundRecorderRef MCrecorder;
-    
+
     if (MCrecorder == nullptr)
         MCPlatformSoundRecorderCreate(MCrecorder);
-    
+
     if (MCrecorder == nullptr)
     {
         r_string = MCValueRetain(kMCEmptyString);
         return;
     }
-    
+
     MCListRef t_state = nullptr;
     if (MCListCreateMutable('\n', t_state) &&
         MCPlatformSoundRecorderListFormats(MCrecorder,
@@ -242,7 +242,7 @@ void MCMultimediaEvalRecordFormats(MCExecContext& ctxt, MCStringRef& r_string)
                                            &t_state) &&
         MCListCopyAsStringAndRelease(t_state, r_string))
         return;
-    
+
     MCValueRelease(t_state);
 #else
     extern bool MCQTGetRecordFormatList(MCStringRef &r_string);
@@ -257,15 +257,15 @@ void MCMultimediaEvalRecordLoudness(MCExecContext& ctxt, integer_t& r_loudness)
 {
 #ifdef FEATURE_PLATFORM_RECORDER
     extern MCPlatformSoundRecorderRef MCrecorder;
-    
+
     double t_loudness;
     t_loudness = 0;
-    
+
     if (MCrecorder != nil)
         t_loudness = MCPlatformSoundRecorderGetLoudness(MCrecorder);
-    
+
     r_loudness = floor(t_loudness);
-    
+
 #else
 	extern void MCQTGetRecordLoudness(integer_t &r_loudness);
     MCQTGetRecordLoudness(r_loudness);
@@ -395,10 +395,10 @@ void MCMultimediaExecStopPlayingObject(MCExecContext& ctxt, MCObject *p_object)
 	if (p_object->gettype() == CT_PLAYER)
 	{
 		MCPlayer *player = (MCPlayer *)p_object;
-		if (player->isdisposable())
+//		if (player->isdisposable())
 			player->playstop();
-		else
-			player->playpause(True);
+//		else
+//			player->playpause(True);
 	}
 	else
 		MCU_play_stop();
@@ -427,13 +427,13 @@ void MCMultimediaExecRecord(MCExecContext& ctxt, MCStringRef p_filename)
 
 	MCAutoStringRef soundfile;
     MCS_resolvepath(p_filename, &soundfile);
-    
+
 #ifdef FEATURE_PLATFORM_RECORDER
     extern MCPlatformSoundRecorderRef MCrecorder;
-    
+
     if (MCrecorder == nil)
         MCPlatformSoundRecorderCreate(MCrecorder);
-    
+
     if (MCrecorder != nil)
         MCPlatformSoundRecorderStart(MCrecorder, *soundfile);
 #else
@@ -473,8 +473,8 @@ void MCMultimediaExecAnswerEffect(MCExecContext &ctxt)
 {
     MCresult -> clear(False);
     extern Boolean MCQTEffectsDialog(MCStringRef &r_data);
-    
-    MCAutoStringRef t_value;    
+
+    MCAutoStringRef t_value;
     if (MCQTEffectsDialog(&t_value))
         ctxt . SetItToValue(*t_value);
 }
@@ -485,23 +485,23 @@ void MCMultimediaExecAnswerRecord(MCExecContext &ctxt)
     MCresult -> clear(False);
 
 #ifdef FEATURE_PLATFORM_RECORDER
-    
+
     extern MCPlatformSoundRecorderRef MCrecorder;
     if (MCrecorder == nil)
         MCPlatformSoundRecorderCreate(MCrecorder);
-    
+
     if (MCrecorder != nil)
     {
         MCPlatformSoundRecorderBeginConfigurationDialog(MCrecorder);
-        
+
         MCPlatformDialogResult t_result;
-        
+
         for (;;)
         {
             t_result = MCPlatformSoundRecorderEndConfigurationDialog(MCrecorder);
             if (t_result != kMCPlatformDialogResultContinue)
                 break;
-            
+
             MCscreen -> wait(REFRESH_INTERVAL, True, True);
         }
 
@@ -529,7 +529,7 @@ static MCPlayer* MCMultimediaExecGetClip(MCExecContext& ctxt, MCStringRef p_clip
             return nullptr;
 		return MCPlayer::FindPlayerByName(t_name);
 	}
-	
+
     if (p_chunk_type == CT_ID)
 	{
         uint4 t_id;
@@ -590,7 +590,7 @@ void MCMultimediaExecLoadVideoClip(MCExecContext& ctxt, MCStack *p_target, int p
 		{
 			/* UNCHECKED */ MCS_tmpnam(&t_temp);
 			IO_handle t_stream;
-			
+
 			if ((t_stream = MCS_open(*t_temp, kMCOpenFileModeWrite, False, False, 0)) == NULL)
 			{
 				ctxt . SetTheResultToStaticCString("error opening temp file");
@@ -625,7 +625,7 @@ void MCMultimediaExecLoadVideoClip(MCExecContext& ctxt, MCStack *p_target, int p
 	if (p_prepare)
 		tptr->setflag(False, F_VISIBLE);
 	MCRectangle trect = tptr->getrect();
-	
+
 	if (p_at != nil)
 	{
 		trect.x = p_at->x;
@@ -660,7 +660,7 @@ void MCMultimediaExecPlayAudioClip(MCExecContext& ctxt, MCStack *p_target, int p
 {
     // AL-2014-09-12: [[ Bug 13428 ]] Missed an MCU_play_stop() in the refactoring
     MCU_play_stop();
-    
+
 	MCStack *sptr;
 	sptr = p_target != nil ? p_target : MCdefaultstackptr;
 
@@ -673,14 +673,14 @@ void MCMultimediaExecPlayAudioClip(MCExecContext& ctxt, MCStack *p_target, int p
 #endif
 		return;
 	}
-	
+
 	MCNewAutoNameRef t_clipname;
 	/* UNCHECKED */ MCNameCreate(p_clip, &t_clipname);
 	if (!(MCacptr = MCObjectCast<MCAudioClip>(sptr->getAV((Chunk_term)p_chunk_type, p_clip, CT_AUDIO_CLIP)))
 		&& !(MCacptr = MCObjectCast<MCAudioClip>(sptr->getobjname(CT_AUDIO_CLIP, *t_clipname))))
 	{
 		IO_handle stream;
-		
+
 		if (!MCS_exists(p_clip, True)
 		        || (stream = MCS_open(p_clip, kMCOpenFileModeRead, True, False, 0)) == NULL)
 		{
@@ -716,13 +716,13 @@ void MCMultimediaExecPlayAudioClip(MCExecContext& ctxt, MCStack *p_target, int p
 
 void MCMultimediaExecPlayStopAudio(MCExecContext& ctxt)
 {
-	MCU_play_stop(); 
+	MCU_play_stop();
 }
 
 void MCMultimediaExecPlayOperation(MCExecContext& ctxt, MCPlayer *p_player, int p_operation)
 {
 	if (p_player != nil)
-	{	
+	{
 		// PM-2015-07-10: [[ Bug 15472 ]] Preserve the visible/invisible state of the player
 		switch (p_operation)
 		{
@@ -741,10 +741,10 @@ void MCMultimediaExecPlayOperation(MCExecContext& ctxt, MCPlayer *p_player, int 
 				p_player->playstop();
 			break;
 		case PP_STOP:
-			if (p_player->isdisposable())
+//			if (p_player->isdisposable())
 				p_player->playstop();
-			else
-				p_player->playpause(True);
+//			else
+//				p_player->playpause(True);
 			break;
 		default:
 			break;
@@ -759,26 +759,26 @@ void MCMultimediaExecPlayVideoClip(MCExecContext& ctxt, MCStack *p_target, int p
 #ifdef _MOBILE
 	// PM-2015-09-22: [[ Bug 15969 ]] Playing a video on iOS crashes when touching the screen
 	extern MCExecContext *MCECptr;
-	
+
 	// Add a new entry in the execution contexts
 	MCExecContext *oldctxt = MCECptr;
 	MCECptr = &ctxt;
-	
+
 	extern bool MCSystemPlayVideo(MCStringRef p_video);
 	if (!MCSystemPlayVideo(p_clip))
 		MCresult->sets("no video support");
-	
+
 	// Remove our entry from the contexts list
 	MCECptr = oldctxt;
-	
+
 	return;
 #endif
 
 	MCPlayer *tptr = MCMultimediaExecGetClip(ctxt, p_clip, p_chunk_type);
-	
+
 	if (ctxt . HasError())
 		return;
-	
+
 	if (tptr != nil)
 		MCMultimediaExecPlayOperation(ctxt, tptr, PP_UNDEFINED);
 	else
@@ -802,10 +802,10 @@ void MCMultimediaExecPlayVideoOperation(MCExecContext& ctxt, MCStack *p_target, 
 		return;
 #endif
 	MCPlayer *tptr = MCMultimediaExecGetClip(ctxt, p_clip, p_chunk_type);
-	
+
 	if (ctxt . HasError())
 		return;
-	
+
 	MCMultimediaExecPlayOperation(ctxt, tptr, p_operation);
 }
 
@@ -889,7 +889,7 @@ void MCMultimediaSetRecordRate(MCExecContext& ctxt, double p_value)
 		if (p_value <= (11.025 + 11.127) / 2.0)
 			MCrecordrate = 11.025;
 		else
-			
+
 			if (p_value <= (11.127 + 22.050) / 2.0)
 				MCrecordrate = 12.000;
 			else
@@ -933,7 +933,7 @@ void MCMultimediaGetPlayLoudness(MCExecContext& ctxt, uinteger_t& r_loudness)
             ;
         else
             t_loudness = MCS_getplayloudness();
-    
+
     r_loudness = t_loudness;
 }
 
@@ -941,15 +941,15 @@ void MCMultimediaSetPlayLoudness(MCExecContext& ctxt, uinteger_t p_loudness)
 {
     // AL-2014-08-12: [[ Bug 13161 ]] Setting templateAudioClip playLoudness shouldn't set the global playLoudness
     p_loudness = MCU_max(MCU_min((uint16_t)p_loudness, 100), 0);
-        
+
     extern bool MCSystemSetPlayLoudness(uint2 loudness);
 #ifdef _MOBILE
     if (MCSystemSetPlayLoudness(p_loudness))
         return;
 #endif
-    
+
     MCPlayer::SetPlayersVolume(p_loudness);
-    
+
     MCS_setplayloudness(p_loudness);
 
 	MCtemplateaudio -> SetPlayLoudness(ctxt, p_loudness);

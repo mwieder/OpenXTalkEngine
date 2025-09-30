@@ -4,19 +4,21 @@ source "${BASEDIR}/scripts/platform.inc"
 source "${BASEDIR}/scripts/lib_versions.inc"
 source "${BASEDIR}/scripts/util.inc"
 
-# 2024.07.22 currently ${libfreetype_VERSION} is 2.13.2
+# 2025.09.19 currently ${libfreetype_VERSION} is 2.14.1
 #https://sourceforge.net/projects/freetype/files/latest/download
 
 THIS="libfreetype"
-# the version downloaded is 2.13.2 but in the tar file is 2.13.3
-#ACTUAL_VERSION="2.14.0"
+# the version downloaded is 2.14.0 but in the tar file is 2.14.1
 ACTUAL_VERSION=${libfreetype_VERSION}
-# should do this with sed
 UNTARRED="freetype-${ACTUAL_VERSION}"
 URL_ROOT="https://sourceforge.net/projects/freetype/files/latest/download"
 ARCHIVE_DESTINATION="${THIS}-${libfreetype_VERSION}"
 FILE_DIRECTORY="../../thirdparty/${THIS}/src"
 INCLUDE_DIRECTORY="../../thirdparty/${THIS}/include"
+
+# strip the minor version, i.e. 2.14.1 -> 2.14
+VERSION_MAJOR=$(echo "${ARCHIVE_DESTINATION}" | sed -e 's/\.[^\.]$//')
+#ARCHIVE_DESTINATION="${VERSION_MAJOR}"
 
 function unxzBinary
 {
@@ -25,7 +27,8 @@ function unxzBinary
 	if [ -e "${ARCHIVE_DESTINATION}" ] ; then
 		rm -rf ${ARCHIVE_DESTINATION}
 	fi
-	mv ${UNTARRED} ${ARCHIVE_DESTINATION}
+	mv "${UNTARRED}" "${VERSION_MAJOR}"
+	ARCHIVE_DESTINATION=${VERSION_MAJOR}
 }
 
 function buildFTSrcLibrary {
@@ -37,5 +40,6 @@ function buildFTSrcLibrary {
 }
 
 fetchBinary
+#ARCHIVE_DESTINATION="${VERSION_MAJOR}"
 unxzBinary
 buildFTSrcLibrary

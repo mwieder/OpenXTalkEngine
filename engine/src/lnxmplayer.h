@@ -30,16 +30,17 @@ class MPlayer
 	public:
 		MPlayer(void) ;
 		~MPlayer(void) ;
-	
+
 		// Initilize the mplayer process and load in the specified media file.
 		// This also creates a new child window of the given stack
         bool init (const char *p_filename, MCStack *p_stack, MCRectangle p_rect );
 		bool shutdown ( void ) ;
-	
+
 		// Basic commands for manipulating the media
 		void play ( bool p_play );
 		void play ( void ) ;
-		void pause ( void ); 
+		void pause ( void );
+		void stop ( void );
 		void seek ( int4 p_amount ) ;
 		void seek (void);
 		void osd ( uint4 p_level );
@@ -51,7 +52,7 @@ class MPlayer
 
 		// Access methods for getting data back about the media state etc.
 	 	bool isplaying(void) { return m_playing; };
-		bool isrunning(void) { return (m_window != DNULL); }; 
+		bool isrunning(void) { return (m_window != DNULL); };
 		bool ispaused (void) { return !m_playing; };
 		Window getwindow (void) { return m_window ; } ;
 		MCRectangle getrect (void) { return m_player_rect; };
@@ -61,10 +62,10 @@ class MPlayer
 		uint4 getcurrenttime(void);
 		uint4 getloudness(void);
 
-	
+
 		// Commands used to manipulate the media players window.
 		void resize( MCRectangle p_rect);
-		
+
 	private:
 		bool m_playing ;
 		char * m_filename ;
@@ -75,18 +76,18 @@ class MPlayer
 		int m_pfd_write[2];
 		int m_pfd_read[2];
 	    pid_t m_cpid;
-	
+
 		uint32_t m_duration ;
 		uint32_t m_timescale ;
 		uint32_t m_loudness ;
 
-	
+
 		bool launch_player(void);
 		void write_command(MCStringRef p_cmd);
 		bool read_command(MCStringRef p_ans, MCStringRef& r_ret);
 		bool get_property(const char *p_prop, MCPlayerPropertyType p_type, void *r_value);
 		void set_property(const char *p_prop, MCPlayerPropertyType p_type, void *p_value);
-		
+
 } ;
 
 

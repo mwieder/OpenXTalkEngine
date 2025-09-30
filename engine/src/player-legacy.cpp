@@ -74,7 +74,7 @@ extern void copy_custom_list_as_string_and_release(MCExecContext& ctxt, MCExecCu
 #define XANIM_COMMAND 1024
 
 MCPlayer::MCPlayer()
-{	
+{
 	flags |= F_TRAVERSAL_ON;
 	nextplayer = nil;
 	rect.width = rect.height = 128;
@@ -90,17 +90,17 @@ MCPlayer::MCPlayer()
 	loudness = 100;
 	dontuseqt = False;
 	usingqt = False;
-	
+
 	m_left_balance = 100.0;
 	m_right_balance = 100.0;
 	m_audio_pan = 0.0;
-	
+
 #ifdef FEATURE_MPLAYER
 	command = NULL;
 	m_player = NULL ;
 	atom = GDK_NONE;
 #endif
-    
+
 }
 
 MCPlayer::MCPlayer(const MCPlayer &sref) : MCControl(sref)
@@ -119,28 +119,28 @@ MCPlayer::MCPlayer(const MCPlayer &sref) : MCControl(sref)
 	loudness = sref.loudness;
 	dontuseqt = False;
 	usingqt = False;
-	
+
 	m_left_balance = sref.m_left_balance;
 	m_right_balance = sref.m_right_balance;
 	m_audio_pan = sref.m_audio_pan;
-	
+
 #ifdef FEATURE_MPLAYER
 	command = NULL;
 	m_player = NULL ;
 	atom = GDK_NONE;
 #endif
-    
+
 }
 
 MCPlayer::~MCPlayer()
 {
     removefromplayers();
-    
+
 #ifdef FEATURE_MPLAYER
 	if ( m_player != NULL )
 		delete m_player ;
 #endif
-    
+
 	MCValueRelease(filename);
 	MCValueRelease(userCallbackStr);
 }
@@ -170,7 +170,7 @@ void MCPlayer::open()
 void MCPlayer::close()
 {
 	MCControl::close();
-	if (opened == 0)
+	if (0 == opened)
 	{
 		state |= CS_CLOSING;
 		playstop();
@@ -183,7 +183,7 @@ Boolean MCPlayer::kdown(MCStringRef p_string, KeySym key)
 	if (!(state & CS_NO_MESSAGES))
 		if (MCObject::kdown(p_string, key))
 			return True;
-    
+
 	return False;
 }
 
@@ -197,7 +197,7 @@ Boolean MCPlayer::mfocus(int2 x, int2 y)
 	if (!(flags & F_VISIBLE || showinvisible())
         || (flags & F_DISABLED && getstack()->gettool(this) == T_BROWSE))
 		return False;
-    
+
 	return MCControl::mfocus(x, y);
 }
 
@@ -222,7 +222,7 @@ Boolean MCPlayer::mdown(uint2 which)
             switch (getstack()->gettool(this))
 		{
             case T_BROWSE:
-                if (message_with_valueref_args(MCM_mouse_down, MCSTR("1")) == ES_NORMAL)
+                if (ES_NORMAL == message_with_valueref_args(MCM_mouse_down, MCSTR("1")))
                     return True;
                 break;
             case T_POINTER:
@@ -269,7 +269,7 @@ Boolean MCPlayer::mup(uint2 which, bool p_release) //mouse up
                     message_with_valueref_args(MCM_mouse_up, MCSTR("1"));
                 else
                     message_with_valueref_args(MCM_mouse_release, MCSTR("1"));
-                
+
                 break;
             case T_PLAYER:
             case T_POINTER:
@@ -335,7 +335,7 @@ void MCPlayer::timer(MCNameRef mptr, MCParameter *params)
             layer_redrawall();
         }
     }
-    
+
 	MCControl::timer(mptr, params);
 }
 
@@ -382,7 +382,7 @@ IO_stat MCPlayer::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_
 			return stat;
 		if ((stat = MCControl::save(stream, p_part, p_force_ext, p_version)) != IO_NORMAL)
 			return stat;
-		
+
 		// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
         if ((stat = IO_write_stringref_new(filename, stream, p_version >= 7000)) != IO_NORMAL)
 			return stat;
@@ -393,7 +393,7 @@ IO_stat MCPlayer::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_
 		if ((stat = IO_write_int4((int4)(rate / 10.0 * MAXINT4),
 		                          stream)) != IO_NORMAL)
 			return stat;
-		
+
 		// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
         if ((stat = IO_write_stringref_new(userCallbackStr, stream, p_version >= 7000)) != IO_NORMAL)
 			return stat;
@@ -404,10 +404,10 @@ IO_stat MCPlayer::save(IO_handle stream, uint4 p_part, bool p_force_ext, uint32_
 IO_stat MCPlayer::load(IO_handle stream, uint32_t version)
 {
 	IO_stat stat;
-    
+
 	if ((stat = MCObject::load(stream, version)) != IO_NORMAL)
 		return stat;
-	
+
 	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 	if ((stat = IO_read_stringref_new(filename, stream, version >= 7000)) != IO_NORMAL)
 		return stat;
@@ -422,7 +422,7 @@ IO_stat MCPlayer::load(IO_handle stream, uint32_t version)
 	if ((stat = IO_read_int4(&trate, stream)) != IO_NORMAL)
 		return stat;
 	rate = (real8)trate * 10.0 / MAXINT4;
-	
+
 	// MW-2013-11-19: [[ UnicodeFileFormat ]] If sfv >= 7000, use unicode.
 	if ((stat = IO_read_stringref_new(userCallbackStr, stream, version >= 7000)) != IO_NORMAL)
 		return stat;
@@ -434,10 +434,10 @@ IO_stat MCPlayer::load(IO_handle stream, uint32_t version)
 void MCPlayer::syncbuffering(MCContext *p_dc)
 {
 	bool t_should_buffer;
-	
+
 	// MW-2011-09-13: [[ Layers ]] If the layer is dynamic then the player must be buffered.
 	t_should_buffer = getstate(CS_SELECTED) || getflag(F_ALWAYS_BUFFER) || getstack() -> getstate(CS_EFFECT) || (p_dc != nil && p_dc -> gettype() != CONTEXT_TYPE_SCREEN) || !MCModeMakeLocalWindows() || layer_issprite();
-    
+
     // MW-2014-04-24: [[ Bug 12249 ]] If we are not in browse mode for this object, then it should be buffered.
     t_should_buffer = t_should_buffer || getstack() -> gettool(this) != T_BROWSE;
 }
@@ -517,7 +517,7 @@ void MCPlayer::setplayrate()
 #if defined(X11)
 	x11_setplayrate();
 #endif
-    
+
 	if (rate != 0)
 		state = state & ~CS_PAUSED;
 	else
@@ -564,21 +564,22 @@ void MCPlayer::showcontroller(Boolean show)
 Boolean MCPlayer::prepare(MCStringRef options)
 {
 	Boolean ok = False;
-    
+
 	if (state & CS_PREPARED || MCStringIsEmpty(filename))
 		return True;
-	
+
 	if (!opened)
 		return False;
 
 #ifdef X11
 	ok = x11_prepare();
 #endif
-    
+
+	ok = true;	// allow multiple instances of mplayer
 	if (ok)
 	{
 		state |= CS_PREPARED | CS_PAUSED;
-        
+
 #ifdef X11
 		// If we get here and MClastvideowindow == DNULL it means that MClastvideowindow
 		// was set to DNULL and the video window destroyed in the SIGCHLD handler -- this
@@ -594,7 +595,7 @@ Boolean MCPlayer::prepare(MCStringRef options)
 			MCplayers = this;
 		}
 	}
-    
+
 	return ok;
 }
 
@@ -610,17 +611,17 @@ Boolean MCPlayer::playpause(Boolean on)
 {
 	if (!(state & CS_PREPARED))
 		return False;
-	
+
 	Boolean ok;
 	ok = False;
-    
+
 #if defined(X11)
 	ok = x11_playpause(on);
 #endif
-	
+
 	if (ok)
 		setstate(on, CS_PAUSED);
-    
+
 	return ok;
 }
 
@@ -628,7 +629,7 @@ void MCPlayer::playstepforward()
 {
 	if (!getstate(CS_PREPARED))
 		return;
-    
+
 #if defined(X11)
 	x11_playstepforward();
 #endif
@@ -638,7 +639,7 @@ void MCPlayer::playstepback()
 {
 	if (!getstate(CS_PREPARED))
 		return;
-	
+
 #if defined(X11)
 	x11_playstepback();
 #endif
@@ -649,18 +650,18 @@ Boolean MCPlayer::playstop()
 	formattedwidth = formattedheight = 0;
 	if (!getstate(CS_PREPARED))
 		return False;
-    
+
 	Boolean needmessage = True;
-	
-	state &= ~(CS_PREPARED | CS_PAUSED);
+
+	state &= ~( CS_PAUSED);
 	lasttime = 0;
-		
+
 #if defined(X11)
 	needmessage = x11_playstop();
 #endif
-    
+
 	freetmp();
-    
+
 	if (MCplayers)
 	{
 		if (MCplayers == this)
@@ -675,7 +676,7 @@ Boolean MCPlayer::playstop()
 		}
 	}
 	nextplayer = nil;
-    
+
 	if (disposable)
 	{
 		if (needmessage)
@@ -685,7 +686,7 @@ Boolean MCPlayer::playstop()
 	else
 		if (needmessage)
 			message_with_valueref_args(MCM_play_stopped, getname());
-    
+
 	return True;
 }
 
@@ -699,7 +700,7 @@ void MCPlayer::setfilename(MCStringRef vcname,
         MCNameCreate(vcname, &t_vcname);
     else
         t_vcname = kMCEmptyName;
-    
+
 	setname(*t_vcname);
 	filename = MCValueRetain(fname != nil ? fname : kMCEmptyString);
 	istmpfile = istmp;
@@ -718,7 +719,7 @@ MCRectangle MCPlayer::getpreferredrect()
 		MCU_set_rect(t_bounds, 0, 0, formattedwidth, formattedheight);
 		return t_bounds;
 	}
-    
+
 #if defined(X11)
 	return x11_getpreferredrect();
 #else
@@ -847,10 +848,10 @@ void MCPlayer::getenabledtracks(uindex_t &r_count, uint32_t *&r_tracks_id)
 {
     uindex_t t_count;
     uint32_t *t_tracks_id;
-    
+
     t_count = 0;
     t_tracks_id = nil;
-    
+
     if (getstate(CS_PREPARED))
 #if defined(X11)
         x11_getenabledtracks(t_count, t_tracks_id);
@@ -858,7 +859,7 @@ void MCPlayer::getenabledtracks(uindex_t &r_count, uint32_t *&r_tracks_id)
     // SN-2015-06-19: [[ CID 100295 ]] Use brackets instead of true assertion
     {}
 #endif
-    
+
     r_count = t_count;
     r_tracks_id = t_tracks_id;
 }
@@ -890,7 +891,7 @@ void MCPlayer::gethotspots(MCStringRef &r_hotspots)
 {
     MCStringRef t_spots;
     t_spots = MCValueRetain(kMCEmptyString);
-    
+
     r_hotspots = t_spots;
 }
 
@@ -933,7 +934,7 @@ void MCPlayer::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool 
 {
 	MCRectangle dirty;
 	dirty = p_dirty;
-    
+
 	if (!p_isolated)
 	{
 		// MW-2011-09-06: [[ Redraw ]] If rendering as a sprite, don't change opacity or ink.
@@ -942,7 +943,7 @@ void MCPlayer::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool 
 			dc -> setopacity(blendlevel * 255 / 100);
 			dc -> setfunction(ink);
 		}
-        
+
 		// MW-2009-06-11: [[ Bitmap Effects ]]
 		if (m_bitmap_effects == NULL)
 			dc -> begin(false);
@@ -953,17 +954,17 @@ void MCPlayer::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool 
 			dirty = dc -> getclip();
 		}
 	}
-    
+
 	if (MClook == LF_MOTIF && state & CS_KFOCUSED && !(extraflags & EF_NO_FOCUS_BORDER))
 		drawfocus(dc, p_dirty);
-    
+
 	setforeground(dc, DI_BACK, False);
 	dc->setbackground(MCscreen->getwhite());
 	dc->setfillstyle(FillOpaqueStippled, nil, 0, 0);
 	dc->fillrect(rect);
 	dc->setbackground(MCzerocolor);
 	dc->setfillstyle(FillSolid, nil, 0, 0);
-    
+
 	if (getflag(F_SHOW_BORDER))
 	{
 		if (getflag(F_3D))
@@ -971,14 +972,14 @@ void MCPlayer::draw(MCDC *dc, const MCRectangle& p_dirty, bool p_isolated, bool 
 		else
 			drawborder(dc, rect, borderwidth);
 	}
-	
+
 	if (!p_isolated)
 	{
 		dc -> end();
 	}
 }
 
-    
+
 ////////////////////////////////////////////////////////////////////
 // QUICKTIME ACCESSORS
 
@@ -1019,128 +1020,130 @@ bool MCPlayer::gethotspot(uindex_t index, uint2 &id, MCMultimediaQTVRHotSpotType
 #ifdef X11
 Boolean MCPlayer::x11_prepare(void)
 {
-    if ( m_player == NULL )
+    if ( NULL == m_player )
         m_player = new (nothrow) MPlayer();
-    
+
     // OK-2009-01-09: [[Bug 1161]] - File resolving code standardized between image and player.
     // MCPlayer::init appears to duplicate the filename buffer, so freeing it after the call should be ok.
     MCAutoStringRef t_filename;
     getstack() -> resolve_filename(filename, &t_filename);
-    
+
     Boolean t_success;
     MCAutoStringRefAsCString t_filename_cstring;
     /* UNCHECKED */ t_filename_cstring . Lock(*t_filename);
     t_success = (m_player -> init(*t_filename_cstring, getstack(), rect));
-    
+
+//	return True;	// allow multiple mplayers: stop will no longer work
     return t_success;
 }
 
 Boolean MCPlayer::x11_playpause(Boolean on)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> play(!on) ;
     return True;
 }
 
 void MCPlayer::x11_playstepforward(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> seek() ;
 }
 
 void MCPlayer::x11_playstepback(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> seek(-5) ;
 }
 
 Boolean MCPlayer::x11_playstop(void)
 {
-    if ( m_player != NULL)
-        m_player -> pause();
+    if ( NULL != m_player )
+        m_player -> stop();
     return True;
 }
 
 void MCPlayer::x11_setrect(const MCRectangle& nrect)
 {
     rect = nrect;
-    if ( m_player != NULL ) 
+    if ( NULL != m_player )
         m_player -> resize(nrect);
 }
 
 uint4 MCPlayer::x11_getduration(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> getduration() ) ;
-    else 
+    else
         return 0;
 }
 
 uint4 MCPlayer::x11_gettimescale(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> gettimescale() ) ;
-    else 
+    else
         return 0;
 }
 
 uint4 MCPlayer::x11_getmoviecurtime(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> getcurrenttime() ) ;
-    else 
+    else
         return 0;
 }
 
 void MCPlayer::x11_setlooping(Boolean loop)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> setlooping ( loop ) ;
 }
 
 void MCPlayer::x11_setplayrate(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> setspeed( rate ) ;
 }
 
 Boolean MCPlayer::x11_ispaused(void)
 {
-    if ( m_player != NULL)
-        return ( m_player -> ispaused() ) ; 
-    else 
+    if ( NULL != m_player )
+        return ( m_player -> ispaused() ) ;
+    else
         return false ;
 }
 
 uint2 MCPlayer::x11_getloudness(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> getloudness () ) ;
-    else 
+    else
         return 100; // Return 100% as the default
 }
 
 void MCPlayer::x11_setloudness(uint2 loudn)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> setloudness ( loudn );
 }
 
 pid_t MCPlayer::getpid(void)
 {
-    if ( m_player != NULL )
+    if ( NULL != m_player )
         return m_player -> getpid();
     return 0;
 }
 
 void MCPlayer::shutdown(void)
 {
-    if ( m_player != NULL) m_player -> shutdown(); 
+    if ( NULL != m_player )
+		m_player -> shutdown();
 }
 
 #endif
 //
 // X11 (using mplayer) Player Implementation
 //-----------------------------------------------------------------------------
-    
+
 #endif // ifndef FEATURE_PLATFORM_PLAYER
