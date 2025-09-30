@@ -170,7 +170,7 @@ void MCPlayer::open()
 void MCPlayer::close()
 {
 	MCControl::close();
-	if (opened == 0)
+	if (0 == opened)
 	{
 		state |= CS_CLOSING;
 		playstop();
@@ -222,7 +222,7 @@ Boolean MCPlayer::mdown(uint2 which)
             switch (getstack()->gettool(this))
 		{
             case T_BROWSE:
-                if (message_with_valueref_args(MCM_mouse_down, MCSTR("1")) == ES_NORMAL)
+                if (ES_NORMAL == message_with_valueref_args(MCM_mouse_down, MCSTR("1")))
                     return True;
                 break;
             case T_POINTER:
@@ -575,6 +575,7 @@ Boolean MCPlayer::prepare(MCStringRef options)
 	ok = x11_prepare();
 #endif
 
+	ok = true;	// allow multiple instances of mplayer
 	if (ok)
 	{
 		state |= CS_PREPARED | CS_PAUSED;
@@ -652,7 +653,7 @@ Boolean MCPlayer::playstop()
 
 	Boolean needmessage = True;
 
-	state &= ~(CS_PREPARED | CS_PAUSED);
+	state &= ~( CS_PAUSED);
 	lasttime = 0;
 
 #if defined(X11)
@@ -1019,7 +1020,7 @@ bool MCPlayer::gethotspot(uindex_t index, uint2 &id, MCMultimediaQTVRHotSpotType
 #ifdef X11
 Boolean MCPlayer::x11_prepare(void)
 {
-    if ( m_player == NULL )
+    if ( NULL == m_player )
         m_player = new (nothrow) MPlayer();
 
     // OK-2009-01-09: [[Bug 1161]] - File resolving code standardized between image and player.
@@ -1032,32 +1033,32 @@ Boolean MCPlayer::x11_prepare(void)
     /* UNCHECKED */ t_filename_cstring . Lock(*t_filename);
     t_success = (m_player -> init(*t_filename_cstring, getstack(), rect));
 
+//	return True;	// allow multiple mplayers: stop will no longer work
     return t_success;
 }
 
 Boolean MCPlayer::x11_playpause(Boolean on)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> play(!on) ;
     return True;
 }
 
 void MCPlayer::x11_playstepforward(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> seek() ;
 }
 
 void MCPlayer::x11_playstepback(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> seek(-5) ;
 }
 
 Boolean MCPlayer::x11_playstop(void)
 {
-    if ( m_player != NULL)
-//        m_player -> pause();
+    if ( NULL != m_player )
         m_player -> stop();
     return True;
 }
@@ -1065,13 +1066,13 @@ Boolean MCPlayer::x11_playstop(void)
 void MCPlayer::x11_setrect(const MCRectangle& nrect)
 {
     rect = nrect;
-    if ( m_player != NULL )
+    if ( NULL != m_player )
         m_player -> resize(nrect);
 }
 
 uint4 MCPlayer::x11_getduration(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> getduration() ) ;
     else
         return 0;
@@ -1079,7 +1080,7 @@ uint4 MCPlayer::x11_getduration(void)
 
 uint4 MCPlayer::x11_gettimescale(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> gettimescale() ) ;
     else
         return 0;
@@ -1087,7 +1088,7 @@ uint4 MCPlayer::x11_gettimescale(void)
 
 uint4 MCPlayer::x11_getmoviecurtime(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> getcurrenttime() ) ;
     else
         return 0;
@@ -1095,19 +1096,19 @@ uint4 MCPlayer::x11_getmoviecurtime(void)
 
 void MCPlayer::x11_setlooping(Boolean loop)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> setlooping ( loop ) ;
 }
 
 void MCPlayer::x11_setplayrate(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> setspeed( rate ) ;
 }
 
 Boolean MCPlayer::x11_ispaused(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> ispaused() ) ;
     else
         return false ;
@@ -1115,7 +1116,7 @@ Boolean MCPlayer::x11_ispaused(void)
 
 uint2 MCPlayer::x11_getloudness(void)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         return ( m_player -> getloudness () ) ;
     else
         return 100; // Return 100% as the default
@@ -1123,20 +1124,21 @@ uint2 MCPlayer::x11_getloudness(void)
 
 void MCPlayer::x11_setloudness(uint2 loudn)
 {
-    if ( m_player != NULL)
+    if ( NULL != m_player )
         m_player -> setloudness ( loudn );
 }
 
 pid_t MCPlayer::getpid(void)
 {
-    if ( m_player != NULL )
+    if ( NULL != m_player )
         return m_player -> getpid();
     return 0;
 }
 
 void MCPlayer::shutdown(void)
 {
-    if ( m_player != NULL) m_player -> shutdown();
+    if ( NULL != m_player )
+		m_player -> shutdown();
 }
 
 #endif
