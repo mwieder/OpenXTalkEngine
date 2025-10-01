@@ -243,6 +243,7 @@ void MPlayer::write_command (MCStringRef p_cmd )
 		send_command(*t_cstring);
 }
 
+// this is only used to read a property from the player object
 bool MPlayer::read_command(MCStringRef p_ans, MCStringRef& r_ret)
 {
 	const char *cmd_failed = "Failed to get value of property" ;
@@ -270,6 +271,9 @@ bool MPlayer::read_command(MCStringRef p_ans, MCStringRef& r_ret)
 
 
 		if (MCStringIsEqualToCString(*t_read, cmd_failed, kMCStringOptionCompareCaseless))
+			return false;
+
+		if (MCStringBeginsWithCString(*t_read, (const char_t*)"ANS_ERR", kMCStringOptionCompareCaseless))
 			return false;
 
 		if (MCStringBeginsWith(*t_read, p_ans, kMCStringOptionCompareCaseless))
@@ -441,6 +445,7 @@ bool MPlayer::get_property(const char* p_prop, MCPlayerPropertyType p_type, void
 	if (!MCStringFormat(&t_response, "ANS_%s=\n", p_prop))
 		return false;
 
+// NOTE: could get ANS_ERROR here instead, which hangs the read_command function
 	MCAutoStringRef t_string_value;
 	if (!read_command(*t_response, &t_string_value))
 		return false;
