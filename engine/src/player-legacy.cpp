@@ -88,7 +88,8 @@ MCPlayer::MCPlayer()
 	userCallbackStr = MCValueRetain(kMCEmptyString);
 	formattedwidth = formattedheight = 0;
 	loudness = 100;
-	dontuseqt = False;
+//	dontuseqt = False;
+	dontuseqt = True;
 	usingqt = False;
 
 	m_left_balance = 100.0;
@@ -117,7 +118,8 @@ MCPlayer::MCPlayer(const MCPlayer &sref) : MCControl(sref)
 	userCallbackStr = MCValueRetain(sref.userCallbackStr);
 	formattedwidth = formattedheight = 0;
 	loudness = sref.loudness;
-	dontuseqt = False;
+//	dontuseqt = False;
+	dontuseqt = True;
 	usingqt = False;
 
 	m_left_balance = sref.m_left_balance;
@@ -604,6 +606,16 @@ Boolean MCPlayer::playstart(MCStringRef options)
 	if (!prepare(options))
 		return False;
 	playpause(False);
+
+	// MDW 2025.09.30 send the playStarted message
+	if (disposable)
+	{
+		getcard()->message_with_valueref_args(MCM_play_started, getname());
+		delete this;
+	}
+	else
+		message_with_valueref_args(MCM_play_started, getname());
+
 	return True;
 }
 
@@ -621,6 +633,17 @@ Boolean MCPlayer::playpause(Boolean on)
 
 	if (ok)
 		setstate(on, CS_PAUSED);
+
+	// MDW 2025.09.30 send the playPaused message if paused
+	if (disposable)
+	{
+		if (ok && on)
+			getcard()->message_with_valueref_args(MCM_play_paused, getname());
+		delete this;
+	}
+	else
+		if (ok && on)
+			message_with_valueref_args(MCM_play_paused, getname());
 
 	return ok;
 }
@@ -753,23 +776,31 @@ void MCPlayer::setloudness()
 double MCPlayer::getleftbalance()
 {
 	/* UNSUPPORTED */
-	return 1.0;
+	// mplayer balance is an integer from 0 (full left) -> 100 (full right)
+//	return 1.0;
+	return m_left_balance;
 }
 
 void MCPlayer::setleftbalance(double p_left_balance)
 {
 	/* UNSUPPORTED */
+	// mplayer balance is an integer from 0 (full left) -> 100 (full right)
+	m_left_balance = p_left_balance;
 }
 
 double MCPlayer::getrightbalance()
 {
 	/* UNSUPPORTED */
-	return 1.0;
+	// mplayer balance is an integer from 0 (full left) -> 100 (full right)
+//	return 1.0;
+	return m_right_balance;
 }
 
 void MCPlayer::setrightbalance(double p_right_balance)
 {
 	/* UNSUPPORTED */
+	// mplayer balance is an integer from 0 (full left) -> 100 (full right)
+	m_right_balance = p_right_balance;
 }
 
 double MCPlayer::getaudiopan()

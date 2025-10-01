@@ -1613,6 +1613,16 @@ Boolean MCPlayer::playstart(MCStringRef options)
     // PM-2014-10-21: [[ Bug 13710 ]] Attach the player if not already attached
 	attachplayer();
 	playpause(False);
+
+	// MDW 2025.09.30 send the playStarted message
+	if (disposable)
+	{
+		getcard()->message_with_valueref_args(MCM_play_started, getname());
+		delete this;
+	}
+	else
+		message_with_valueref_args(MCM_play_started, getname());
+
 	return True;
 }
 
@@ -1657,6 +1667,17 @@ Boolean MCPlayer::playpause(Boolean on)
 
         redrawcontroller();
     }
+
+	// MDW 2025.09.30 send the playPaused message if paused
+	if (disposable)
+	{
+		if (ok && on)
+			getcard()->message_with_valueref_args(MCM_play_paused, getname());
+		delete this;
+	}
+	else
+		if (ok && on)
+			message_with_valueref_args(MCM_play_paused, getname());
 
 	return ok;
 }
