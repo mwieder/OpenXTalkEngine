@@ -19,7 +19,7 @@
 /* #undef HAVE__STRTOI64 */
 /* #undef HAVE__STRTOUI64 */
 /* #undef HAVE__UNLINK */
-/* #undef HAVE_ARC4RANDOM */
+#define HAVE_ARC4RANDOM
 /* #undef HAVE_CLONEFILE */
 /* #undef HAVE_COMMONCRYPTO */
 #define HAVE_CRYPTO

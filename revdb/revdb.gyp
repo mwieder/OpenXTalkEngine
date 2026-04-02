@@ -100,11 +100,13 @@
 				'../libexternal/libexternal.gyp:libExternal',
 				'../thirdparty/libmysql/libmysql.gyp:libmysql',
 				'../thirdparty/libopenssl/libopenssl.gyp:libopenssl_stubs',
+				'../thirdparty/libiodbc/libiodbc.gyp:libiodbc',
 			],
 			
 			'include_dirs':
 			[
 				'src',
+                '../thirdparty/libiodbc/include',
 			],
 			
 			'sources':
@@ -243,6 +245,7 @@
 			'include_dirs':
 			[
 				'src',
+                '../thirdparty/libiodbc/include',
 			],
 			
 			'sources':
@@ -366,6 +369,7 @@
 			'include_dirs':
 			[
 				'src',
+                '../thirdparty/libiodbc/include',
 			],
 			
 			'sources':
@@ -473,6 +477,7 @@
 			'include_dirs':
 			[
 				'src',
+                '../thirdparty/libiodbc/include',
 			],
 			
 			'sources':
@@ -686,6 +691,7 @@
 			'include_dirs':
 			[
 				'src',
+                '../thirdparty/libiodbc/include',
 			],
 			
 			'sources':

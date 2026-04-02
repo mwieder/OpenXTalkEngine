@@ -62,7 +62,8 @@
 						{
 							'include_dirs':
 							[
-								'unpacked/openssl/<(uniform_arch)-win32-$(PlatformToolset)_static_$(ConfigurationName)/include',
+#								'unpacked/openssl/<(uniform_arch)-win32-$(PlatformToolset)_static_$(ConfigurationName)/include',
+								'../prebuilt/include/openssl',
 							],
 						},
 					],

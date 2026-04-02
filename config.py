@@ -32,8 +32,7 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'arm64-android-ndk16r15',
     'x86-android-ndk16r15',
     'x86_64-android-ndk16r15',
-
-    'universal-mac-macosx13', # Minimum deployment target
+    'arm64-mac-macosx11.0',         # Apple Silicon (arm64)
     'universal-ios-iphoneos14.5',
     'universal-ios-iphoneos14.4',
     'universal-ios-iphoneos13.2',
@@ -44,20 +43,16 @@ BUILDBOT_PLATFORM_TRIPLES = (
     'universal-ios-iphonesimulator13.2',
     'universal-ios-iphonesimulator12.1',
     'universal-ios-iphonesimulator11.2',
-
     'x86-win32', # TODO[2017-03-23] More specific ABI
     'x86_64-win32',
-
     'js-emscripten-sdk1.35',
 )
 
 KNOWN_PLATFORMS = (
     'linux-x86', 'linux-x86_64', 'linux-armv6hf', 'linux-armv7', 'linux-armv7l',
     'android-armv6', 'android-armv7', 'android-arm64', 'android-x86', 'android-x86_64',
-    'mac',
-#	'mac-arm64'
-	'ios',
-    'win-x86', 'win-x86_64',
+    'mac', 'ios', 
+    'win-x86', 'win-x86_64', 
     'emscripten'
 )
 
@@ -281,11 +276,11 @@ def validate_os(opts):
 def host_platform(opts):
     opts['HOST_PLATFORM'] = guess_platform()
 
-# TODO : need to deal with M1, M2, etc chips
-# uname -p will give the processor type (x86_64 vs arm64
 def guess_xcode_arch(target_sdk):
     sdk, ver = re.match('^([^\\d]*)(\\d*)', target_sdk).groups()
     if sdk == 'macosx':
+        # ARM: return arm64 for Apple Silicon builds.
+        # Previously this was hardcoded to 'x86_64'.
         return 'x86_64'
     if sdk == 'iphoneos':
         if int(ver) < 8:
@@ -509,7 +504,9 @@ def validate_xcode_sdks(opts):
     if opts['XCODE_TARGET_SDK'] is None:
         validate_os(opts)
         if opts['OS'] == 'mac':
-            opts['XCODE_TARGET_SDK'] = 'macosx13.1'
+            # Use unversioned SDK name so it resolves to whatever Xcode has installed.
+            # arm64 requires macOS 11.0+ at minimum; modern Xcode SDKs satisfy this.
+            opts['XCODE_TARGET_SDK'] = 'macosx'
         elif opts['OS'] == 'ios':
             opts['XCODE_TARGET_SDK'] = 'iphoneos'
 

@@ -320,7 +320,7 @@
 
 					'inputs':
 					[
-						'fetch-libraries.sh',
+						'build-libraries.sh',
 					],
 
 					'outputs':
@@ -330,7 +330,7 @@
 
 					'action':
 					[
-						'./fetch-libraries.sh',
+						'./build-libraries.sh',
 						'android',
 						'>(target_arch)',
 					],
@@ -425,7 +425,7 @@
 
 					'inputs':
 					[
-						'fetch-libraries.sh',
+						'build-libraries.sh',
 					],
 
 					'outputs':
@@ -439,7 +439,7 @@
 					[
 						'call',
 						'../util/invoke-unix.bat',
-						'./fetch-libraries.sh',
+						'./build-libraries.sh',
 						# Ensure gyp does not treat these parameters as paths
 						'$(not_a_real_variable)win32',
 						'$(not_a_real_variable)>(fetch_arch)',
