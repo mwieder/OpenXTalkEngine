@@ -35,6 +35,16 @@ else
   BUILD_PROJECT := livecode
 endif
 
+# Prettifying output for CI builds
+XCODEBUILD_FILTER ?=
+
+# Code-signing identity used by compile-mac, package-mac, and package-mac-bin.
+# Defaults to ad-hoc ("-").  Override on the command line or via the environment:
+#   make package-mac-bin CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+# or:
+#   export CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+CODESIGN_IDENTITY ?= -
+
 include Makefile.common
 
 ################################################################

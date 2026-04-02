@@ -72,7 +72,8 @@ on TestDocsValidateExtractedLibraries
       local tDocsPath, tDocsArray
       put tExtractedDocsFolder & slash & tFile into tDocsPath
       
-      put revDocsParseDocFileToLibraryArray(tDocsPath, item -2 of tFile, "LiveCode") into tDocsArray
+#      put revDocsParseDocFileToLibraryArray(tDocsPath, item -2 of tFile, "LiveCode") into tDocsArray
+      put docs.ParseDocFileTo.LibraryArray(tDocsPath, item -2 of tFile, "LiveCode") into tDocsArray
       
       TestAssert tDocsPath & ":" && "type of" && tFile && "is library", tDocsArray["type"] is "library"
       TestAssert tDocsPath & ":" && "name of" && tFile && "is not empty", tDocsArray["name"] is not empty
@@ -114,7 +115,8 @@ on TestDocsValidateExtensionDocs
             next repeat
          end if
          
-         put revDocsParseDocFileToLibraryArray(tDocsPath, tExtension, "LiveCode") into tDocsArray
+#         put revDocsParseDocFileToLibraryArray(tDocsPath, tExtension, "LiveCode") into tDocsArray
+         put docs.ParseDocFile.ToLibraryArray(tDocsPath, tExtension, "LiveCode") into tDocsArray
          
          TestAssert tDocsPath & ":" && "type of" && tFile && "is not empty", tDocsArray["type"] is not empty
          TestAssert tDocsPath & ":" && "display name of" && tFile && "is not empty", tDocsArray["display name"] is not empty

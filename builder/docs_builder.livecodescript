@@ -285,7 +285,9 @@ command docsBuilderGenerateDistributedAPI pEdition
    
    local tDatagridA, tDGDocs
    put builderIDEDocsFolder() & "/dictionary/datagrid.lcdoc" into tDGDocs
-   put revDocsParseDocFileToLibraryArray(tDGDocs, "Data Grid", "LiveCode") \
+#   put revDocsParseDocFileToLibraryArray(tDGDocs, "Data Grid", "LiveCode") \
+#         into tDataGridA
+   put docs.ParseDocFile.ToLibraryArray(tDGDocs, "Data Grid", "LiveCode") \
          into tDataGridA
    
    if tDataGridA is empty then
@@ -310,7 +312,8 @@ command docsBuilderGenerateDistributedAPI pEdition
    local tFile
    repeat for each line tFile in tFiles
       local tLibA
-      put revDocsParseDocFileToLibraryArray(tExtractedDocsFolder & slash & tFile, item -2 of tFile, "LiveCode") into tLibA
+#      put revDocsParseDocFileToLibraryArray(tExtractedDocsFolder & slash & tFile, item -2 of tFile, "LiveCode") into tLibA
+      put docs.ParseDocFile.ToLibraryArray(tExtractedDocsFolder & slash & tFile, item -2 of tFile, "LiveCode") into tLibA
       
       if tLibA is empty then
          builderLog "error", "Couldn't parse" && item -2 of tFile && "dictionary data for" && pEdition

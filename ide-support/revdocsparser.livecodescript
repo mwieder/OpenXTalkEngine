@@ -375,42 +375,40 @@ function docs.GenerateDocsFile.FromText pText, pSource
    local tEntryType
    put empty into tEntryType
    
-   --local tInComment?, tInEntry?, tEntryEnded?
-   --put false into tInComment?
-   --put false into tInEntry?
-   
    local tFirstWord, tEntryData
    local tComment, tData
    local tHandlerData, tPhraseData
    
-   local tLibraryData, tAPIData
-   docs.ExtractDocBlocks pText, pSource, tAPIData, tLibraryData
-   
-   # Allow inline module description as valid docs
-   if tAPIData is empty then
-      logWarning "No handlers documented", pSource
-   end if
-   
-   if tLibraryData["name"] is empty then
-      logError "No extension name found", pSource
-   end if
-   
-   local tOutput
-   put docs.FormatInlineComments(tLibraryData, true) into tOutput
-   
-   if tOutput is empty then
-      logWarning "Invalid library-level docs", pSource
-   end if
-   
-   repeat for each key tKey in tAPIData
-      local tFormatted
-      put docs.FormatInlineComments(tAPIData[tKey], false) into tFormatted
-      if tFormatted is empty then
-         logWarning "No docs for element" && tKey, pSource
-      else
-         put tFormatted & cr & cr after tOutput
+   if pText is not empty then
+      local tLibraryData, tAPIData
+      docs.ExtractDocBlocks pText, pSource, tAPIData, tLibraryData
+      
+      # Allow inline module description as valid docs
+      if tAPIData is empty then
+         logWarning "No handlers documented", pSource
       end if
-   end repeat
+      
+      if tLibraryData["name"] is empty then
+         logError "No extension name found", pSource
+      end if
+      
+      local tOutput
+      put docs.FormatInlineComments(tLibraryData, true) into tOutput
+      
+      if tOutput is empty then
+         logWarning "Invalid library-level docs", pSource
+      end if
+      
+      repeat for each key tKey in tAPIData
+         local tFormatted
+         put docs.FormatInlineComments(tAPIData[tKey], false) into tFormatted
+         if tFormatted is empty then
+            logWarning "No docs for element" && tKey, pSource
+         else
+            put tFormatted & cr & cr after tOutput
+         end if
+      end repeat
+   end if
    return tOutput
 end docs.GenerateDocsFile.FromText
 
@@ -431,39 +429,39 @@ Returns (array) : An array containing the details for the comment blocks associa
 private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
    local tEntryType
    put empty into tEntryType
-
+   
    local tInComment?, tInEntry?, tEntryEnded?
    put false into tInComment?
    put false into tInEntry?
-
+   
    local tFirstWord, tEntryData, tTrimLine
    local tComment, tCommentOffset, tData
    local tHandlerData, tPhraseData
-
+   
    local tLibraryData, tAPIData
-
+   
    # Keep track of if this is a widget module or not
    local tIsWidget?
    put false into tIsWidget?
-
+   
    # If the source is an object, then we are parsing script
    local tIsScript?
    put there is a pSource into tIsScript?
-
+   
    local tIsLCIDL? = false
-
+   
    repeat for each line tLine in pText
       # Check to see if this is the start of a handler / syntax or a block of comments
       put word 1 of tLine into tFirstWord
-
+      
       # By default, the entry doesn't end on this line
       put false into tEntryEnded?
-
+      
       # If we are neither in a comment block or in handler / syntax then
       if not tInComment? and not tInEntry? then
          # In almost all cases, we will be in a new entry
          put true into tInEntry?
-
+         
          switch tFirstWord
             case "external"
                put true into tIsLCIDL?
@@ -530,7 +528,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      # eat the word 'public'
                      put word 2 to -1 of tLine into tLine
                      put token 2 of tLine into tEntryData["name"]
-
+                     
                      # If we have a widget, then public handlers are not in the message path and so don't need docs.
                      put not tIsWidget? into tEntryData["need_docs"]
                   end if
@@ -587,9 +585,9 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
             case "command"
             case "function"
                if tFirstWord is "function" then
-                  put "function" into tEntryData["type"]
+                  put tFirstWord into tEntryData["type"]
                else
-                  put "command" into tEntryData["type"]
+                  put tFirstWord into tEntryData["type"]
                end if
                put word 2 of tLine into tEntryData["name"]
                put true into tEntryData["need_docs"]
@@ -600,7 +598,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                # Check if this is a new comment block
                if tFirstWord begins with "/**" and \
                      not (tFirstWord begins with "/**/") then
-
+                  
                   # If this is script, and this is an initial block of comments,
                   # then treat as the library description
                   if tIsScript? and tAPIData is empty and tComment is not empty then
@@ -608,41 +606,41 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                      put tComment into tLibraryData["comments"]
                      put the short name of pSource into tLibraryData["name"]
                   end if
-
+                  
                   if tIsLCIDL? and tAPIData is empty and tComment is not empty then
                      put tEntryData into tLibraryData
                      put tComment into tLibraryData["comments"]
                   end if
-
+                  
                   # Discard any previous comments
                   put empty into tComment
                   put true into tInComment?
                   put offset("/**", tLine) into tCommentOffset
                   put char (tCommentOffset + 3) to -1 of tLine into tLine
-
+                  
                   # If there's nothing else on this line, don't add it.
                   if word 1 of tLine is empty then next repeat
                end if
                break
          end switch
       end if
-
+      
       # If we're in comments check to see if this is the end of a block of comments
       if tInComment? then
          if word -1 of tLine ends with "*/" then
             put false into tInComment?
             put offset("*/", tLine) into tCommentOffset
             delete char tCommentOffset to -1 of tLine
-
+            
             # Remove another star if this is a double-star comment closer
             if char -1 of tLine is "*" then
                delete char -1 of tLine
             end if
-
+            
             if tIsLCIDL? then
                put false into tInEntry?
             end if
-
+            
             # If there's nothing else on this line, don't add it.
             if word 1 of tLine is empty then
                next repeat
@@ -653,7 +651,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
          put tLine & cr after tComment
          next repeat
       end if
-
+      
       # If we are in an entry, add the line to the current data
       if tInEntry? then
          # handle line continuations
@@ -677,7 +675,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
             put tLine & cr after tData
          end if
       end if
-
+      
       # If the entry is ended, convert all the collected data to a structured array
       if tEntryEnded? then
          # Extract data from the syntax / handler if comments are not empty
@@ -713,7 +711,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
                   docs.UpdateDocBlocksForProperty tData, tComment, tAPIData
                   break
             end switch
-
+            
          else
             if tEntryData["need_docs"] then
                logError "Required documentation not found for" && tEntryData["type"] && tEntryData["name"], pSource
@@ -725,7 +723,7 @@ private command docs.ExtractDocBlocks pText, pSource, @rAPIData, @rLibraryData
          put false into tInEntry?
       end if
    end repeat
-
+   
    put tAPIData into rAPIData
    put tLibraryData into rLibraryData
 end docs.ExtractDocBlocks
