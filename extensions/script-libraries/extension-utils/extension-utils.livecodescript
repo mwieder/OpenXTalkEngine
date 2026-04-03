@@ -1386,7 +1386,8 @@ command extensionGenerateManifestForLCSExtension pDocsParser, pSourceFolder
 
    # Get library metadata from the docs, in lieu of a manifest
    local tDocA, tDataA
-   dispatch function "revDocsParseDocFileToLibraryArray" to stack pDocsParser \
+#   dispatch function "revDocsParseDocFileToLibraryArray" to stack pDocsParser \
+   dispatch function "docs.ParseDocFile.ToLibraryArray" to stack pDocsParser \
          with (pSourceFolder & slash & "api.lcdoc")
    put the result into tDocA
 

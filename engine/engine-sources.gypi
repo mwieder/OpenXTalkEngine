@@ -66,7 +66,7 @@
 			'src/ask.h',
 			'src/chunk.h',
 			'src/cmds.h',
-			'src/constant.h',
+#			'src/constant.h',
 			'src/date.h',
 			'src/executionerrors.h',
 			'src/express.h',

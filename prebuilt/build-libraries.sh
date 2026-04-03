@@ -38,28 +38,22 @@ echo "PLATFORM=" ${PLATFORM}
 # Set which libs to build for the target platform
 case "${PLATFORM}" in
 	android)
-#		PREBUILT_LIBS="openssl icu thirdparty"
-		PREBUILT_LIBS="openssl icu libz libzip libgif libjpeg libpng libfreetype"
+		PREBUILT_LIBS="openssl icu libz libzip libgif libjpeg libpng libfreetype libiodbc"
 		;;
 	mac)
-#		PREBUILT_LIBS="openssl icu thirdparty libz libzip"
-		PREBUILT_LIBS="openssl icu libz libzip libgif libjpeg libpng libfreetype"
+		PREBUILT_LIBS="openssl icu libz libzip libgif libjpeg libpng libfreetype libiodbc"
 		;;
 	ios)
-#		PREBUILT_LIBS="openssl icu thirdparty"
-		PREBUILT_LIBS="openssl icu libz libzip libgif libjpeg libpng libfreetype"
+		PREBUILT_LIBS="openssl icu libz libzip libgif libjpeg libpng libfreetype libiodbc"
 		;;
 	win32)
-#		PREBUILT_LIBS="openssl curl icu cef thirdparty libz libzip"
-		PREBUILT_LIBS="openssl curl icu cef libz libzip libgif libjpeg libpng libfreetype"
+		PREBUILT_LIBS="openssl curl icu cef libz libzip libgif libjpeg libpng libfreetype libiodbc"
 		;;
 	linux)
-#		PREBUILT_LIBS="openssl curl icu cef thirdparty"
-		PREBUILT_LIBS="openssl curl icu cef libz libzip libgif libjpeg libpng libfreetype"
+		PREBUILT_LIBS="libiodbc openssl curl icu cef libz libzip libgif libjpeg libpng libfreetype"
 		;;
 	emscripten)
-#		PREBUILT_LIBS="icu thirdparty"
-		PREBUILT_LIBS="icu libz libzip libgif libjpeg libpng libfreetype"
+		PREBUILT_LIBS="icu libz libzip libgif libjpeg libpng libfreetype libiodbc"
 		;;
 esac
 

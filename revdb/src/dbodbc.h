@@ -18,18 +18,16 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #define _dbodbc
 
 #if defined(_MACOSX)
-#include <sql.h>
 #include <sqlext.h>
 #elif defined(_LINUX)
-#include <sql.h>
 #include <sqlext.h>
+#include <sqltypes.h>
 #else
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x401
 #endif
 #define W32_EXTRA_LEAN
 #include <windows.h>
-#include <sql.h>
 #include <sqlext.h>
 #endif
 
