@@ -131,6 +131,7 @@ prebuilt/xxx*
 #prebuilt/include
 #prebuilt/lib/mac
 #prebuilt/
+prebuilt/fetched
 
 # Stamp files and generated C files
 ###################################
