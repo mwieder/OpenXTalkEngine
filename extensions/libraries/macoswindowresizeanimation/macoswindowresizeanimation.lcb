@@ -1,0 +1,94 @@
+/*
+  org.openxtalk.windowanimation
+  Smooth animated window resizing on macOS via NSAnimationContext.
+  All Cocoa calls go through the ObjC glue dylib (c: bindings) to avoid
+  CGRect/NSRect struct-marshalling issues in LCB foreign handlers.
+*/
+
+library com.hyperxtalk.macoswindowresizeanimation
+
+metadata version  is "1.0.0"
+metadata author   is "HyperXTalk"
+metadata title    is "macOS Window Resize Animation"
+metadata platform is "mac"
+
+use com.livecode.foreign
+use com.livecode.objc
+use com.livecode.engine
+
+-- ---------------------------------------------------------------------------
+-- Glue: screen geometry
+-- ---------------------------------------------------------------------------
+
+private foreign handler WAGetMainScreenHeight() \
+    returns CDouble \
+    binds to "c:windowanimation_glue>WAGetMainScreenHeight"
+
+-- ---------------------------------------------------------------------------
+-- Glue: animated resize by windowNumber
+-- ---------------------------------------------------------------------------
+
+private foreign handler WAAnimateWindowResize( \
+        in pWindowNumber as CLong, \
+        in pX            as CDouble, \
+        in pY            as CDouble, \
+        in pWidth        as CDouble, \
+        in pHeight       as CDouble, \
+        in pDuration     as CDouble) \
+    returns CInt \
+    binds to "c:windowanimation_glue>WAAnimateWindowResize"
+
+-- ---------------------------------------------------------------------------
+-- Private helpers
+-- ---------------------------------------------------------------------------
+
+private handler IsMac() returns Boolean
+    return the operating system is "mac"
+end handler
+
+-- ---------------------------------------------------------------------------
+-- Public API
+-- ---------------------------------------------------------------------------
+
+/*
+  windowAnimateResize pWindowID, pLeft, pTop, pWidth, pHeight, pDuration
+
+  Smoothly resizes the window identified by pWindowID.
+
+  Always pass `the windowId of stack "StackName"` explicitly — never use
+  `this stack` from within a toolbar callback as it resolves unreliably.
+
+  pLeft, pTop   — new position in LiveCode screen coordinates (top-left origin)
+  pWidth        — new width in points
+  pHeight       — new content-area height in points (title bar excluded)
+  pDuration     — animation length in seconds, e.g. 0.3
+*/
+public unsafe handler windowAnimateResize( \
+        in pWindowID as Integer, \
+        in pLeft     as Integer, \
+        in pTop      as Integer, \
+        in pWidth    as Integer, \
+        in pHeight   as Integer, \
+        in pDuration as Real) returns nothing
+
+    if not IsMac() then
+        return
+    end if
+
+    variable tScreenHeight as Real
+    put WAGetMainScreenHeight() into tScreenHeight
+
+    variable tCocoaY as Real
+    put tScreenHeight - pTop - pHeight into tCocoaY
+
+    variable tResult as Integer
+    put WAAnimateWindowResize(pWindowID, pLeft, tCocoaY, pWidth, pHeight, pDuration) into tResult
+
+    if tResult is 0 then
+        throw "windowAnimateResize: could not find window with ID" \
+            && (pWindowID formatted as string)
+    end if
+
+end handler
+
+end library
