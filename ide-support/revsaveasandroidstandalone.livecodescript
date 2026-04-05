@@ -5,6 +5,9 @@ local sJavaRoot
 
 ################################################################################
 
+# specify java 8 for maximum backwards compatibility
+constant kJAVACOMMON = "--release 8 -Xlint:none"
+
 /**
 * this is the only public handler in this script
 */
@@ -26,12 +29,10 @@ command saveAsMobileStandalone \
             " you need to choose the location of your Android development SDK" & \
             " in Preferences -> Mobile Support")
    end if
-   local tIsValid?
 
-   put Deploy.Android.IsValidSDK?(tPath) into tIsValid?
-   if tIsValid? is not empty then
+   if Deploy.Android.IsValidSDK?(tPath) is not empty then
       throw ide.Localise("The chosen folder in Preferences -> Mobile Support" & \
-            " is not a valid Android SDK. Please ensure you have installed it correctly," & \
+            " is not a valid Android SDK folder. Please ensure you have installed it correctly," & \
             " and enabled support for") && deploy.Android.RequiredSDK()
    end if
 
@@ -362,7 +363,7 @@ private command saveAsMobileStandaloneMain \
    end if
    
    if pSettings["android,inAppPurchasing"] and pSettings["android,billingProvider"] is "Google" then
-      appendToStringList ("com.android.billingclient", "billing", "5.2.1"), pSettings["android,android dependencies"]
+      appendToStringList ("com.android.billingclient", "billing", "7.1.1"), pSettings["android,android dependencies"]
    end if
    
    switch pSettings["android,signing"]
@@ -489,6 +490,7 @@ private command saveAsMobileStandaloneMain \
       set the itemDelimiter to "."
       
       local tResolvedFileData
+      # NOTE: the following call removed in 10.0.3.rc1 : still needed?
       revSBUpdateSettingsForExtensions "android", pSettings
       revSBResolveCopyFilesList tBaseFolder, "android", pSettings, tResolvedFileData
       
@@ -569,8 +571,7 @@ private command saveAsMobileStandaloneMain \
       if pSettings["android,icon type"] is "adaptive" and \
             pSettings["android,adaptive icons resources path"] is not empty then
          put format("android:icon=\"@mipmap/ic_launcher\"") into tManifestIcon
-               else if pSettings["android,icon type"] is "legacy" and \
-               there is a file tIcon then
+               else if pSettings["android,icon type"] is "legacy" and there is a file tIcon then
       put format("android:icon=\"@drawable/icon\"") into tManifestIcon
             put true into tIsLegacyIcon
    else
@@ -588,7 +589,7 @@ private command saveAsMobileStandaloneMain \
    if pSettings["android,allowed app ids"] is not empty then
       put "<queries>" & return into tAllowedAppIDs
       repeat for each line tAppId in pSettings["android,allowed app ids"]
-         put "<package android:name=" & quote & tAppId & quote && "/>" & cr after tAllowedAppIDs
+         put "<package android:name=" & q(tAppId) && "/>" & cr after tAllowedAppIDs
       end repeat
       put "</queries>" after tAllowedAppIDs
    end if
@@ -615,14 +616,23 @@ private command saveAsMobileStandaloneMain \
       put tUsesPermission & cr after tPermissions
    end repeat
    repeat for each key tPermission in pSettings["android,application permissions"]
+      put "  <uses-permission android:name=" into tUsesPermission
       if tPermission is "AD" then
          put true into tAd?
-         put "  <uses-permission android:name="&quote&"android.permission.ACCESS_NETWORK_STATE"&quote&"/>" & cr into tUsesPermission
-         put "  <uses-permission android:name="&quote&"android.permission.READ_PHONE_STATE"&quote&" />" after tUsesPermission
+         put q("android.permission.ACCESS_NETWORK_STATE") & cr after tUsesPermission
+         put q("android.permission.READ_PHONE_STATE") after tUsesPermission
       else
-         put "  <uses-permission android:name="&quote&"android.permission."&tPermission&quote&" />" into tUsesPermission
+         put q("android.permission."&tPermission) after tUsesPermission
       end if
+      put " />" after tUsesPermission
       put tUsesPermission & cr after tPermissions
+      
+      /* Include foreground service permission specific for media playback
+      * used for android remote when foreground service is included. */
+      if tPermission is "FOREGROUND_SERVICE" then
+         put true into tForeground?
+         put "  <uses-permission android:name="&q("android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK")&" />" & cr after tPermissions
+      end if
    end repeat
    
    replace "${USES_FEATURE}" with tFeatures in tManifest
@@ -630,14 +640,14 @@ private command saveAsMobileStandaloneMain \
    
    local tService, tReceiver
    -- MW-2017-06-13: add generic service
-   put "<service android:enabled=" & q("true") && "android:name=" & q(".mblandroidservice") after tService
    if tForeground? then
-      put " android:foregroundServiceType=" & q("mediaPlayback") after tService
+      put "<service android:enabled=" & q("true") && "android:name=" & q(".mblandroidservice") && "android:foregroundServiceType=" & q("mediaPlayback") & "/>" & cr after tService
+   else
+      put "<service android:enabled=" & q("true") && "android:name=" & q(".mblandroidservice") & "/>" & cr after tService
    end if
-   put "/>" & cr after tService
    
    -- IM-2012-02-28: need barebones receiver for local notifications
-   put "<receiver android:name="&quote&"AppReceiver"&quote&">" into tReceiver
+   put "<receiver android:name="&q("AppReceiver")&">" into tReceiver
    --      if tBilling then
    --         -- create service & receiver sections for billing support
    --         put "<service android:name="&quote&"AppService"&quote&" />" into tService
@@ -656,7 +666,7 @@ private command saveAsMobileStandaloneMain \
    if pSettings["android,inAppPurchasing"] then
       get pSettings["android,billingProvider"]
       if it is "Google" then
-         put "  <uses-permission android:name="&q("com.android.vending.BILLING")&" />" & return after tPermissions
+         put "  <uses-permission android:name="&q("com.android.vending.BILLING")&" />" & cr after tPermissions
          put "<activity" & CR & \
                "android:name=" & q("com.android.billingclient.api.ProxyBillingActivity") & CR & \
                "android:configChanges=" & q("keyboard|keyboardHidden|screenLayout|screenSize|orientation") & CR & \
@@ -677,7 +687,7 @@ private command saveAsMobileStandaloneMain \
    if pSettings["android,nfc"] then
       put "<intent-filter>" & return & \
             "<action android:name=" & q("android.nfc.action.TECH_DISCOVERED") & " />" & cr & \
-            "</intent-filter>" & return & \
+            "</intent-filter>" & cr & \
             "<meta-data android:name=" & q("android.nfc.action.TECH_DISCOVERED") & \
             " android:resource=" & q("@xml/nfc_tech_filter") & " />" & cr into tNFCIntentFilter
       
@@ -696,32 +706,10 @@ private command saveAsMobileStandaloneMain \
    end if
    
    local tInstallLocation
-   --   switch pSettings["android,installLocation"]
-   --      case "Internal Storage Only"
-   --      case empty
-   --         put empty into tInstallLocation
-   --         break
-   --      case "Allow External Storage"
-   --         put "android:installLocation="&q("auto") into tInstallLocation
-   --         break
-   --      case "Prefer External Storage"
-   --         put "android:installLocation="&q("preferExternal") into tInstallLocation
-   --         break
-   --   end switch
    put installLocation(pSettings["android,installLocation"]) into tInstallLocation
    replace "${INSTALL_LOCATION}" with tInstallLocation in tManifest
    
    local tCustomUrlFilter
-   --   if pSettings["android,customUrlScheme"] is not empty then
-   --      put "<intent-filter>" & \
-   --            "<action android:name="&q("android.intent.action.VIEW")&" />" & \
-   --            "<category android:name="&q("android.intent.category.DEFAULT")&" />" & \
-   --            "<category android:name="&q("android.intent.category.BROWSABLE")&" />" & \
-   --            "<data android:scheme="&q(pSettings["android,customUrlScheme"])&" />" & \
-   --            "</intent-filter>" into tCustomUrlFilter
-   --   else
-   --      put empty into tCustomUrlFilter
-   --   end if
    put customUrlScheme(pSettings["android,customUrlScheme"]) into tCustomUrlFilter
    replace "${CUSTOM_URL_FILTER}" with tCustomUrlFilter in tManifest
    
@@ -831,8 +819,7 @@ private command saveAsMobileStandaloneMain \
    end if
    
    appendToStringList tClassFile, tBuiltClassFiles
-   #   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
-   executeShellCommand pathToJavaC(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   executeShellCommand pathToJavaC(), kJAVACOMMON, "-d",tClassesBuildFolder, "-cp", tClassPath, tClassFile
    if the result is not empty then
       throw "could not compile service support class:" && the result
    end if
@@ -845,8 +832,7 @@ private command saveAsMobileStandaloneMain \
    end if
    
    appendToStringList tClassFile, tBuiltClassFiles
-   #   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
-   executeShellCommand pathToJavaC(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   executeShellCommand pathToJavaC(), kJAVACOMMON, "-d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
    if the result is not empty then
       throw "could not compile application class:" && the result
    end if
@@ -865,8 +851,7 @@ private command saveAsMobileStandaloneMain \
    end if
    appendToStringList tClassFile, tBuiltClassFiles
    
-   #   executeShellCommand pathToJavaC(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
-   executeShellCommand pathToJavaC(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
+   executeShellCommand pathToJavaC(), kJAVACOMMON, "-d", tClassesBuildFolder, "-cp", tClassPath, tClassFile
    if the result is not empty then
       throw "could not compile billing support class:" && the result
    end if
@@ -897,8 +882,7 @@ private command saveAsMobileStandaloneMain \
          end if
       end repeat
       
-      #      executeShellCommand pathToJavac(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tCombinedClassPath, tPushServiceClassFile
-      executeShellCommand pathToJavac(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tCombinedClassPath, tPushServiceClassFile
+      executeShellCommand pathToJavac(), kJAVACOMMON, "-d", tClassesBuildFolder, "-cp", tCombinedClassPath, tPushServiceClassFile
       put the result into tResult
       if tResult is not empty then
          throw "error compiling push notification service class:" & cr & tResult
@@ -940,8 +924,7 @@ private command saveAsMobileStandaloneMain \
    end if
    appendToStringList tProviderClassFile, tBuiltClassFiles
    
-   #   executeShellCommand pathToJavac(), "-target 1.6 -source 1.6 -Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tProviderClassFile
-   executeShellCommand pathToJavac(), "-Xlint:none -d", tClassesBuildFolder, "-cp", tClassPath, tProviderClassFile
+   executeShellCommand pathToJavac(), kJAVACOMMON, "-d", tClassesBuildFolder, "-cp", tClassPath, tProviderClassFile
    if the result is not empty then
       throw "could not compile app content provider" & cr & the result
    end if
@@ -1055,12 +1038,12 @@ private command saveAsMobileStandaloneMain \
                after tAssetFiles
       end if
    end repeat
-   
+
    ------- Compile the Standalone
    revStandaloneProgress "Building executable..."
-   
+
    put tExternals into pSettings["externals"]
-   
+
    appendToStringList "revsecurity:./librevsecurity", pSettings["android,library"]
    repeat for each line tEntry in tExternals
       appendToStringList tEntry & ":" & "./lib" & tEntry, pSettings["android,library"]
@@ -1068,13 +1051,13 @@ private command saveAsMobileStandaloneMain \
    repeat for each line tEntry in tDrivers
       appendToStringList tEntry & ":" & "./lib" & tEntry, pSettings["android,library"]
    end repeat
-   
+
    set the itemDelimiter to comma
    repeat for each item tArch in tArchs
       local tArchCodeResources
       filter pSettings["extension_code_resources"] \
             with ("*code/" & tArch & "-android*") into tArchCodeResources
-      
+
       repeat for each line tLib in tArchCodeResources
          local tSourceFile, tSourceName
          set the itemdelimiter to slash
@@ -1082,27 +1065,27 @@ private command saveAsMobileStandaloneMain \
          set the itemDelimiter to "."
          put item 1 to -2 of tSourceFile into tSourceName
          set the itemDelimiter to comma
-         
+
          if not(tSourceFile begins with "lib") then
             put "lib" before tSourceFile
          end if
-         
+
          put url ("binfile:" & tLib) into \
                url ("binfile:" & tArchLibsBuildFolders[__ArchABI(tArch)] & slash & tSourceFile)
-         
+
          if (tSourceName & ":./" & tSourceFile) is not among the lines of pSettings["android,library"] then
             appendToStringList tSourceName & ":./" & tSourceFile, pSettings["android,library"]
          end if
       end repeat
    end repeat
-   
+
    local tDeploy
    -- Update the deploy params with script library and extension inclusions
    revSBUpdateDeployParams pStack, "android", pSettings, tDeploy
-   
+
    -- Stackfile to use
    put the effective filename of stack pStack into tDeploy["stackfile"]
-   
+
    local tSavedFolder, tFiles
    repeat for each key tArch in tArchLibsBuildFolders
       -- Engine to use
@@ -1121,30 +1104,30 @@ private command saveAsMobileStandaloneMain \
       if there is no file tDeploy["engine"] then
          throw "Could not find standalone engine"
       end if
-      
+
       -- Output file to create
       put tArchLibsBuildFolders[tArch] & slash & "librevandroid.so" into tDeploy["output"]
-      
+
       _internal deploy android tDeploy
       if the result is not empty then
          throw the result
       end if
    end repeat
-   
+
    -------- Assembling Resources
    revStandaloneProgress "Assembling resources..."
-   
+
    local tLibPackages
    if pSettings["libraryPackages"] is not empty then
       put pSettings["libraryPackages"] into tLibPackages
       replace cr with ":" in tLibPackages
    end if
-   
+
    local tResourceClasses, tCompiledResourceClasses
    local tResourceGenFolder, tClassesFile
    put tBuildFolder & slash & "gen" into tResourceGenFolder
    revSBEnsureFolder tResourceGenFolder
-   
+
    compileResourceClasses \
          tBuildFolder, \
          tResBuildFolder, \
@@ -1155,7 +1138,7 @@ private command saveAsMobileStandaloneMain \
             "could not compile resource classes - error:\n%s", \
             the result)
    end if
-   
+
    linkResources \
          tBuildFolder, \
          tResourceGenFolder, \
@@ -1167,7 +1150,7 @@ private command saveAsMobileStandaloneMain \
       throw "could not link resources - error:" & cr & the result
    end if
    put tBuildFolder into tClassesFile
-   
+
    repeat for each line tLine in revSBEnumerateFolder(tResourceGenFolder)
       if tLine ends with "/R.java" then
          appendToStringList tResourceGenFolder & slash & tLine, tResourceClasses
@@ -1175,8 +1158,7 @@ private command saveAsMobileStandaloneMain \
    end repeat
    if tResourceClasses is not empty then
       local tResourceCompileParams
-      #      appendToParams tResourceCompileParams, "-target", "1.6", "-source", "1.6", "-Xlint:none"
-      appendToParams tResourceCompileParams, "-Xlint:none"
+      appendToParams tResourceCompileParams, kJAVACOMMON
       appendToParams tResourceCompileParams, "-d", tResourceGenFolder
       appendToParams tResourceCompileParams, "-cp", tClassPath
       repeat for each line tRClass in tResourceClasses
@@ -1192,7 +1174,7 @@ private command saveAsMobileStandaloneMain \
          end if
       end repeat
    end if
-   
+
    // To avoid hitting command-line character limits, we write the list of input files to disk
    local tD8InputList
    appendToStringList tLiveCodeClassesFile, tD8InputList
@@ -1204,14 +1186,14 @@ private command saveAsMobileStandaloneMain \
          appendToStringList tClassFile, tD8InputList
       end if
    end repeat
-   
+
    local tD8InputListParamFile
    put tBuildFolder & slash & "d8-input-list.txt" into tD8InputListParamFile
    put tD8InputList into url ("file:" & tD8InputListParamFile)
    if the result is not empty then
       throw "could not create list of encoded classes"
    end if
-   
+
    local tD8Params
    appendToParams tD8Params, "--min-api", pSettings["android,minimum version"]
    appendToParams tD8Params, "--lib", pathToRootClasses()
@@ -1223,43 +1205,43 @@ private command saveAsMobileStandaloneMain \
    if tResult is not empty then
       throw "could not encode class bundle - error:" & cr & tResult
    end if
-   
+
    -------- Assembling Assets
    revStandaloneProgress "Assembling assets..."
-   
+
    revZipOpenArchive tAssetArchive, "update"
    if the result is not empty then
       throw "could not open asset archive"
    end if
-   
+
    addAssetsToArchive tResolvedFileData, tBaseFolder, tAssetArchive
-   
+
    revZipCloseArchive tAssetArchive
    if the result is not empty then
       throw "asset archive creation failed"
    end if
-   
+
    ------- Prepare the Package
    revStandaloneProgress "Preparing package..."
-   
+
    local tUnalignedApkFile
    put tBuildFolder & slash & "lcandroid-unaligned.apk" into tUnalignedApkFile
    if there is a file tUnalignedApkFile then
       delete file tUnalignedApkFile
    end if
-   
+
    repeat for each key tArch in tArchLibsBuildFolders
       -- MM-2014-01-29: [[ OpenSSL ]] Include the revsecurity library.
       if pSettings["android,include revsecurity"] then
          put url ("binfile:" & mapFilePath(revMobileRuntimeFolder(pTarget) & slash & tArch & slash & "revsecurity")) \
                into url ("binfile:" & tArchLibsBuildFolders[tArch] & slash & "librevsecurity.so")
-         
+
          // SN-2015-01-22: [[ Bug 13213 ]] Throw an error in case an error occurred
          if the result is not empty then
             throw "Could not find revsecurity library"
          end if
       end if
-      
+
       -- Copy across the externals into the libs folder
       repeat for each line tEntry in tExternals
          -- Only copy across an external from the Runtime folder if we haven't
@@ -1274,7 +1256,7 @@ private command saveAsMobileStandaloneMain \
             throw "Could not find " & tEntry && "library"
          end if
       end repeat
-      
+
       -- Copy across any other driver libraries into the libs folder
       repeat for each line tEntry in tDrivers
          -- Only copy across the library if it's not already there
@@ -1288,9 +1270,9 @@ private command saveAsMobileStandaloneMain \
          end if
       end repeat
    end repeat
-   
+
    prepareBundle tBuildFolder, tArchLibsBuildFolders, tAssetArchive
-   
+
    local tKeyStoreAlias, tKeyStorePassword, tPrivateKeyPassword
    if (tKey is not empty) or tUseDebugKey? then
       if tUseDebugKey? then
@@ -1298,7 +1280,7 @@ private command saveAsMobileStandaloneMain \
          put "androiddebugkey" into tKeyStoreAlias
          put "android" into tKeyStorePassword
          put "android" into tPrivateKeyPassword
-         
+
          // Create debug key if it does not already exist
          if there is not a file tKey then
             local tKeytoolParams
@@ -1311,7 +1293,7 @@ private command saveAsMobileStandaloneMain \
             appendToParams tKeyToolParams, "-keysize", 2048
             appendToParams tKeyToolParams, "-validity", 10000
             appendToParams tKeytoolParams, "-dname", "CN=Android Debug,O=Android,C=US"
-            
+
             executeShellCommandWithParams pathToKeytool(), tKeytoolParams
             put the result into tResult
             processKeytoolResult tResult
@@ -1323,23 +1305,23 @@ private command saveAsMobileStandaloneMain \
          if not tKey begins with "/" then
             put tBaseFolder & slash before tKey
          end if
-         
+
          if there is no file tKey then
             throw "could not file keystore '" & tKey & "'"
          end if
-         
+
          ask "Please provide the keystore alias to use"
          if it is empty then
             throw "no keystore alias provided for keystore"
          end if
          put it into tKeystoreAlias
-         
+
          ask password clear "Please provide the keystore password"
          if it is empty then
             throw "no password provided for keystore"
          end if
          put it into tKeystorePassword
-         
+
          ask password clear "Please provide the private key password"
          if it is empty then
             throw "no password provided for private key"
@@ -1347,7 +1329,7 @@ private command saveAsMobileStandaloneMain \
          put it into tPrivateKeyPassword
       end if
    end if
-   
+
    generateBundle \
          tBuildFolder, \
          pAabFile, \
@@ -1356,12 +1338,12 @@ private command saveAsMobileStandaloneMain \
          tKeystorePassword, \
          tPrivateKeyPassword, \
          pDevice
-   
+
    ------- Signing the Package
    --if not (pTarget contains "test")  then
    if pSettings["android,signing"] is not "Do not sign" then
       revStandaloneProgress "Signing package..."
-      
+
       executeShellCommand \
             pathToJarSigner(), \
             "-sigalg", "SHA1withRSA", \
@@ -1371,7 +1353,7 @@ private command saveAsMobileStandaloneMain \
             "-keypass", tPrivateKeyPassword, \
             pAabFile, \
             tKeystoreAlias
-      
+
       if the result begins with "jarsigner error" then
          throw "signing failed -" && word 4 to -1 of the result
       else if the result begins with "jarsigner: Certificate chain not found" then
@@ -1380,7 +1362,7 @@ private command saveAsMobileStandaloneMain \
          throw "signing failed - key password was incorrect or" && word 2 to -1 of the result
       end if
    end if
-   
+
 catch tError
 end try
 
@@ -1882,12 +1864,12 @@ end getPackageFromAndroidManifestFile
 
 private command addAssetsToArchive pFileData, pBaseFolder, pArchive
    local tDeviceConfig, tConfigFile, tCustomConfigFile, tFonts
-   
+
    put mapFIlePath(revMobileRuntimeFolder() & slash & "lc_device_config.txt") into tConfigFile
    if there is not a file tConfigFile then
       put empty into tConfigFile
    end if
-   
+
    constant kICUDataFiles="icu-coll.dat,icu-core.dat,icu-iter.dat"
    local tIcuDataPath
    local tAndroidPath
@@ -1907,7 +1889,7 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
    --throw "could not find icu data '" & tIcuDataPath & "'"
    --end if
    --revZipAddUncompressedItemWithFile pArchive, "assets/icudata-minimal.dat", tIcuDataPath
-   
+
    repeat for each element tFile in pFileData
       if there is a file tFile["resolved"] then
          if tConfigFile is not empty and tFile["name"] ends with "lc_device_config.txt" then
@@ -1931,7 +1913,7 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
          throw "could not find referenced asset to include -" && tFile["resolved"]
       end if
    end repeat
-   
+
    if tCustomConfigFile is empty then
       if tConfigFile is not empty then
          revZipAddUncompressedItemWithFile pArchive, "assets/lc_device_config.txt", tConfigFile
@@ -1941,7 +1923,7 @@ private command addAssetsToArchive pFileData, pBaseFolder, pArchive
       put url ("binfile:" & tCustomConfigFile) after tDeviceConfig
       revZipAddUncompressedItemWithData pArchive, "assets/lc_device_config.txt", "tDeviceConfig"
    end if
-   
+
    -- MM-2012-03-07: [[ Custom fonts ]] Add any fonts found to the assets/fonts folder
    set the itemDel to slash
    repeat for each line tFont in tFonts
@@ -2148,10 +2130,10 @@ end addExternalFromFolder
 
 private function revMobileRuntimeFolder pTarget
    local tOverridePath, tUserPath
-   
+
    # TODO: fix this
    return pathToRepoAndroidBinaries()
-   
+
    // IM-2013-12-16: [[ Bug 11594 ]] Check override is not empty to avoid accidentally detecting "/Android" path
    if overrideRuntimePath() is not empty then
       put overrideRuntimePath() & slash & "Android" into tOverridePath
@@ -2159,7 +2141,7 @@ private function revMobileRuntimeFolder pTarget
          return tOverridePath
       end if
    end if
-   
+
    // IM-2013-12-16: [[ Bug 11594 ]] Check override is not empty to avoid accidentally detecting "/Android" path
    if revEnvironmentUserRuntimePath() is not empty then
       put revEnvironmentUserRuntimePath() & slash & "Android" into tUserPath
@@ -2167,7 +2149,7 @@ private function revMobileRuntimeFolder pTarget
          return tUserPath
       end if
    end if
-   
+
    return environment.RuntimePath() & slash & "Android"
 end revMobileRuntimeFolder
 
@@ -2418,18 +2400,18 @@ private function mapFilePath pPath
       // SN-2015-01-19: [[ Bug 13213 ]] Linux filepaths are case-sensitive.
       //   so we try to caselessly match the targetted file, with the actual files.
       set the itemDelimiter to slash
-      
+
       // Get the list of files in the targetted directory
       local tOldFolder, tFiles
       put the defaultFolder into tOldFolder
       set the defaultFolder to item 1 to -2 of pPath
-      
+
       put the files into tFiles
       set the defaultFolder to tOldFolder
-      
+
       local tLineOffset
       put lineOffset(last item of pPath, tFiles) into tLineOffset
-      
+
       // We return empty if we can't find the specified file
       // That will allow us to throw an error in such a case.
       if tLineOffset is 0 then
@@ -2439,7 +2421,7 @@ private function mapFilePath pPath
       end if
       return pPath
    end if
-   
+
    local tPath
    local tBinariesFolder, tComponent, tSuffix
    local tArch, tFoundArch
@@ -2447,52 +2429,42 @@ private function mapFilePath pPath
       if pPath contains ("/" & __ArchABI(tItem) & "/") then
          put tItem into tArch
       end if
-      
+
       if tFoundArch is empty and \
             there is a folder pathToRepoAndroidBinaries(tItem) then
          put tItem into tFoundArch
       end if
    end repeat
-   
+
    if tArch is empty then
       put tFoundArch into tArch
    end if
-   
+
    put pathToRepoAndroidBinaries(tArch) into tBinariesFolder
-   
+
    // SN-2015-07-02: [[ GypifiedAndroid ]] Throw an error if there is
    //  not the expected build folder
    if there is no folder tBinariesFolder then
       throw "Error: Android binaries folder" && tBinariesFolder && "could not be found"
    end if
-   
+
    set the itemDelimiter to slash
    put the last item of pPath into tComponent
-   
+
    switch tComponent
+      case "media_next.png"
+      case "media_pause.png"
+      case "media_play.png"
+      case "media_prev.png"
+      case "media_stop.png"
       case "notify_icon.png"
-         put merge("[[tBinariesFolder]]/notify_icon.png") into tPath
-         break
       case "Manifest.xml"
-         put merge("[[tBinariesFolder]]/Manifest.xml") into tPath
-         break
       case "nfc_tech_filter.xml"
-         put merge("[[tBinariesFolder]]/nfc_tech_filter.xml") into tPath
-         break
       case "file_provider_paths.xml"
-         put merge("[[tBinariesFolder]]/file_provider_paths.xml") into tPath
-         break
       case "livecode_inputcontrol.xml"
-         put merge("[[tBinariesFolder]]/livecode_inputcontrol.xml") into tPath
-         break
       case "Classes"
-         put merge("[[tBinariesFolder]]/Classes") into tPath
-         break
       case "Standalone"
-         put merge("[[tBinariesFolder]]/Standalone") into tPath
-         break
-      case "icudata-minimal.dat"
-         put merge("[[tBinariesFolder]]/icudata-minimal.dat") into tPath
+         put merge("[[tBinariesFolder]]/[[tComponent]]") into tPath
          break
       case "revzip"
          put merge("[[tBinariesFolder]]/RevZip") into tPath
@@ -2515,11 +2487,23 @@ private function mapFilePath pPath
       case "revpdfprinter"
          put merge("[[tBinariesFolder]]/RevPdfPrinter") into tPath
          break
+      case "blur"
+         put merge("[[tBinariesFolder]]/blur") into tPath
+         break
+      case "mergJson"
+         put merge("[[tBinariesFolder]]/mergJSON") into tPath
+         break
+      case "mergMarkdown"
+         put merge("[[tBinariesFolder]]/mergMarkdown") into tPath
+         break
+      case "tsNet"
+         put merge("[[tBinariesFolder]]/tsNet") into tPath
+         break
       default
          put pPath into tPath
          break
    end switch
-   
+
    return tPath
 end mapFilePath
 

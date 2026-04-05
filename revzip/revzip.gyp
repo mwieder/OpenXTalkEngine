@@ -84,7 +84,6 @@
                 '../libexternal/libexternal.gyp:libExternal-symbol-exports',
 				'../thirdparty/libzip/libzip.gyp:libzip',
 				'../thirdparty/libz/libz.gyp:libz',
-
 			],
 			
 			'sources':

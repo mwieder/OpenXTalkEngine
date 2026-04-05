@@ -185,6 +185,7 @@
 			'include_dirs':
 			[
 				'../libfoundation/include',
+				'/opt/homebrew/Cellar/openssl@3/3.6.1/include',
 			],
 
 			'conditions':

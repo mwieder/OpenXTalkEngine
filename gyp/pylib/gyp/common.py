@@ -375,7 +375,7 @@ def WriteOnDiff(filename):
           #
           # No way to get the umask without setting a new one?  Set a safe one
           # and then set it back to the old value.
-          umask = os.umask(077)
+          umask = os.umask(0o77)
           os.umask(umask)
           os.chmod(self.tmp_path, 0666 & ~umask)
           if sys.platform == 'win32' and os.path.exists(filename):

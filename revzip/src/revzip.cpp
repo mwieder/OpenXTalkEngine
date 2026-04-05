@@ -110,25 +110,21 @@ void* imemdup(const void *p_sptr, size_t p_size)
   return t_dptr;
 }
 
-
 zip_progress_callback_t revzip_progress_callback(void *p_context, struct zip *p_archive, const char *p_item, 
 						   int p_type, unsigned long p_item_progress, unsigned long p_item_total, 
 						   unsigned long p_global_progress, unsigned long p_global_total)
 {
 	if (NULL == s_progress_callback)
 		return NULL;
-//		return 0;
 
 	if (s_operation_cancelled)
 		return NULL;
-//		return 1;
 
 	char t_message[1024];
 	int t_return_value;
 
     // SN-2014-11-17: [[ Bug 14032 ]] The path is kept in UTF-8
     char *t_path;
-//	t_path = strdup(zip_get_path(p_archive));
 	zip_name_locate(p_archive, (const char *)t_path, 0);
 	
 	sprintf(t_message, "%s \"%s\", \"%s\", \"%s\", %lu, %lu, %lu, %lu",
@@ -138,7 +134,7 @@ zip_progress_callback_t revzip_progress_callback(void *p_context, struct zip *p_
 					p_item_progress, p_item_total, 
 					p_global_progress, p_global_total);
 	
-	if (NULL != t_path)
+	if (t_path != NULL)
 		free(t_path);
 	
     // SN-2014-11-17: [[ Bug 14032 ]] The name of the callback, and the path, are UTF-8 encoded
@@ -146,12 +142,9 @@ zip_progress_callback_t revzip_progress_callback(void *p_context, struct zip *p_
 	
 	if (s_operation_cancelled)
 		return NULL;
-//		return 1;
 	
-		return NULL;
-//		return 0;
+	return NULL;
 }
-
 
 void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_result, Bool *r_pass, Bool *r_err)
 {
@@ -187,7 +180,6 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 
 	struct zip *t_archive = NULL;
 	int t_err;
-//	char t_errstr[1024];
 	const char *t_errstr; 
 
 	if (NULL == t_result)
@@ -208,7 +200,6 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 		{
 			if (NULL == (t_archive = zip_open(t_path, t_openflag, &t_err)) ) 
 			{
-//				zip_error_to_str(t_errstr, sizeof(t_errstr), t_err, errno);
 				zip_error_t error;
 				zip_error_init_with_code(&error, t_err);
 				t_errstr = zip_error_strerror(&error);
@@ -219,7 +210,6 @@ void revZipOpenArchive(char *p_arguments[], int p_argument_count, char **r_resul
 			{
 				s_zip_container[t_path] = t_archive;
 				zip_register_progress_callback(t_archive, (zip_progress_callback_t)revzip_progress_callback);
-//				zip_register_progress_callback_with_state(t_archive, 0.01, revzip_progress_callback, NULL, NULL);
 			}
 		}
 	}
@@ -273,7 +263,6 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 	if (NULL == t_result)
 	{
 		int t_err;
-//		char t_errstr[1024]; 
 		const char *t_errstr; 
 
 		s_operation_in_progress = true;
@@ -292,7 +281,6 @@ void revZipCloseArchive(char *p_arguments[], int p_argument_count, char **r_resu
 			zip_error_t error;
 			zip_error_init_with_code(&error, t_err);
 			t_errstr = zip_error_strerror(&error);
-//			zip_error_to_str(t_errstr, sizeof(t_errstr), t_err, errno);
 			std::string t_outerr = "ziperr," + std::string(t_errstr);
 			t_result = strdup(t_outerr.c_str());
 			t_error = False;
@@ -403,7 +391,6 @@ static void revZipAddItemWithDataAndCompression(char *p_arguments[], int p_argum
 			t_data = (char*) imemdup(mcData.buffer, mcData.length);
 			if (((t_source = zip_source_buffer(t_archive, t_data, mcData.length, 1)) == NULL) ||
 				 (zip_file_add(t_archive, p_arguments[1], t_source, ZIP_FL_OVERWRITE) < 0))
-//				 (zip_file_add(t_archive, p_arguments[1], t_source, 0) < 0))
 			{
 				zip_source_free(t_source);
 				std::string t_outerr = "ziperr add item with data and compression," + std::string((zip_strerror(t_archive)));
@@ -484,7 +471,6 @@ static void revZipAddItemWithFileAndCompression(char *p_arguments[], int p_argum
 
 	if (NULL == t_result)
 	{
-//		if (((t_source = zip_source_file(t_archive, t_filepath, 0, ZIP_LENGTH_TO_END)) == NULL) ||
 		if (((t_source = zip_source_file(t_archive, t_filepath, 0, ZIP_LENGTH_TO_END)) == NULL) ||
 			 (zip_file_add(t_archive, p_arguments[1], t_source, ZIP_FL_OVERWRITE) < 0))
 		{

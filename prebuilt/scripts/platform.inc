@@ -21,11 +21,14 @@ case $(uname -m) in
 	i*86)
 		HOST_ARCH=i386
 		;;
+	arm64|aarch64)
+		HOST_ARCH=arm64
+		;;
 esac
 
 if [ -z "${XCODEBUILD}" ] ; then
-	export XCODEBUILD="/Applications/Xcode-Dev/Xcode.app/Contents/Developer/usr/bin/xcodebuild"
-	XCODE_DEVELOPER="/Applications/Xcode-Dev/Xcode.app/Contents/Developer"
+	export XCODEBUILD="/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild"
+	XCODE_DEVELOPER="/Applications/Xcode.app/Contents/Developer"
 else
 	# XCODEBUILD points to $XCODE_APP/Contents/Developer/usr/bin/xcodebuild
 	XCODE_DEVELOPER="${XCODEBUILD%/*/*/*}"
@@ -34,7 +37,7 @@ fi
 # Which platform are we actually targeting?
 case "${PLATFORM}" in
 	mac)
-		export UNIVERSAL_ARCHS="x86_64"
+		export UNIVERSAL_ARCHS="arm64"
 		;;
 	linux)
 		export ARCHS="i386 x86_64"
@@ -91,9 +94,11 @@ function setCCForTarget {
 		mac)
 			# OSX options
 			PLATFORM_DEVELOPER="${XCODE_DEVELOPER}/Platforms/MacOSX.platform/Developer"
-			SDK="MacOSX13.1.sdk"
-			OSXGCCVERSION=4.2
-			OSXMIN="13.1"
+			SDK="$(ls ${PLATFORM_DEVELOPER}/SDKs/ | grep MacOSX | sort -V | tail -1)"
+			OSXMIN="11.0"
+#			SDK="MacOSX13.1.sdk"
+#			OSXGCCVERSION=4.2
+#			OSXMIN="13.1"
 
 			CC_BASE="${XCODE_DEVELOPER}/usr/bin/gcc --sysroot=${PLATFORM_DEVELOPER}/SDKs/${SDK} -isysroot ${PLATFORM_DEVELOPER}/SDKs/${SDK} -mmacosx-version-min=${OSXMIN}"
 			CXX_BASE="${XCODE_DEVELOPER}/usr/bin/g++ --sysroot=${PLATFORM_DEVELOPER}/SDKs/${SDK} -isysroot ${PLATFORM_DEVELOPER}/SDKs/${SDK} -mmacosx-version-min=${OSXMIN}"

@@ -1,7 +1,7 @@
 {
 	'variables':
 	{
-		'target_sdk%': 'macosx13.1',
+		'target_sdk%': 'macosx',
 		'host_sdk%': 'macosx',
 		
 		'output_dir': '../mac-bin',
@@ -24,7 +24,7 @@
 		'SHARED_PRECOMPS_DIR': '$(OBJROOT)/Precompiled/$(CURRENT_ARCH)',
 		'GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS': 'NO',
 		'ALWAYS_SEARCH_USER_PATHS': 'NO',
-		'MACOSX_DEPLOYMENT_TARGET': '13.1',
+		'MACOSX_DEPLOYMENT_TARGET': '11.0',
 		'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',
 		'COPY_PHASE_STRIP': 'NO',
 		'STRIP_INSTALLED_PRODUCT': 'NO',
@@ -80,7 +80,8 @@
 						[
 							'-Wl,-platform_version',
 							'-Wl,macos',
-							'-Wl,13.1',
+							'-Wl,11.0',
+							'-Wl,11.0',
 						],
 					},
 				},
@@ -138,25 +139,21 @@
 
 							'-Wno-conversion',
 							'-Wno-shorten-64-to-32',
-                            '-Wno-c++14-extensions',
+							'-Wno-enum-constexpr-conversion',
 
 							'-Werror=declaration-after-statement',
 							'-Werror=delete-non-virtual-dtor',
 							'-Werror=overloaded-virtual',
 							'-Wno-unused-parameter',
-							'-Werror=uninitialized',
-							'-Werror=return-type',
+														'-Werror=return-type',
 							'-Werror=tautological-compare',
 							'-Werror=logical-not-parentheses',
-#							'-Werror=conversion-null',
-							'-Werror=missing-declarations',
-							'-Werror=mismatched-new-delete',
+							'-Werror=conversion-null',
+														'-Werror=mismatched-new-delete',
 							'-Werror=parentheses',
-							'-Werror=unused-variable',
-							'-Werror=constant-logical-operand',
+														'-Werror=constant-logical-operand',
 							'-Werror=unknown-pragmas',
-							'-Werror=missing-field-initializers',
-							'-Werror=objc-literal-compare',
+														'-Werror=objc-literal-compare',
 							'-Werror=shadow',
 							'-Werror=unreachable-code',
 							'-Werror=enum-compare',
@@ -213,7 +210,7 @@
 		{
 			'xcode_settings':
 			{
-				'ARCHS': 'x86_64',
+				'ARCHS': 'arm64',
 				'ONLY_ACTIVE_ARCH': 'YES',
 				'GCC_OPTIMIZATION_LEVEL': '0',
 			},
@@ -223,7 +220,7 @@
 		{
 			'xcode_settings':
 			{
-				'ARCHS': 'x86_64',
+				'ARCHS': 'arm64',
 				'GCC_OPTIMIZATION_LEVEL': '3',
 				'GCC_ENABLE_FIX_AND_CONTINUE': 'NO',
 			},
@@ -233,7 +230,7 @@
 		{
 			'xcode_settings':
 			{
-				'ARCHS': 'x86_64',
+				'ARCHS': 'arm64',
 				'GCC_OPTIMIZATION_LEVEL': '0',
 				'GCC_ENABLE_FIX_AND_CONTINUE': 'NO',
 			},

@@ -1,10 +1,12 @@
 ﻿script "revDeployLibraryAndroid"
+
 local sAndroidRoot
 local sJavaRoot
 
 local sAvailableDevices
 #constant kDeployAndroidTargetSDK = "34"
 constant kDeployAndroidTargetSDK = "36"
+constant kANDROIDARCHS = "armeabi-v7a,arm64-v8a,x86,x86_64"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +88,7 @@ command deployDo pTargetStack, pTargetDevice
 
       local tABI
       put word 1 of line 1 of the result into tABI
-      if not (tABI is among the items of "armeabi-v7a,arm64-v8a,x86,x86_64") then
+      if not (tABI is among the items of kANDROIDARCHS) then
          put "Checking target device architecture failed:" && the result into tError
       end if
 
@@ -129,12 +131,6 @@ command deployDo pTargetStack, pTargetDevice
             "--apks", tTempApksFile, \
             "--device-id", tDeviceID, \
             "--adb", pathToAdb()
-      --      executeShellCommand pathToJava(), \
-      --            pathToBundleTool(), \
-      --            "install-apks", \
-      --            "--apks", tTempApksFile, \
-      --            "--device-id", tDeviceID, \
-      --            "--adb", pathToAdb()
       put the result into tResult
 
       if not (tResult contains "The APKs have been extracted") then
@@ -186,19 +182,16 @@ end __ABIArch
 
 command deployAutoconfigure
    local tSDK
-   #put the cMobileSupport["android.sdk"] of stack "revPreferences" into tSDK
    dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.sdk"
    put the result into tSDK
    if tSDK is not empty and deploy.IsValidSDK?(tSDK) is not empty then
       put empty into tSDK
    end if
-   #set the cMobileSupport["android.sdk"] of stack "revPreferences" to tSDK
    dispatch "setMobilePreference" to stack "revPreferencesGUI" with "android.sdk", tSDK
    put tSDK into sAndroidRoot
 
    if sAndroidRoot is not empty then
       local tJDK
-      #put the cMobileSupport["android.jdk"] of stack "revPreferences" into tJDK
       dispatch function "mobilePreference" to stack "revPreferencesGUI" with "android.jdk"
       put the result into tJDK
       if tJDK is empty or deploy.IsValidJDK?(tJDK) is not empty then
@@ -206,7 +199,6 @@ command deployAutoconfigure
          put the result into tJDK
       end if
       if tJDK is not empty then
-         #set the cMobileSupport["android.jdk"] of stack "revPreferences" to tJDK
          dispatch "setMobilePreference" to stack "revPreferencesGUI" with "android.jdk", tJDK
          put tJDK into sJavaRoot
       end if
@@ -237,11 +229,12 @@ command deployAutoconfigureJDK
    return empty
 end deployAutoconfigureJDK
 
+# TODO: why is this here?
 command deployAutoconfigureSDK
    return empty
 end deployAutoconfigureSDK
 
-on androidDevicesChanged
+private command androidDevicesChanged
    local tDevices
    put revAndroidListDevices() into tDevices
 
@@ -518,28 +511,7 @@ function searchBuildTools pRoot, pCommand
       filter tSDKFolders without ".*"
       set the folder to tOldFolder
 
-      --put param(0) && tSDKFolders & cr after msg
-
       return searchSDKbuildtoolsVersionsFor(pCommand, pRoot, tSDKFolders)
-      --      if tFolders is empty then return empty
-
-      --      put the itemdelimiter into tOldItem
-      --      set the itemdelimiter to "."
-
-      --      // sort version folders descending by x.x.x version numbers
-      --      sort lines of tFolders descending numeric by item 3 of each
-      --      sort lines of tFolders descending numeric by item 2 of each
-      --      sort lines of tFolders descending numeric by item 1 of each
-
-      --      set the itemdelimiter to tOldItem
-
-      --      local tPath
-      --      repeat for each line tVersion in tFolders
-      --         put pRoot & slash & "build-tools" & slash & tVersion & slash & pCommand into tPath
-      --         if there is a file tPath then
-      --            return tPath
-      --         end if
-      --      end repeat
    end if
    return empty
 end searchBuildTools
@@ -611,9 +583,9 @@ private function pathToBuildTool pRoot, pCommand
    return searchSDKbuildtoolsVersionsFor(pCommand, pRoot, tFolders)
 
    -- MM-2011-08-09: Update to look in platform-tools folder if not present in platforms/android-8/tools/
-   if there is a file pRoot & slash & "platforms/android-8/tools/" & pCommand then
-      return pRoot & slash & "platforms/android-8/tools/" & pCommand
-   end if
+#   if there is a file pRoot & slash & "platforms/android-8/tools/" & pCommand then
+#      return pRoot & slash & "platforms/android-8/tools/" & pCommand
+#   end if
 
 #   return pRoot & slash & "platform-tools/" & pCommand
    return pathToPlatformTool(pRoot, pCommand)
@@ -1268,23 +1240,23 @@ end pathToAndroidDependency
 ////////////////////////////////////////////////////////////////////////////////
 
 private command configureJavaRootWindows
-   local tVersion, tIs64Bit
-   put true into tIs64Bit
-   put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit", "CurrentVersion", tIs64Bit) into tVersion
+   local tVersion, tIs64Bit?
+   put true into tIs64Bit?
+   put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit", "CurrentVersion", tIs64Bit?) into tVersion
    if tVersion is empty then
-      put false into tIs64Bit
-      put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit", "CurrentVersion", tIs64Bit) into tVersion
+      put false into tIs64Bit?
+      put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit", "CurrentVersion", tIs64Bit?) into tVersion
    end if
 
    local tJavaHome
-   put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit\" & tVersion, "JavaHome", tIs64Bit) into tJavaHome
+   put getRegistryValue("HKEY_LOCAL_MACHINE\SOFTWARE\JavaSoft\Java Development Kit\" & tVersion, "JavaHome", tIs64Bit?) into tJavaHome
 
    return tJavaHome
 end configureJavaRootWindows
 
-private function getRegistryValue pKey, pValue, pUse64Bit
+private function getRegistryValue pKey, pValue, pUse64Bit?
    local tRegCmd, tValue
-   if pUse64Bit then
+   if pUse64Bit? then
       put $SystemRoot & slash & "sysnative" & slash & "reg.exe" into tRegCmd
       if there is no file tRegCmd then
          return empty
@@ -1298,7 +1270,7 @@ private function getRegistryValue pKey, pValue, pUse64Bit
    // reg.exe returns an error if the key or value is not found
 
    //return word 3 to -1 of the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/v" && quote & pValue & quote))
-   put the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && quote & pKey & quote && "/v" && quote & pValue & quote)) into tValue
+   put the last line of (word 1 to -1 of shell(tRegCmd && "QUERY" && q(pKey) && "/v" && q(pValue))) into tValue
    if word 1 of tValue is "ERROR:" then
       return empty
    end if
@@ -1306,9 +1278,9 @@ private function getRegistryValue pKey, pValue, pUse64Bit
 end getRegistryValue
 
 # never used ? : mdw 2025.07.12
-private function listRegistryRecursive pKey, pUse64Bit
+private function listRegistryRecursive pKey, pUse64Bit?
    local tRegCmd
-   if pUse64Bit then
+   if pUse64Bit? then
       put $SystemRoot & slash & "sysnative" & slash & "reg.exe" into tRegCmd
    else
       put empty into tRegCmd

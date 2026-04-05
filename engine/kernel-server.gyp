@@ -73,6 +73,7 @@
 			[
 				'include',
 				'src',
+				'/opt/homebrew/Cellar/openssl@3/3.6.1/include',
 			],
 			
 			'sources':

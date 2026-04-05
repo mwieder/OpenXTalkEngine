@@ -147,6 +147,15 @@
 						'product_extension': '',
 					},
 				],
+				[
+					'OS == "mac"',
+					{
+						'xcode_settings':
+						{
+							'OTHER_LDFLAGS': ['-undefined dynamic_lookup', '-lcustomcrypto', '-lcustomssl'],
+						},
+					},
+				],
 			],
 		},
 		{
@@ -175,6 +184,7 @@
 			'xcode_settings':
 			{
 				'INFOPLIST_FILE': 'rsrc/dbmysql-Info.plist',
+				'OTHER_LDFLAGS': ['-undefined dynamic_lookup', '-lcustomcrypto', '-lcustomssl'],
 			},
 			
 			'variables':
@@ -380,6 +390,7 @@
 			'xcode_settings':
 			{
 				'INFOPLIST_FILE': 'rsrc/dbpostgresql-Info.plist',
+				'OTHER_LDFLAGS': ['-undefined dynamic_lookup'],
 			},
 			
 			'variables':
@@ -426,6 +437,7 @@
 			'xcode_settings':
 			{
 				'INFOPLIST_FILE': 'rsrc/dbpostgresql-Info.plist',
+				'OTHER_LDFLAGS': ['-undefined dynamic_lookup'],
 			},
 			
 			'variables':

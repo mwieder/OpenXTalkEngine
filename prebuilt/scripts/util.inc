@@ -58,9 +58,9 @@ function makeBinary
 	if [ -e "${BUILDDIR}/${ARCHIVE_DESTINATION}/Makefile" ] ; then
 		echo "running make"
 		#mkdir -p ${BUILDDIR}/${ARCHIVE_DESTINATION}/build
-		#pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
+		pushd "${BUILDDIR}/${ARCHIVE_DESTINATION}"
 		make
-		#popd
+		popd
 	fi
 }
 

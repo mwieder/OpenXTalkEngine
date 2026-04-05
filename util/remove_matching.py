@@ -10,7 +10,7 @@
 import sys
 
 if len(sys.argv) < 3 or len(sys.argv) > 4:
-	print "ERROR: incorrect number of arguments"
+	print ("ERROR: incorrect number of arguments")
 	sys.exit(1)
 	
 file1 = set(open(sys.argv[1]).readlines())

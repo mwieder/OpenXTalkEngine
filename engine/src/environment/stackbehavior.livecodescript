@@ -24,14 +24,12 @@ local sActivateSession
 local sActivateChallenge
 local sActivateToken
 
-constant kLiveCode="LiveCode"
 constant kActivationUrl="http://www.runrev.com/activation-community/livecode"
 
 on startup pTest
    put pTest into sTest
 
-   --put the version & "-" & the buildNumber into sVersion
-   put the version & "-" & "xtalk" into sVersion
+   put the version & "-" & the buildNumber into sVersion
    put false into sUnlocked
    put false into sDevelopment
 

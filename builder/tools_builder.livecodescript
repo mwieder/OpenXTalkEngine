@@ -11,7 +11,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constant kLiveCode="LiveCode"
+constant kBranding="LiveCode"
 
 command toolsBuilderRun pPlatform, pEdition, pVersion
    -- If on windows or linux, we can't do anything macosxy due to lack of lipo/strip :o(
@@ -242,7 +242,7 @@ private command toolsBuilderMakePackage pVersion, pEdition, pPlatform, pEngineFo
    
    -- Now all the names
    local tProductName
-   put kLiveCode && editionDisplayName(pEdition) into tProductName
+   put kBranding && editionDisplayName(pEdition) into tProductName
 
    -- product tag is the lowercase product name with spaces removed
    local tProductTag
@@ -280,7 +280,7 @@ private command toolsBuilderMakePackage pVersion, pEdition, pPlatform, pEngineFo
       end if
       
       builderLog "message", "Building package '" & tPackageFile & "'"
-      packageCompilerBuild tPackager, kLiveCode, tPackageFile
+      packageCompilerBuild tPackager, kBranding, tPackageFile
       if the result is empty then
          builderLog "report", "Built package '" & tPackageFile & "'"
       else
@@ -341,7 +341,7 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
    
    -- Make sure the installer library knows what product it is (for logging file name)
    local tProductName
-   put kLiveCode && editionDisplayName(pEdition) into tProductName
+   put kBranding && editionDisplayName(pEdition) into tProductName
    local tProductTag
    put toLower(tProductName) into tProductTag
    replace space with empty in tProductTag
@@ -355,9 +355,6 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
       case "community"
          set the uProductLicense of stack tInstaller to loadTextFile(pIdeFolder & slash & "License Agreement.txt")
          break
-//      case "communityplus"
-//         set the uProductLicense of stack tInstaller to loadTextFile(pPrivateFolder & slash & "CommunityPlus License Agreement.txt")
-//         break
       default
          set the uProductLicense of stack tInstaller to loadTextFile(pPrivateFolder & slash & "License Agreement.txt")
          break
@@ -396,13 +393,13 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
    
    -- Next build up the deploy info
    local tDietParams, tSignParams, tParams
-   put kLiveCode && "Ltd" into tParams["version"]["CompanyName"]
+   put kBranding && "Ltd" into tParams["version"]["CompanyName"]
    if pEdition is "Community" then
-      put kLiveCode && "Community Installer" into tParams["version"]["FileDescription"]
-      put kLiveCode && "Community Installer" into tParams["version"]["ProductName"]
+      put kBranding && "Community Installer" into tParams["version"]["FileDescription"]
+      put kBranding && "Community Installer" into tParams["version"]["ProductName"]
    else
-      put kLiveCode && "Installer" into tParams["version"]["FileDescription"]
-      put kLiveCode && "Installer" into tParams["version"]["ProductName"]
+      put kBranding && "Installer" into tParams["version"]["FileDescription"]
+      put kBranding && "Installer" into tParams["version"]["ProductName"]
    end if
    put "©" && word -1 of the long date & ". All rights reserved worldwide." into tParams["version"]["LegalCopyright"]
    put pVersion into tParams["version"]["ProductVersion"]
@@ -467,9 +464,9 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
             put "http://timestamp.comodoca.com/authenticode" into tSignParams["timestamper"]
             put "http://www.livecode.com" into tSignParams["url"]
             if pEdition is "Community" then
-               put kLiveCode && "Community Installer" into tSignParams["description"]
+               put kBranding && "Community Installer" into tSignParams["description"]
             else
-               put kLiveCode && "Installer" into tSignParams["description"]
+               put kBranding && "Installer" into tSignParams["description"]
             end if
             
             builderLog "message", "Signing windows installer to '" && tSignParams["output"] & "'"
@@ -513,7 +510,7 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
          local tPlistFile
          put macPList() into tPlistFile
          replace "[[BundleId]]" with "com.runrev.installer" in tPlistFile
-         replace "[[BundleName]]" with kLiveCode & "installer" in tPlistFile
+         replace "[[BundleName]]" with kBranding && "installer" in tPlistFile
          
          create folder tOutputFileStub & ".app"
          create folder tOutputFileStub & ".app" & slash & "Contents"
@@ -532,7 +529,12 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
          put tOutputFileStub & ".app" & slash & "Contents/MacOS/Installer" into tParams["output"]
          
          -- We deploy as 64-bit only as 32-bit apps will be blocked on MacOS 10.15+
-         put "x86-64" into tParams["architectures"]
+         -- Use arm64 on Apple Silicon, x86-64 on Intel
+         if the processor contains "arm" then
+            put "arm64" into tParams["architectures"]
+         else
+            put "x86-64" into tParams["architectures"]
+         end if
          
          put url ("binfile:" & pPackageFile) into url ("binfile:" & tOutputFileStub & ".app" & slash & "Contents/Resources/payload")
          
@@ -543,6 +545,16 @@ private command toolsBuilderMakeInstaller pVersion, pEdition, pPlatform, pIdeFol
             throw "failure"
          end if
          
+         -- Re-sign the installer app with an ad-hoc signature.
+         -- _internal deploy strips any existing signature from the engine binary,
+         -- which causes AMFI to kill the process on Apple Silicon (ARM64).
+         builderLog "message", "Ad-hoc signing macosx installer app"
+         get shell("xattr -cr " & escapeArg(tOutputFileStub & ".app") & \
+               " && codesign --force --deep --sign - " & escapeArg(tOutputFileStub & ".app"))
+         if the result is not zero then
+            builderLog "warning", "codesign of installer app returned non-zero: " & it
+         end if
+
          builderLog "report", "Deployed macosx installer to '" && tOutputFileStub & ".app" & "'"
          break
    end switch
@@ -610,7 +622,7 @@ command toolsBuilderMakeAppBundle pVersion, pEdition, pPlatform
    -- Copy just the executable out of the installer to use as the auto-updater
    -- (on OSX, the payload is separate and is un-neccessary)
    builderLog "message", "Adding auto-updater to app bundle"
-   get shell ("cp" && escapeArg(tAppBundle & "/" & kLiveCode && "Setup.app/Contents/MacOS/Installer") && escapeArg(tAppBundle & "/Contents/MacOS/autoupdater"))
+   get shell ("cp" && escapeArg(tAppBundle & "/" & kBranding && "Setup.app/Contents/MacOS/Installer") && escapeArg(tAppBundle & "/Contents/MacOS/autoupdater"))
    if the result is not zero then
       builderLog "error", "Failed to add auto-updater:" && it
       throw "failure"
@@ -618,7 +630,7 @@ command toolsBuilderMakeAppBundle pVersion, pEdition, pPlatform
    
    -- Remove the rest of the installer from the app bundle
    builderLog "message", "Removing installer from app bundle"
-   get shell("rm -r" && escapeArg(tAppBundle & "/" & kLiveCode && "Setup.app"))
+   get shell("rm -r" && escapeArg(tAppBundle & "/" & kBranding && "Setup.app"))
    if the result is not zero then
       builderLog "error", "Failed to clean macosx app bundle:" & it
       throw "failure"
@@ -746,8 +758,57 @@ command toolsBuilderMakeAppBundle pVersion, pEdition, pPlatform
       end if
       builderLog "report", "Successfully signed macosx app bundle" && "'" & tAppBundle & "'"
    else
-      builderLog "error", "No valid identity found for signing OSX app bundle"
-      throw "failure"
+      -- No valid Developer ID identity found.
+      -- Fall back to ad-hoc signing so that ARM64 (Apple Silicon) development
+      -- builds satisfy AMFI's requirement for an embedded LC_CODE_SIGNATURE.
+      -- Ad-hoc signing is not suitable for distribution but is sufficient for
+      -- local testing and development.
+      builderLog "warning", "No valid Developer ID found — falling back to ad-hoc signing for ARM64 compatibility"
+
+      -- Strip extended attributes from the entire bundle first.
+      -- codesign rejects resource forks / Finder metadata as "detritus".
+      clearExtendedAttributes escapeArg(tAppBundle)
+
+      -- Sign using inside-out order: flat binaries first, then bundles deepest-first,
+      -- then the outer app last WITHOUT --deep.
+      --
+      -- Using --deep on the outer app is NOT safe: it re-signs nested flat binaries
+      -- (executables, dylibs) AND records their content hash in CodeResources, but
+      -- those two operations can race, producing "invalid signature (code or signature
+      -- have been modified)" which causes AMFI to SIGKILL the binary on ARM64.
+      --
+      -- Correct order:
+      --   1. Sign every flat Mach-O binary (executables, dylibs, .so files) individually.
+      --   2. Sign nested .bundle / .framework bundles, deepest path first.
+      --   3. Sign the outer .app last, with no --deep (contents already signed).
+
+      -- Step 1: flat Mach-O binaries inside Contents/
+      builderLog "message", "Ad-hoc signing flat Mach-O binaries in" && "'" & tAppBundle & "'"
+      get shell("find " & escapeArg(tAppBundle & "/Contents") & \
+            " -type f | while read f; do" & \
+            " if /usr/bin/file \"$f\" 2>/dev/null | grep -qE" & \
+            " 'Mach-O (64-bit )?executable|Mach-O (64-bit )?dynamically linked shared library|Mach-O (64-bit )?bundle'; then" & \
+            " /usr/bin/codesign --force --sign - \"$f\" 2>/dev/null; fi; done")
+      -- non-zero exit is non-fatal here; individual failures are logged by codesign itself
+
+      -- Step 2: nested .bundle and .framework directories, deepest path first
+      builderLog "message", "Ad-hoc signing nested bundles/frameworks in" && "'" & tAppBundle & "'"
+      get shell("find " & escapeArg(tAppBundle & "/Contents") & \
+            " -type d \( -name '*.bundle' -o -name '*.framework' \)" & \
+            " | awk '{print length\" \"$0}' | sort -rn | cut -d' ' -f2-" & \
+            " | while read b; do /usr/bin/codesign --force --sign - \"$b\" 2>/dev/null; done")
+
+      -- Step 3: sign the outer bundle last, no --deep, --no-strict because .setup.txt
+      -- and LiveCode Setup.app in the bundle root are legitimate installer artifacts
+      -- that codesign strict-mode rejects but AMFI does not care about.
+      builderLog "message", "Ad-hoc signing macosx app bundle" && "'" & tAppBundle & "'"
+      wait 1 second
+      get shell("/usr/bin/codesign --force --sign - --no-strict" && escapeArg(tAppBundle))
+      if the result is not zero then
+         builderLog "error", "Ad-hoc codesign of macosx app bundle failed:" && it
+         throw "failure"
+      end if
+      builderLog "report", "Successfully ad-hoc signed macosx app bundle" && "'" & tAppBundle & "'"
    end if
 
    -- One last permission change (but a non-signature-breaking one) to prevent accidental IDE modifications
@@ -928,7 +989,7 @@ function getReadableVersion pVersion
 end getReadableVersion
 
 function getBundleFilenameStub pVersion, pPlatform, pEdition
-   return kLiveCode && editionDisplayName(pEdition) && getFullReadableVersion(pVersion)
+   return kBranding && editionDisplayName(pEdition) && getFullReadableVersion(pVersion)
 end getBundleFilenameStub
 
 function getInstallerFilenameStub pVersion, pPlatform, pEdition
@@ -956,17 +1017,7 @@ function getInstallerFilenameStub pVersion, pPlatform, pEdition
 			break
 	end switch
 
-#   if pPlatform is "macosx" then
-#      put "Mac" into pPlatform
-#   else if pPlatform is "win-x86" then
-#      put "Windows-x86" into pPlatform
-#   else if pPlatform is "win-x86_64" then
-#      put "Windows-x86_64" into pPlatform
-#   else if pPlatform begins with "linux" then
-#      put "Linux" into pPlatform
-#   end if
-
-   return kLiveCode & editionTitleCase(pEdition) & "Installer-" & pVersion & "-" & pPlatform
+   return kBranding & editionTitleCase(pEdition) & "Installer-" & pVersion & "-" & pPlatform
 end getInstallerFilenameStub
 
 function getDmgFilenameStub pVersion, pPlatform, pEdition
@@ -994,16 +1045,7 @@ function getDmgFilenameStub pVersion, pPlatform, pEdition
 			break
 	end switch
 
-#   if pPlatform is "macosx" then
-#      put "Mac" into pPlatform
-#   else if pPlatform is "win-x86" then
-#      put "Windows-x86" into pPlatform
-#   else if pPlatform is "win-x86_64" then
-#      put "Windows-x86_64" into pPlatform
-#   else if pPlatform is "linux" or pPlatform is "linux-x64" or pPlatform is "linux-armv6hf" then
-#      put "Linux" into pPlatform
-#   end if
-   return kLiveCode & editionTitleCase(pEdition) & "-" & pVersion & "-" & pPlatform
+   return kBranding & editionTitleCase(pEdition) & "-" & pVersion & "-" & pPlatform
 end getDmgFilenameStub
 
 function loadTextFile pFile

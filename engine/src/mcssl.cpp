@@ -41,6 +41,11 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 #include <openssl/rsa.h>
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
+
+#ifdef TARGET_PLATFORM_MACOS_X
+#include <Security/SecTrust.h>
+#include <Security/SecCertificate.h>
+#endif
 #endif
 
 #ifdef _WIN32

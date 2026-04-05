@@ -1,0 +1,14 @@
+exec-interface-object.cpp:        if (!(hlist->getlocalnames(&t_local_list) &&
+exec-interface-object.cpp:        if (!(hlist->getglobalnames(&t_global_list) &&
+handler.cpp:	return hlist->findvar(p_name, true, dptr);
+handler.cpp:	return hlist->findconstant(p_name, dptr);
+handler.cpp:		MCNameRef t_global_name = hlist->getglobal(i)->getname();
+handler.cpp:	if (!(hlist->getlocalnames(&t_script_variable_list) &&
+module-engine.cpp:                 !t_hlist->listconstants(__MCEngineDescribeScriptOfScriptObject_ConstantCallback,
+module-engine.cpp:                 !t_hlist->listvariables(__MCEngineDescribeScriptOfScriptObject_VariableCallback,
+module-engine.cpp:                 !t_hlist->listglobals(__MCEngineDescribeScriptOfScriptObject_VariableCallback,
+module-engine.cpp:             !t_hlist->listhandlers(__MCEngineDescribeScriptOfScriptObject_HandlerCallback,
+object.cpp:	if (scriptdepth == 0 && hlist != NULL && !hlist->hasvars())
+object.cpp:                t_stat = hlist->parse(this, t_utf8_script);
+object.cpp:                t_stat = hlist->parse(this, kMCEmptyString);
+stack2.cpp:	if (!hlist->hashandlers())

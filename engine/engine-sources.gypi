@@ -66,7 +66,6 @@
 			'src/ask.h',
 			'src/chunk.h',
 			'src/cmds.h',
-#			'src/constant.h',
 			'src/date.h',
 			'src/executionerrors.h',
 			'src/express.h',
@@ -329,7 +328,7 @@
             'src/widget-popup.cpp',
 
 			# Group "Desktop"
-			'src/dskmac.cpp',
+			'src/dskmac.mm',
 			'src/dsklnx.cpp',
 			'src/dskw32.cpp',
 
@@ -541,7 +540,6 @@
 			'src/srvscript.h',
 			'src/srvscript.cpp',
 
-
 			# Group "Text"
 			'src/text.h',
 			#'src/text-api.h',
@@ -725,6 +723,7 @@
 			'src/mac-sound.mm',
 			'src/mac-surface.mm',
 			'src/mac-window.mm',
+				'src/mac-stubs-arm64.mm',
 			'src/osxcisupport.mm',
 			'src/osxcoreimage.cpp',
 			'src/osxfield.cpp',
@@ -886,6 +885,7 @@
 		# Sources for the server builds only
 		'engine_server_source_files':
 		[
+			'src/mac-server-stubs-arm64.mm',
 			'src/srvcgi.h',
 			'src/srvdebug.h',
 			'src/srvmain.h',
@@ -1043,12 +1043,12 @@
 
 	'target_defaults':
 	{
-						'defines':
-						[
-							'HAVE_CONFIG_H=1',
-							'PCRE_STATIC=1',
-							'PCRE2_CODE_UNIT_WIDTH=16',
-						],
+		'defines':
+		[
+			'HAVE_CONFIG_H=1',
+			'PCRE_STATIC=1',
+			'PCRE2_CODE_UNIT_WIDTH=16',
+		],
 		'include_dirs':
 		[
 			'>(INTERMEDIATE_DIR)/src',

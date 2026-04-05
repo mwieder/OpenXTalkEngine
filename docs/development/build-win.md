@@ -3,6 +3,7 @@
 ![LiveCode Community Logo](http://livecode.com/wp-content/uploads/2015/02/livecode-logo.png)
 
 Copyright © 2015-2019 LiveCode Ltd., Edinburgh, UK
+Updated by Mark Wieder March 2026
 
 ## Dependencies
 
@@ -12,11 +13,15 @@ The Windows build scripts currently don't have any ability to auto-discover tool
 
 You will need to install [git for Windows](https://git-scm.com/download/win) in order to obtain the LiveCode source code from GitHub.
 
+Once git is installed you can download the source files from a commandline:
+(the recurse-submodules options brings in the ide, thirdparty, and prebuilt submodules)
+git clone --recurse-submodules https://github.com/livecode/livecode.git
+
 ### Microsoft Visual Studio
 
 You need a set of Visual Studio build tools and SDKS.  You can use either:
 
-- [Microsoft Visual Studio 2017 Build Tools](https://visualstudio.microsoft.com/downloads/?q=build+tools+2017#other),
+- [Microsoft Visual Studio 2017 Build Tools](https://aka.ms/vs/15/release/vs_buildtools.exe),
   which contains _only_ the compilers and libraries, without any user
   interface; select everything in the installer
 
@@ -73,20 +78,10 @@ When you get to the Select Packages screen in the Cygwin installer do the follow
 
 The build process also requires:
 
-* [ActiveState Perl](https://www.activestate.com/activeperl/downloads) Community Edition
+* [Strawberry Perl](https://strawberryperl.com/)
 * [Python 2.7](https://www.python.org/) (Python 3 isn't supported)
 
-#### Perl install note: Add Perl to the PATH environment variable
-
-The option to add Perl to PATH will be checked by default. Leave it checked.
-
-![Perl Install 1](./images/add-perl-to-the-path-environment-variable.png)
-
 #### Python install note: Add Python 2.7 to `PATH`
-
-With the Python 2.7 installer you have to customize the installation so that the Python.exe is added to `PATH`. Scroll to the bottom of the list of customizations and activate **Add python.exe to Path**.
-
-![Python Install 1](./images/add-python-27-to-path.png)
 
 ## Configuring LiveCode
 

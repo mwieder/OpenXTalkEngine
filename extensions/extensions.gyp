@@ -153,6 +153,16 @@
 				'libraries/timezone/timezone.lcb',
 				'libraries/macstatusmenu/macstatusmenu.lcb',
 
+				'libraries/macoswindowresizeanimation/macoswindowresizeanimation.lcb',
+				'libraries/macosrequestuserattention/macosrequestuserattention.lcb',
+				'libraries/macoscontacts/macoscontacts.lcb',
+				'libraries/macosdock/macosdock.lcb',
+				'libraries/macosfsevents/macosfsevents.lcb',
+				'libraries/macoskeychain/macoskeychain.lcb',
+				'libraries/macosmenubar/macosmenubar.lcb',
+				'libraries/macostoolbar/macostoolbar.lcb',
+				'libraries/macosusernotifications/macosusernotifications.lcb',
+
 				'widgets/androidbutton/androidbutton.lcb',
 				'widgets/androidfield/androidfield.lcb',
 				'widgets/html5button/html5button.lcb',

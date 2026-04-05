@@ -81,10 +81,6 @@
 
 						'dependencies':
 						[
-#							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_skia',
-#							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_freetype',
-#							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_harfbuzz',
-
 							'../thirdparty/libskia/libskia.gyp:libskia',
 							'../thirdparty/libfreetype/libfreetype.gyp:libfreetype',
 							'../thirdparty/libharfbuzz/libharfbuzz.gyp:libharfbuzz',
@@ -101,6 +97,7 @@
 								# native callback function, so force the symbol to be included as otherwise it
 								# will be discarded by the linker because nothing in the file is used statically
 								'-Wl,--undefined,Java_com_runrev_android_LCBInvocationHandler_doNativeListenerCallback',
+								'-Wl,--undefined,Java_com_hyperxtalk_android_LCBInvocationHandler_doNativeListenerCallback',
 							],
 						},
 					},
@@ -115,9 +112,6 @@
 
 						'dependencies':
 						[
-#							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_skia',
-#							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_freetype',
-
 							'../thirdparty/libskia/libskia.gyp:libskia',
 							'../thirdparty/libfreetype/libfreetype.gyp:libfreetype',
 						],
@@ -256,7 +250,6 @@
 						{
 							'libraries':
 							[
-#								'-lGLESv1_CM',
 								'-lGLESv3',
 								'-lEGL',
 								'-ljnigraphics',

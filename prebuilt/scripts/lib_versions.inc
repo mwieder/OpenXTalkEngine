@@ -36,10 +36,10 @@ function readVersion {
 
 readVersion OpenSSL
 readVersion ICU
-readVersion Curl
 readVersion CEF
 readVersion CEFChromium
 #readVersion CEFBuildversion
+readVersion Curl
 readVersion libz
 readVersion libzip
 readVersion libgif
@@ -47,6 +47,7 @@ readVersion libjpeg
 readVersion libpng
 readVersion libfreetype
 readVersion libcairo
+readVersion libiodbc
 
 #readVersion Thirdparty
 

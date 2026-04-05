@@ -8,15 +8,23 @@ source "${BASEDIR}/scripts/platform.inc"
 echo "platform = ${PLATFORM}"
 source "${BASEDIR}/scripts/lib_versions.inc"
 echo "openssl version=${OpenSSL_VERSION}"
-echo "Thirdparty_LIBS_linux=${Thirdparty_LIBS_linux}"
+#echo "Thirdparty_LIBS_linux=${Thirdparty_LIBS_linux}"
 
 source "${BASEDIR}/scripts/util.inc"
 
-# Grab the source for the library
-# https://github.com/openssl/openssl/releases/download/openssl-3.4.1/openssl-3.4.1.tar.gz
-OLDV="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1v/openssl-1.1.1v.tar.gz"
 
-OPENSSL_ROOT="https://github.com/openssl/openssl/releases/download/OpenSSL"
+
+# Grab the source for the library
+#if [ ${OpenSSL_VERSION} == "1.1.1" ] ; then
+    # otherwise use the old version (1.1.1)
+#    OLDV="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1v/openssl-1.1.1v.tar.gz"
+#else
+    # when we can move from 1.1.1 use this url
+    #https://github.com/openssl/openssl/releases/download/openssl-4.0.0-alpha1/openssl-4.0.0-alpha1.tar.gz
+#    OPENSSL_ROOT="https://github.com/openssl/openssl/releases/download/OpenSSL"
+#fi
+
+#OPENSSL_ROOT="https://github.com/openssl/openssl/releases/download/openssl"
 #OPENSSL_ROOT="https://www.openssl.org/source/openssl-"
 OPENSSL_TGZ="openssl-${OpenSSL_VERSION}.tar.gz"
 OPENSSL_SRC="openssl-${OpenSSL_VERSION}"
@@ -27,10 +35,22 @@ if [ ! -d "$OPENSSL_SRC" ] ; then
 	echo "local openssl directory not found"
 	if [ ! -e "$OPENSSL_TGZ" ] ; then
 		echo "no openssl .gz file found"
-		echo "Fetching OpenSSL source"
-		fetchUrl "${OLDV}" "${OPENSSL_TGZ}"
-#		fetchUrl "${OPENSSL_ROOT}-${OpenSSL_VERSION}/openssl-${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
-#		fetchUrl "${OPENSSL_ROOT}${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+#		echo "Fetching OpenSSL source"
+
+        # use this for version 1.1.1
+        if [ ${OpenSSL_VERSION} == "1.1.1v" ] ; then
+            OLDV="https://github.com/openssl/openssl/releases/download/OpenSSL_1_1_1v/openssl-1.1.1v.tar.gz"
+		    echo "Fetching OpenSSL source from ${OLDV}"
+	        fetchUrl "${OLDV}" "${OPENSSL_TGZ}"
+        else
+        # and this one for newer versions
+            OPENSSL_ROOT="https://github.com/openssl/openssl/releases/download/openssl"
+		    echo "Fetching OpenSSL source from ${OPENSSL_ROOT}-${OpenSSL_VERSION}/openssl-${OpenSSL_VERSION}.tar.gz"
+    		fetchUrl "${OPENSSL_ROOT}-${OpenSSL_VERSION}/openssl-${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+        #		fetchUrl "${OPENSSL_ROOT}-${OpenSSL_VERSION}/openssl-${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+        #		fetchUrl "${OPENSSL_ROOT}${OpenSSL_VERSION}.tar.gz" "${OPENSSL_TGZ}"
+        fi
+
 		if [ $? != 0 ] ; then
 			echo "    failed"
 			if [ -e "${OPENSSL_TGZ}" ] ; then
@@ -57,7 +77,7 @@ function buildOpenSSL {
 	# Each target type in OpenSSL is given a name
 	case "${PLATFORM}" in
 		mac)
-			if [ "${ARCH}" == "x86_64" -o "${ARCH}" == "ppc64" ] ; then
+			if [ "${ARCH}" == "x86_64" -o "${ARCH}" == "ppc64" -o "${ARCH}" == "arm64" ] ; then
 				SPEC="darwin64-${ARCH}-cc"
 			else
 				SPEC="darwin-${ARCH}-cc"
@@ -195,9 +215,15 @@ EOF
 		CRYPTO_LIBS+="${INSTALL_DIR}/${NAME}/lib/libcrypto.a "
 		SSL_LIBS+="${INSTALL_DIR}/${NAME}/lib/libssl.a "
 	else
-		mkdir -p "${OUTPUT_DIR}/lib/${NAME}"
-		cp "${INSTALL_DIR}/${NAME}/lib/libcrypto.a" "${OUTPUT_DIR}/lib/${NAME}/libcustomcrypto.a"
-		cp "${INSTALL_DIR}/${NAME}/lib/libssl.a" "${OUTPUT_DIR}/lib/${NAME}/libcustomssl.a"
+ 		mkdir -p "${OUTPUT_DIR}/lib/${NAME}"
+#        if [ ${OpenSSL_VERSION} == "1.1.1v" ] ; then
+	    if [ -e "${INSTALL_DIR}/${NAME}/lib/libcrypto.a" ] ; then
+   		    cp "${INSTALL_DIR}/${NAME}/lib/libcrypto.a" "${OUTPUT_DIR}/lib/${NAME}/libcustomcrypto.a"
+    		cp "${INSTALL_DIR}/${NAME}/lib/libssl.a" "${OUTPUT_DIR}/lib/${NAME}/libcustomssl.a"
+        else
+		    cp "${INSTALL_DIR}/${NAME}/lib64/libcrypto.a" "${OUTPUT_DIR}/lib/${NAME}/libcustomcrypto.a"
+		    cp "${INSTALL_DIR}/${NAME}/lib64/libssl.a" "${OUTPUT_DIR}/lib/${NAME}/libcustomssl.a"
+        fi
 	fi
 
 	mkdir -p "${OUTPUT_DIR}/include"

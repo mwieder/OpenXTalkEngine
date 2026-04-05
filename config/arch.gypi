@@ -40,6 +40,12 @@
 					},
 				],
 				[
+					'uname_m == "arm64" or uname_m == "aarch64"',
+					{
+						'host_arch': 'arm64',
+					},
+				],
+				[
 					'OS == "mac" or OS == "ios" or uname_s == "Darwin"',
 					{
 						'host_os': 'mac',
