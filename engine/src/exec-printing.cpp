@@ -38,7 +38,7 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 
 #include "exec.h"
 
-const char * PS_FNAME = "/tmp/tmpprintfile.ps";
+const char * C_FNAME = "/tmp/tmpprintfile.ps";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,7 +167,7 @@ static void MCPrintingPrintDeviceOutputFormat(MCExecContext& ctxt, const MCPrint
 	switch(p_input -> type)
 	{
 		case PRINTER_OUTPUT_DEVICE:
-            if (MCStringFormat(r_output, "file:%@", PS_FNAME))
+            if (MCStringFormat(r_output, "file:%@", C_FNAME))
                 {}
 			if (MCStringCreateWithCString("device", r_output))
 				return;
@@ -781,7 +781,7 @@ void MCPrintingGetPrintDeviceOutput(MCExecContext& ctxt, MCPrintingPrintDeviceOu
 	}
 	else
 		//r_output . location = nil;
-		if (!MCStringCreateWithBytes((byte_t*)PS_FNAME, strlen(PS_FNAME), kMCStringEncodingUTF8, false, r_output . location))
+		if (!MCStringCreateWithBytes((byte_t*)C_FNAME, strlen(C_FNAME), kMCStringEncodingUTF8, false, r_output . location))
 		{
 			ctxt . Throw();
 			return;

@@ -17,7 +17,6 @@
 			[
 				'../libcore/libcore.gyp:libCore',
 				'../libexternal/libexternal.gyp:libExternal',
-#				'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_cairo',
 				'../thirdparty/libcairo/libcairo.gyp:libcairo',
 			],
 			
@@ -77,7 +76,6 @@
 
 						'dependencies':
 						[
-#							'../prebuilt/thirdparty.gyp:thirdparty_prebuilt_freetype',
 							'../thirdparty/libfreetype/libfreetype.gyp:libfreetype',
 						],
 					},

@@ -53,7 +53,8 @@ along with LiveCode.  If not see <http://www.gnu.org/licenses/>.  */
 // NOTE: cups requires sudo apt install libcups2-dev
 #include <cups/cups.h>
 
-const char * C_FNAME = "/tmp/tmpprintfile.ps";
+// 2023.06.13 mdw feature_linux_printing : avoid magic strings thusly
+const char * PS_FNAME = "/tmp/tmpprintfile.ps";
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -243,14 +244,9 @@ static void exec_command(char *command);
 
 MCPrinterResult MCPSPrinter::DoBeginPrint(MCStringRef p_document, MCPrinterDevice*& r_device)
 {
-	const char *t_output_file;
-	//if (GetDeviceOutputType() == PRINTER_OUTPUT_FILE)
-        t_output_file = C_FNAME;
-		//t_output_file = GetDeviceOutputLocation();
-	//else
-        //t_output_file = C_FNAME;
-		//t_output_file = GetDeviceOutputLocation();
-    
+    const char *t_output_file;
+    t_output_file = PS_FNAME;
+
     // Create a stringref from the output path.
     MCAutoStringRef t_path;
     /* UNCHECKED */ MCStringCreateWithCString(t_output_file, &t_path);
@@ -286,8 +282,8 @@ MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
 	
         if (GetDeviceOutputType() == PRINTER_OUTPUT_DEVICE)
         {
-// mdw 2022-05-19 # can't use lp - permissions problem.
 
+// mdw 2022-05-19 # can't use lp - needs elevated privileges.
             if ( m_printersettings . printername != NULL )
                 name = m_printersettings . printername ;
             else
@@ -298,13 +294,10 @@ MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
             else
                num_options = cupsAddOption ("orientation", "portrait", num_options, &options);
             
-             if ( m_printersettings . copies > 1 )
-               num_options = cupsAddIntegerOption ("copies", m_printersettings . copies, num_options, &options);
-            
-           if ( m_printersettings . collate )
+            if ( m_printersettings . collate )
                 num_options = cupsAddOption ("Collate", "True", num_options, &options);
             
-             switch ( m_printersettings . duplex_mode )
+            switch ( m_printersettings . duplex_mode )
             {
                     case PRINTER_DUPLEX_MODE_SHORT_EDGE:
                         num_options = cupsAddOption ("Duplex", "DuplexTumble", num_options, &options);
@@ -318,7 +311,7 @@ MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
             }
 
             jobID = cupsPrintFile(name,	// I - Printer or class name
-                          C_FNAME,	    // I - File to print
+                          PS_FNAME,	    // I - File to print
                           title,	    // I - Title of job
                           num_options,  // I - Number of options
                           options);	    // I - Options
@@ -330,10 +323,7 @@ MCPrinterResult MCPSPrinter::DoEndPrint(MCPrinterDevice* p_device)
     delete m_pdf_printer;
     m_pdf_printer = nil;
 	
-    //if (IPP_OK == status)
 	    return PRINTER_RESULT_SUCCESS;
-    //else
-        //return PRINTER_RESULT_CANCEL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
